@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+grading/venv/
+
+# Gradle / Java build
+back/build/
+back/.gradle/
+
+# Flutter build
+front/build/
+
+# IDE / Claude
+.claude/settings.local.json
