@@ -1,6 +1,5 @@
 package com.fury.back.domain.grading;
 
-import com.fury.back.common.IdGenerator;
 import com.fury.back.common.ReturnData;
 import com.fury.back.domain.grading.dto.GradingAnalysisDto;
 import com.fury.back.domain.grading.dto.GradingResultDto;
@@ -15,47 +14,28 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class GradingServiceImpl implements GradingService {
 
-    private final GradingResultRepository repository;
     private final RestTemplate restTemplate;
 
     @Value("${grading.service.url}")
     private String gradingServiceUrl;
 
     @Override
-    public ReturnData<GradingResultDto> analyze(Map<String, MultipartFile> photos, String userId, String cardId) {
+    public ReturnData<GradingResultDto> analyze(Map<String, MultipartFile> photos) {
         GradingAnalysisDto analysis = callPythonService(photos);
-
-        GradingResult entity = GradingResult.builder()
-                .resultId(IdGenerator.generate())
-                .userId(userId)
-                .cardId(cardId)
+        return ReturnData.success(GradingResultDto.builder()
                 .centeringScore(analysis.getCenteringScore())
                 .cornerScore(analysis.getCornerScore())
                 .surfaceScore(analysis.getSurfaceScore())
                 .whiteningScore(analysis.getWhiteningScore())
                 .totalScore(analysis.getTotalScore())
                 .heavyWhitening(analysis.isHeavyWhitening())
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        repository.save(entity);
-        return ReturnData.success(toDto(entity));
-    }
-
-    @Override
-    public ReturnData<List<GradingResultDto>> getHistory(String userId) {
-        List<GradingResultDto> list = repository.findByUserIdOrderByCreatedAtDesc(userId)
-                .stream().map(this::toDto).collect(Collectors.toList());
-        return ReturnData.success(list);
+                .build());
     }
 
     private GradingAnalysisDto callPythonService(Map<String, MultipartFile> photos) {
@@ -76,19 +56,5 @@ public class GradingServiceImpl implements GradingService {
         ResponseEntity<GradingAnalysisDto> response = restTemplate.postForEntity(
                 gradingServiceUrl + "/analyze", request, GradingAnalysisDto.class);
         return response.getBody();
-    }
-
-    private GradingResultDto toDto(GradingResult e) {
-        return GradingResultDto.builder()
-                .resultId(e.getResultId())
-                .cardId(e.getCardId())
-                .centeringScore(e.getCenteringScore())
-                .cornerScore(e.getCornerScore())
-                .surfaceScore(e.getSurfaceScore())
-                .whiteningScore(e.getWhiteningScore())
-                .totalScore(e.getTotalScore())
-                .heavyWhitening(e.isHeavyWhitening())
-                .createdAt(e.getCreatedAt())
-                .build();
     }
 }
