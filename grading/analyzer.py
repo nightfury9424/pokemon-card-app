@@ -136,4 +136,33 @@ class GradingAnalyzer:
         return round(min(10.0, score), 1), heavy
 
     def analyze(self, front, back, corners: list) -> AnalysisResult:
-        raise NotImplementedError
+        centering = self.analyze_centering(front)
+        corner_scores = [self.analyze_corner(c) for c in corners]
+        corner_avg = round(sum(corner_scores) / len(corner_scores), 1)
+        surface_front = self.analyze_surface(front)
+        surface_back = self.analyze_surface(back)
+        surface_avg = round((surface_front + surface_back) / 2, 1)
+        whitening_score, heavy = self.analyze_whitening(back)
+        back_corner_whitening = [self.analyze_whitening(c)[0] for c in corners[4:]]
+        whitening_combined = round((whitening_score + sum(back_corner_whitening) / 4) / 2, 1)
+        _, heavy = self.analyze_whitening(back)
+
+        weighted = (
+            centering * 0.15 +
+            corner_avg * 0.35 +
+            surface_avg * 0.25 +
+            whitening_combined * 0.25
+        )
+        if heavy:
+            weighted *= 0.85
+
+        total = round(min(10.0, max(1.0, weighted)), 1)
+
+        return AnalysisResult(
+            centering_score=centering,
+            corner_score=corner_avg,
+            surface_score=surface_avg,
+            whitening_score=whitening_combined,
+            total_score=total,
+            heavy_whitening=heavy,
+        )

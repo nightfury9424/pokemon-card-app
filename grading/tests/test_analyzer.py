@@ -125,3 +125,26 @@ def test_whitening_returns_tuple():
     score, heavy = result
     assert 1.0 <= score <= 10.0
     assert isinstance(heavy, bool)
+
+
+def test_full_analyze_returns_result():
+    front = make_card_image()
+    back = make_back_image()
+    corners = [make_corner_image(sharp=True)] * 8
+    result = analyzer.analyze(front, back, corners)
+    assert hasattr(result, 'total_score')
+    assert hasattr(result, 'centering_score')
+    assert hasattr(result, 'corner_score')
+    assert hasattr(result, 'surface_score')
+    assert hasattr(result, 'whitening_score')
+    assert hasattr(result, 'heavy_whitening')
+    assert 1.0 <= result.total_score <= 10.0
+
+def test_heavy_whitening_penalizes_total():
+    front = make_card_image()
+    back_clean = make_back_image(whitening_ratio=0.0)
+    back_heavy = make_back_image(whitening_ratio=0.2)
+    corners = [make_corner_image()] * 8
+    result_clean = analyzer.analyze(front, back_clean, corners)
+    result_heavy = analyzer.analyze(front, back_heavy, corners)
+    assert result_heavy.total_score < result_clean.total_score
