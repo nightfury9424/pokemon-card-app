@@ -93,7 +93,14 @@ class GradingAnalyzer:
             return 8.0
 
     def analyze_corner(self, image) -> float:
-        raise NotImplementedError
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+        edges = cv2.Canny(blurred, 30, 100)
+        edge_density = np.count_nonzero(edges) / edges.size
+        # 선명한 코너: 명확한 직선 엣지 많음(높은 density)
+        # 마모된 코너: 라운딩으로 엣지 적음(낮은 density)
+        score = min(10.0, max(1.0, edge_density * 200))
+        return round(score, 1)
 
     def analyze_surface(self, image) -> float:
         raise NotImplementedError
