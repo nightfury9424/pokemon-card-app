@@ -39,3 +39,59 @@ def test_centering_returns_float():
     score = analyzer.analyze_centering(img)
     assert isinstance(score, float)
     assert 1.0 <= score <= 10.0
+
+
+def make_corner_image(sharp=True):
+    """코너 이미지 합성. sharp=True면 선명한 코너, False면 마모."""
+    img = np.ones((150, 150, 3), dtype=np.uint8) * 180
+    if sharp:
+        cv2.rectangle(img, (10, 10), (140, 140), (30, 30, 30), 2)
+        cv2.line(img, (10, 10), (30, 10), (0, 0, 0), 3)
+        cv2.line(img, (10, 10), (10, 30), (0, 0, 0), 3)
+    else:
+        cv2.ellipse(img, (30, 30), (20, 20), 0, 180, 270, (30, 30, 30), 2)
+    return img
+
+def test_corner_sharp():
+    img = make_corner_image(sharp=True)
+    score = analyzer.analyze_corner(img)
+    assert score >= 7.0, f"선명한 코너인데 점수 낮음: {score}"
+
+def test_corner_worn():
+    img = make_corner_image(sharp=False)
+    score = analyzer.analyze_corner(img)
+    assert score <= 8.0, f"마모된 코너인데 점수 높음: {score}"
+
+def test_corner_returns_float():
+    img = make_corner_image()
+    score = analyzer.analyze_corner(img)
+    assert isinstance(score, float)
+    assert 1.0 <= score <= 10.0
+
+
+def make_surface_image(scratches=0):
+    img = np.ones((400, 300, 3), dtype=np.uint8) * 100
+    for i in range(scratches):
+        x1 = np.random.randint(20, 280)
+        y1 = np.random.randint(20, 380)
+        x2 = x1 + np.random.randint(30, 100)
+        y2 = y1 + np.random.randint(-10, 10)
+        cv2.line(img, (x1, y1), (min(x2, 299), max(0, min(y2, 399))), (200, 200, 200), 1)
+    return img
+
+def test_surface_clean():
+    img = make_surface_image(scratches=0)
+    score = analyzer.analyze_surface(img)
+    assert score >= 8.0, f"스크래치 없는데 점수 낮음: {score}"
+
+def test_surface_scratched():
+    np.random.seed(42)
+    img = make_surface_image(scratches=15)
+    score = analyzer.analyze_surface(img)
+    assert score < 9.0, f"스크래치 많은데 점수 높음: {score}"
+
+def test_surface_returns_float():
+    img = make_surface_image()
+    score = analyzer.analyze_surface(img)
+    assert isinstance(score, float)
+    assert 1.0 <= score <= 10.0

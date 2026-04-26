@@ -103,7 +103,17 @@ class GradingAnalyzer:
         return round(score, 1)
 
     def analyze_surface(self, image) -> float:
-        raise NotImplementedError
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        h, w = gray.shape
+        margin_y, margin_x = int(h * 0.1), int(w * 0.1)
+        interior = gray[margin_y:h-margin_y, margin_x:w-margin_x]
+        blurred = cv2.GaussianBlur(interior, (3, 3), 0)
+        edges = cv2.Canny(blurred, 25, 75)
+        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=25,
+                                 minLineLength=15, maxLineGap=4)
+        scratch_count = len(lines) if lines is not None else 0
+        score = max(1.0, 10.0 - scratch_count * 0.18)
+        return round(min(10.0, score), 1)
 
     def analyze_whitening(self, image):
         raise NotImplementedError
