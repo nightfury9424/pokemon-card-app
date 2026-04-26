@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from models import AnalysisResult
 from analyzer import GradingAnalyzer
 import numpy as np
@@ -23,7 +23,10 @@ async def analyze(
     async def read_image(upload: UploadFile):
         data = await upload.read()
         arr = np.frombuffer(data, np.uint8)
-        return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img is None:
+            raise HTTPException(status_code=400, detail=f"Invalid image: {upload.filename}")
+        return img
 
     front_img = await read_image(front)
     back_img = await read_image(back)
