@@ -117,8 +117,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildMenuItem(Icons.style_rounded, '내 자산', () => context.push('/assets')),
                   _buildMenuItem(Icons.favorite_rounded, '관심 목록', () => context.push('/favorites'),
                       iconColor: AppColors.red),
-                  _buildMenuItem(Icons.sell_rounded, '판매 항목',
-                      () => context.push('/my-trades', extra: {'sellerId': _userId})),
                   _buildMenuItem(Icons.qr_code_scanner, '카드 스캔', () => context.push('/scanner')),
                 ]),
                 const SizedBox(height: 16),
