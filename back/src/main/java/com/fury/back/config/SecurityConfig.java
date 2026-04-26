@@ -39,6 +39,7 @@ public class SecurityConfig {
                                 "/api/products/**",
                                 "/api/trades",
                                 "/api/trades/**",
+                                "/api/grading/**",
                                 "/images/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",

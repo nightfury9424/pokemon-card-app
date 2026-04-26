@@ -1,7 +1,9 @@
 package com.fury.back.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -20,5 +22,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addResourceLocations("file:" + cardImageDir + "/");
         registry.addResourceHandler("/images/trades/**")
                 .addResourceLocations("file:" + tradeImageDir + "/");
+    }
+
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
     }
 }
