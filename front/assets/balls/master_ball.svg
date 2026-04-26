@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- 보라 윗부분 -->
+  <path d="M 10,50 A 40,40 0 0,1 90,50 Z" fill="#6A1B9A"/>
+  <!-- 핑크 돔 장식 -->
+  <path d="M 28,50 A 22,20 0 0,1 72,50 Z" fill="#CE93D8"/>
+  <!-- M 글자 -->
+  <text x="50" y="38" font-family="Arial Black, sans-serif" font-size="18" font-weight="900"
+        text-anchor="middle" fill="white" letter-spacing="-1">M</text>
+  <!-- 눈 장식 (좌) -->
+  <ellipse cx="32" cy="44" rx="4" ry="5" fill="white"/>
+  <ellipse cx="32" cy="45" rx="2" ry="2.5" fill="#212121"/>
+  <!-- 눈 장식 (우) -->
+  <ellipse cx="68" cy="44" rx="4" ry="5" fill="white"/>
+  <ellipse cx="68" cy="45" rx="2" ry="2.5" fill="#212121"/>
+  <!-- 흰 아랫부분 -->
+  <path d="M 10,50 A 40,40 0 0,0 90,50 Z" fill="#FAFAFA"/>
+  <!-- 외곽선 -->
+  <circle cx="50" cy="50" r="40" fill="none" stroke="#4A148C" stroke-width="4"/>
+  <!-- 가운데 가로선 -->
+  <line x1="10" y1="50" x2="90" y2="50" stroke="#4A148C" stroke-width="4"/>
+  <!-- 중앙 버튼 테두리 -->
+  <circle cx="50" cy="50" r="11" fill="#4A148C"/>
+  <!-- 중앙 버튼 보라 -->
+  <circle cx="50" cy="50" r="7" fill="#CE93D8"/>
+  <!-- 중앙 버튼 하이라이트 -->
+  <circle cx="47" cy="47" r="2.5" fill="white" opacity="0.7"/>
+</svg>
