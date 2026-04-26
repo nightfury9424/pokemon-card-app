@@ -95,3 +95,33 @@ def test_surface_returns_float():
     score = analyzer.analyze_surface(img)
     assert isinstance(score, float)
     assert 1.0 <= score <= 10.0
+
+
+def make_back_image(whitening_ratio=0.0):
+    img = np.zeros((400, 280, 3), dtype=np.uint8)
+    img[:] = (139, 85, 30)  # BGR 진한 파란색
+    if whitening_ratio > 0:
+        border = int(min(400, 280) * whitening_ratio)
+        img[:border, :] = (240, 240, 240)
+        img[-border:, :] = (240, 240, 240)
+    return img
+
+def test_whitening_clean():
+    img = make_back_image(whitening_ratio=0.0)
+    score, heavy = analyzer.analyze_whitening(img)
+    assert score >= 9.0, f"화이트닝 없는데 점수 낮음: {score}"
+    assert heavy is False
+
+def test_whitening_heavy():
+    img = make_back_image(whitening_ratio=0.15)
+    score, heavy = analyzer.analyze_whitening(img)
+    assert score < 7.0, f"심한 화이트닝인데 점수 높음: {score}"
+    assert heavy is True
+
+def test_whitening_returns_tuple():
+    img = make_back_image()
+    result = analyzer.analyze_whitening(img)
+    assert isinstance(result, tuple) and len(result) == 2
+    score, heavy = result
+    assert 1.0 <= score <= 10.0
+    assert isinstance(heavy, bool)

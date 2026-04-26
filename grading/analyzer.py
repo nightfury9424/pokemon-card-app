@@ -116,7 +116,24 @@ class GradingAnalyzer:
         return round(min(10.0, score), 1)
 
     def analyze_whitening(self, image):
-        raise NotImplementedError
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        h, w = hsv.shape[:2]
+        margin = max(int(min(h, w) * 0.12), 8)
+        regions = [
+            hsv[:margin, :],
+            hsv[-margin:, :],
+            hsv[:, :margin],
+            hsv[:, -margin:],
+        ]
+        total, white = 0, 0
+        for region in regions:
+            total += region.shape[0] * region.shape[1]
+            mask = cv2.inRange(region, np.array([0, 0, 160]), np.array([180, 40, 255]))
+            white += int(mask.sum() / 255)
+        ratio = white / total if total > 0 else 0.0
+        score = max(1.0, 10.0 - ratio * 60)
+        heavy = ratio > 0.08
+        return round(min(10.0, score), 1), heavy
 
     def analyze(self, front, back, corners: list) -> AnalysisResult:
         raise NotImplementedError
