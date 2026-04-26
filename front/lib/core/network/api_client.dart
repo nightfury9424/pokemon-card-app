@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import '../constants/api_constants.dart';
 import '../storage/token_storage.dart';
@@ -47,6 +48,23 @@ class ApiClient {
     final formData = FormData.fromMap({
       field: await MultipartFile.fromFile(filePath),
     });
+    final res = await _dio.post(path, data: formData);
+    return res.data;
+  }
+
+  static Future<Map<String, dynamic>> postMultipart(
+    String path, {
+    required Map<String, File> files,
+    Map<String, String> fields = const {},
+  }) async {
+    final formData = FormData();
+    fields.forEach((k, v) => formData.fields.add(MapEntry(k, v)));
+    for (final entry in files.entries) {
+      formData.files.add(MapEntry(
+        entry.key,
+        await MultipartFile.fromFile(entry.value.path, filename: entry.key),
+      ));
+    }
     final res = await _dio.post(path, data: formData);
     return res.data;
   }

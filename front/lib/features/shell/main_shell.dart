@@ -6,7 +6,7 @@ class MainShell extends StatelessWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
 
-  static const _tabs = ['/home', '/prices', '/chat', '/profile'];
+  static const _tabs = ['/home', '/prices', '/grading', '/profile'];
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
@@ -76,7 +76,7 @@ class _BottomNav extends StatelessWidget {
                   ),
                 ),
               ),
-              _NavItem(icon: Icons.chat_bubble_outline_rounded, label: '챗', index: 2, currentIndex: currentIndex, route: '/chat'),
+              _NavItem(icon: Icons.grade_rounded, label: '등급', index: 2, currentIndex: currentIndex, route: '/grading'),
               _NavItem(icon: Icons.person_rounded, label: '내 정보', index: 3, currentIndex: currentIndex, route: '/profile'),
             ],
           ),

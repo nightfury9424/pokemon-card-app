@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/grading/grading_screen.dart';
+import '../../features/grading/grading_capture_screen.dart';
+import '../../features/grading/grading_result_screen.dart';
 import '../../features/shell/main_shell.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/scanner/scanner_screen.dart';
@@ -109,13 +113,21 @@ final appRouter = GoRouter(
         roomInfo: state.extra as Map<String, dynamic>? ?? {},
       ),
     ),
+    GoRoute(path: '/grading/capture', builder: (_, __) => const GradingCaptureScreen()),
+    GoRoute(
+      path: '/grading/result',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>;
+        return GradingResultScreen(photos: extra['photos'] as List<File>);
+      },
+    ),
     ShellRoute(
       navigatorKey: _shellNavigatorKey,
       builder: (context, state, child) => MainShell(child: child),
       routes: [
         GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
         GoRoute(path: '/prices', builder: (_, __) => const PriceScreen()),
-        GoRoute(path: '/chat', builder: (_, __) => const ChatScreen()),
+        GoRoute(path: '/grading', builder: (_, __) => const GradingScreen()),
         GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
       ],
     ),
