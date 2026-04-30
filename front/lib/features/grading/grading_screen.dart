@@ -2,6 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 
+class _GuideRow extends StatelessWidget {
+  final bool ok;
+  final String text;
+  const _GuideRow({required this.ok, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            ok ? Icons.check_circle_rounded : Icons.cancel_rounded,
+            color: ok ? AppColors.green : AppColors.red,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: TextStyle(
+                    color: ok ? AppColors.textPrimary : AppColors.textSecondary,
+                    fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class GradingScreen extends StatelessWidget {
   const GradingScreen({super.key});
 
@@ -49,13 +78,13 @@ class GradingScreen extends StatelessWidget {
                 const Text('카드 등급 예측',
                     style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                const Text('사진 10장으로 센터링, 코너, 표면, 화이트닝을\n분석해 예상 등급을 알려드립니다.',
+                const Text('갤러리에서 사진 10장을 선택하면\n센터링, 코너, 표면, 화이트닝을 분석해 예상 등급을 알려드립니다.',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.5)),
               ],
             ),
           ),
           const SizedBox(height: 24),
-          const Text('촬영 순서', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+          const Text('사진 선택 순서', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           ..._steps.asMap().entries.map((e) => Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -71,7 +100,30 @@ class GradingScreen extends StatelessWidget {
               Text('(${e.value.$2})', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
             ]),
           )),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
+          const Text('사진 촬영 팁 (미리 찍어두세요)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1400),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.gold.withOpacity(0.35)),
+            ),
+            child: const Column(
+              children: [
+                _GuideRow(ok: true,  text: '흰 종이 등 밝은 단색 배경 사용'),
+                _GuideRow(ok: true,  text: '자연광 또는 균일한 실내등 — 플래시 OFF'),
+                _GuideRow(ok: true,  text: '카드가 화면의 70% 이상 차지하도록'),
+                _GuideRow(ok: true,  text: '코너 클로즈업 시 코너를 화면 중앙에'),
+                Divider(color: Color(0xFF2A2400), height: 16),
+                _GuideRow(ok: false, text: '검정·어두운 배경 (마우스패드 등)'),
+                _GuideRow(ok: false, text: '그림자 또는 먼지가 있는 배경'),
+                _GuideRow(ok: false, text: '카드가 비스듬히 기울어진 상태'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
           ElevatedButton(
             onPressed: () => context.push('/grading/capture'),
             style: ElevatedButton.styleFrom(

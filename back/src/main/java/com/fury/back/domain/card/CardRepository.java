@@ -64,4 +64,6 @@ public interface CardRepository extends JpaRepository<Card, String> {
     long countByRarityAndName(
             @Param("rarityCodes") List<String> rarityCodes,
             @Param("name") String name);
+
+    List<Card> findByCollectionNumberAndLanguage(String collectionNumber, String language);
 }

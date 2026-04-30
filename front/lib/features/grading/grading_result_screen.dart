@@ -95,7 +95,12 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
             const SizedBox(height: 8),
             Text(total.toStringAsFixed(1),
                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 56, fontWeight: FontWeight.bold)),
-            Text('/ 10.0', style: TextStyle(color: AppColors.textMuted, fontSize: 16)),
+            Text(
+              '${(total - 1.0).clamp(1.0, 10.0).toStringAsFixed(1)} ~ ${(total + 1.0).clamp(1.0, 10.0).toStringAsFixed(1)} 예상 범위',
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            const Text('※ 실제 감정 결과와 ±1등급 차이 가능', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
             if (heavy) ...[
               const SizedBox(height: 8),
               Container(
@@ -115,13 +120,13 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
             border: Border.all(color: AppColors.divider),
           ),
           child: Column(children: [
-            _buildScoreRow('센터링', r['centeringScore']),
+            _buildScoreRow('센터링', r['centeringScore'], r['centeringDetail']),
             const Divider(color: AppColors.divider, height: 20),
-            _buildScoreRow('코너', r['cornerScore']),
+            _buildScoreRow('코너', r['cornerScore'], r['cornerDetail']),
             const Divider(color: AppColors.divider, height: 20),
-            _buildScoreRow('표면', r['surfaceScore']),
+            _buildScoreRow('표면', r['surfaceScore'], r['surfaceDetail']),
             const Divider(color: AppColors.divider, height: 20),
-            _buildScoreRow('화이트닝', r['whiteningScore']),
+            _buildScoreRow('화이트닝', r['whiteningScore'], r['whiteningDetail']),
           ]),
         ),
         const SizedBox(height: 24),
@@ -138,24 +143,37 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     );
   }
 
-  Widget _buildScoreRow(String label, dynamic scoreRaw) {
+  Widget _buildScoreRow(String label, dynamic scoreRaw, dynamic detail) {
     final score = (scoreRaw as num).toDouble();
     final color = score >= 9.0 ? AppColors.green : score >= 7.0 ? AppColors.blue : AppColors.red;
-    return Row(children: [
-      SizedBox(width: 80, child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14))),
-      Expanded(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: score / 10.0,
-            minHeight: 8,
-            backgroundColor: AppColors.divider,
-            valueColor: AlwaysStoppedAnimation(color),
+    final detailText = detail as String? ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          SizedBox(width: 80, child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14))),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: score / 10.0,
+                minHeight: 8,
+                backgroundColor: AppColors.divider,
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
+            ),
           ),
-        ),
-      ),
-      const SizedBox(width: 12),
-      Text(score.toStringAsFixed(1), style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold)),
-    ]);
+          const SizedBox(width: 12),
+          Text(score.toStringAsFixed(1), style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold)),
+        ]),
+        if (detailText.isNotEmpty) ...[
+          const SizedBox(height: 5),
+          Padding(
+            padding: const EdgeInsets.only(left: 80),
+            child: Text(detailText, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          ),
+        ],
+      ],
+    );
   }
 }

@@ -5,147 +5,198 @@ from models import AnalysisResult
 
 class GradingAnalyzer:
 
-    def analyze_centering(self, image) -> float:
-        h_img, w_img = image.shape[:2]
+    def _find_card_in_image(self, gray):
+        """사진에서 카드 영역(bounding rect)을 찾아 반환. 실패시 전체 이미지 반환."""
+        h, w = gray.shape
+        blurred = cv2.GaussianBlur(gray, (15, 15), 0)
+
+        def _try_detect(img_to_thresh):
+            _, binary = cv2.threshold(img_to_thresh, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            kernel = np.ones((15, 15), np.uint8)
+            closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+            contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                return None
+            largest = max(contours, key=cv2.contourArea)
+            x, y, cw, ch = cv2.boundingRect(largest)
+            if cw * ch < w * h * 0.3:
+                return None
+            return x, y, cw, ch
+
+        # 정방향 시도 → 실패시 반전 이미지로 재시도 (검정 배경 대응)
+        result = _try_detect(blurred) or _try_detect(cv2.bitwise_not(blurred))
+        if result is None:
+            return 0, 0, w, h
+        x, y, cw, ch = result
+        pad = 5
+        x = max(0, x - pad)
+        y = max(0, y - pad)
+        cw = min(w - x, cw + 2 * pad)
+        ch = min(h - y, ch + 2 * pad)
+        return x, y, cw, ch
+
+    def analyze_centering(self, image) -> tuple[float, str]:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        edges = cv2.Canny(blurred, 30, 100)
-        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        cx, cy, cw, ch = self._find_card_in_image(gray)
+        card_gray = gray[cy:cy + ch, cx:cx + cw]
+        rh, rw = card_gray.shape
 
-        if not contours:
-            return 5.0
+        sobel_y = cv2.Sobel(card_gray.astype(np.float32), cv2.CV_32F, 0, 1, ksize=3)
+        sobel_x = cv2.Sobel(card_gray.astype(np.float32), cv2.CV_32F, 1, 0, ksize=3)
+        row_grad = np.abs(sobel_y).mean(axis=1)
+        col_grad = np.abs(sobel_x).mean(axis=0)
 
-        rects = []
-        for c in contours:
-            if cv2.contourArea(c) < 100:
-                continue
-            x, y, w, h = cv2.boundingRect(c)
-            rects.append((cv2.contourArea(c), x, y, w, h))
+        outer_frac = 0.08
+        fh = max(2, int(rh * outer_frac))
+        fw = max(2, int(rw * outer_frac))
 
-        rects.sort(reverse=True)
+        top_m = int(np.argmax(row_grad[:fh]))
+        bottom_m = fh - int(np.argmax(row_grad[-fh:]))
+        left_m = int(np.argmax(col_grad[:fw]))
+        right_m = fw - int(np.argmax(col_grad[-fw:]))
 
-        if not rects:
-            return 5.0
+        def compute_score(m1, m2):
+            total = m1 + m2
+            if total == 0:
+                return 8.0, 50.0, 50.0
+            ratio = m1 / total
+            dev = abs(ratio - 0.5)
+            # 실제 PSA 기준: 센터링 최악(80:20)도 PSA 6~7 수준 → 최솟값 5.0, 감도 완화
+            score = max(5.0, 10.0 - (dev / 0.05) * 0.8)
+            return score, round(ratio * 100), round((1 - ratio) * 100)
 
-        # Deduplicate near-identical rects (double-edge artifact from Canny)
-        unique_rects = [rects[0]]
-        for r in rects[1:]:
-            prev = unique_rects[-1]
-            if (abs(r[0] - prev[0]) / max(prev[0], 1) < 0.02
-                    and abs(r[1] - prev[1]) <= 2
-                    and abs(r[2] - prev[2]) <= 2):
-                continue
-            unique_rects.append(r)
+        lr_score, lp, rp = compute_score(left_m, right_m)
+        tb_score, tp, bp = compute_score(top_m, bottom_m)
+        score = round(min(10.0, (lr_score + tb_score) / 2), 1)
 
-        outer = unique_rects[0]
-        oa, ox, oy, ow, oh = outer
-
-        def compute_score(left_m, right_m, top_m, bottom_m):
-            lr_total = left_m + right_m
-            tb_total = top_m + bottom_m
-            lr_ratio = left_m / lr_total if lr_total > 0 else 0.5
-            tb_ratio = top_m / tb_total if tb_total > 0 else 0.5
-            lr_dev = abs(lr_ratio - 0.5)
-            tb_dev = abs(tb_ratio - 0.5)
-            lr_score = max(1.0, 10.0 - (lr_dev / 0.05) * 1.5)
-            tb_score = max(1.0, 10.0 - (tb_dev / 0.05) * 1.5)
-            return round(min(10.0, (lr_score + tb_score) / 2), 1)
-
-        if len(unique_rects) >= 2:
-            # Find inner rect: must be meaningfully smaller than outer
-            inner = None
-            for r in unique_rects[1:]:
-                if r[0] < outer[0] * 0.9:
-                    inner = r
-                    break
-            if inner is None:
-                inner = unique_rects[1]
-            ia, ix, iy, iw, ih = inner
-            left_m = ix - ox
-            right_m = (ox + ow) - (ix + iw)
-            top_m = iy - oy
-            bottom_m = (oy + oh) - (iy + ih)
-            return compute_score(left_m, right_m, top_m, bottom_m)
+        lr_dev = abs(lp - 50)
+        tb_dev = abs(tp - 50)
+        if score >= 9.5:
+            detail = "인쇄 여백 균일 — 감점 없음"
+        elif score >= 8.0:
+            detail = "경미한 센터링 불균형 감지"
+        elif lr_dev >= tb_dev:
+            detail = "좌우 센터링 불균형 감지 — 주요 감점 요인"
         else:
-            # Fallback: find inner content via color thresholding
-            roi = image[oy:oy + oh, ox:ox + ow]
-            gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-            _, dark_mask = cv2.threshold(gray_roi, 160, 255, cv2.THRESH_BINARY_INV)
-            kernel = np.ones((5, 5), np.uint8)
-            dark_mask = cv2.erode(dark_mask, kernel, iterations=1)
-            dark_contours, _ = cv2.findContours(
-                dark_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-            )
-            if dark_contours:
-                dark_f = [
-                    (cv2.contourArea(c), cv2.boundingRect(c))
-                    for c in dark_contours
-                    if cv2.contourArea(c) > 100
-                ]
-                dark_f.sort(reverse=True)
-                if dark_f:
-                    _, (ix, iy, iw, ih) = dark_f[0]
-                    left_m = ix
-                    right_m = ow - (ix + iw)
-                    top_m = iy
-                    bottom_m = oh - (iy + ih)
-                    return compute_score(left_m, right_m, top_m, bottom_m)
-            return 8.0
+            detail = "상하 센터링 불균형 감지 — 주요 감점 요인"
+
+        return score, detail
 
     def analyze_corner(self, image) -> float:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+        h, w = gray.shape
+
+        cy, cx = h // 2, w // 2
+        region = gray[cy - h // 4:cy + h // 4, cx - w // 4:cx + w // 4]
+        if region.size == 0:
+            region = gray
+
+        blurred = cv2.GaussianBlur(region, (3, 3), 0)
         edges = cv2.Canny(blurred, 30, 100)
         edge_density = np.count_nonzero(edges) / edges.size
-        # 선명한 코너: 명확한 직선 엣지 많음(높은 density)
-        # 마모된 코너: 라운딩으로 엣지 적음(낮은 density)
-        score = min(10.0, max(1.0, edge_density * 200))
+
+        score = min(10.0, max(1.0, edge_density * 250))
         return round(score, 1)
 
-    def analyze_surface(self, image) -> float:
+    def analyze_surface(self, image) -> tuple[float, float]:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        h, w = gray.shape
-        margin_y, margin_x = int(h * 0.1), int(w * 0.1)
-        interior = gray[margin_y:h-margin_y, margin_x:w-margin_x]
-        blurred = cv2.GaussianBlur(interior, (3, 3), 0)
-        edges = cv2.Canny(blurred, 25, 75)
-        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=25,
-                                 minLineLength=15, maxLineGap=4)
-        scratch_count = len(lines) if lines is not None else 0
-        score = max(1.0, 10.0 - scratch_count * 0.18)
-        return round(min(10.0, score), 1)
+        cx, cy, cw, ch = self._find_card_in_image(gray)
+        card_gray = gray[cy:cy + ch, cx:cx + cw]
+        rh, rw = card_gray.shape
 
-    def analyze_whitening(self, image):
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        bfrac = 0.05
+        bh = max(2, int(rh * bfrac))
+        bw = max(2, int(rw * bfrac))
+
+        lap = cv2.Laplacian(card_gray, cv2.CV_64F)
+        border_lap = np.concatenate([
+            lap[:bh, :].flatten(),
+            lap[-bh:, :].flatten(),
+            lap[bh:-bh, :bw].flatten(),
+            lap[bh:-bh, -bw:].flatten(),
+        ])
+
+        if border_lap.size == 0:
+            return 7.0, 7.0
+
+        lap_std = float(np.std(border_lap))
+        score = max(4.0, min(10.0, 10.0 - max(0.0, lap_std - 5.0) * 0.30))
+        return round(score, 1), lap_std
+
+    def analyze_whitening(self, image) -> tuple[float, bool, float]:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        cx, cy, cw, ch = self._find_card_in_image(gray)
+        card = image[cy:cy + ch, cx:cx + cw]
+
+        hsv = cv2.cvtColor(card, cv2.COLOR_BGR2HSV)
         h, w = hsv.shape[:2]
-        margin = max(int(min(h, w) * 0.12), 8)
+        margin = max(int(min(h, w) * 0.04), 4)
         regions = [
-            hsv[:margin, :],
-            hsv[-margin:, :],
-            hsv[:, :margin],
-            hsv[:, -margin:],
+            hsv[:margin, margin:w - margin],
+            hsv[-margin:, margin:w - margin],
+            hsv[margin:h - margin, :margin],
+            hsv[margin:h - margin, w - margin:],
         ]
         total, white = 0, 0
         for region in regions:
+            if region.size == 0:
+                continue
             total += region.shape[0] * region.shape[1]
-            mask = cv2.inRange(region, np.array([0, 0, 160]), np.array([180, 40, 255]))
+            mask = cv2.inRange(region,
+                               np.array([0, 0, 210]),
+                               np.array([180, 10, 255]))
             white += int(mask.sum() / 255)
         ratio = white / total if total > 0 else 0.0
-        score = max(1.0, 10.0 - ratio * 60)
-        heavy = ratio > 0.08
-        return round(min(10.0, score), 1), heavy
+        score = max(1.0, 10.0 - ratio * 100)
+        heavy = ratio > 0.05
+        return round(min(10.0, score), 1), heavy, ratio
+
+    _CORNER_NAMES = ['앞 좌상단', '앞 우상단', '앞 좌하단', '앞 우하단',
+                     '뒤 좌상단', '뒤 우상단', '뒤 좌하단', '뒤 우하단']
 
     def analyze(self, front, back, corners: list) -> AnalysisResult:
-        centering = self.analyze_centering(front)
+        centering, centering_detail = self.analyze_centering(front)
+
         corner_scores = [self.analyze_corner(c) for c in corners]
         corner_avg = round(sum(corner_scores) / len(corner_scores), 1)
-        surface_front = self.analyze_surface(front)
-        surface_back = self.analyze_surface(back)
+        min_cs = min(corner_scores)
+        min_idx = corner_scores.index(min_cs)
+        if min_cs >= 9.0:
+            corner_detail = f"8개 코너 모두 양호 (평균 {corner_avg}점)"
+        else:
+            corner_detail = f"최저 {min_cs}점 ({self._CORNER_NAMES[min_idx]}) — 마모 감지"
+
+        surface_front, std_front = self.analyze_surface(front)
+        surface_back, std_back = self.analyze_surface(back)
         surface_avg = round((surface_front + surface_back) / 2, 1)
-        whitening_score, heavy = self.analyze_whitening(back)
+
+        def _surface_label(score):
+            if score >= 9.0:
+                return "깨끗함"
+            elif score >= 7.0:
+                return "경미한 스크래치"
+            else:
+                return "스크래치/오염 감지"
+
+        surface_detail = (
+            f"앞면 {surface_front}점({_surface_label(surface_front)}) / "
+            f"뒷면 {surface_back}점({_surface_label(surface_back)})"
+        )
+
+        whitening_score, heavy, ratio = self.analyze_whitening(back)
         back_corner_whitening = [self.analyze_whitening(c)[0] for c in corners[4:]]
         whitening_combined = round((whitening_score + sum(back_corner_whitening) / 4) / 2, 1)
-        _, heavy = self.analyze_whitening(back)
+        _, heavy, ratio = self.analyze_whitening(back)
+
+        ratio_pct = ratio * 100
+        if ratio_pct < 0.5:
+            whitening_detail = f"백화 거의 없음 ({ratio_pct:.2f}%)"
+        elif ratio_pct < 2.0:
+            whitening_detail = f"경미한 백화 ({ratio_pct:.1f}%) — 테두리 일부 감지"
+        elif heavy:
+            whitening_detail = f"심한 백화 ({ratio_pct:.1f}%) — 총점 15% 추가 감점"
+        else:
+            whitening_detail = f"백화 {ratio_pct:.1f}% 감지"
 
         weighted = (
             centering * 0.15 +
@@ -156,7 +207,27 @@ class GradingAnalyzer:
         if heavy:
             weighted *= 0.85
 
-        total = round(min(10.0, max(1.0, weighted)), 1)
+        # 최저 항목 캡: 코너·표면·화이트닝 중 최솟값 기준 (센터링 제외 — 측정 오차 큼)
+        quality_lowest = min(corner_avg, surface_avg, whitening_combined)
+        final = min(weighted, quality_lowest + 2.0)
+
+        # 센터링 캡: 뚜렷한 불균형일 때만 살짝 제한 (PSA에서 센터링 단독으로 큰 감점 없음)
+        if centering < 6.0:
+            final = min(final, 9.0)
+        if centering < 5.5:
+            final = min(final, 8.5)
+
+        # 표면·화이트닝·코너 심각 결함 캡 (PSA 주요 감점 요인)
+        if surface_avg < 6.0:
+            final = min(final, 7.0)
+        if whitening_combined < 5.0:
+            final = min(final, 7.0)
+        elif whitening_combined < 7.0:
+            final = min(final, 8.5)
+        if corner_avg < 7.0:
+            final = min(final, 8.0)
+
+        total = round(min(10.0, max(1.0, final)), 1)
 
         return AnalysisResult(
             centering_score=centering,
@@ -165,4 +236,8 @@ class GradingAnalyzer:
             whitening_score=whitening_combined,
             total_score=total,
             heavy_whitening=heavy,
+            centering_detail=centering_detail,
+            corner_detail=corner_detail,
+            surface_detail=surface_detail,
+            whitening_detail=whitening_detail,
         )

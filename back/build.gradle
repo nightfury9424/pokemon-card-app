@@ -53,6 +53,10 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+springBoot {
+    mainClass = 'com.fury.back.BackApplication'
+}
+
 tasks.named('test') {
     useJUnitPlatform()
 }

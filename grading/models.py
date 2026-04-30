@@ -7,3 +7,7 @@ class AnalysisResult(BaseModel):
     whitening_score: float
     total_score: float
     heavy_whitening: bool
+    centering_detail: str = ""
+    corner_detail: str = ""
+    surface_detail: str = ""
+    whitening_detail: str = ""

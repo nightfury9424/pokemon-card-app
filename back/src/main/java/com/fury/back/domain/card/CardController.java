@@ -119,6 +119,14 @@ public class CardController {
         return cardService.getCardsByProduct(productId);
     }
 
+    @Operation(summary = "수록번호로 카드 조회", description = "OCR 스캐너에서 인식한 수록번호(예: 023/198)로 카드를 조회합니다.")
+    @GetMapping("/number/{collectionNumber}")
+    public ReturnData<List<CardDto>> getCardsByNumber(
+        @PathVariable String collectionNumber,
+        @RequestParam(defaultValue = "KO") String language) {
+        return cardService.getCardsByCollectionNumber(collectionNumber, language);
+    }
+
     @Operation(summary = "스캔 결과 카드 조회", description = """
         Python 스캐너에서 카드를 인식한 뒤 호출하는 API입니다.
         officialCardCode로 DB에서 카드를 조회하고 카드 정보를 반환합니다.

@@ -35,6 +35,10 @@ public class GradingServiceImpl implements GradingService {
                 .whiteningScore(analysis.getWhiteningScore())
                 .totalScore(analysis.getTotalScore())
                 .heavyWhitening(analysis.isHeavyWhitening())
+                .centeringDetail(analysis.getCenteringDetail())
+                .cornerDetail(analysis.getCornerDetail())
+                .surfaceDetail(analysis.getSurfaceDetail())
+                .whiteningDetail(analysis.getWhiteningDetail())
                 .build());
     }
 

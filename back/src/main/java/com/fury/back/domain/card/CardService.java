@@ -18,4 +18,5 @@ public interface CardService {
     Map<String, Object> searchCardsByNameAndRarity(String name, List<String> rarityCodes, Pageable pageable);
     Map<String, Object> getCardsByRarityOrderByPrice(List<String> rarityCodes, String name, int size, int offset);
     ReturnData<List<CardDto>> getCardsByProduct(String productId);
+    ReturnData<List<CardDto>> getCardsByCollectionNumber(String collectionNumber, String language);
 }

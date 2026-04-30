@@ -123,6 +123,15 @@ public class CardServiceImpl implements CardService {
     }
 
     @Override
+    public ReturnData<List<CardDto>> getCardsByCollectionNumber(String collectionNumber, String language) {
+        List<Card> cards = cardRepository.findByCollectionNumberAndLanguage(collectionNumber, language);
+        if (cards.isEmpty()) {
+            return ReturnData.notFound("카드를 찾을 수 없습니다. number=" + collectionNumber);
+        }
+        return ReturnData.success(cards.stream().map(CardDto::from).toList());
+    }
+
+    @Override
     public ReturnData<CardDto> registerScanResult(ParameterData parameterData) {
         String officialCardCode = parameterData.getString("officialCardCode");
         if (officialCardCode == null || officialCardCode.isBlank()) {
