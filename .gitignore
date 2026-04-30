@@ -7,9 +7,17 @@ grading/venv/
 # Gradle / Java build
 back/build/
 back/.gradle/
+back/.idea/
 
 # Flutter build
 front/build/
+front/android/build/
+
+# Scanner data (card images, large binary)
+scanner/data/
+
+# macOS
+.DS_Store
 
 # IDE / Claude
 .claude/settings.local.json
