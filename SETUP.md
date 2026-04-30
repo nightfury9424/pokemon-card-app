@@ -183,19 +183,12 @@ pip install \
 
 ---
 
-## 9. Ollama (카드 스캐너 AI)
+## 9. 스캐너 v2 — DINOv2 + FAISS (신규 개발 대상)
 
-```bash
-brew install ollama
+Ollama llava 방식은 폐기. 새 노트북에서 DINOv2+FAISS 방식으로 새로 구현.
+→ **`SCANNER_DEV.md` 참고해서 구현 시작**
 
-# llava 모델 다운로드 — 약 4.5GB, 한 번만
-ollama pull llava
-
-# 확인
-curl http://localhost:11434/api/tags
-```
-
-Ollama는 brew 설치 후 백그라운드 자동 실행됨.
+> Ollama는 설치 불필요.
 
 ---
 
@@ -285,9 +278,10 @@ flutter run -d <device_id>
 flutter devices
 ```
 
-**④ Ollama** (자동 실행이지만 미동작 시)
+**④ 스캐너 v2** (DINOv2 FastAPI, SCANNER_DEV.md 구현 후)
 ```bash
-ollama serve
+cd scanner_v2
+uvicorn main:app --host 0.0.0.0 --port 8082
 ```
 
 ---
