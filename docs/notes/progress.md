@@ -1,6 +1,6 @@
 # 포켓몬 카드 앱 — 개발 현황
 
-> 마지막 업데이트: 2026-04-08
+> 마지막 업데이트: 2026-04-30
 
 ---
 
@@ -8,161 +8,146 @@
 
 | 구분 | 기술 |
 |------|------|
-| 백엔드 | Spring Boot (Java 17), PostgreSQL, port 8080 |
-| 프론트 | Flutter, go_router, fl_chart |
+| 백엔드 | Spring Boot 4.0.4 (Java 20), PostgreSQL 14, port 8080 |
+| 프론트 | Flutter 3.41.4 (iOS 우선), go_router, fl_chart |
 | 인증 | Kakao OAuth2 + JWT |
-| DB 마이그레이션 | ddl-auto: validate (새 테이블은 수동 DDL) |
+| 스캐너 AI | Ollama llava (로컬/서버, port 11434) |
+| 그레이딩 | Python FastAPI (port 8081) + OpenCV |
 
 ---
 
-## 완료된 기능
+## 완료된 기능 ✅
 
-### 인프라
-- Kakao OAuth2 로그인 + JWT 인증
-- 카드 마스터 DB: 17,932개 (KO 기준), 등급 BWR 포함
+### 인프라 / 공통
+- [x] Spring Boot 백엔드 (PostgreSQL, JPA, Swagger)
+- [x] Kakao OAuth2 로그인 + JWT 발급/검증
+- [x] Flutter 프로젝트 (go_router, dio, fl_chart, camera)
+- [x] 다크 네이비 디자인 시스템 (`AppColors`)
+- [x] 5탭 바텀 네비: 홈 / 시세 / 스캔 / 등급 / 내정보
+
+### 카드 데이터
+- [x] 카드 마스터 DB — KO 17,599장
+- [x] scrydex JP/EN 이미지 매핑 (JP 1,250장 + EN 1,719장)
+- [x] 이미지 우선순위: JP scrydex → EN scrydex → 카드 뒷면
+- [x] `resolveCardImageUrl()` 전역 함수 (`card_image.dart`)
+- [x] pokemonkorea.co.kr 이미지 차단 (저작권)
+
+### 시세 파이프라인
+- [x] scrydex 스크래퍼 — JP/EN RAW 히스토리 + eBay 실거래가
+- [x] price_snapshots: SCRYDEX_JP / SCRYDEX_EN / EBAY / APP source
+- [x] 매일 새벽 3시 자동 동기화 (`PriceSyncScheduler`)
+- [x] 한국 예상 가치 계수 (~0.515, KO:EN 비율 기반)
+- [x] 3라인 차트 (KO/JP/EN) + 기간 토글 (7d/30d)
+- [x] `GET /api/scrydex/prices/{ref}` — scrydex 시세 직접 조회
 
 ### 자산 관리
-- 자산 CRUD + 포트폴리오 (시세 기반 평가액)
-- 컬렉션 볼 뱃지 (고레어 수 기반): 몬스터볼/슈퍼볼/하이퍼볼/마스터볼
+- [x] 자산 CRUD API (`/api/assets`)
+- [x] 포트폴리오 요약 API (`/api/assets/portfolio`)
+- [x] 자산 화면 — 카드 목록 + 총 평가금액
+- [x] 컬렉션 볼 뱃지 (몬스터볼/슈퍼볼/하이퍼볼/마스터볼)
 
-### 거래
-- 거래글 CRUD + 사진 업로드
-- 관심(찜) 토글 + 관심 목록 화면
-- 거래글 필터 (sellerId 등)
+### 시세 화면
+- [x] 시세 목록 — 등급 필터, 정렬(이름/등급/가격)
+- [x] `GET /api/cards/market?sortBy=price` — LATERAL JOIN 가격순
+- [x] 카드 상세 — KO/EN/JP 시세 탭 + 차트
 
-### UI (토스증권 스타일)
-- 홈: 총 평가 자산 크게 + 카드 리스트
-- 자산 정렬 (등급/가격/이름/수량)
-- 레어도 글로우 통일, 가격 콤마 포맷
+### 스캐너 (카드 인식)
+- [x] ML Kit OCR → **Ollama Vision AI (llava)** 전환 완료
+- [x] 후면 카메라 풀스크린 프리뷰 (veryHigh 해상도)
+- [x] 1.5초 자동 촬영 → `/api/scanner/identify` 호출
+- [x] 수록번호 인식 → DB 조회 → 카드 반환
+- [x] 인식 성공 시 하단 모달 (카드 이미지 + 이름 + 레어도 + 수량 조절)
+- [x] 모달에서 **자산 등록** / **상세 보기** / **계속 스캔** 버튼
+- [x] 그린 코너 가이드 오버레이
 
-### 시세 파이프라인 (2026-04-05 완성)
-- **3개 시장 시세 수집**: KO(앱 거래) / JP(Scrydex) / EN(Scrydex + TCGPlayer)
-- **scrydex_scraper.py**: JP+EN RAW 히스토리 전체 + eBay 실거래가 수집
-- **slug 생성**: KO 고레어 slug 자동 생성 (HR/ACE/RR/RRR/PR/H/SV-P 포함)
-- **한국 예상 가치 계수**: ~0.515 (KO가 해외 대비 약 48% 저렴)
-- **매일 새벽 3시 자동 동기화**: `PriceSyncScheduler.java` `@Scheduled` + `--incremental` (당일 수집 카드 스킵)
+### 등급 분석 (Grading)
+- [x] Python FastAPI 그레이딩 서비스 (port 8081)
+- [x] 10장 사진 기반 분석 (앞면/뒷면 + 코너 8장)
+- [x] 센터링 / 코너 마모 / 표면 스크래치 / 화이트닝 → 종합 점수
+- [x] **v2.1**: 검정 배경 대응 (반전 이진화 fallback) + 표면 점수 최솟값 4.0 보정
+- [x] Spring Boot 그레이딩 컨트롤러 (`/api/grading/analyze`)
+- [x] Flutter 등급 탭 — 10단계 촬영 가이드 화면 + 결과 화면
+- [x] 촬영 힌트: 밝은 단색 배경 안내 포함
+- [x] 결과 화면: 점수별 색상 + 분석 사유 표시 + 점수 범위 표시
+- [x] 분석 결과 DB 저장 제거 (분석 후 바로 반환)
 
-### 프론트 시세 화면 (2026-04-05 완성)
-- **3라인 차트**: KO(초록) / JP(파랑) / EN(주황) fl_chart LineChart, 공통 시간축
-- **"한국 예상 가치"** 라벨 + `?` 버튼 → 다이얼로그 (한/일/미 3개 시장 기반 설명)
-- 기간 토글 (7d / 30d)
-- % 변동 표시 (데이터 있을 때만)
-
-### 채팅 (2026-04-06 완성)
-- Spring WebSocket STOMP + Flutter web_socket_channel
-- chat_room_screen.dart, 거래 상세 → 채팅방 연결, `/chat/:roomId` 라우팅
-
-### 고레어 카드 확장 + 이미지 대체 (2026-04-07~08)
-- **HIGH_RARE_CODES 확장**: SSR/SAR/BWR/CSR/CHR/UR/SR/AR + HR/ACE/RR/RRR/PR/H + SV-P 프로모
-- **고레어 총계**: 3,562장 (기존 ~2,119장에서 대폭 확장)
-- **한국 이미지 저작권 대응**: pokemonkorea.co.kr 이미지 사용 불가 통보 수신
-- **이미지 대체**: scrydex EN/JP 이미지로 교체
-  - EN (scrydex): 1,719장 → `images.scrydex.com/pokemon/{tcgplayer_card_id}/medium`
-  - JP (scrydex): 1,250장 → `images.scrydex.com/pokemon/{jp_set_id}-{number}/medium`
-  - 미매핑(MEGA/BW): 593장 → 카드 뒷면 + "이미지 없음" 안내
-- **CardImage 공통 위젯** (`lib/core/widgets/card_image.dart`): pokemonkorea URL 자동 차단
-- **카드 속성 크롤링** (`/tmp/crawl_card_attrs.py`): pokemoncard.co.kr → HP/card_type/rarity_code
-  - HP 수집: 2,452/3,562장 완료
-  - card_type 수집: 3,005/3,562장 완료
-  - 신규 컬럼: `cards.hp INTEGER`, `cards.card_type VARCHAR(30)`
-- **EN 카드 매핑**: 1,719장 완료 (`/tmp/map_en_cards.py`)
+### 거래 (초기 버전 → 현재 비활성)
+- [x] trade_posts 테이블 + CRUD API
+- [x] 채팅 (WebSocket STOMP) 기초 구현
+- [x] 현재 앱에서 거래/채팅 진입점 제거됨 (재설계 예정)
 
 ---
 
-## 시세 파이프라인 상세
+## 현재 앱 탭 구성
 
-### price_snapshots source 종류
-| source | 내용 |
-|--------|------|
-| APP | 앱 내 거래 (KO RAW) |
-| SCRYDEX_JP | scrydex JP 시세 히스토리 |
-| SCRYDEX_EN | scrydex EN 시세 히스토리 |
-| EBAY | scrydex 경유 eBay 실거래가 |
-| TCGPLAYER | pokemontcg.io TCGPlayer 가격 (레거시) |
-
-### 스크래퍼 파일
-- `/tmp/scrydex_scraper.py` — 메인 (JP+EN 전체 히스토리 + eBay)
-  - `--incremental`: 오늘 이미 수집한 카드 스킵 (일배치용)
-- `/tmp/ebay_scraper.py` — MEGA/BW 전용 eBay 직접 스크랩 (eBay 차단, API 필요)
-- `/tmp/generate_slugs.py` — KO 카드명 → scrydex slug 생성
-
-### 커버리지 갭
-| 구분 | 장수 | 원인 | 해결 방법 |
-|------|------|------|----------|
-| slug 없음 (KO 독자 발매) | 126장 | MEGA 세트 등 해외 미출시 | eBay Finding API |
-| BW 구버전 | 243장 | scrydex 미커버 | eBay Finding API |
-
-### 한국 예상 가치 계수
-- 검증된 세트 한정 (`VERIFIED_SET_IDS = ["sv3pt5"]` — 포켓몬 카드 151)
-- 계산: 한국 평균가 / 해외 평균가(KRW 환산) 중앙값
-- 이상치 제거: 비율 0.01~5.0 범위만
-
-### 주요 DB 테이블
-- `price_snapshots` — 시세 스냅샷 전체
-- `ptcg_set_mappings` — KO product_id → pokemontcg.io set_id
-- `jp_set_mappings` — ptcg_set_id → scrydex JP set_id (예: sv7a_ja)
+| 탭 | 화면 | 상태 |
+|----|------|------|
+| 홈 | 총 자산 + 보유 카드 목록 | ✅ |
+| 시세 | 카드 시세 목록 + 상세 | ✅ |
+| 스캔 | Ollama 카드 인식 + 자산 등록 | ✅ |
+| 등급 | 10장 촬영 → 등급 점수 분석 | ✅ |
+| 내정보 | 프로필 + 로그아웃 | ✅ |
 
 ---
 
-## 수익화 모델
+## 다음 우선순위 ❌
 
-- **월 $5 자발적 후원** (기능 제한 없음, 앱스토어 인앱결제 or 외부)
-- 후원자 혜택: 블루 배지(인스타 스타일) + 칭호
-- **업적 등급**: U → R → AR → SAR → MUR → P (P는 티어 계산 제외, 개발자 전용)
-- **컬렉터 티어**: 몬스터볼(1~200) / 슈퍼볼(201~600) / 하이퍼볼(601~1500) / 마스터볼(1501+)
+### 스캐너 고도화 (아이디어 정리 예정)
+- [ ] Ollama 첫 호출 로딩 10~20초 UX 개선
+- [ ] 카드가 DB에 없는 경우 대응 (PR 카드, 해외판 등)
+- [ ] 동일 카드 연속 스캔 시 API 재호출 방지 (캐싱)
+- [ ] 스캐너 정확도 향상 방안
 
----
+### 거래 재설계 (2차)
+- [ ] C2C 거래 플로우 재설계
+- [ ] 포트폴리오 공개/비공개 설정
+- [ ] 판매 의사 설정 + 탐색
+- [ ] 채팅방 + 거래 완료 처리
 
-## 트러블슈팅 기록
-
-### 이미지 저작권 (2026-04-07)
-- **문제**: 포켓몬 코리아로부터 공식 이미지(pokemonkorea.co.kr) 사용 불가 통보
-- **해결**: scrydex EN/JP 이미지로 대체. CardImage 위젯에서 pokemonkorea URL 자동 차단 후 카드 뒷면 표시
-- **카드 뒷면 URL**: `https://images.scrydex.com/pokemon/card-back/medium`
-
-### scrydex 이미지 URL 패턴
-- EN: `https://images.scrydex.com/pokemon/{tcgplayer_card_id}/medium` (예: `sv4pt5-53/medium`)
-- JP: `https://images.scrydex.com/pokemon/{jp_set_id}-{number}/medium` (예: `sv4a_ja-330/medium`)
-- 카드 뒷면: `https://images.scrydex.com/pokemon/card-back/medium`
-- 모두 HTTP 200 반환 확인됨
-
-### pokemoncard.co.kr E등급 = RRR
-- 사이트에서 E등급으로 표기된 카드 = DB의 RRR (VMAX/VSTAR/V-UNION 고레어)
-- `no_wrap_by_admin` span에서 실제 rarity 텍스트 파싱 (RRR/RR 등)
-- HP: `hp_num[^>]*>HP(\d+)`, 타입: `symbol/type(\d+)\.png` → TYPE_MAP
-
-### 고레어 분류 기준
-- `HIGH_RARE_CODES = ["SSR","SAR","BWR","CSR","CHR","UR","SR","AR","HR","ACE","RR","RRR","PR","H"]`
-- SV-P 프로모: rarity_code IS NULL, `official_card_code LIKE 'SVP%'`
-- V-UNION 5장: rarity_code IS NULL, 수동으로 RRR 설정
-
-### super_type 대소문자
-- DB 저장값은 `"POKEMON"` (대문자), 파싱 시 반드시 `.upper()` 비교
-
-### EN_SET_MAP 주요 수정 이력
-| KR set | 이전 | 수정 | 근거 |
-|--------|------|------|------|
-| bw5s | bw5 | bw6 | 뮤 EX → bw6-120 |
-| bw7 | bw8 | bw7 | Skyla → bw7-149 |
-| sm6b | sm75 | sm7 | Articuno GX → sm7-154 |
-| sm8b | sma | sm9 | Morgan → sm9-178 |
-| swsh10a | swsh10 | swsh11tg | Parasect → swsh11tg-TG01 |
-| sv7 | sv7 | sv8 | Exeggcute → sv8-192 |
-| sv8 | sv8 | sv4 | Snorunt → sv4-188 |
+### 기타
+- [ ] FCM 푸시 알림 (시세 변동, 채팅)
+- [ ] 업적 시스템 (컬렉터 티어)
+- [ ] 통합 검색
 
 ---
 
-## 다음 우선순위
+## API 목록 (현재 활성)
 
-1. **거래 완료 처리** — SOLD 시 PriceSnapshot 자동 생성 (APP source)
-2. **eBay Finding API** — MEGA/BW 593장 해외 시세 + 이미지
-3. **FCM 알림** — 채팅 새 메시지, 관심 카드 가격 변동
-4. **업적 시스템** — HP/card_type 기반 (크롤링 완료 후)
+### 카드
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | /api/cards/{cardId} | 카드 상세 |
+| GET | /api/cards/market | 시세 목록 (등급필터, 가격순) |
+| GET | /api/cards/product/{productId} | 팩별 카드 목록 |
+| GET | /api/cards/number/{collectionNumber} | 수록번호로 조회 |
 
----
+### 자산
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | /api/assets | 내 자산 목록 |
+| POST | /api/assets | 자산 등록 |
+| PUT | /api/assets/{assetId} | 자산 수정 |
+| DELETE | /api/assets/{assetId} | 자산 삭제 |
+| GET | /api/assets/portfolio | 포트폴리오 요약 |
 
-## 용어 정책
+### 시세
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | /api/prices/cards/{cardId}/history | 거래 히스토리 |
+| GET | /api/scrydex/prices/{ref} | scrydex 실시간 조회 |
 
-- 생카드 → **RAW** / 매입가 → 사용 금지
-- 총 자산 = 평균시세 × 수량 합산
-- 가격 = 1의 자리 반올림 + 콤마 포맷 (만원 표기 제거)
+### 스캐너
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | /api/scanner/identify | 이미지 → 카드 인식 (Ollama llava) |
+
+### 그레이딩
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | /api/grading/analyze | 10장 사진 → 등급 점수 분석 |
+
+### 인증/유저
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | /api/auth/kakao/login | 카카오 로그인 |
+| GET | /api/users/me | 내 정보 |
