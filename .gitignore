@@ -40,6 +40,50 @@ scanner/data/
 *.env.local
 python/config.py
 
+# Spring profile 시크릿 (단 example 파일은 예외로 tracked)
+back/src/main/resources/application-local.properties
+back/src/main/resources/application-prod.properties
+back/src/main/resources/application-staging.properties
+back/src/main/resources/application-dev.properties
+back/src/main/resources/application-*.local.properties
+
+# 광범위 키/인증서 (개인키, keystore, 인증서)
+*.pem
+*.key
+!*.public.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.crt
+*.cer
+id_rsa
+id_ed25519
+id_ecdsa
+
+# 클라우드/서비스 계정 JSON (Google/AWS/Firebase/GCP)
+credentials.json
+credentials*.json
+service-account*.json
+*service-account.json
+*-credentials.json
+firebase-adminsdk-*.json
+google-services.json
+GoogleService-Info.plist
+
+# AWS / Terraform local state
+.aws/
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# 일반 시크릿/토큰 이름 패턴
+*secret*.json
+*secret*.yaml
+*secret*.yml
+*token*.json
+secrets/
+
 # KREAM PoC 스크립트 (운영 외, 분석용)
 python/kream_probe.py
 python/kream_login_capture.py
