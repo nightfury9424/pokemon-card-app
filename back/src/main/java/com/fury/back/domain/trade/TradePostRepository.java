@@ -21,6 +21,14 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
 
     List<TradePost> findBySellerIdAndStatus(String sellerId, String status);
 
+    List<TradePost> findByAssetIdOrderByCreatedAtDesc(String assetId);
+
+    List<TradePost> findByAssetIdAndStatus(String assetId, String status);
+
+    List<TradePost> findByAssetIdAndStatusIn(String assetId, List<String> statuses);
+
+    boolean existsByAssetIdAndStatusIn(String assetId, List<String> statuses);
+
     // 카드별 그룹 요약: cardId, 판매 수, 평균가, 최저가
     @Query("SELECT t.cardId, COUNT(t), AVG(t.price), MIN(t.price) " +
            "FROM TradePost t WHERE t.status = 'OPEN' AND t.price IS NOT NULL " +

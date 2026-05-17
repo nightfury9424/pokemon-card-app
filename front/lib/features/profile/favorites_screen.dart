@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
-import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/card_image.dart';
 
+/// 카드 단위 관심 목록 — 거래 리스트에서 하트로 찜한 카드들.
+/// (이전 판매글 단위 favorites는 폐기)
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
 
@@ -24,14 +25,29 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   Future<void> _load() async {
     try {
-      final res = await ApiClient.get('/api/interests/my');
+      final res = await ApiClient.get('/api/card-interests/me');
       if (!mounted) return;
       setState(() {
         _items = List<Map<String, dynamic>>.from(res['data'] ?? []);
         _loading = false;
       });
-    } catch (e) {
+    } catch (_) {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _removeCard(String cardId) async {
+    final removed = _items.firstWhere(
+      (e) => e['cardId'] == cardId,
+      orElse: () => const {},
+    );
+    setState(() => _items.removeWhere((e) => e['cardId'] == cardId));
+    try {
+      await ApiClient.post('/api/card-interests/$cardId/toggle', const {});
+    } catch (_) {
+      // 실패 시 롤백
+      if (!mounted) return;
+      if (removed.isNotEmpty) setState(() => _items.add(Map<String, dynamic>.from(removed)));
     }
   }
 
@@ -43,8 +59,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         backgroundColor: AppColors.bg,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
-        title: const Text('관심 목록',
-            style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+        title: const Text('관심 카드'),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.blue))
@@ -55,10 +70,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     children: [
                       Icon(Icons.favorite_border_rounded, color: AppColors.textMuted, size: 56),
                       const SizedBox(height: 16),
-                      const Text('관심 목록이 비어 있습니다',
+                      const Text('관심 카드가 없습니다',
                           style: TextStyle(color: AppColors.textSecondary, fontSize: 15)),
                       const SizedBox(height: 8),
-                      const Text('판매 글에서 ♡를 눌러 추가해보세요',
+                      const Text('거래 리스트에서 하트를 눌러 추가해보세요',
                           style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
                     ],
                   ),
@@ -77,144 +92,95 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 
   Widget _buildItem(Map<String, dynamic> item) {
-    final tradeId = item['tradeId'] as String? ?? '';
-    final title = item['title'] as String? ?? '';
-    final price = item['price'] as num?;
-    final status = item['status'] as String? ?? 'OPEN';
-    final cardStatus = item['cardStatus'] as String? ?? 'RAW';
-    final card = item['card'] as Map<String, dynamic>? ?? {};
-    final cardId = card['cardId'] as String? ?? '';
-    final cardName = card['name'] as String? ?? '';
-    final rarity = card['rarityCode'] as String? ?? '';
-    final imageUrl = resolveCardImageUrl(card);
-    final seller = item['seller'] as Map<String, dynamic>? ?? {};
-    final sellerNick = seller['nickname'] as String? ?? '';
+    final cardId = item['cardId'] as String? ?? '';
+    final name = item['name'] as String? ?? cardId;
+    final rarity = item['rarityCode'] as String? ?? '';
+    final language = item['language'] as String? ?? '';
+    final imageUrl = resolveCardImageUrl(item);
 
-    final isSold = status == 'SOLD';
-    final glowColor = AppColors.rarityGlow(rarity);
-    final hasGlow = rarity.isNotEmpty && glowColor != Colors.transparent;
-
-    return GestureDetector(
-      onTap: () => context.push('/trades/$tradeId'),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider),
-        ),
+    return InkWell(
+      onTap: () => context.push('/card/$cardId', extra: {'cardData': item}),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
           children: [
-            // 카드 이미지
-            Container(
-              width: 44,
-              height: 62,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: hasGlow ? glowColor.withOpacity(0.5) : AppColors.divider,
-                  width: hasGlow ? 1.5 : 1,
-                ),
-              ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
               child: CardImage(
                 imageUrl: imageUrl,
                 width: 44,
-                height: 62,
+                height: 60,
                 fit: BoxFit.cover,
-                borderRadius: BorderRadius.circular(5),
               ),
             ),
             const SizedBox(width: 14),
-            // 정보
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      if (rarity.isNotEmpty) ...[
+                      if (rarity.isNotEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           decoration: BoxDecoration(
-                            color: AppColors.rarityColor(rarity).withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(3),
+                            color: AppColors.rarityColor(rarity).withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Text(rarity,
-                              style: TextStyle(
-                                  color: AppColors.rarityColor(rarity),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold)),
+                          child: Text(
+                            rarity,
+                            style: TextStyle(
+                              color: AppColors.rarityColor(rarity),
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
                         ),
+                      if (language.isNotEmpty) ...[
                         const SizedBox(width: 6),
-                      ],
-                      Text(cardStatus,
+                        Text(
+                          language,
                           style: const TextStyle(
-                              color: AppColors.blue, fontSize: 10, fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 6),
-                      Text(sellerNick,
-                          style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                            color: AppColors.textMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
               ),
             ),
-            // 가격 + 상태
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (price != null && price > 0)
-                  Text(
-                    AppColors.formatPrice(price.toInt()),
-                    style: TextStyle(
-                      color: isSold ? AppColors.textMuted : AppColors.green,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      decoration: isSold ? TextDecoration.lineThrough : null,
-                    ),
-                  ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: _statusColor(status).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    _statusLabel(status),
-                    style: TextStyle(
-                        color: _statusColor(status), fontSize: 10, fontWeight: FontWeight.bold),
-                  ),
+            GestureDetector(
+              onTap: () => _removeCard(cardId),
+              behavior: HitTestBehavior.opaque,
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(
+                  Icons.favorite_rounded,
+                  color: AppColors.red,
+                  size: 22,
                 ),
-              ],
+              ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'OPEN': return '판매중';
-      case 'RESERVED': return '예약중';
-      case 'SOLD': return '판매완료';
-      default: return status;
-    }
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'OPEN': return AppColors.green;
-      case 'RESERVED': return AppColors.gold;
-      case 'SOLD': return AppColors.textMuted;
-      default: return AppColors.textMuted;
-    }
   }
 }

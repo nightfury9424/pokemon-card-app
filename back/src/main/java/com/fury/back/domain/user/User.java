@@ -17,14 +17,23 @@ public class User {
     @Column(name = "user_id", length = 50)
     private String userId;
 
-    @Column(name = "kakao_id", nullable = false, unique = true, length = 100)
-    private String kakaoId;
+    @Column(name = "google_id", nullable = false, unique = true, length = 100)
+    private String googleId;
 
-    @Column(name = "nickname", nullable = false, length = 50)
+    @Column(name = "nickname", length = 50)
     private String nickname;
+
+    @Column(name = "email", length = 200)
+    private String email;
 
     @Column(name = "profile_image_url", length = 500)
     private String profileImageUrl;
+
+    @Column(name = "onboarded", nullable = false)
+    private boolean onboarded;
+
+    @Column(name = "nickname_changed_at")
+    private LocalDateTime nicknameChangedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

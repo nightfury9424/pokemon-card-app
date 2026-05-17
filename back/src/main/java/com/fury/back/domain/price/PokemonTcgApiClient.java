@@ -19,7 +19,6 @@ import java.util.Optional;
 public class PokemonTcgApiClient {
 
     private static final String BASE_URL = "https://api.pokemontcg.io/v2";
-    private static final List<String> PRICE_KEYS = List.of("holofoil", "normal", "reverseHolofoil", "1stEditionHolofoil");
 
     private final RestClient restClient;
 
@@ -61,50 +60,6 @@ public class PokemonTcgApiClient {
             return Optional.ofNullable(id);
         } catch (Exception e) {
             log.warn("PTCG API 카드 검색 실패: setId={}, number={}, error={}", ptcgSetId, cardNumber, e.getMessage());
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * pokemontcg.io 카드 ID로 TCGPlayer 시장가(USD) 조회
-     *
-     * @param ptcgCardId pokemontcg.io 카드 ID (예: swsh12pt5-244)
-     * @return USD 시장가 (없으면 empty)
-     */
-    public Optional<Double> getMarketPriceUsd(String ptcgCardId) {
-        try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> response = restClient.get()
-                    .uri("/cards/" + ptcgCardId)
-                    .retrieve()
-                    .body(Map.class);
-
-            if (response == null) return Optional.empty();
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> cardData = (Map<String, Object>) response.get("data");
-            if (cardData == null) return Optional.empty();
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> tcgplayer = (Map<String, Object>) cardData.get("tcgplayer");
-            if (tcgplayer == null) return Optional.empty();
-
-            @SuppressWarnings("unchecked")
-            Map<String, Map<String, Object>> prices = (Map<String, Map<String, Object>>) tcgplayer.get("prices");
-            if (prices == null || prices.isEmpty()) return Optional.empty();
-
-            // holofoil → normal → reverseHolofoil 순으로 market 가격 추출
-            for (String key : PRICE_KEYS) {
-                Map<String, Object> tier = prices.get(key);
-                if (tier == null) continue;
-                Object market = tier.get("market");
-                if (market instanceof Number num && num.doubleValue() > 0) {
-                    return Optional.of(num.doubleValue());
-                }
-            }
-            return Optional.empty();
-        } catch (Exception e) {
-            log.warn("PTCG API 가격 조회 실패: cardId={}, error={}", ptcgCardId, e.getMessage());
             return Optional.empty();
         }
     }

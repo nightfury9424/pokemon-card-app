@@ -11,6 +11,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Map;
+
 @Tag(name = "Trade", description = "카드 판매 거래 API")
 @RestController
 @RequestMapping("/api/trades")
@@ -50,6 +52,14 @@ public class TradeController {
         return tradeService.createTrade(userId, parameterData);
     }
 
+    @Operation(summary = "자산 기반 판매글 등록", description = "JWT 인증 필요. 내 자산을 기반으로 판매글을 자동 생성합니다.")
+    @PostMapping("/from-asset")
+    public ReturnData<TradePostDto> createTradeFromAsset(
+            @AuthenticationPrincipal String userId,
+            @RequestBody ParameterData parameterData) {
+        return tradeService.createTradeFromAsset(userId, parameterData);
+    }
+
     @Operation(summary = "판매글 수정", description = "JWT 인증 필요. 제목/설명/가격 수정.")
     @PutMapping("/{tradeId}")
     public ReturnData<TradePostDto> updateTrade(
@@ -72,8 +82,17 @@ public class TradeController {
     public ReturnData<TradePostDto> updateStatus(
             @PathVariable String tradeId,
             @AuthenticationPrincipal String userId,
-            @RequestParam String status) {
-        return tradeService.updateStatus(tradeId, userId, status);
+            @RequestParam(required = false) String status,
+            @RequestBody(required = false) Map<String, Object> body) {
+        String nextStatus = status;
+        if ((nextStatus == null || nextStatus.isBlank()) && body != null) {
+            Object rawStatus = body.get("status");
+            if (rawStatus == null && body.get("data") instanceof Map<?, ?> data) {
+                rawStatus = data.get("status");
+            }
+            nextStatus = rawStatus != null ? String.valueOf(rawStatus) : null;
+        }
+        return tradeService.updateStatus(tradeId, userId, nextStatus);
     }
 
     @Operation(summary = "판매글 이미지 업로드", description = "JWT 인증 필요. 판매글에 카드 실물 사진을 업로드합니다.")

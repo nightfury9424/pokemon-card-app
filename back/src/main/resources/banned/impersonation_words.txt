@@ -1,0 +1,32 @@
+# normalized contains 매칭으로 차단. 닉네임 안에 이 단어가 포함되면 거부.
+# 사칭/공식 사칭 방지용 — 핵심 트리거 단어만. "포켓몬공식" 같은 조합은 "공식"으로 자동 매칭됨.
+관리자
+운영자
+운영진
+운영팀
+관리팀
+공식
+공식계정
+고객센터
+고객지원
+시스템
+어드민
+스태프
+공지
+알림센터
+문의센터
+고객문의
+admin
+administrator
+official
+support
+staff
+moderator
+system
+notice
+customercenter
+helpdesk
+pokefolio
+pocketfolio
+포케폴리오
+포켓폴리오

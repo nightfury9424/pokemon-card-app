@@ -1,5 +1,6 @@
 package com.fury.back.domain.card.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fury.back.domain.card.Card;
 import com.fury.back.domain.price.PriceSnapshot;
 import lombok.Builder;
@@ -27,6 +28,22 @@ public class CardDto {
     private String productType;
     private Integer latestPrice;
     private String latestTradedAt;
+    private Integer koEstimatedPrice;
+    private String koPriceBasis;
+    // 전일 KO_ESTIMATED 가격 + 변동률 (캐러셀/리스트 변동률 표시용)
+    // REFACTOR_2026-05-12.md 4차-Round3.
+    private Integer yesterdayPrice;
+    private Double gainPct;
+    // Turn D-3 (2026-05-17): recent ranking 전용 — 변동일 가격과 현재가 분리.
+    // 기존 top-gainers/top-losers는 영향 없음 (mapGainerRows 미설정).
+    private Integer currentPrice;       // 최신 KO_ESTIMATED row 가격
+    private Integer moveDatePrice;      // 변동 발생일 KO 가격 (audit.ko_price)
+    private Integer prevPrice;          // 변동 전 KO 가격 (prev_audit snapshot)
+    private Integer changeAmount;       // moveDatePrice - prevPrice
+    private java.time.LocalDate moveDate; // 변동 발생일
+    @JsonProperty("isPromoExclusive")
+    private boolean isPromoExclusive;
+    private String promoType;
 
     public static CardDto from(Card card) {
         return CardDto.builder()
@@ -43,6 +60,8 @@ public class CardDto {
                 .imageUrl(card.getImageUrl())
                 .enScrydexRef(card.getEnScrydexRef())
                 .jpScrydexRef(card.getJpScrydexRef())
+                .isPromoExclusive(card.isPromoExclusive())
+                .promoType(card.getPromoType() != null ? card.getPromoType().name() : null)
                 .build();
     }
 
@@ -63,6 +82,8 @@ public class CardDto {
                     .rarityCode(dto.rarityCode).language(dto.language).superType(dto.superType)
                     .subType(dto.subType).illustrator(dto.illustrator).imageUrl(dto.imageUrl)
                     .enScrydexRef(dto.enScrydexRef).jpScrydexRef(dto.jpScrydexRef)
+                    .isPromoExclusive(dto.isPromoExclusive)
+                    .promoType(dto.promoType)
                     .productName(product.getName())
                     .seriesName(product.getSeriesName())
                     .productType(product.getProductType())

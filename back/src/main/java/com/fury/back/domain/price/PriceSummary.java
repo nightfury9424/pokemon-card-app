@@ -24,7 +24,7 @@ public class PriceSummary {
     @Column(name = "card_status", nullable = false, length = 20)
     private String cardStatus;
 
-    // PSA / BGS / CGC / OTHER
+    // PSA / BRG
     @Column(name = "grading_company", length = 20)
     private String gradingCompany;
 

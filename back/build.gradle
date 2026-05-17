@@ -10,7 +10,7 @@ description = 'back'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(20)
     }
 }
 
@@ -48,6 +48,9 @@ dependencies {
 
     // WebSocket (STOMP)
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+    // HTML parsing (card lookup from pokemoncard.co.kr / scrydex)
+    implementation 'org.jsoup:jsoup:1.18.1'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

@@ -23,6 +23,9 @@ public class TradePost {
     @Column(name = "card_id", nullable = false, length = 50)
     private String cardId;
 
+    @Column(name = "asset_id", length = 50)
+    private String assetId;
+
     @Column(name = "title", nullable = false, length = 200)
     private String title;
 
@@ -42,6 +45,13 @@ public class TradePost {
 
     @Column(name = "grade_value", length = 20)
     private String gradeValue;
+
+    // 최상 / 상 / 중 / 중하 / 하
+    @Column(name = "condition", length = 20)
+    private String condition;
+
+    @Column(name = "cert_number", length = 50)
+    private String certNumber;
 
     @Column(name = "image_url", columnDefinition = "TEXT")
     private String imageUrl;
@@ -80,6 +90,10 @@ public class TradePost {
 
     public void updateImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public void updateCondition(String condition) {
+        this.condition = condition;
     }
 
     public void updateStatus(String status) {

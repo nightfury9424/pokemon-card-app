@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
+import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/theme/app_colors.dart';
@@ -59,6 +60,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Future<void> _loadMessages() async {
     try {
       final res = await ApiClient.get('/api/chat/rooms/${widget.roomId}/messages');
+      if (!mounted) return;
       final list = (res['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
       setState(() {
         _messages.addAll(list);
@@ -66,6 +68,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       });
       _scrollToBottom(animated: false);
     } catch (_) {
+      if (!mounted) return;
       setState(() => _loading = false);
     }
   }
@@ -74,13 +77,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     final token = await TokenStorage.get();
     _stompClient = StompClient(
       config: StompConfig.sockJS(
-        url: 'http://10.0.2.2:8080/ws',
+        url: '${ApiConstants.baseUrl}/ws',
         onConnect: (frame) {
+          if (!mounted) return;
           setState(() => _connected = true);
           _stompClient?.subscribe(
             destination: '/topic/room/${widget.roomId}',
             callback: (frame) {
-              if (frame.body == null) return;
+              if (!mounted || frame.body == null) return;
               try {
                 final msg = _parseMessage(frame.body!);
                 setState(() => _messages.add(msg));
@@ -89,8 +93,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             },
           );
         },
-        onDisconnect: (_) => setState(() => _connected = false),
-        onWebSocketError: (_) => setState(() => _connected = false),
+        onDisconnect: (_) {
+          if (!mounted) return;
+          setState(() => _connected = false);
+        },
+        onWebSocketError: (_) {
+          if (!mounted) return;
+          setState(() => _connected = false);
+        },
         stompConnectHeaders: {
           'Authorization': 'Bearer ${token ?? ''}',
         },
@@ -116,6 +126,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   void _scrollToBottom({bool animated = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       if (_scrollController.hasClients) {
         if (animated) {
           _scrollController.animateTo(

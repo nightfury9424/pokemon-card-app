@@ -78,7 +78,7 @@ FOOTER_KEYWORDS = [
 ]
 
 RARITY_CANDIDATES = [
-    "SAR", "SSR", "CSR", "CHR", "ACE", "UR", "AR", "SR",
+    "SAR", "SSR", "CSR", "CHR", "ACE", "BWR", "RRR", "UR", "AR", "SR",
     "RR", "PR", "HR", "H", "R", "U", "C"
 ]
 
@@ -203,17 +203,20 @@ def parse_illustrator(lines: List[str]) -> Optional[str]:
 
 
 def parse_card_types(page_text: str) -> Tuple[str, Optional[str]]:
+    # 포켓몬 카드는 항상 HP + (약점 또는 저항) 보유 → 먼저 체크해야 오분류 방지
+    if "HP" in page_text and ("약점" in page_text or "저항" in page_text):
+        if "레벨업" in page_text: return "POKEMON", "LEVEL_UP"
+        if "포켓몬 ex" in page_text: return "POKEMON", "EX"
+        if "2진화" in page_text: return "POKEMON", "STAGE2"
+        if "1진화" in page_text: return "POKEMON", "STAGE1"
+        if "기본 포켓몬" in page_text: return "POKEMON", "BASIC"
+        return "POKEMON", None
     if "포켓몬의 도구" in page_text: return "TRAINER", "TOOL"
-    if "아이템" in page_text: return "TRAINER", "ITEM"
     if "서포트" in page_text: return "TRAINER", "SUPPORTER"
+    if "아이템" in page_text: return "TRAINER", "ITEM"
     if "스타디움" in page_text: return "TRAINER", "STADIUM"
     if "특수 에너지" in page_text: return "ENERGY", "SPECIAL"
     if "기본 에너지" in page_text: return "ENERGY", "BASIC"
-    if "레벨업" in page_text: return "POKEMON", "LEVEL_UP"
-    if "포켓몬 ex" in page_text: return "POKEMON", "EX"
-    if "2진화" in page_text: return "POKEMON", "STAGE2"
-    if "1진화" in page_text: return "POKEMON", "STAGE1"
-    if "기본 포켓몬" in page_text: return "POKEMON", "BASIC"
     return "POKEMON", None
 
 
@@ -401,10 +404,17 @@ def insert_card(conn, incoming: Dict, cards_columns: Set[str]) -> str:
 
 
 def update_card(conn, card_id: str, incoming: Dict, cards_columns: Set[str]) -> None:
+    with conn.cursor() as cur:
+        cur.execute("SELECT name_locked FROM cards WHERE card_id = %s", (card_id,))
+        row = cur.fetchone()
+        name_locked = row[0] if row else False
+
     assignments = []
     values = []
     for key, value in incoming.items():
         if key in cards_columns and key != "card_id":
+            if key == "name" and name_locked:
+                continue
             assignments.append(f"{key} = %s")
             values.append(value)
 

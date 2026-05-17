@@ -16,12 +16,17 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Value("${trade.image.dir}")
     private String tradeImageDir;
 
+    @Value("${asset.grading.image.dir:${user.home}/pokemon-card-app/asset_grading_images}")
+    private String assetGradingImageDir;
+
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/images/cards/**")
                 .addResourceLocations("file:" + cardImageDir + "/");
         registry.addResourceHandler("/images/trades/**")
                 .addResourceLocations("file:" + tradeImageDir + "/");
+        registry.addResourceHandler("/images/asset-grading/**")
+                .addResourceLocations("file:" + assetGradingImageDir + "/");
     }
 
     @Bean

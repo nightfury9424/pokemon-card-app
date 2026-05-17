@@ -1,12 +1,22 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/rarity.dart';
+import '../../core/widgets/animated_counter.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/pressable.dart';
+import '../../core/widgets/rarity_aura.dart';
 
 class AssetScreen extends StatefulWidget {
-  const AssetScreen({super.key});
+  final int initialTabIndex;
+  const AssetScreen({super.key, this.initialTabIndex = 0});
 
   @override
   State<AssetScreen> createState() => _AssetScreenState();
@@ -15,29 +25,44 @@ class AssetScreen extends StatefulWidget {
 enum _SortMode { rarity, price, name, quantity }
 
 class _AssetScreenState extends State<AssetScreen> {
+  /// 연속 reload race 방지용 시퀀스 토큰.
+  int _loadSeq = 0;
   List<Map<String, dynamic>> _assets = [];
   Map<String, dynamic>? _portfolio;
-  Map<String, int> _marketPrices = {}; // cardId → 평균시세
+  // 4차-Round4-4 Phase 5: 내 매수 주문 sub-tab
+  List<Map<String, dynamic>> _myBuyOrders = [];
   bool _loading = true;
   String? _userId;
+  late int _tabIndex = widget.initialTabIndex; // 0=전체 1=판매중 2=내 매수
 
   _SortMode _sortMode = _SortMode.rarity;
   bool _sortAscending = true;
 
-  static const _rarityOrder = {
-    'SSR': 0, 'SAR': 1, 'BWR': 2, 'CSR': 3, 'CHR': 4, 'UR': 5, 'SR': 6, 'AR': 7,
-    'HR': 8, 'ACE': 9, 'RRR': 10, 'RR': 11, 'PR': 12, 'H': 13,
-  };
+  List<Map<String, dynamic>> get _filteredAssets => _tabIndex == 1
+      ? _assets.where((a) => a['isSelling'] == true).toList()
+      : _assets;
+
+  // 레어도 hierarchy는 AppRarity로 통일 — 한국 포카 시세 기준 (MUR > SSR > SAR > PR > ...)
+  // REFACTOR_2026-05-12.md 4차 디자인 시스템.
+
+  // 카드 격자 테두리 — 시그너처 레어도는 색 + 글로우
+  static const _premiumRarities = {'MUR', 'UR', 'SAR', 'AR', 'MA', 'BWR', 'SSR'};
+  bool _isRarityPremium(String r) => _premiumRarities.contains(r);
+  Color _rarityBorderColor(String r) => _isRarityPremium(r)
+      ? AppColors.rarityGlow(r).withValues(alpha: 0.45)
+      : AppColors.divider;
 
   void _applySortInPlace() {
     final asc = _sortAscending ? 1 : -1;
     switch (_sortMode) {
       case _SortMode.rarity:
         _assets.sort((a, b) {
-          final ra = _rarityOrder[(a['card']?['rarityCode'] as String?) ?? ''] ?? 99;
-          final rb = _rarityOrder[(b['card']?['rarityCode'] as String?) ?? ''] ?? 99;
+          final ra = AppRarity.rank((a['card']?['rarityCode'] as String?));
+          final rb = AppRarity.rank((b['card']?['rarityCode'] as String?));
           if (ra != rb) return ra.compareTo(rb) * asc;
-          return ((a['card']?['name'] as String?) ?? '').compareTo((b['card']?['name'] as String?) ?? '');
+          return ((a['card']?['name'] as String?) ?? '').compareTo(
+            (b['card']?['name'] as String?) ?? '',
+          );
         });
       case _SortMode.price:
         _assets.sort((a, b) {
@@ -49,8 +74,13 @@ class _AssetScreenState extends State<AssetScreen> {
           return pa.compareTo(pb) * asc;
         });
       case _SortMode.name:
-        _assets.sort((a, b) =>
-            ((a['card']?['name'] as String?) ?? '').compareTo((b['card']?['name'] as String?) ?? '') * asc);
+        _assets.sort(
+          (a, b) =>
+              ((a['card']?['name'] as String?) ?? '').compareTo(
+                (b['card']?['name'] as String?) ?? '',
+              ) *
+              asc,
+        );
       case _SortMode.quantity:
         _assets.sort((a, b) {
           final qa = (a['quantity'] as num?)?.toInt() ?? 1;
@@ -76,50 +106,66 @@ class _AssetScreenState extends State<AssetScreen> {
   @override
   void initState() {
     super.initState();
+    AssetNotifier.instance.addListener(_onExternalChange);
     _loadData();
+    if (widget.initialTabIndex == 2) {
+      _loadMyBuyOrders();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AssetScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTabIndex != widget.initialTabIndex) {
+      setState(() => _tabIndex = widget.initialTabIndex);
+      if (widget.initialTabIndex == 2 && _myBuyOrders.isEmpty) {
+        _loadMyBuyOrders();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    AssetNotifier.instance.removeListener(_onExternalChange);
+    super.dispose();
+  }
+
+  void _onExternalChange() {
+    if (mounted) _loadData();
   }
 
   Future<void> _loadData() async {
+    final seq = ++_loadSeq;
     try {
       final meRes = await ApiClient.get('/api/users/me');
       _userId = meRes['data']['userId'] as String?;
       if (_userId == null) return;
 
-      final assetRes = await ApiClient.get(ApiConstants.assets, params: {'userId': _userId});
+      final assetRes = await ApiClient.get(
+        ApiConstants.assets,
+        params: {'userId': _userId},
+      );
       final assets = List<Map<String, dynamic>>.from(assetRes['data'] ?? []);
 
-      // 카드별 평균시세 fetch (history 스냅샷에서 RAW 평균 계산)
-      final priceMap = <String, int>{};
-      final cardIds = assets.map((a) => a['cardId'] as String).toSet();
-      await Future.wait(cardIds.map((cardId) async {
-        try {
-          final res = await ApiClient.get('/api/prices/cards/$cardId/history');
-          final snapshots = res['data'] as List? ?? [];
-          final rawPrices = snapshots
-              .where((s) => s['cardStatus'] == 'RAW' && (s['price'] as num?) != null && (s['price'] as num) > 0)
-              .map((s) => (s['price'] as num).toInt())
-              .toList();
-          if (rawPrices.isNotEmpty) {
-            priceMap[cardId] = (rawPrices.reduce((a, b) => a + b) / rawPrices.length).round();
-          }
-        } catch (_) {}
-      }));
-
-      // 총 자산 = 시세 × 수량 합산
+      // 자산 응답의 displayPrice(asset.language별 환산가)를 그대로 합산.
       int totalMarketValue = 0;
       for (final a in assets) {
-        final cardId = a['cardId'] as String;
+        final dp = (a['displayPrice'] as num?)?.toInt();
         final qty = (a['quantity'] as num?)?.toInt() ?? 1;
-        final price = priceMap[cardId] ?? 0;
-        totalMarketValue += price * qty;
+        if (dp != null && dp > 0) totalMarketValue += dp * qty;
       }
+      final cardIds = assets.map((a) => a['cardId'] as String).toSet();
 
       if (!mounted) return;
+      // 더 최신 load가 시작됐다면 stale 응답이므로 무시.
+      if (seq != _loadSeq) return;
       setState(() {
         _assets = assets;
-        _marketPrices = priceMap;
         _portfolio = {
-          'totalCards': assets.fold<int>(0, (s, a) => s + ((a['quantity'] as num?)?.toInt() ?? 1)),
+          'totalCards': assets.fold<int>(
+            0,
+            (s, a) => s + ((a['quantity'] as num?)?.toInt() ?? 1),
+          ),
           'distinctCardCount': cardIds.length,
           'totalMarketValue': totalMarketValue,
         };
@@ -134,22 +180,598 @@ class _AssetScreenState extends State<AssetScreen> {
   Future<void> _deleteAsset(String assetId) async {
     try {
       await ApiClient.delete('${ApiConstants.assets}/$assetId');
-      setState(() => _assets.removeWhere((a) => a['assetId'] == assetId));
-      _loadPortfolio();
+      AssetNotifier.instance.notifyChanged();
+      if (!mounted) return;
+      setState(() {
+        _assets.removeWhere((a) => a['assetId'] == assetId);
+        // 포트폴리오 로컬 재계산 (totalMarketValue 유지)
+        final newTotal = _assets.fold<int>(
+          0,
+          (s, a) => s + ((a['quantity'] as num?)?.toInt() ?? 1),
+        );
+        final newDistinct = _assets
+            .map((a) => a['cardId'] as String)
+            .toSet()
+            .length;
+        int newMarketValue = 0;
+        for (final a in _assets) {
+          final qty = (a['quantity'] as num?)?.toInt() ?? 1;
+          final dp = (a['displayPrice'] as num?)?.toInt() ?? 0;
+          newMarketValue += dp * qty;
+        }
+        _portfolio = {
+          'totalCards': newTotal,
+          'distinctCardCount': newDistinct,
+          'totalMarketValue': newMarketValue,
+        };
+      });
     } catch (e) {
       if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('삭제 실패')));
+      }
+    }
+  }
+
+  // ignore: unused_element
+  Future<void> _startSelling(Map<String, dynamic> asset) async {
+    final assetId = asset['assetId'] as String? ?? '';
+    if (assetId.isEmpty) return;
+
+    final cardStatus = asset['cardStatus'] as String? ?? 'RAW';
+    final estimatedGrade = (asset['estimatedGrade'] as num?)?.toDouble();
+    final cardData =
+        (asset['card'] is Map
+            ? Map<String, dynamic>.from(asset['card'] as Map)
+            : null) ??
+        {};
+    final cardId = asset['cardId'] as String? ?? '';
+    final cardName = cardData['name'] as String? ?? cardId;
+
+    if (cardStatus == 'GRADED') {
+      await _showGradedSellSheet(asset);
+      return;
+    }
+
+    if (estimatedGrade == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('판매 전 앱 등급 분석이 필요합니다')));
+      final graded = await context.push<bool>(
+        '/grading/capture',
+        extra: {'assetId': assetId, 'cardId': cardId, 'cardName': cardName},
+      );
+      if (graded == true && mounted) {
+        _loadData();
+      }
+      return;
+    }
+
+    await _showRawSellPriceSheet(asset, cardName, estimatedGrade);
+  }
+
+  Future<void> _showRawSellPriceSheet(
+    Map<String, dynamic> asset,
+    String cardName,
+    double estimatedGrade,
+  ) async {
+    final assetId = asset['assetId'] as String? ?? '';
+    final priceCtrl = TextEditingController();
+    bool submitting = false;
+    bool created = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) {
+          Future<void> submit() async {
+            final price = int.tryParse(
+              priceCtrl.text.trim().replaceAll(',', ''),
+            );
+            if (price == null || price <= 0) return;
+            setModal(() => submitting = true);
+            try {
+              final res = await ApiClient.post('/api/trades/from-asset', {
+                'data': {'assetId': assetId, 'price': price},
+              });
+              final data = res['data'];
+              final tradeId = (data is Map ? data['tradeId'] : null) as String?;
+              if (!mounted || !ctx.mounted) return;
+              created = true;
+              Navigator.pop(ctx);
+              setState(() {
+                asset['isSelling'] = true;
+                asset['activeTradeId'] = tradeId;
+              });
+            } catch (_) {
+              setModal(() => submitting = false);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('판매 등록 실패'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '판매가 입력',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$cardName  ·  앱 분석 ${estimatedGrade.toStringAsFixed(1)}점',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: priceCtrl,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: '판매가 입력 (원)',
+                    hintStyle: const TextStyle(color: AppColors.textMuted),
+                    suffixText: '원',
+                    suffixStyle: const TextStyle(
+                      color: AppColors.textSecondary,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onSubmitted: (_) => submit(),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Text(
+                            '취소',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: GestureDetector(
+                        onTap: submitting ? null : submit,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppColors.blue, Color(0xFF1A56B0)],
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            submitting ? '등록 중...' : '판매 등록',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+    if (created && mounted) _loadData();
+  }
+
+  // ignore: unused_element
+  Future<void> _stopSelling(Map<String, dynamic> asset) async {
+    final tradeId = asset['activeTradeId'] as String?;
+    if (tradeId == null || tradeId.isEmpty) return;
+    try {
+      await ApiClient.delete('/api/trades/$tradeId');
+      if (!mounted) return;
+      setState(() {
+        asset['isSelling'] = false;
+        asset['activeTradeId'] = null;
+      });
+      if (mounted) _loadData();
+    } catch (_) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('삭제 실패')),
+          const SnackBar(
+            content: Text('판매 내리기 실패'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
   }
 
+  Future<void> _showGradedSellSheet(Map<String, dynamic> asset) async {
+    final assetId = asset['assetId'] as String? ?? '';
+    if (assetId.isEmpty) return;
+
+    final priceCtrl = TextEditingController();
+    final picker = ImagePicker();
+    String? gradingCompany = asset['gradingCompany'] as String?;
+    String? gradeValue = asset['gradeValue'] as String?;
+    File? slabPhoto;
+    bool submitting = false;
+    bool created = false;
+
+    const gradingCompanies = ['PSA', 'BRG'];
+    const gradeValues = ['10', '9.5', '9', '8.5', '8', '7.5', '7', '6', '5'];
+
+    try {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: AppColors.surfaceCard,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setModal) {
+            final price = int.tryParse(priceCtrl.text.trim());
+            final canSubmit =
+                gradingCompany != null &&
+                gradeValue != null &&
+                slabPhoto != null &&
+                price != null &&
+                price > 0 &&
+                !submitting;
+
+            Future<void> pickSlabPhoto() async {
+              final picked = await picker.pickImage(
+                source: ImageSource.gallery,
+                imageQuality: 90,
+                maxWidth: 1200,
+              );
+              if (picked == null) return;
+              setModal(() => slabPhoto = File(picked.path));
+            }
+
+            Future<void> submit() async {
+              if (!canSubmit) return;
+              setModal(() => submitting = true);
+              try {
+                await ApiClient.patch(
+                  '${ApiConstants.assets}/$assetId/grading-info',
+                  data: {
+                    'gradingCompany': gradingCompany,
+                    'gradeValue': gradeValue,
+                  },
+                );
+                await ApiClient.uploadFile(
+                  '${ApiConstants.assets}/$assetId/slab-image',
+                  slabPhoto!.path,
+                  field: 'slab_image',
+                );
+                final res = await ApiClient.post('/api/trades/from-asset', {
+                  'data': {'assetId': assetId, 'price': price},
+                });
+                final tradeId =
+                    (res['data'] as Map<String, dynamic>?)?['tradeId']
+                        as String?;
+                if (!mounted || !ctx.mounted) return;
+                created = true;
+                Navigator.pop(ctx);
+                setState(() {
+                  asset['gradingCompany'] = gradingCompany;
+                  asset['gradeValue'] = gradeValue;
+                  asset['isSelling'] = true;
+                  asset['activeTradeId'] = tradeId;
+                });
+              } catch (_) {
+                setModal(() => submitting = false);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('판매 등록 실패'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.divider,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      '등급 카드 판매 등록',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      '감정사',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: gradingCompanies.map((company) {
+                        final selected = gradingCompany == company;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(company),
+                            selected: selected,
+                            selectedColor: AppColors.gold.withValues(
+                              alpha: 0.2,
+                            ),
+                            backgroundColor: AppColors.surfaceElevated,
+                            labelStyle: TextStyle(
+                              color: selected
+                                  ? AppColors.gold
+                                  : AppColors.textSecondary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            side: BorderSide(
+                              color: selected
+                                  ? AppColors.gold
+                                  : AppColors.divider,
+                            ),
+                            onSelected: (_) =>
+                                setModal(() => gradingCompany = company),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<String>(
+                      initialValue: gradeValues.contains(gradeValue)
+                          ? gradeValue
+                          : null,
+                      dropdownColor: AppColors.surfaceCard,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: '등급',
+                        labelStyle: const TextStyle(
+                          color: AppColors.textSecondary,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.surfaceElevated,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.divider,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.divider,
+                          ),
+                        ),
+                      ),
+                      items: gradeValues
+                          .map(
+                            (v) => DropdownMenuItem(value: v, child: Text(v)),
+                          )
+                          .toList(),
+                      onChanged: (v) => setModal(() => gradeValue = v),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        if (slabPhoto != null)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.file(
+                              slabPhoto!,
+                              width: 84,
+                              height: 84,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        else
+                          Container(
+                            width: 84,
+                            height: 84,
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceElevated,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.divider),
+                            ),
+                            child: const Icon(
+                              Icons.image_outlined,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: submitting ? null : pickSlabPhoto,
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: const Text('슬랩사진 선택'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.blue,
+                              side: const BorderSide(color: AppColors.blue),
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: priceCtrl,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(color: AppColors.textPrimary),
+                      onChanged: (_) => setModal(() {}),
+                      decoration: InputDecoration(
+                        labelText: '판매가',
+                        labelStyle: const TextStyle(
+                          color: AppColors.textSecondary,
+                        ),
+                        suffixText: '원',
+                        suffixStyle: const TextStyle(
+                          color: AppColors.textSecondary,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.surfaceElevated,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.divider,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.divider,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: canSubmit ? submit : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.green,
+                          disabledBackgroundColor: Colors.white12,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: submitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                '판매 등록',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+      if (created && mounted) _loadData();
+    } finally {
+      priceCtrl.dispose();
+    }
+  }
+
+  // ignore: unused_element
   Future<void> _loadPortfolio() async {
     if (_userId == null) return;
     try {
-      final res = await ApiClient.get('${ApiConstants.assets}/portfolio', params: {'userId': _userId});
-      if (mounted) setState(() => _portfolio = res['data'] as Map<String, dynamic>?);
+      final res = await ApiClient.get(
+        '${ApiConstants.assets}/portfolio',
+        params: {'userId': _userId},
+      );
+      if (mounted) {
+        setState(() => _portfolio = res['data'] as Map<String, dynamic>?);
+      }
     } catch (_) {}
   }
 
@@ -158,128 +780,120 @@ class _AssetScreenState extends State<AssetScreen> {
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: AppColors.bg,
         foregroundColor: Colors.white,
         title: const Text('내 자산'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _showAddOptions,
-          ),
+          IconButton(icon: const Icon(Icons.add), onPressed: _showAddOptions),
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white30))
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.white30),
+            )
           : RefreshIndicator(
               onRefresh: _loadData,
               child: CustomScrollView(
                 slivers: [
                   SliverToBoxAdapter(child: _buildPortfolioSummary()),
                   SliverToBoxAdapter(child: _buildSortRow()),
-                  if (_assets.isEmpty)
-                    const SliverFillRemaining(
-                      child: Center(
-                        child: Text('보유 카드가 없습니다\n우상단 + 버튼으로 카드를 추가하세요',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.white38, fontSize: 15)),
+                  SliverToBoxAdapter(child: _buildTabRow()),
+                  // 내 매수 주문 탭 (index 2)
+                  if (_tabIndex == 2) ...[
+                    if (_myBuyOrders.isEmpty)
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(32),
+                            child: Text(
+                              '등록한 매수 호가가 없습니다.\n카드 상세에서 등록할 수 있습니다.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.5),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, i) => _buildBuyOrderRow(_myBuyOrders[i]),
+                            childCount: _myBuyOrders.length,
+                          ),
+                        ),
+                      ),
+                  ]
+                  else if (_filteredAssets.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: EmptyState.noAssets(
+                        onAdd: _tabIndex == 0
+                            ? () => context.go('/scanner')
+                            : null,
                       ),
                     )
-                  else
+                  else ...[
+                    // 4차-Round3 Bento: 4장+이면 첫 카드 spotlight + 나머지 격자.
+                    // Codex 권고 "균일 카드 → compact row + 강조 카드 혼합 bento"
+                    if (_filteredAssets.length >= 4)
+                      SliverToBoxAdapter(
+                        child: _buildAssetSpotlight(_filteredAssets.first),
+                      ),
                     SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                       sliver: SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 0.62,
-                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                              childAspectRatio: 0.62,
+                            ),
                         delegate: SliverChildBuilderDelegate(
-                          (context, index) => _buildAssetGridItem(_assets[index]),
-                          childCount: _assets.length,
+                          (context, index) {
+                            final offset = _filteredAssets.length >= 4 ? 1 : 0;
+                            return _buildAssetGridItem(
+                              _filteredAssets[index + offset],
+                            );
+                          },
+                          childCount: _filteredAssets.length >= 4
+                              ? _filteredAssets.length - 1
+                              : _filteredAssets.length,
                         ),
                       ),
                     ),
+                  ],
                 ],
               ),
             ),
     );
   }
 
-  static const _rareRarities = {'SSR', 'SAR', 'BWR', 'CSR', 'CHR', 'UR', 'SR', 'AR', 'HR', 'ACE', 'RRR', 'RR', 'PR', 'H', 'MA', 'MUR'};
-
-  int get _rareCardCount {
-    return _assets.where((a) {
-      final rarity = (a['card']?['rarityCode'] as String?) ?? '';
-      return _rareRarities.contains(rarity);
-    }).fold(0, (sum, a) => sum + ((a['quantity'] as num?)?.toInt() ?? 1));
-  }
-
-  Map<String, dynamic> _getBadgeTier(int count) {
-    if (count == 0) {
-      return {'name': '뱃지 잠김', 'img': null, 'color': AppColors.textMuted, 'locked': true};
-    } else if (count <= 200) {
-      return {'name': '몬스터볼', 'img': 'assets/balls/monster_ball.webp', 'color': const Color(0xFFE53935), 'locked': false};
-    } else if (count <= 600) {
-      return {'name': '슈퍼볼', 'img': 'assets/balls/super_ball.webp', 'color': AppColors.blue, 'locked': false};
-    } else if (count <= 1500) {
-      return {'name': '하이퍼볼', 'img': 'assets/balls/hyper_ball.webp', 'color': const Color(0xFF9C27B0), 'locked': false};
-    } else {
-      return {'name': '마스터볼', 'img': 'assets/balls/master_ball.webp', 'color': AppColors.gold, 'locked': false};
-    }
-  }
-
-  Widget _buildBadge(int rareCount) {
-    final tier = _getBadgeTier(rareCount);
-    final color = tier['color'] as Color;
-    final locked = tier['locked'] as bool;
-    final name = tier['name'] as String;
-    final img = tier['img'] as String?;
-
-    return GestureDetector(
-      onTap: locked
-          ? () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('고레어 카드를 1장 이상 등록하면 뱃지가 열립니다!'),
-                  duration: Duration(seconds: 2),
-                ),
-              )
-          : null,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (locked)
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceElevated,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: const Icon(Icons.lock_outline_rounded, size: 20, color: AppColors.textMuted),
-            )
-          else
-            Image.asset(img!, width: 44, height: 44),
-          const SizedBox(height: 5),
-          Text(
-            locked ? '뱃지 잠김' : '등급 : $name',
-            style: TextStyle(
-              color: locked ? AppColors.textMuted : color,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildPortfolioSummary() {
-    final totalCards = _portfolio?['totalCards'] ?? 0;
-    final totalMarketValue = _portfolio?['totalMarketValue'] ?? 0;
+    final totalMarketValue =
+        (_portfolio?['totalMarketValue'] as num?)?.toDouble() ?? 0;
     final distinctCount = _portfolio?['distinctCardCount'] ?? 0;
-    final rareCount = _rareCardCount;
+
+    // 포트폴리오 총 수익률 계산 (purchasePrice 있는 카드만)
+    double totalPurchase = 0;
+    double totalCurrent = 0;
+    for (final a in _assets) {
+      final pp = (a['purchasePrice'] as num?)?.toDouble();
+      if (pp == null || pp <= 0) continue;
+      // 자산별 displayPrice 직접 사용 — 같은 cardId 여러 자산이 다른 language면 _marketPrices 캐시는 첫 가격만.
+      final mp = (a['displayPrice'] as num?)?.toDouble();
+      if (mp == null) continue;
+      totalPurchase += pp;
+      totalCurrent += mp;
+    }
+    final hasRate = totalPurchase > 0;
+    final totalRate = hasRate
+        ? (totalCurrent - totalPurchase) / totalPurchase * 100
+        : 0.0;
+    final isPos = totalRate >= 0;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -290,33 +904,50 @@ class _AssetScreenState extends State<AssetScreen> {
       ),
       child: Padding(
         padding: const EdgeInsets.all(18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('총 평가 자산',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12, letterSpacing: 0.2)),
-                  const SizedBox(height: 6),
-                  Text(
-                    _formatPrice(totalMarketValue),
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -1,
-                      height: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text('$totalCards장 보유 · $distinctCount종',
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                ],
+            const Text(
+              '총 평가 자산',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                letterSpacing: 0.2,
               ),
             ),
-            _buildBadge(rareCount),
+            const SizedBox(height: AppSpacing.sm),
+            // 4차-Round1: TweenedCounter — 자산 추가/삭제 시 부드러운 보간
+            TweenedCounter(
+              value: totalMarketValue,
+              formatter: (v) => _formatPrice(v.toDouble()),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1.2,
+                height: 1.05,
+              ),
+            ),
+            const SizedBox(height: 4),
+            if (hasRate) ...[
+              Text(
+                () {
+                  final diff = totalCurrent - totalPurchase;
+                  final sign = isPos ? '+' : '';
+                  return '$sign${_formatPrice(diff)} (${isPos ? '+' : ''}${totalRate.toStringAsFixed(1)}%)';
+                }(),
+                style: TextStyle(
+                  color: isPos ? AppColors.green : Colors.redAccent,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
+            Text(
+              '$distinctCount종 보유',
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            ),
           ],
         ),
       ),
@@ -336,8 +967,6 @@ class _AssetScreenState extends State<AssetScreen> {
           Center(child: _buildSortChip('가격순', _SortMode.price)),
           const SizedBox(width: 6),
           Center(child: _buildSortChip('이름순', _SortMode.name)),
-          const SizedBox(width: 6),
-          Center(child: _buildSortChip('수량순', _SortMode.quantity)),
         ],
       ),
     );
@@ -349,12 +978,13 @@ class _AssetScreenState extends State<AssetScreen> {
     return GestureDetector(
       onTap: () => _onSortTap(mode),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
         decoration: BoxDecoration(
-          color: selected ? AppColors.green : AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(20),
+          // 4차 디자인: selected = brand blue (이전엔 green이라 손익 시그널과 의미 충돌)
+          color: selected ? AppColors.blueDeep : AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
           border: Border.all(
-            color: selected ? AppColors.green : Colors.white24,
+            color: selected ? AppColors.blue : AppColors.divider,
           ),
         ),
         child: Text(
@@ -369,89 +999,620 @@ class _AssetScreenState extends State<AssetScreen> {
     );
   }
 
+  Widget _buildTabRow() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Row(
+        children: [
+          _tabChip('전체', 0),
+          const SizedBox(width: 8),
+          _tabChip('판매중', 1),
+          const SizedBox(width: 8),
+          _tabChip('내 매수', 2),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _loadMyBuyOrders() async {
+    try {
+      final res = await ApiClient.get('/api/buy-orders/me');
+      if (!mounted) return;
+      setState(() {
+        _myBuyOrders = List<Map<String, dynamic>>.from(res['data'] ?? []);
+      });
+    } catch (_) {}
+  }
+
+  Widget _tabChip(String label, int index) {
+    final selected = _tabIndex == index;
+    return GestureDetector(
+      onTap: () {
+        setState(() => _tabIndex = index);
+        if (index == 2 && _myBuyOrders.isEmpty) _loadMyBuyOrders();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.blue : AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? AppColors.blue : AppColors.divider,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 4차-Round4-4 Phase 5: 내 매수 호가 한 줄 row
+  Widget _buildBuyOrderRow(Map<String, dynamic> order) {
+    final cardName = order['cardName'] as String? ?? '';
+    final imageUrl = order['cardImageUrl'] as String?;
+    final rarity = order['rarityCode'] as String? ?? '';
+    final price = (order['bidPrice'] as num?)?.toInt();
+    final cardStatus = order['cardStatus'] as String? ?? 'RAW';
+    final gc = order['gradingCompany'] as String?;
+    final gv = order['gradeValue'] as String?;
+    final qty = (order['qty'] as num?)?.toInt() ?? 1;
+    final orderId = order['buyOrderId'] as String? ?? '';
+    final cardId = order['cardId'] as String? ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.green.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.green.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          // 카드 thumbnail
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: CardImage(
+              imageUrl: imageUrl,
+              cdnFallbackUrl: imageUrl,
+              width: 44, height: 60,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: AppColors.green.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        cardStatus == 'GRADED' && gc != null && gv != null ? '$gc $gv' : 'RAW',
+                        style: const TextStyle(color: AppColors.green, fontSize: 9.5, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    if (rarity.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      Text(rarity, style: TextStyle(
+                        color: AppColors.rarityColor(rarity),
+                        fontSize: 10, fontWeight: FontWeight.w700,
+                      )),
+                    ],
+                    if (qty > 1) ...[
+                      const SizedBox(width: 4),
+                      Text('× $qty', style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  cardName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  price != null ? '${_formatPrice(price)}에 매수 희망' : '-',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, color: Colors.white38, size: 18),
+            onPressed: () => _confirmCancelBuyOrder(orderId, cardId),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmCancelBuyOrder(String orderId, String cardId) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceCard,
+        title: const Text('매수 호가 취소', style: TextStyle(color: Colors.white)),
+        content: const Text('이 매수 호가를 취소하시겠어요?', style: TextStyle(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('아니오')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('취소하기', style: TextStyle(color: AppColors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ApiClient.delete('/api/buy-orders/$orderId');
+      _loadMyBuyOrders();
+    } catch (_) {}
+  }
+
+  /// 4차-Round3 Bento spotlight — 4장+ 보유 시 첫 카드를 큰 가로 row로.
+  Widget _buildAssetSpotlight(Map<String, dynamic> asset) {
+    final cardId = asset['cardId'] as String? ?? '';
+    final cardData = asset['card'] as Map<String, dynamic>? ?? {};
+    final cardName = cardData['name'] as String? ?? cardId;
+    final rarity = cardData['rarityCode'] as String? ?? '';
+    final imageUrl = resolveCardImageUrl(cardData);
+    final marketPrice = (asset['displayPrice'] as num?)?.toDouble();
+    final purchasePrice = (asset['purchasePrice'] as num?)?.toDouble();
+    final diff = (marketPrice != null && purchasePrice != null && purchasePrice > 0)
+        ? marketPrice - purchasePrice
+        : null;
+    final rate = (diff != null && purchasePrice != null && purchasePrice > 0)
+        ? diff / purchasePrice * 100
+        : null;
+    final premium = _isRarityPremium(rarity);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.lg,
+      ),
+      child: Pressable(
+        onTap: () async {
+          final changed = await context.push<bool>(
+            '/card/$cardId', extra: {'myAsset': asset},
+          );
+          if (changed == true && mounted) _loadData();
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            border: Border.all(
+              color: _rarityBorderColor(rarity),
+              width: premium ? 1.0 : 0.5,
+            ),
+            boxShadow: premium
+                ? [
+                    BoxShadow(
+                      color: AppColors.rarityGlow(rarity).withValues(alpha: 0.22),
+                      blurRadius: 28,
+                      spreadRadius: 1,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : AppShadows.light(Colors.black),
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg, AppSpacing.lg, AppSpacing.md, AppSpacing.lg,
+                  ),
+                  child: RarityAura(
+                    rarity: rarity,
+                    radius: 70,
+                    intensity: 0.6,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      child: CardImage(
+                        imageUrl: imageUrl,
+                        cdnFallbackUrl: resolveCdnImageUrl(cardData),
+                        width: 96,
+                        height: 134,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      0, AppSpacing.lg, AppSpacing.lg, AppSpacing.lg,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          children: [
+                            if (rarity.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.rarityColor(rarity).withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                                ),
+                                child: Text(
+                                  rarity,
+                                  style: TextStyle(
+                                    color: AppColors.rarityColor(rarity),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Text(
+                              'TOP 1',
+                              style: AppText.label.copyWith(
+                                color: AppColors.textMuted,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          cardName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.title.copyWith(
+                            letterSpacing: -0.3, height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        if (marketPrice != null)
+                          TweenedCounter(
+                            value: marketPrice,
+                            formatter: (v) => _formatPrice(v.toDouble()),
+                            style: AppText.display.copyWith(
+                              fontSize: 22, letterSpacing: -0.8,
+                            ),
+                          )
+                        else
+                          Text('—', style: AppText.title.copyWith(color: AppColors.textMuted)),
+                        if (diff != null && rate != null) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            '${diff >= 0 ? '+' : ''}${_formatPrice(diff)} (${diff >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%)',
+                            style: TextStyle(
+                              color: diff >= 0 ? AppColors.green : AppColors.red,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAssetGridItem(Map<String, dynamic> asset) {
-    final cardId = asset['cardId'] ?? '';
-    final quantity = asset['quantity'] ?? 1;
-    final marketPrice = _marketPrices[cardId];
-    final cardStatus = asset['cardStatus'] ?? 'RAW';
-    final assetId = asset['assetId'] ?? '';
+    final cardId = asset['cardId'] as String? ?? '';
+    final marketPrice = (asset['displayPrice'] as num?)?.toDouble();
+    final priceBasis = asset['displayPriceBasis'] as String?;
+    final isRawFallback = priceBasis == 'RAW_FALLBACK';
+    final purchasePrice = (asset['purchasePrice'] as num?)?.toDouble();
+    final cardStatus = asset['cardStatus'] as String? ?? 'RAW';
+    final language = asset['language'] as String? ?? 'KO';
+    final gradingCompany = asset['gradingCompany'] as String?;
+    final gradeValue = asset['gradeValue'] as String?;
+    final estimatedGrade = (asset['estimatedGrade'] as num?)?.toDouble();
+    final isSelling = asset['isSelling'] == true;
+    final assetId = asset['assetId'] as String? ?? '';
     final cardData = asset['card'] as Map<String, dynamic>? ?? {};
     final cardName = cardData['name'] as String? ?? cardId;
     final rarity = cardData['rarityCode'] as String? ?? '';
     final imageUrl = resolveCardImageUrl(cardData);
 
-    return GestureDetector(
-      onTap: () => context.push('/card/$cardId', extra: {'myAsset': asset}),
+    late final String badgeLabel;
+    late final Color badgeColor;
+    if (cardStatus == 'GRADED' && gradingCompany != null) {
+      badgeLabel = '$gradingCompany${gradeValue != null ? " $gradeValue" : ""}';
+      badgeColor = AppColors.gold;
+    } else if (estimatedGrade != null) {
+      badgeLabel = 'RAW ${estimatedGrade.toStringAsFixed(1)}';
+      badgeColor = AppColors.blue;
+    } else {
+      badgeLabel = 'RAW';
+      badgeColor = AppColors.textMuted;
+    }
+
+    // 4차-Round4: 풀 오버레이 디자인 — 카드 이미지 풀 + 하단 그라데이션 위 정보 (NFT 갤러리 패턴)
+    final rarityColor = AppColors.rarityColor(rarity);
+    final premium = _isRarityPremium(rarity);
+    final rate = (marketPrice != null && purchasePrice != null && purchasePrice > 0)
+        ? (marketPrice - purchasePrice) * 100.0 / purchasePrice
+        : null;
+
+    return Pressable(
+      onTap: () async {
+        final changed = await context.push<bool>(
+          '/card/$cardId',
+          extra: {'myAsset': asset},
+        );
+        if (changed == true && mounted) _loadData();
+      },
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  CardImage(
-                    imageUrl: imageUrl,
-                    width: double.infinity,
-                    height: double.infinity,
-                    fit: BoxFit.cover,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(
+            color: premium
+                ? AppColors.rarityGlow(rarity).withValues(alpha: 0.55)
+                : AppColors.divider,
+            width: premium ? 1.2 : 0.6,
+          ),
+          boxShadow: premium
+              ? [
+                  BoxShadow(
+                    color: AppColors.rarityGlow(rarity).withValues(alpha: 0.30),
+                    blurRadius: 18,
+                    spreadRadius: 0.5,
+                    offset: const Offset(0, 4),
                   ),
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: GestureDetector(
-                      onTap: () => _confirmDelete(assetId),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : AppShadows.light(Colors.black),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.lg - 1),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // 카드 이미지 — 풀 채움
+              CardImage(
+                imageUrl: imageUrl,
+                cdnFallbackUrl: resolveCdnImageUrl(cardData),
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.cover,
+              ),
+              // 하단 그라데이션 overlay (정보 가독성)
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: const [0.0, 0.45, 0.75, 1.0],
+                      colors: [
+                        Colors.transparent,
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.55),
+                        Colors.black.withValues(alpha: 0.92),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // 좌상단: 레어도 + 등급 배지 (스택)
+              Positioned(
+                top: 6,
+                left: 6,
+                right: 6,
+                child: Row(
+                  children: [
+                    if (rarity.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.55),
-                          borderRadius: BorderRadius.circular(20),
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          border: Border.all(
+                            color: rarityColor.withValues(alpha: 0.6),
+                            width: 0.6,
+                          ),
                         ),
-                        child: const Icon(Icons.delete_outline, color: Colors.white70, size: 16),
+                        child: Text(
+                          rarity,
+                          style: TextStyle(
+                            color: rarityColor,
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                        border: Border.all(color: Colors.white24, width: 0.5),
+                      ),
+                      child: Text(
+                        language,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 7.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    if (badgeLabel != 'RAW')
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: badgeColor.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                        ),
+                        child: Text(
+                          badgeLabel,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 7.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    const Spacer(),
+                    if (!isSelling)
+                      GestureDetector(
+                        onTap: () => _confirmDelete(assetId),
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(AppRadius.pill),
+                          ),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white60,
+                            size: 11,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              // 판매중 indicator (있을 때만)
+              if (isSelling)
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.green.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: const Text(
+                      '판매중',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(cardName,
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  if (rarity.isNotEmpty)
-                    Text(rarity,
-                        style: TextStyle(color: AppColors.rarityColor(rarity), fontSize: 10, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildChip(cardStatus == 'GRADED' ? '그레이딩' : 'RAW',
-                          cardStatus == 'GRADED' ? AppColors.gold : AppColors.blue),
-                      Text('$quantity장', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    marketPrice != null ? _formatPrice(marketPrice) : '시세 없음',
-                    style: TextStyle(
-                      color: marketPrice != null ? AppColors.textPrimary : AppColors.textMuted,
-                      fontSize: 12, fontWeight: FontWeight.w600,
+                ),
+              // 하단: 카드명 + 가격 + 손익률
+              Positioned(
+                left: 8,
+                right: 8,
+                bottom: 7,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      cardName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                        height: 1.1,
+                        shadows: [
+                          Shadow(color: Colors.black, blurRadius: 4),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  marketPrice != null ? _formatPrice(marketPrice) : '시세 없음',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: marketPrice != null ? Colors.white : Colors.white60,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                              ),
+                              if (isRawFallback) ...[
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.withValues(alpha: 0.85),
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                  child: const Text(
+                                    'RAW 기준',
+                                    style: TextStyle(
+                                      color: Colors.black87,
+                                      fontSize: 7.5,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        if (rate != null)
+                          Text(
+                            '${rate >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              color: rate >= 0 ? AppColors.green : AppColors.red,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              shadows: const [
+                                Shadow(color: Colors.black54, blurRadius: 3),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -471,25 +1632,45 @@ class _AssetScreenState extends State<AssetScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('자산 추가', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+              const Text(
+                '자산 추가',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 16),
               _buildOptionTile(
                 icon: Icons.qr_code_scanner,
                 label: '스캔으로 추가',
                 sub: '카드를 카메라로 스캔해서 추가',
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  context.push('/scanner');
+                  final changed = await context.push<bool>('/scanner');
+                  if (changed == true && mounted) {
+                    _loadData();
+                  }
                 },
               ),
               const SizedBox(height: 10),
               _buildOptionTile(
-                icon: Icons.search,
+                icon: Icons.search_rounded,
                 label: '직접 검색',
-                sub: '카드 이름으로 검색해서 추가',
+                sub: '카드 이름으로 검색해서 추가 (RAW)',
                 onTap: () {
                   Navigator.pop(context);
                   _showCardSearch();
+                },
+              ),
+              const SizedBox(height: 10),
+              _buildOptionTile(
+                icon: Icons.verified_rounded,
+                label: '외부 감정 카드 등록',
+                sub: 'PSA · BRG · CGC 등급 카드 보유 중이신가요?',
+                onTap: () {
+                  Navigator.pop(context);
+                  _showGradedCardAdd();
                 },
               ),
             ],
@@ -499,7 +1680,698 @@ class _AssetScreenState extends State<AssetScreen> {
     );
   }
 
-  Widget _buildOptionTile({required IconData icon, required String label, required String sub, required VoidCallback onTap}) {
+  Future<void> _showCardSearch() async {
+    final searchCtrl = TextEditingController();
+    List<Map<String, dynamic>> results = [];
+    bool searching = false;
+    bool added = false;
+    String selectedLanguage = 'KO';
+
+    Future<void> doSearch(String q, StateSetter setModal) async {
+      if (q.trim().isEmpty) {
+        setModal(() { results = []; searching = false; });
+        return;
+      }
+      setModal(() => searching = true);
+      try {
+        final res = await ApiClient.get('/api/cards/search', params: {'name': q.trim(), 'size': 15});
+        final items = (res['data'] as Map?)?['content'] as List? ?? res['data'] as List? ?? [];
+        setModal(() {
+          results = items.cast<Map<String, dynamic>>();
+          searching = false;
+        });
+      } catch (_) {
+        setModal(() => searching = false);
+      }
+    }
+
+    Future<void> registerRaw(Map<String, dynamic> card, StateSetter setModal) async {
+      final cardId = card['cardId'] as String? ?? '';
+      if (cardId.isEmpty || _userId == null) return;
+      setModal(() => searching = true);
+      try {
+        await ApiClient.post(ApiConstants.assets, {
+          'data': {
+            'userId': _userId,
+            'cardId': cardId,
+            'quantity': 1,
+            'cardStatus': 'RAW',
+            'language': selectedLanguage,
+          },
+        });
+        AssetNotifier.instance.notifyChanged();
+        added = true;
+        if (mounted) Navigator.pop(context);
+      } catch (_) {
+        setModal(() => searching = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('등록 실패'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.85,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (_, scrollCtrl) => Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '카드 검색',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: ['KO', 'JP', 'EN'].map((lang) {
+                    final sel = selectedLanguage == lang;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () => setModal(() => selectedLanguage = lang),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: sel ? AppColors.blue : AppColors.surfaceElevated,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
+                          ),
+                          child: Text(
+                            lang,
+                            style: TextStyle(
+                              color: sel ? Colors.white : AppColors.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  controller: searchCtrl,
+                  autofocus: true,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
+                    hintText: '카드 이름 입력...',
+                    hintStyle: const TextStyle(color: AppColors.textMuted),
+                    filled: true,
+                    fillColor: AppColors.surfaceElevated,
+                    prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textMuted),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onChanged: (v) => doSearch(v, setModal),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (searching)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CircularProgressIndicator(color: AppColors.blue, strokeWidth: 2),
+                )
+              else
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollCtrl,
+                    itemCount: results.length,
+                    itemBuilder: (_, i) {
+                      final card = results[i];
+                      final name = card['name'] as String? ?? '';
+                      final rarity = card['rarityCode'] as String? ?? '';
+                      final imageUrl = resolveCardImageUrl(card);
+                      final cdnUrl = resolveCdnImageUrl(card);
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        leading: CardImage(
+                          imageUrl: imageUrl,
+                          cdnFallbackUrl: cdnUrl,
+                          width: 36,
+                          height: 50,
+                          fit: BoxFit.cover,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        title: Text(
+                          name,
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          rarity.isNotEmpty ? rarity : '-',
+                          style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                        ),
+                        trailing: const Icon(Icons.add_circle_outline_rounded, color: AppColors.blue),
+                        onTap: () => registerRaw(card, setModal),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    searchCtrl.dispose();
+    if (added && mounted) _loadData();
+  }
+
+  Future<void> _showGradedCardAdd() async {
+    final picker = ImagePicker();
+    final certCtrl = TextEditingController();
+    final priceCtrl = TextEditingController();
+    final searchCtrl = TextEditingController();
+
+    Map<String, dynamic>? selectedCard;
+    String? gradingCompany;
+    String? gradeValue;
+    File? slabPhoto;
+    List<Map<String, dynamic>> searchResults = [];
+    bool searching = false;
+    bool submitting = false;
+    bool added = false;
+    String selectedLanguage = 'KO';
+
+    const companies = ['PSA', 'BRG', 'CGC'];
+    const grades = ['10', '9', '8', '7', '6', '5'];
+
+    Future<void> doSearch(String q, StateSetter setModal) async {
+      if (q.trim().isEmpty) {
+        setModal(() { searchResults = []; searching = false; });
+        return;
+      }
+      setModal(() => searching = true);
+      try {
+        final res = await ApiClient.get('/api/cards/search', params: {'name': q.trim(), 'size': 15});
+        final items = (res['data'] as Map?)?['content'] as List? ?? res['data'] as List? ?? [];
+        setModal(() {
+          searchResults = items.cast<Map<String, dynamic>>();
+          searching = false;
+        });
+      } catch (_) {
+        setModal(() => searching = false);
+      }
+    }
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) {
+          final canSubmit = selectedCard != null &&
+              gradingCompany != null &&
+              gradeValue != null &&
+              !submitting;
+
+          Future<void> pickPhoto() async {
+            final picked = await picker.pickImage(
+              source: ImageSource.gallery,
+              imageQuality: 90,
+              maxWidth: 1200,
+            );
+            if (picked != null) setModal(() => slabPhoto = File(picked.path));
+          }
+
+          Future<void> submit() async {
+            if (!canSubmit) return;
+            final cardId = selectedCard!['cardId'] as String? ?? '';
+            if (cardId.isEmpty || _userId == null) return;
+            setModal(() => submitting = true);
+            try {
+              final purchasePrice = int.tryParse(priceCtrl.text.trim().replaceAll(',', ''));
+              final body = <String, dynamic>{
+                'userId': _userId,
+                'cardId': cardId,
+                'quantity': 1,
+                'cardStatus': 'GRADED',
+                'language': selectedLanguage,
+                'gradingCompany': gradingCompany,
+                'gradeValue': gradeValue,
+                if (certCtrl.text.trim().isNotEmpty) 'certNumber': certCtrl.text.trim(),
+                if (purchasePrice != null && purchasePrice > 0) 'purchasePrice': purchasePrice,
+              };
+              final res = await ApiClient.post(ApiConstants.assets, {'data': body});
+              final newAssetId = (res['data'] as Map<String, dynamic>?)?['assetId'] as String?;
+              if (newAssetId != null && slabPhoto != null) {
+                await ApiClient.uploadFile(
+                  '${ApiConstants.assets}/$newAssetId/slab-image',
+                  slabPhoto!.path,
+                  field: 'slab_image',
+                );
+              }
+              AssetNotifier.instance.notifyChanged();
+              added = true;
+              if (mounted) Navigator.pop(context);
+            } catch (_) {
+              setModal(() => submitting = false);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('등록 실패'), backgroundColor: Colors.red),
+                );
+              }
+            }
+          }
+
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.92,
+            minChildSize: 0.6,
+            maxChildSize: 0.97,
+            builder: (_, scrollCtrl) => SingleChildScrollView(
+              controller: scrollCtrl,
+              padding: EdgeInsets.only(
+                left: 20, right: 20, top: 16,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.divider,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '외부 감정 카드 등록',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 카드 검색
+                  const Text('카드 검색', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  if (selectedCard != null) ...[
+                    GestureDetector(
+                      onTap: () => setModal(() { selectedCard = null; searchCtrl.clear(); searchResults = []; }),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.blue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.blue.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            CardImage(
+                              imageUrl: resolveCardImageUrl(selectedCard!),
+                              cdnFallbackUrl: resolveCdnImageUrl(selectedCard!),
+                              width: 32, height: 44,
+                              fit: BoxFit.cover,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selectedCard!['name'] as String? ?? '',
+                                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700),
+                                  ),
+                                  Text(
+                                    selectedCard!['rarityCode'] as String? ?? '-',
+                                    style: const TextStyle(color: AppColors.blue, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.close_rounded, color: AppColors.textMuted, size: 18),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    TextField(
+                      controller: searchCtrl,
+                      style: const TextStyle(color: AppColors.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: '카드 이름 입력...',
+                        hintStyle: const TextStyle(color: AppColors.textMuted),
+                        filled: true,
+                        fillColor: AppColors.surfaceElevated,
+                        prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textMuted),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      onChanged: (v) => doSearch(v, setModal),
+                    ),
+                    if (searching)
+                      const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Center(child: CircularProgressIndicator(color: AppColors.blue, strokeWidth: 2)),
+                      )
+                    else if (searchResults.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceElevated,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.divider),
+                        ),
+                        constraints: const BoxConstraints(maxHeight: 200),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          physics: const ClampingScrollPhysics(),
+                          itemCount: searchResults.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.divider),
+                          itemBuilder: (_, i) {
+                            final card = searchResults[i];
+                            return ListTile(
+                              dense: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                              leading: CardImage(
+                                imageUrl: resolveCardImageUrl(card),
+                                cdnFallbackUrl: resolveCdnImageUrl(card),
+                                width: 28, height: 38,
+                                fit: BoxFit.cover,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              title: Text(
+                                card['name'] as String? ?? '',
+                                style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                              subtitle: Text(
+                                card['rarityCode'] as String? ?? '-',
+                                style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
+                              ),
+                              onTap: () => setModal(() {
+                                selectedCard = card;
+                                searchResults = [];
+                                searchCtrl.clear();
+                              }),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                  const SizedBox(height: 20),
+
+                  // 카드 언어
+                  const Text('카드 언어', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: ['KO', 'JP', 'EN'].map((lang) {
+                      final sel = selectedLanguage == lang;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: GestureDetector(
+                          onTap: () => setModal(() => selectedLanguage = lang),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: sel ? AppColors.blue : AppColors.surfaceElevated,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
+                            ),
+                            child: Text(
+                              lang,
+                              style: TextStyle(
+                                color: sel ? Colors.white : AppColors.textSecondary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 감정사
+                  const Text('감정사', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: companies.map((c) {
+                      final sel = gradingCompany == c;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: GestureDetector(
+                          onTap: () => setModal(() => gradingCompany = c),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: sel ? AppColors.gold.withValues(alpha: 0.15) : AppColors.surfaceElevated,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: sel ? AppColors.gold : AppColors.divider),
+                            ),
+                            child: Text(
+                              c,
+                              style: TextStyle(
+                                color: sel ? AppColors.gold : AppColors.textSecondary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  // PSA10 + EN/JP는 실제 시세 데이터 있을 확률 ↑ → 안내 숨김.
+                  if (!((selectedLanguage == 'EN' || selectedLanguage == 'JP')
+                      && gradingCompany == 'PSA'
+                      && gradeValue == '10')) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 14),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '데이터에 없는 등급은 RAW 시세로 대체됩니다.',
+                              style: TextStyle(
+                                color: Colors.amber.shade200,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+
+                  // 등급
+                  const Text('등급', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: grades.map((g) {
+                      final sel = gradeValue == g;
+                      return GestureDetector(
+                        onTap: () => setModal(() => gradeValue = g),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: sel ? AppColors.blue.withValues(alpha: 0.15) : AppColors.surfaceElevated,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
+                          ),
+                          child: Text(
+                            g,
+                            style: TextStyle(
+                              color: sel ? AppColors.blue : AppColors.textSecondary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 인증번호 (optional)
+                  const Text('인증번호 (선택)', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: certCtrl,
+                    style: const TextStyle(color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'ex) 12345678',
+                      hintStyle: const TextStyle(color: AppColors.textMuted),
+                      filled: true,
+                      fillColor: AppColors.surfaceElevated,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 구매가 (optional)
+                  const Text('구매가 (선택)', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: priceCtrl,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: '0',
+                      hintStyle: const TextStyle(color: AppColors.textMuted),
+                      suffixText: '원',
+                      suffixStyle: const TextStyle(color: AppColors.textSecondary),
+                      filled: true,
+                      fillColor: AppColors.surfaceElevated,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 슬랩 사진 (optional)
+                  const Text('슬랩 사진 (선택)', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: pickPhoto,
+                    child: slabPhoto != null
+                        ? Stack(
+                            alignment: Alignment.topRight,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.file(slabPhoto!, height: 160, width: double.infinity, fit: BoxFit.cover),
+                              ),
+                              GestureDetector(
+                                onTap: () => setModal(() => slabPhoto = null),
+                                child: Container(
+                                  margin: const EdgeInsets.all(6),
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close_rounded, color: Colors.white, size: 16),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Container(
+                            height: 100,
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceElevated,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.divider, style: BorderStyle.solid),
+                            ),
+                            child: const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_photo_alternate_rounded, color: AppColors.textMuted, size: 32),
+                                SizedBox(height: 6),
+                                Text('갤러리에서 선택', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: canSubmit ? submit : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.blue,
+                        disabledBackgroundColor: Colors.white12,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: submitting
+                          ? const SizedBox(
+                              width: 20, height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text(
+                              '등록',
+                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    certCtrl.dispose();
+    priceCtrl.dispose();
+    searchCtrl.dispose();
+    if (added && mounted) _loadData();
+  }
+
+  Widget _buildOptionTile({
+    required IconData icon,
+    required String label,
+    required String sub,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -516,8 +2388,21 @@ class _AssetScreenState extends State<AssetScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-                Text(sub, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  sub,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
             const Spacer(),
@@ -528,377 +2413,67 @@ class _AssetScreenState extends State<AssetScreen> {
     );
   }
 
-  void _showCardSearch() {
-    final searchCtrl = TextEditingController();
-    List<Map<String, dynamic>> results = [];
-    bool searching = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) {
-          Future<void> search(String query) async {
-            if (query.trim().length < 2) return;
-            setModalState(() => searching = true);
-            try {
-              final res = await ApiClient.get('/api/cards/search', params: {'name': query});
-              final list = res['data'] as List? ?? [];
-              setModalState(() {
-                results = list.map((e) => e as Map<String, dynamic>).toList();
-                searching = false;
-              });
-            } catch (_) {
-              setModalState(() => searching = false);
-            }
-          }
-
-          return DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: 0.85,
-            minChildSize: 0.5,
-            maxChildSize: 0.95,
-            builder: (_, scrollCtrl) => Padding(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-              child: Column(
-                children: [
-                  const SizedBox(height: 12),
-                  Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.textMuted, borderRadius: BorderRadius.circular(2))),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: TextField(
-                      controller: searchCtrl,
-                      autofocus: true,
-                      style: const TextStyle(color: AppColors.textPrimary),
-                      decoration: InputDecoration(
-                        hintText: '카드 이름 검색 (2글자 이상)',
-                        hintStyle: const TextStyle(color: AppColors.textMuted),
-                        filled: true,
-                        fillColor: AppColors.surfaceElevated,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                        prefixIcon: const Icon(Icons.search, color: AppColors.textMuted),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.arrow_forward, color: AppColors.blue),
-                          onPressed: () => search(searchCtrl.text),
-                        ),
-                      ),
-                      onSubmitted: search,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (searching)
-                    const Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator(color: Colors.white30))
-                  else
-                    Expanded(
-                      child: ListView.builder(
-                        controller: scrollCtrl,
-                        itemCount: results.length,
-                        itemBuilder: (_, i) {
-                          final card = results[i];
-                          final cardId = card['cardId'] ?? '';
-                          final name = card['name'] ?? '';
-                          final rarity = card['rarityCode'] ?? '';
-                          final cardImgUrl = resolveCardImageUrl(card);
-                          return ListTile(
-                            leading: CardImage(
-                              imageUrl: cardImgUrl,
-                              width: 36,
-                              height: 50,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            title: Text(name, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-                            subtitle: rarity.isNotEmpty
-                                ? Text(rarity, style: TextStyle(color: AppColors.rarityColor(rarity), fontSize: 11, fontWeight: FontWeight.bold))
-                                : null,
-                            onTap: () {
-                              Navigator.pop(ctx);
-                              _showAssetForm(cardId, name, rarity, resolveCardImageUrl(card));
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _showAssetForm(String cardId, String cardName, String rarity, [String? imageUrl]) {
-    final memoCtrl = TextEditingController();
-    int quantity = 1;
-    String cardStatus = 'RAW';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 20, right: 20, top: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  CardImage(
-                    imageUrl: imageUrl,
-                    width: 44,
-                    height: 62,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(cardName, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-                      if (rarity.isNotEmpty)
-                        Text(rarity, style: TextStyle(color: AppColors.rarityColor(rarity), fontSize: 11, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              // 수량
-              Row(
-                children: [
-                  const Text('수량', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.remove_circle_outline, color: AppColors.textSecondary),
-                    onPressed: () { if (quantity > 1) setModalState(() => quantity--); },
-                  ),
-                  Text('$quantity', style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle_outline, color: AppColors.blue),
-                    onPressed: () => setModalState(() => quantity++),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // 상태
-              Row(
-                children: [
-                  const Text('상태', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                  const SizedBox(width: 16),
-                  GestureDetector(
-                    onTap: () => setModalState(() => cardStatus = 'RAW'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: cardStatus == 'RAW' ? AppColors.blue.withOpacity(0.2) : AppColors.surfaceElevated,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: cardStatus == 'RAW' ? AppColors.blue : AppColors.divider),
-                      ),
-                      child: Text('RAW', style: TextStyle(color: cardStatus == 'RAW' ? AppColors.blue : AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () => setModalState(() => cardStatus = 'GRADED'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: cardStatus == 'GRADED' ? AppColors.gold.withOpacity(0.2) : AppColors.surfaceElevated,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: cardStatus == 'GRADED' ? AppColors.gold : AppColors.divider),
-                      ),
-                      child: Text('그레이딩', style: TextStyle(color: cardStatus == 'GRADED' ? AppColors.gold : AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // 메모
-              TextField(
-                controller: memoCtrl,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: InputDecoration(
-                  hintText: '메모 (선택)',
-                  hintStyle: const TextStyle(color: AppColors.textMuted),
-                  filled: true,
-                  fillColor: AppColors.surfaceElevated,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.blue,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  await _submitAsset(
-                    cardId: cardId,
-                    quantity: quantity,
-                    cardStatus: cardStatus,
-                    memo: memoCtrl.text.trim(),
-                  );
-                },
-                child: const Text('자산 추가', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _submitAsset({
-    required String cardId,
-    required int quantity,
-    required String cardStatus,
-    String? memo,
-  }) async {
-    if (_userId == null) return;
-    try {
-      await ApiClient.post(ApiConstants.assets, {
-        'data': {
-          'userId': _userId,
-          'cardId': cardId,
-          'quantity': quantity,
-          'cardStatus': cardStatus,
-          if (memo != null && memo.isNotEmpty) 'memo': memo,
-          'purchasedAt': DateTime.now().toIso8601String().substring(0, 10),
-        }
-      });
-      await _loadData();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('자산에 추가됐습니다'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('추가 실패'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
   Future<void> _confirmDelete(String assetId) async {
+    final asset = _assets.firstWhere(
+      (a) => a['assetId'] == assetId,
+      orElse: () => {},
+    );
+    if (asset['isSelling'] == true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('판매 중인 카드는 삭제할 수 없습니다. 먼저 판매를 내려주세요.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppColors.surfaceCard,
-        title: const Text('자산 삭제', style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text('이 카드를 자산에서 삭제할까요?', style: TextStyle(color: AppColors.textSecondary)),
+        title: const Text(
+          '자산 삭제',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: const Text(
+          '이 카드를 자산에서 삭제할까요?',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제', style: TextStyle(color: Colors.red))),
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('취소'),
+          ),
         ],
       ),
     );
-    if (ok == true) _deleteAsset(assetId);
+    if (ok == true) await _deleteAsset(assetId);
   }
 
-  Widget _buildAssetItem(Map<String, dynamic> asset) {
-    final cardId = asset['cardId'] ?? '';
-    final quantity = asset['quantity'] ?? 1;
-    final purchasePrice = asset['purchasePrice'];
-    final cardStatus = asset['cardStatus'] ?? 'RAW';
-    final memo = asset['memo'] ?? '';
-    final assetId = asset['assetId'] ?? '';
-    final cardData = asset['card'] as Map<String, dynamic>? ?? {};
-    final cardName = cardData['name'] as String? ?? cardId;
-    final rarity = cardData['rarityCode'] as String? ?? '';
-    final imageUrl = resolveCardImageUrl(cardData);
-
-    return Dismissible(
-      key: Key(assetId),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        color: Colors.red.shade800,
-        child: const Icon(Icons.delete_outline, color: Colors.white),
-      ),
-      onDismissed: (_) => _deleteAsset(assetId),
-      child: GestureDetector(
-        onTap: () => context.push('/card/$cardId', extra: {'myAsset': asset}),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.divider),
-          ),
-          child: Row(
-            children: [
-              CardImage(
-                imageUrl: imageUrl,
-                width: 52,
-                height: 72,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(cardName,
-                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if (rarity.isNotEmpty)
-                      Text(rarity, style: TextStyle(color: AppColors.rarityColor(rarity), fontSize: 11, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        _buildChip(cardStatus == 'GRADED' ? '그레이딩' : 'RAW',
-                            cardStatus == 'GRADED' ? AppColors.gold : AppColors.blue),
-                        const SizedBox(width: 6),
-                        Text('$quantity장', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                      ],
-                    ),
-                    if (memo.isNotEmpty)
-                      Text(memo, style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (purchasePrice != null)
-                    Text(_formatPrice(purchasePrice),
-                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 16),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
+  // ignore: unused_element
   Widget _buildChip(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 
@@ -907,7 +2482,9 @@ class _AssetScreenState extends State<AssetScreen> {
     final p = ((price as num).toInt() / 10).round() * 10;
     if (p <= 0) return '0원';
     final s = p.toString().replaceAllMapped(
-        RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]},',
+    );
     return '$s원';
   }
 }

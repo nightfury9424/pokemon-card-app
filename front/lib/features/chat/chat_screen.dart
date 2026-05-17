@@ -37,15 +37,11 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: AppColors.bg,
-        elevation: 0,
-        title: const Text('채팅',
-            style: TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 18)),
+        title: const Text('채팅'),
       ),
-      body: _loading
+      body: Column(
+        children: [
+          Expanded(child: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.blue))
           : _rooms.isEmpty
               ? _buildEmpty()
@@ -60,6 +56,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemBuilder: (context, i) => _buildRoomTile(_rooms[i]),
                   ),
                 ),
+          ),
+        ],
+      ),
     );
   }
 

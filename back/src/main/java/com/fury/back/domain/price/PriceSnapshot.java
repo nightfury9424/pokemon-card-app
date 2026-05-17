@@ -3,6 +3,7 @@ package com.fury.back.domain.price;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -20,7 +21,7 @@ public class PriceSnapshot {
     @Column(name = "card_id", nullable = false, length = 50)
     private String cardId;
 
-    // DAANGN / BUNJANG / ICU
+    // NAVER_CAFE / BUNJANG / SCRYDEX_EN / SCRYDEX_JP / KO_ESTIMATED
     @Column(name = "source", nullable = false, length = 20)
     private String source;
 
@@ -30,17 +31,23 @@ public class PriceSnapshot {
     @Column(name = "source_url", length = 500)
     private String sourceUrl;
 
+    @Column(name = "title", length = 500)
+    private String title;
+
     @Column(name = "price", nullable = false)
     private Integer price;
 
-    @Column(name = "currency", nullable = false, length = 10)
-    private String currency;
+    @Column(name = "raw_price")
+    private BigDecimal rawPrice;
+
+    @Column(name = "raw_currency", length = 3)
+    private String rawCurrency;
 
     // RAW / GRADED
     @Column(name = "card_status", nullable = false, length = 20)
     private String cardStatus;
 
-    // PSA / BGS / CGC / OTHER
+    // PSA / BRG
     @Column(name = "grading_company", length = 20)
     private String gradingCompany;
 

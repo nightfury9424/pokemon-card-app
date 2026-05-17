@@ -5,7 +5,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_colors.dart';
 
 class GradingCaptureScreen extends StatefulWidget {
-  const GradingCaptureScreen({super.key});
+  final String? assetId;
+  final String? cardId;
+  final String? cardName;
+  const GradingCaptureScreen({super.key, this.assetId, this.cardId, this.cardName});
   @override
   State<GradingCaptureScreen> createState() => _GradingCaptureScreenState();
 }
@@ -19,21 +22,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen> {
   static const _stepLabels = [
     ('앞면 전체', '카드 앞면 전체가 찍힌 사진 선택'),
     ('뒷면 전체', '카드 뒷면 전체가 찍힌 사진 선택'),
-    ('앞 좌상단', '앞면 왼쪽 위 코너를 클로즈업한 사진 선택'),
-    ('앞 우상단', '앞면 오른쪽 위 코너를 클로즈업한 사진 선택'),
-    ('앞 좌하단', '앞면 왼쪽 아래 코너를 클로즈업한 사진 선택'),
-    ('앞 우하단', '앞면 오른쪽 아래 코너를 클로즈업한 사진 선택'),
-    ('뒤 좌상단', '뒷면 왼쪽 위 코너를 클로즈업한 사진 선택'),
-    ('뒤 우상단', '뒷면 오른쪽 위 코너를 클로즈업한 사진 선택'),
-    ('뒤 좌하단', '뒷면 왼쪽 아래 코너를 클로즈업한 사진 선택'),
-    ('뒤 우하단', '뒷면 오른쪽 아래 코너를 클로즈업한 사진 선택'),
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _captureNext());
-  }
 
   Future<void> _captureNext() async {
     if (_isCapturing) return;
@@ -53,11 +42,19 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen> {
 
     _photos.add(File(xfile.path));
 
-    if (_step < 9) {
+    if (_step < 1) {
       setState(() => _step++);
       _captureNext();
     } else {
-      if (mounted) context.push('/grading/result', extra: {'photos': _photos});
+      if (mounted) {
+        final saved = await context.push<bool>('/grading/result', extra: {
+          'photos': _photos,
+          'assetId': widget.assetId,
+          'cardId': widget.cardId,
+          'cardName': widget.cardName,
+        });
+        if ((saved == true) && mounted) context.pop(true);
+      }
     }
   }
 
@@ -79,13 +76,13 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen> {
                 ),
                 Expanded(
                   child: LinearProgressIndicator(
-                    value: (_step + 1) / 10,
+                    value: (_step + 1) / 2,
                     backgroundColor: Colors.white24,
                     valueColor: const AlwaysStoppedAnimation(AppColors.blue),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text('${_step + 1}/10',
+                Text('${_step + 1}/2',
                     style: const TextStyle(color: Colors.white, fontSize: 13)),
               ]),
               const SizedBox(height: 24),
@@ -96,8 +93,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen> {
                       fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text(hint,
-                  style:
-                      const TextStyle(color: Colors.white70, fontSize: 14)),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14)),
               const SizedBox(height: 12),
               const Row(
                 children: [

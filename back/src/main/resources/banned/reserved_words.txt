@@ -1,0 +1,37 @@
+# normalized exact 매칭으로 차단. 닉네임 전체가 이 단어와 정확히 같으면 거부.
+# 일반 명사화 가능한 짧은 단어는 여기에만 두고 impersonation에선 빼서 오탐 회피.
+admin
+administrator
+root
+system
+manager
+moderator
+mod
+support
+official
+notice
+master
+owner
+staff
+cs
+help
+관리자
+운영자
+운영진
+운영팀
+운영
+시스템
+어드민
+마스터
+스태프
+고객센터
+고객지원
+공지
+알림
+공식
+대표
+관리팀
+pokefolio
+pocketfolio
+포케폴리오
+포켓폴리오

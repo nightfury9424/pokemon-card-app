@@ -12,8 +12,11 @@ public class GradingAnalysisDto {
     @JsonProperty("whitening_score")  private BigDecimal whiteningScore;
     @JsonProperty("total_score")      private BigDecimal totalScore;
     @JsonProperty("heavy_whitening")  private boolean heavyWhitening;
+    @JsonProperty("centering_ratio")       private String centeringRatio;
+    @JsonProperty("detection_confidence") private Double detectionConfidence;
     @JsonProperty("centering_detail") private String centeringDetail;
     @JsonProperty("corner_detail")    private String cornerDetail;
     @JsonProperty("surface_detail")   private String surfaceDetail;
     @JsonProperty("whitening_detail") private String whiteningDetail;
+    @JsonProperty("identity_verified") private boolean identityVerified;
 }

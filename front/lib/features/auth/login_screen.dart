@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/theme/app_colors.dart';
 import 'auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -12,28 +13,39 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
 
-  Future<void> _onKakaoLogin() async {
+  Future<void> _onGoogleLogin() async {
     setState(() => _loading = true);
     try {
-      await AuthService.loginWithKakao();
+      final requiresOnboarding = await AuthService.loginWithGoogle();
       if (!mounted) return;
-      context.go('/home');
+      context.go(requiresOnboarding ? '/onboarding' : '/home');
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('카카오 로그인 실패: $e'),
-          duration: const Duration(seconds: 6),
-        ),
+        SnackBar(content: Text('구글 로그인 실패: $e'), duration: const Duration(seconds: 4)),
       );
     }
+  }
+
+  Future<void> _onDevLogin() async {
+    setState(() => _loading = true);
+    final requiresOnboarding = await AuthService.devLogin();
+    if (!mounted) return;
+    setState(() => _loading = false);
+    if (requiresOnboarding == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('개발 로그인 실패')),
+      );
+      return;
+    }
+    context.go(requiresOnboarding ? '/onboarding' : '/home');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: AppColors.bg,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -41,62 +53,61 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(flex: 2),
-              // 로고 영역
-              const Icon(Icons.catching_pokemon, size: 80, color: Color(0xFFE53935)),
-              const SizedBox(height: 16),
-              const Text(
-                '포켓몬 카드',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.blue, Color(0xFF1040A0)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
                 ),
+                child: const Icon(Icons.catching_pokemon, color: Colors.white, size: 40),
               ),
-              const Text(
-                '자산 관리',
-                style: TextStyle(fontSize: 18, color: Colors.white70),
-              ),
+              const SizedBox(height: 20),
+              const Text('포켓몬 카드',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+              const SizedBox(height: 6),
+              const Text('자산 관리',
+                  style: TextStyle(fontSize: 16, color: AppColors.textSecondary, fontWeight: FontWeight.w400)),
               const Spacer(flex: 3),
-              // 카카오 로그인 버튼
               SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _loading ? null : _onKakaoLogin,
+                  onPressed: _loading ? null : _onGoogleLogin,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFEE500),
+                    backgroundColor: Colors.white,
                     foregroundColor: Colors.black87,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
                   ),
                   child: _loading
                       ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black54),
-                        )
-                      : const Row(
+                          width: 20, height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.blue))
+                      : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('💬', style: TextStyle(fontSize: 18)),
-                            SizedBox(width: 8),
-                            Text(
-                              '카카오로 시작하기',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            Image.network(
+                              'https://www.google.com/favicon.ico',
+                              width: 20, height: 20,
+                              errorBuilder: (_, __, ___) => const Icon(Icons.login, size: 20),
                             ),
+                            const SizedBox(width: 10),
+                            const Text('Google로 시작하기',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                           ],
                         ),
                 ),
               ),
               const SizedBox(height: 12),
-              // 개발용 테스트 로그인 (에뮬레이터 테스트 전용)
               TextButton(
                 onPressed: _loading ? null : _onDevLogin,
-                child: const Text(
-                  '[DEV] 테스트 로그인',
-                  style: TextStyle(color: Colors.white38, fontSize: 12),
-                ),
+                child: const Text('[DEV] 테스트 로그인',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
               ),
               const Spacer(),
             ],
@@ -104,20 +115,5 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _onDevLogin() async {
-    setState(() => _loading = true);
-    final success = await AuthService.devLogin();
-    if (!mounted) return;
-    setState(() => _loading = false);
-
-    if (success) {
-      context.go('/home');
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('개발 로그인 실패')),
-      );
-    }
   }
 }

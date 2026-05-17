@@ -6,5 +6,5 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 
 public interface GradingService {
-    ReturnData<GradingResultDto> analyze(Map<String, MultipartFile> photos);
+    ReturnData<GradingResultDto> analyze(Map<String, MultipartFile> photos, String cardId);
 }

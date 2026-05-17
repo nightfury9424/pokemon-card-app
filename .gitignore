@@ -3,6 +3,18 @@ __pycache__/
 *.pyc
 *.pyo
 grading/venv/
+python/.venv*/
+
+# Python — 일회성 backfill / deprecated 스크립트 (운영 동기화 무관)
+# 운영 cron + sync 인프라만 git에 트래킹 (REFACTOR_2026-05-12.md 2-① 환율 단일화 작업 시 정책 확립)
+python/backfill_missing_raw.py
+python/price_bunjang_ditto_promo.py
+python/price_scrydex_backfill_missing.py
+python/restore_deleted_cards.py
+python/scan_missing_highrare.py
+python/promo_verify.py
+python/collect_prices.py
+python/price_naver.py
 
 # Gradle / Java build
 back/build/
@@ -21,3 +33,32 @@ scanner/data/
 
 # IDE / Claude
 .claude/settings.local.json
+
+# Secrets — 절대 커밋 금지
+.env
+**/.env
+*.env.local
+python/config.py
+
+# KREAM PoC 스크립트 (운영 외, 분석용)
+python/kream_probe.py
+python/kream_login_capture.py
+python/kream_session_explore.py
+
+
+# 사용자 업로드 이미지 (런타임 storage, git 제외)
+trade_images/
+asset_grading_images/
+front/flutter_01.png
+
+# 큰 binary — 모델 가중치, FAISS 인덱스, DB seed
+scanner/model/
+scanner/db/
+db/seed_data.sql.gz
+python/kream_login_poc.py
+python/kream_state.json
+
+# 일회성 백업 / 분석 산출물 (운영 외, 레포 추적 금지)
+back/export/
+checkpoint_20260515/
+sync_backup_20260515/

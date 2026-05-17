@@ -12,14 +12,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-
-import java.util.List;
 
 @Tag(name = "Card", description = "카드 마스터 조회 API")
 @RestController
@@ -48,28 +46,80 @@ public class CardController {
     @GetMapping("/{cardId}")
     public ReturnData<CardDto> getCard(
         @Parameter(description = "카드 ID", example = "CRD_ABC123")
-        @PathVariable String cardId) {
-        return cardService.getCard(cardId);
+        @PathVariable String cardId,
+        // 스캐너 후보 클릭 등 단건에서 KO 환산가 + 변동률을 inline으로 받기 위한 옵트인.
+        // 기본 false라 카드 상세/리스트 호출자는 영향 없음 (그쪽은 별도 price-summary 사용).
+        @Parameter(description = "true면 koEstimatedPrice/gainPct enrich")
+        @RequestParam(defaultValue = "false") boolean withPrice) {
+        return withPrice
+            ? cardService.getCardWithPrice(cardId)
+            : cardService.getCard(cardId);
+    }
+
+    @Operation(summary = "[Admin] 카드 추가", description = "카드 마스터를 추가하고 SCRYDEX 가격을 즉시 조회해 저장합니다.")
+    @PostMapping("/admin/add")
+    public ReturnData<Map<String, Object>> addCard(@RequestBody AddCardRequest request) {
+        return ReturnData.success(cardService.addCard(request));
     }
 
     @Operation(summary = "고레어 카드 목록 조회", description = "레어도별 카드 목록 조회 (시세 화면용). rarities 미입력시 SAR,SSR,CSR,SR,UR,CHR 기본값. sortBy=price 로 가격순 정렬 가능.")
     @GetMapping("/market")
     public ReturnData<Map<String, Object>> getMarketCards(
-            @RequestParam(defaultValue = "SAR,SSR,CSR,SR,UR,CHR") String rarities,
+            @RequestParam(defaultValue = "SAR,SSR,CSR,SR,UR,CHR,RRR,HR,AR,ACE,BWR,MA,MUR") String rarities,
             @RequestParam(defaultValue = "") String name,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "") String sortBy) {
+            @RequestParam(defaultValue = "name") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir) {
         List<String> rarityList = Arrays.asList(rarities.split(","));
-        if ("price".equals(sortBy)) {
-            var result = cardService.getCardsByRarityOrderByPrice(rarityList, name, size, page * size);
-            return ReturnData.success(result);
-        }
-        var pageable = PageRequest.of(page, size);
-        var result = name.isBlank()
-                ? cardService.getCardsByRarity(rarityList, pageable)
-                : cardService.searchCardsByNameAndRarity(name, rarityList, pageable);
+        var result = cardService.getMarketCards(rarityList, name, page, size, sortBy, sortDir);
         return ReturnData.success(result);
+    }
+
+    @Operation(summary = "오늘의 TOP 수익 카드", description = "어제 대비 오늘 KO_ESTIMATED 상승률이 높은 카드를 조회합니다.")
+    @GetMapping("/market/top-gainers")
+    public ResponseEntity<List<CardDto>> getTopGainerCards(
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(cardService.getTopGainerCards(size));
+    }
+
+    @Operation(summary = "오늘의 TOP 손실 카드 (급하락)", description = "어제 대비 오늘 KO_ESTIMATED 하락률이 큰 카드.")
+    @GetMapping("/market/top-losers")
+    public ResponseEntity<List<CardDto>> getTopLoserCards(
+            @RequestParam(defaultValue = "50") int size) {
+        return ResponseEntity.ok(cardService.getTopLoserCards(size));
+    }
+
+    @Operation(summary = "최근 N일 TOP 상승 카드", description = "audit.ranking_eligible=true 기준 최근 days(default 14)일 내 카드당 최대 상승률 1건 dedup. UX 안정성용. size default 100.")
+    @GetMapping("/market/recent-gainers")
+    public ResponseEntity<List<CardDto>> getRecentGainerCards(
+            @RequestParam(defaultValue = "14") int days,
+            @RequestParam(defaultValue = "100") int size) {
+        return ResponseEntity.ok(cardService.getRecentGainerCards(days, size));
+    }
+
+    @Operation(summary = "최근 N일 TOP 하락 카드", description = "audit.ranking_eligible=true 기준 최근 days(default 14)일 내 카드당 최대 하락률 1건 dedup. UX 안정성용. size default 100.")
+    @GetMapping("/market/recent-losers")
+    public ResponseEntity<List<CardDto>> getRecentLoserCards(
+            @RequestParam(defaultValue = "14") int days,
+            @RequestParam(defaultValue = "100") int size) {
+        return ResponseEntity.ok(cardService.getRecentLoserCards(days, size));
+    }
+
+    @Operation(summary = "인기 카드 (관심수 기준)", description = "card_interests 수 desc 정렬. KO/프로모 카드 한정.")
+    @GetMapping("/market/popular")
+    public ResponseEntity<List<CardDto>> getPopularCards(
+            @RequestParam(defaultValue = "50") int size) {
+        return ResponseEntity.ok(cardService.getPopularCards(size));
+    }
+
+    @Operation(summary = "프로모 카드 목록 조회", description = "is_promo_exclusive=true 카드 목록 (JP/EN scrydex 가격 직접 사용).")
+    @GetMapping("/market/promos")
+    public ReturnData<Map<String, Object>> getPromoCards(
+            @RequestParam(defaultValue = "") String name,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ReturnData.success(cardService.getPromoCards(name, page, size));
     }
 
     @Operation(summary = "카드명 검색", description = "카드명으로 카드를 검색합니다. (부분 일치)")
@@ -87,7 +137,12 @@ public class CardController {
     @GetMapping("/search")
     public ReturnData<List<CardSearchDto>> searchCards(
         @Parameter(description = "카드명 (부분 일치)", example = "리자몽")
-        @RequestParam String name) {
+        @RequestParam String name,
+        @Parameter(description = "언어 필터 (KO/EN/JP)", example = "KO")
+        @RequestParam(required = false) String language) {
+        if (language != null && !language.isBlank()) {
+            return cardService.searchCards(name, language);
+        }
         return cardService.searchCards(name);
     }
 

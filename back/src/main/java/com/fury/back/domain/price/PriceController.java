@@ -1,6 +1,7 @@
 package com.fury.back.domain.price;
 
 import com.fury.back.common.ReturnData;
+import com.fury.back.domain.price.dto.CardPriceSummaryDto;
 import com.fury.back.domain.price.dto.MarketCoefficientDto;
 import com.fury.back.domain.price.dto.PriceSnapshotDto;
 import com.fury.back.domain.price.dto.PriceSummaryDto;
@@ -74,7 +75,7 @@ public class PriceController {
 
     @Operation(summary = "카드 시세 히스토리 조회 (최근 30일)", description = """
         수집된 원천 시세 데이터를 반환합니다. (최근 30일)
-        - `source`: `NAVER_SHOPPING` / `KREAM` / `BUNJANG` / `NAVER_CAFE` / `ICU` / `JOONGGONARA` / `APP`
+        - `source`: `BUNJANG` / `NAVER_CAFE` / `SCRYDEX_EN` / `SCRYDEX_JP` / `KO_ESTIMATED`
         """)
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "조회 성공",
@@ -88,7 +89,6 @@ public class PriceController {
                           "cardId": "CRD_ABC123",
                           "source": "BUNJANG",
                           "price": 90000,
-                          "currency": "KRW",
                           "cardStatus": "RAW",
                           "tradedAt": "2026-03-22T15:30:00"
                         },
@@ -97,7 +97,6 @@ public class PriceController {
                           "cardId": "CRD_ABC123",
                           "source": "KREAM",
                           "price": 540000,
-                          "currency": "KRW",
                           "cardStatus": "GRADED",
                           "gradingCompany": "PSA",
                           "gradeValue": "10",
@@ -124,11 +123,108 @@ public class PriceController {
         return ReturnData.success(globalPriceService.getCoefficient());
     }
 
-    @Operation(summary = "카드 해외 시세 히스토리", description = "TCGPlayer 기준 해외 시세 (KRW 환산)")
+    @GetMapping("/coefficient/history")
+    public ReturnData<?> getCoefficientHistory(
+            @RequestParam(defaultValue = "30") int days) {
+        return ReturnData.success(globalPriceService.getCoefficientHistory(days));
+    }
+
+    @Operation(summary = "레어도별 계수 조회", description = "레어도 코드(SSR, SAR, AR 등)별 KO/JP 보정계수. 없으면 글로벌 계수 반환.")
+    @GetMapping("/coefficient/rarity/{rarityCode}")
+    public ReturnData<Double> getCoefficientByRarity(@PathVariable String rarityCode) {
+        return ReturnData.success(globalPriceService.getCoefficientForRarity(rarityCode));
+    }
+
+    @Operation(summary = "카드 해외 시세 히스토리", description = "SCRYDEX 기준 해외 시세 (KRW 환산)")
     @GetMapping("/cards/{cardId}/global-history")
     public ReturnData<List<PriceSnapshotDto>> getGlobalHistory(
         @Parameter(description = "카드 ID") @PathVariable String cardId) {
         return ReturnData.success(globalPriceService.getGlobalHistory(cardId));
+    }
+
+    @Operation(summary = "카드 가격 요약 (단일 집계)", description = "KO mid/low/high + KO/EN/JP 차트 데이터를 한 번에 반환. 상세 화면 전용.")
+    @GetMapping("/cards/{cardId}/price-summary")
+    public ReturnData<CardPriceSummaryDto> getPriceSummary(@PathVariable String cardId) {
+        var result = globalPriceService.getCardPriceSummary(cardId);
+        if (result == null) return ReturnData.notFound("카드를 찾을 수 없습니다.");
+        return ReturnData.success(result);
+    }
+
+    @Operation(summary = "KO 예상가 (저장된 SCRYDEX_EN)", description = "DB에 저장된 최신 SCRYDEX_EN 가격 (KRW). 리스트와 동일한 기준.")
+    @GetMapping("/cards/{cardId}/ko-price")
+    public ReturnData<Integer> getKoPrice(@PathVariable String cardId) {
+        return ReturnData.success(globalPriceService.getStoredKoPrice(cardId));
+    }
+
+    @Operation(summary = "KO 예상가 저장", description = "상세 화면에서 계산된 KO 예상가를 DB에 저장 (하루 1번). body: {\"price\": 123456}")
+    @PostMapping("/cards/{cardId}/ko-estimate")
+    public ReturnData<String> saveKoEstimate(
+            @PathVariable String cardId,
+            @RequestBody Map<String, Integer> body) {
+        Integer price = body.get("price");
+        if (price == null || price <= 0) return ReturnData.badRequest("price는 필수입니다.");
+        globalPriceService.saveKoEstimatedForCard(cardId, price);
+        return ReturnData.success("저장 완료");
+    }
+
+    @Operation(summary = "[Admin] 시장 보정 계수 조회")
+    @GetMapping("/admin/market-adjustment")
+    public ReturnData<Map<String, Object>> getMarketAdjustment() {
+        return ReturnData.success(globalPriceService.getMarketAdjustment());
+    }
+
+    @Operation(summary = "[Admin] 시장 보정 계수 변경 + KO 예상가 즉시 재계산",
+               description = "현재 ko_coef_* 전체에 (newFactor/currentFactor) 비율 적용 후 KO_ESTIMATED 재계산")
+    @PostMapping("/admin/market-adjustment")
+    public ReturnData<Map<String, Object>> setMarketAdjustment(@RequestParam double factor) {
+        return ReturnData.success(globalPriceService.setMarketAdjustment(factor));
+    }
+
+    @Operation(summary = "[Admin] KO 예상가 일괄 갱신 (스냅샷 기반)", description = "저장된 SCRYDEX_EN/JP 스냅샷 × 현재 계수로 KO_ESTIMATED 갱신 (오늘 미저장 카드만)")
+    @PostMapping("/admin/refresh-ko-estimates")
+    public ReturnData<Map<String, Object>> refreshKoEstimates() {
+        return ReturnData.success(globalPriceService.refreshKoEstimatesFromSnapshots());
+    }
+
+    @Operation(summary = "[Admin] KO 예상가 히스토리 백필", description = "최근 N일 SCRYDEX_EN/JP 일별 스냅샷 기반 KO_ESTIMATED + audit 생성. force=true 시 기존 KO 14일치 삭제(FK CASCADE로 audit 동반 삭제) 후 audit 포함 재생성.")
+    @PostMapping("/admin/backfill-ko-history")
+    public ReturnData<Map<String, Object>> backfillKoHistory(
+            @RequestParam(defaultValue = "14") int days,
+            @RequestParam(defaultValue = "false") boolean force) {
+        return ReturnData.success(globalPriceService.backfillKoEstimatedHistory(days, force));
+    }
+
+    @Operation(summary = "[Admin] KO audit dry-run", description = "DB write 없는 in-memory carry dry-run. buildKoEstimatedSnapshotsWithAudit를 N일치 (max 14) 연속 carry. cardIds (max 50), startDate, endDate 필수. price_snapshots / ko_estimation_audit 모두 저장하지 않음.")
+    @PostMapping("/admin/dry-run-audit")
+    public ReturnData<Map<String, Object>> dryRunAudit(@RequestBody Map<String, Object> req) {
+        @SuppressWarnings("unchecked")
+        List<String> cardIds = (List<String>) req.get("cardIds");
+        String startStr = (String) req.get("startDate");
+        String endStr = (String) req.get("endDate");
+        java.time.LocalDate startDate = startStr == null ? null : java.time.LocalDate.parse(startStr);
+        java.time.LocalDate endDate = endStr == null ? null : java.time.LocalDate.parse(endStr);
+        return ReturnData.success(globalPriceService.dryRunAuditNDays(cardIds, startDate, endDate));
+    }
+
+    @Operation(summary = "[Admin] KO 예상가 라이브 갱신", description = "scrydex ref 있는 모든 카드 실시간 조회 → KO_ESTIMATED 저장. 백그라운드 실행, 즉시 반환.")
+    @PostMapping("/admin/refresh-ko-live")
+    public ReturnData<Map<String, Object>> refreshKoLive() {
+        return ReturnData.success(globalPriceService.startRefreshKoEstimatesLive());
+    }
+
+    @Operation(summary = "[Admin] EN/JP→KO 비율 재계산", description = "국내 실거래 vs SCRYDEX_EN/JP 비교로 레어도별 en_*/jp_* 계수 재계산.")
+    @PostMapping("/admin/recalculate-en-jp-ratios")
+    public ReturnData<String> recalculateEnJpRatios() {
+        globalPriceService.recalculateEnJpRatios();
+        return ReturnData.success("en/jp ratio 재계산 완료");
+    }
+
+    @Operation(summary = "KO 예상가 히스토리", description = "카드별 KO_ESTIMATED 일별 시세 히스토리 (차트용)")
+    @GetMapping("/cards/{cardId}/ko-history")
+    public ReturnData<List<Map<String, Object>>> getKoHistory(
+            @PathVariable String cardId,
+            @RequestParam(defaultValue = "90") int days) {
+        return ReturnData.success(globalPriceService.getKoEstimatedHistory(cardId, days));
     }
 
     @Operation(summary = "scrydex 히스토리", description = "RAW NM + PSA 10/9 일별 가격 히스토리. source=EN(기본) 또는 JP")
@@ -163,21 +259,21 @@ public class PriceController {
     }
 
     @Operation(summary = "[Admin] 카드 매핑 실행",
-        description = "등록된 세트 매핑 기반으로 고레어 KO 카드에 TCGPlayer 카드 ID 매핑")
+        description = "등록된 세트 매핑 기반으로 고레어 KO 카드에 pokemontcg.io 카드 ID 매핑")
     @PostMapping("/admin/map-cards")
     public ReturnData<Map<String, Object>> mapCards() {
         return ReturnData.success(globalPriceService.mapCards());
     }
 
     @Operation(summary = "[Admin] 해외 시세 수집",
-        description = "매핑된 고레어 카드의 TCGPlayer USD 시세를 KRW 환산하여 저장 (하루 1회)")
+        description = "레거시 엔드포인트. 해외 시세 수집은 scrydex 배치 스크립트를 사용합니다.")
     @PostMapping("/admin/fetch-global-prices")
     public ReturnData<Map<String, Object>> fetchGlobalPrices() {
         return ReturnData.success(globalPriceService.fetchAndStorePrices());
     }
 
     @Operation(summary = "[Admin] 미매핑 고레어 카드 목록",
-        description = "tcgplayer_card_id가 없는 KO 고레어 카드 목록. productId 파라미터로 특정 세트만 조회 가능")
+        description = "scrydex ref가 없는 KO 고레어 카드 목록. productId 파라미터로 특정 세트만 조회 가능")
     @GetMapping("/admin/unmapped-cards")
     public ReturnData<List<Map<String, Object>>> getUnmappedCards(
             @RequestParam(required = false) String productId) {
@@ -193,7 +289,7 @@ public class PriceController {
     }
 
     @Operation(summary = "[Admin] 카드 매핑 초기화",
-        description = "지정한 cardId 목록의 tcgplayer_card_id를 null로 초기화 (잘못된 매핑 삭제용)")
+        description = "지정한 cardId 목록의 scrydex ref를 null로 초기화 (잘못된 매핑 삭제용)")
     @PostMapping("/admin/clear-card-mappings")
     public ReturnData<Map<String, Object>> clearCardMappings(
             @RequestBody List<String> cardIds) {

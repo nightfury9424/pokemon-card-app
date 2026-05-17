@@ -12,9 +12,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Tag(name = "Asset", description = "자산(보유 카드) 관리 및 포트폴리오 API")
 @RestController
@@ -152,6 +157,28 @@ public class AssetController {
         return assetService.updateAsset(assetId, parameterData);
     }
 
+    @Operation(summary = "외부 감정 정보 저장", description = "자산에 외부 감정사와 등급 값을 저장합니다.")
+    @PatchMapping("/{assetId}/grading-info")
+    @SuppressWarnings("unchecked")
+    public ReturnData<Void> updateGradingInfo(
+            @Parameter(description = "자산 ID", example = "ASSET_001")
+            @PathVariable String assetId,
+            @RequestBody Map<String, Object> body) {
+        Map<String, Object> data = body.get("data") instanceof Map<?, ?> nested
+                ? (Map<String, Object>) nested
+                : body;
+        try {
+            assetService.updateGradingInfo(
+                    assetId,
+                    data.get("gradingCompany") == null ? null : String.valueOf(data.get("gradingCompany")),
+                    data.get("gradeValue") == null ? null : String.valueOf(data.get("gradeValue"))
+            );
+            return ReturnData.success();
+        } catch (IllegalArgumentException e) {
+            return ReturnData.badRequest(e.getMessage());
+        }
+    }
+
     @Operation(summary = "자산 삭제", description = "assetId에 해당하는 자산을 삭제합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "삭제 성공",
@@ -190,5 +217,56 @@ public class AssetController {
         @Parameter(description = "사용자 ID", example = "USR_ABC")
         @RequestParam String userId) {
         return assetService.getPortfolioSummary(userId);
+    }
+
+    @Operation(summary = "자산 이미지 목록 조회", description = "자산에 저장된 FRONT/BACK/SLAB 이미지 목록을 반환합니다.")
+    @GetMapping("/{assetId}/images")
+    public ReturnData<List<Map<String, String>>> getAssetImages(
+            @Parameter(description = "자산 ID", example = "ASSET_001")
+            @PathVariable String assetId) {
+        return assetService.getAssetImages(assetId);
+    }
+
+    @Operation(summary = "자산 그레이딩 결과 저장", description = "자산에 앱 분석 점수와 앞/뒤 이미지를 저장합니다.")
+    @PostMapping(value = "/{assetId}/grading", consumes = "multipart/form-data")
+    public ReturnData<List<String>> saveGradingResult(
+            @Parameter(description = "자산 ID", example = "ASSET_001")
+            @PathVariable String assetId,
+            @RequestParam("front_image") MultipartFile frontImage,
+            @RequestParam("back_image") MultipartFile backImage,
+            @RequestParam("estimated_grade") BigDecimal estimatedGrade,
+            @RequestParam("centering_score") BigDecimal centeringScore,
+            @RequestParam("corner_score") BigDecimal cornerScore,
+            @RequestParam("surface_score") BigDecimal surfaceScore,
+            @RequestParam("whitening_score") BigDecimal whiteningScore,
+            @RequestParam(value = "centering_ratio", required = false) String centeringRatio,
+            @RequestParam("detection_confidence") BigDecimal detectionConfidence,
+            @RequestParam(value = "app_analysis_id", required = false) String appAnalysisId,
+            @RequestParam(value = "cardStatus", required = false) String cardStatus) {
+        return assetService.saveGradingResult(
+                assetId,
+                new AssetDto.GradingResultRequest(
+                        estimatedGrade,
+                        centeringScore,
+                        cornerScore,
+                        surfaceScore,
+                        whiteningScore,
+                        centeringRatio,
+                        detectionConfidence,
+                        appAnalysisId
+                ),
+                frontImage,
+                backImage
+        );
+    }
+
+    @Operation(summary = "외부 감정 슬랩 이미지 업로드", description = "외부 감정 카드의 슬랩 사진을 업로드합니다.")
+    @PostMapping(value = "/{assetId}/slab-image", consumes = "multipart/form-data")
+    public ResponseEntity<Void> uploadSlabImage(
+            @Parameter(description = "자산 ID", example = "ASSET_001")
+            @PathVariable String assetId,
+            @RequestParam("slab_image") MultipartFile slabImage) throws IOException {
+        assetService.uploadSlabImage(assetId, slabImage);
+        return ResponseEntity.ok().build();
     }
 }

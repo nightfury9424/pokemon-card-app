@@ -11,12 +11,12 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
 
-  # 카카오 로그인
-  kakao_flutter_sdk_user: ^1.9.9
+  # 구글 로그인
+  google_sign_in: ">=6.2.1 <6.3.0"
 
   # 카메라 + OCR
   camera: ^0.11.1
-  google_mlkit_text_recognition: ^0.13.1
+  google_mlkit_text_recognition: ^0.15.1
   permission_handler: ^11.3.1
 
   # 네트워크
@@ -33,6 +33,10 @@ dependencies:
 
   # 이미지 선택 (갤러리 / 카메라)
   image_picker: ^1.1.2
+  path_provider: ^2.1.5
+
+  # 카메라 프레임 변환
+  image: ^4.5.0
 
   # SVG 렌더링
   flutter_svg: ^2.0.10+1

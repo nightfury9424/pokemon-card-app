@@ -1,0 +1,4 @@
+# banned_words.txt에서 자동 제외할 일반 명사/오탐 단어.
+# 사용자가 닉네임 만들다 막힌 단어 중 무해한 것을 추가하면 됨.
+# 빌드 스크립트(build_banned_words.py)가 이걸 읽어서 final banned 리스트에서 제거.
+마스터

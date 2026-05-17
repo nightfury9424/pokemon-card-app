@@ -1,6 +1,7 @@
 package com.fury.back.config;
 
 import com.fury.back.auth.JwtAuthFilter;
+import com.fury.back.auth.OnboardingGuardFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,6 +23,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final OnboardingGuardFilter onboardingGuardFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -33,13 +35,22 @@ public class SecurityConfig {
                         // 인증 불필요
                         .requestMatchers(
                                 "/api/auth/**",
+                                "/api/health",
+                                "/api/admin/**",
                                 "/api/cards/**",
                                 "/api/prices/**",
                                 "/api/prices/admin/**",
+                                "/api/price/admin/**",
                                 "/api/products/**",
+                                "/api/assets/**",
                                 "/api/trades",
                                 "/api/trades/**",
+                                "/api/buy-orders/**",
+                                "/api/notifications/**",
+                                "/api/reports/**",
+                                "/api/card-interests/**",
                                 "/api/grading/**",
+                                "/api/scanner/**",
                                 "/images/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
@@ -49,7 +60,8 @@ public class SecurityConfig {
                         // 나머지는 JWT 필요
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(onboardingGuardFilter, JwtAuthFilter.class);
 
         return http.build();
     }

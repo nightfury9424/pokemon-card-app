@@ -1206,7 +1206,7 @@ class GradingScreen extends StatelessWidget {
                 const Text('카드 등급 예측',
                     style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                const Text('사진 10장으로 센터링, 코너, 표면 상태, 화이트닝을 분석해\nPSA/CGC 기준 예상 등급을 알려드립니다.',
+                const Text('사진 10장으로 센터링, 코너, 표면 상태, 화이트닝을 분석해\nPSA/BRG 기준 예상 등급을 알려드립니다.',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.5)),
               ],
             ),

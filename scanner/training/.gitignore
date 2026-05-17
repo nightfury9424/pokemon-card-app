@@ -1,0 +1,12 @@
+# 데이터 폴더 — 자동 생성/다운로드 (commit 제외)
+data/
+realphotos/
+
+# 학습 산출물
+runs/
+*.pt
+*.onnx
+
+# Python
+__pycache__/
+*.pyc

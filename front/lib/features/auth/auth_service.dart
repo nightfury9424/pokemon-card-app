@@ -1,41 +1,54 @@
-import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../../core/auth/auth_state.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/token_storage.dart';
 
+final _googleSignIn = GoogleSignIn(
+  scopes: ['email', 'profile'],
+);
+
 class AuthService {
-  static Future<void> loginWithKakao() async {
-    OAuthToken token;
+  /// 로그인 후 온보딩이 필요한지 여부를 반환 (true면 /onboarding으로 분기)
+  static Future<bool> loginWithGoogle() async {
+    final account = await _googleSignIn.signIn();
+    if (account == null) throw Exception('구글 로그인 취소됨');
 
-    if (await isKakaoTalkInstalled()) {
-      token = await UserApi.instance.loginWithKakaoTalk()
-          .timeout(const Duration(seconds: 30));
-    } else {
-      token = await UserApi.instance.loginWithKakaoAccount()
-          .timeout(const Duration(seconds: 30));
-    }
+    final auth = await account.authentication;
+    final idToken = auth.idToken;
+    if (idToken == null) throw Exception('ID 토큰을 받지 못했습니다');
 
-    final response = await ApiClient.post('/api/auth/kakao/token', {
-      'kakaoAccessToken': token.accessToken,
+    final response = await ApiClient.post('/api/auth/google/token', {
+      'idToken': idToken,
     });
 
-    final jwt = response['data']['accessToken'];
+    final data = response['data'] as Map<String, dynamic>;
+    final jwt = data['accessToken'] as String;
+    final requiresOnboarding = (data['requiresOnboarding'] as bool?) ?? false;
     await TokenStorage.save(jwt);
+    await TokenStorage.setOnboarded(!requiresOnboarding);
+    AuthState.instance.markLoggedIn(onboarded: !requiresOnboarding);
+    return requiresOnboarding;
   }
 
-  static Future<bool> devLogin() async {
+  /// dev 로그인. 반환: requiresOnboarding (true/false). 실패 시 null.
+  static Future<bool?> devLogin() async {
     try {
       final response = await ApiClient.post('/api/auth/dev/login', {});
-      final jwt = response['data']['accessToken'];
+      final data = response['data'] as Map<String, dynamic>;
+      final jwt = data['accessToken'] as String;
+      final requiresOnboarding = (data['requiresOnboarding'] as bool?) ?? false;
       await TokenStorage.save(jwt);
-      return true;
+      await TokenStorage.setOnboarded(!requiresOnboarding);
+      AuthState.instance.markLoggedIn(onboarded: !requiresOnboarding);
+      return requiresOnboarding;
     } catch (e) {
-      print('[AuthService] 개발 로그인 실패: $e');
-      return false;
+      return null;
     }
   }
 
   static Future<void> logout() async {
-    await UserApi.instance.logout();
+    await _googleSignIn.signOut();
     await TokenStorage.delete();
+    AuthState.instance.markLoggedOut();
   }
 }

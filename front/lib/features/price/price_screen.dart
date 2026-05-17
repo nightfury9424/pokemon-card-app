@@ -1,10 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
-import '../../core/constants/api_constants.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/widgets/card_image.dart';
 
-enum _SortMode { name, rarity, price, date }
+enum _SortMode { name, rarity, price }
 
 class PriceScreen extends StatefulWidget {
   const PriceScreen({super.key});
@@ -16,149 +17,196 @@ class PriceScreen extends StatefulWidget {
 class _PriceScreenState extends State<PriceScreen> {
   List<Map<String, dynamic>> _cards = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _page = 0;
+  int _totalElements = 0;
   String _searchQuery = '';
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
+  Timer? _searchDebounce;
 
-  _SortMode _sortMode = _SortMode.name;
-  bool _sortAscending = true;
-  String? _selectedRarity; // null = 전체
+  _SortMode _sortMode = _SortMode.price;
+  bool _sortAscending = false;
+  String? _selectedRarity;
 
-  // 포켓몬 카드 등급 순서: 높은 등급 → 낮은 등급
-  static const _allRarities = ['SSR', 'SAR', 'BWR', 'CSR', 'CHR', 'UR', 'SR', 'AR', 'HR', 'ACE', 'RRR', 'RR', 'PR', 'H', 'MA', 'MUR'];
-  static const _rarityOrder = {
-    'SSR': 0, 'SAR': 1, 'BWR': 2, 'CSR': 3, 'CHR': 4, 'UR': 5, 'SR': 6, 'AR': 7,
-    'HR': 8, 'ACE': 9, 'RRR': 10, 'RR': 11, 'PR': 12, 'H': 13, 'MA': 14, 'MUR': 15,
-  };
+  static const _pageSize = 50;
+  static const _allRarities = ['SSR', 'SAR', 'BWR', 'CSR', 'CHR', 'UR', 'SR', 'AR', 'HR', 'ACE', 'RRR', 'RR', 'PR', 'MA', 'MUR'];
 
   String get _raritiesParam => _selectedRarity ?? _allRarities.join(',');
+
+  String get _sortByParam => switch (_sortMode) {
+    _SortMode.name   => 'name',
+    _SortMode.rarity => 'rarity',
+    _SortMode.price  => 'price',
+  };
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _loadCards();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadCards() async {
-    setState(() => _loading = true);
-    try {
-      final params = <String, dynamic>{
-        'rarities': _raritiesParam,
-        'name': _searchQuery,
-        'page': 0,
-        'size': 500,
-      };
-      if (_sortMode == _SortMode.price) params['sortBy'] = 'price';
-      final res = await ApiClient.get('/api/cards/market', params: params);
-      final data = res['data'] as Map<String, dynamic>;
-      final content = List<Map<String, dynamic>>.from(data['content'] ?? []);
-      setState(() {
-        _cards = content;
-        _loading = false;
-        _applySortInPlace();
-      });
-    } catch (e) {
-      setState(() => _loading = false);
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 400 &&
+        !_loadingMore && _hasMore && !_loading) {
+      _loadMore();
     }
   }
 
-  void _applySortInPlace() {
-    final asc = _sortAscending ? 1 : -1;
-    switch (_sortMode) {
-      case _SortMode.name:
-        _cards.sort((a, b) =>
-            (a['name'] as String? ?? '').compareTo(b['name'] as String? ?? '') * asc);
-      case _SortMode.rarity:
-        _cards.sort((a, b) {
-          final ra = _rarityOrder[a['rarityCode']] ?? 99;
-          final rb = _rarityOrder[b['rarityCode']] ?? 99;
-          if (ra != rb) return ra.compareTo(rb) * asc;
-          return (a['name'] as String? ?? '').compareTo(b['name'] as String? ?? '');
-        });
-      case _SortMode.price:
-        _cards.sort((a, b) {
-          final pa = (a['latestPrice'] as num?)?.toInt();
-          final pb = (b['latestPrice'] as num?)?.toInt();
-          if (pa == null && pb == null) return 0;
-          if (pa == null) return 1;  // null 항상 맨 아래
-          if (pb == null) return -1;
-          return pa.compareTo(pb) * asc;
-        });
-      case _SortMode.date:
-        _cards.sort((a, b) {
-          final da = a['latestTradedAt'] as String?;
-          final db = b['latestTradedAt'] as String?;
-          if (da == null && db == null) return 0;
-          if (da == null) return 1;  // null 항상 맨 아래
-          if (db == null) return -1;
-          return da.compareTo(db) * asc;
-        });
+  Future<void> _loadCards() async {
+    setState(() { _loading = true; _page = 0; _hasMore = true; });
+    final snapshot = _searchQuery;
+    try {
+      final mainFuture = ApiClient.get('/api/cards/market', params: {
+        'rarities': _raritiesParam,
+        'name': snapshot,
+        'page': 0,
+        'size': _pageSize,
+        'sortBy': _sortByParam,
+        'sortDir': _sortAscending ? 'asc' : 'desc',
+      });
+      final res = await mainFuture;
+      if (snapshot != _searchQuery) return;
+      final data = res['data'] as Map<String, dynamic>;
+      final content = List<Map<String, dynamic>>.from(data['content'] ?? []);
+      final total = (data['totalElements'] as num?)?.toInt() ?? 0;
+      final totalPages = (data['totalPages'] as num?)?.toInt() ?? 1;
+      setState(() {
+        _cards = content;
+        _totalElements = total;
+        _hasMore = totalPages > 1;
+        _page = 0;
+        _loading = false;
+      });
+    } catch (e) {
+      if (snapshot == _searchQuery) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    final nextPage = _page + 1;
+    try {
+      final res = await ApiClient.get('/api/cards/market', params: {
+        'rarities': _raritiesParam,
+        'name': _searchQuery,
+        'page': nextPage,
+        'size': _pageSize,
+        'sortBy': _sortByParam,
+        'sortDir': _sortAscending ? 'asc' : 'desc',
+      });
+      final data = res['data'] as Map<String, dynamic>;
+      final content = List<Map<String, dynamic>>.from(data['content'] ?? []);
+      final totalPages = (data['totalPages'] as num?)?.toInt() ?? 1;
+      setState(() {
+        _cards = [..._cards, ...content];
+        _page = nextPage;
+        _hasMore = nextPage + 1 < totalPages;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      setState(() => _loadingMore = false);
     }
   }
 
   void _onSearch(String value) {
+    _searchDebounce?.cancel();
     setState(() => _searchQuery = value);
-    _loadCards();
+    _searchDebounce = Timer(const Duration(milliseconds: 500), _loadCards);
   }
 
   void _onSortTap(_SortMode mode) {
-    final prevMode = _sortMode;
-    if (_sortMode == mode) {
-      _sortAscending = !_sortAscending;
-    } else {
-      _sortMode = mode;
-      _sortAscending = mode == _SortMode.price ? false : true;
-    }
-    // 가격순 ↔ 다른 정렬 전환 시 백엔드 재조회
-    if (mode == _SortMode.price || prevMode == _SortMode.price) {
-      _loadCards();
-    } else {
-      setState(() => _applySortInPlace());
-    }
+    setState(() {
+      if (_sortMode == mode) {
+        _sortAscending = !_sortAscending;
+      } else {
+        _sortMode = mode;
+        _sortAscending = mode == _SortMode.price ? false : true;
+      }
+    });
+    _loadCards();
   }
 
   void _onRarityTap(String rarity) {
-    setState(() {
-      _selectedRarity = _selectedRarity == rarity ? null : rarity;
-    });
+    setState(() => _selectedRarity = _selectedRarity == rarity ? null : rarity);
     _loadCards();
+  }
+
+  bool _hasScrydexRef(Object? ref) {
+    final value = ref as String?;
+    return value != null && value.isNotEmpty && !value.startsWith('NO_');
+  }
+
+  String _priceLabel(Map<String, dynamic> card) {
+    final isPromoExclusive = card['isPromoExclusive'] == true;
+    if (!isPromoExclusive) return 'KO 예상 가치';
+
+    final basis = card['koPriceBasis'] as String?;
+    if (basis == 'PSA10') return 'JP 시세 (PSA10 기준)';
+
+    final hasJpRef = _hasScrydexRef(card['jpScrydexRef']);
+    final hasEnRef = _hasScrydexRef(card['enScrydexRef']);
+    if (hasJpRef) return 'JP 시세';
+    if (hasEnRef) return 'EN 시세';
+    return 'KO 예상 가치';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A2E),
-        foregroundColor: Colors.white,
-        title: const Text('시세 보기'),
-      ),
+      backgroundColor: AppColors.bg,
       body: Column(
         children: [
+          _buildHeader(),
           _buildSearchBar(),
-          _buildSortRow(),
-          _buildRarityRow(),
+          _buildFilterBar(),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator(color: Colors.white30))
+                ? const Center(child: CircularProgressIndicator(color: AppColors.blue, strokeWidth: 2))
                 : _cards.isEmpty
-                    ? const Center(
-                        child: Text('카드를 찾을 수 없습니다',
-                            style: TextStyle(color: Colors.white38)),
+                    ? Center(
+                        child: Text(
+                          _searchQuery.isEmpty ? '카드가 없습니다' : '"$_searchQuery" 검색 결과 없음',
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                        ),
                       )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.only(bottom: 16),
-                        itemCount: _cards.length,
-                        itemBuilder: (context, index) =>
-                            _buildCardItem(_cards[index]),
+                    : RefreshIndicator(
+                        onRefresh: _loadCards,
+                        color: AppColors.blue,
+                        backgroundColor: AppColors.surface,
+                        child: ListView.builder(
+                          controller: _scrollController,
+                          padding: EdgeInsets.only(
+                            bottom: 16 + MediaQuery.of(context).padding.bottom,
+                          ),
+                          itemCount: _cards.length +
+                              (_hasMore || _loadingMore ? 1 : 0),
+                          itemBuilder: (context, i) {
+                            if (i == _cards.length) {
+                              return Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: Center(
+                                  child: _loadingMore
+                                      ? const CircularProgressIndicator(color: AppColors.blue, strokeWidth: 2)
+                                      : const SizedBox.shrink(),
+                                ),
+                              );
+                            }
+                            return _buildCardRow(_cards[i]);
+                          },
+                        ),
                       ),
           ),
         ],
@@ -166,245 +214,316 @@ class _PriceScreenState extends State<PriceScreen> {
     );
   }
 
-  Widget _buildSearchBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
-      color: const Color(0xFF1A1A2E),
-      child: TextField(
-        controller: _searchController,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: '카드명 검색 (예: 리자몽)',
-          hintStyle: const TextStyle(color: Colors.white38),
-          prefixIcon: const Icon(Icons.search, color: Colors.white38),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear, color: Colors.white38),
-                  onPressed: () {
-                    _searchController.clear();
-                    _onSearch('');
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: const Color(0xFF16213E),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 10),
-        ),
-        onChanged: _onSearch,
-      ),
-    );
-  }
-
-  Widget _buildSortRow() {
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        physics: const ClampingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        children: [
-          Center(child: _buildSortChip('이름순', _SortMode.name)),
-          const SizedBox(width: 6),
-          Center(child: _buildSortChip('등급순', _SortMode.rarity)),
-          const SizedBox(width: 6),
-          Center(child: _buildSortChip('가격순', _SortMode.price)),
-          const SizedBox(width: 6),
-          Center(child: _buildSortChip('날짜순', _SortMode.date)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRarityRow() {
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        physics: const ClampingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        children: _allRarities.map((r) => Center(
-          child: Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: _buildRarityChip(r),
-          ),
-        )).toList(),
-      ),
-    );
-  }
-
-  Widget _buildSortChip(String label, _SortMode mode) {
-    final selected = _sortMode == mode;
-    final arrow = selected ? (_sortAscending ? ' ↑' : ' ↓') : '';
-    return GestureDetector(
-      onTap: () => _onSortTap(mode),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFF4CAF50) : const Color(0xFF16213E),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? const Color(0xFF4CAF50) : Colors.white24,
-          ),
-        ),
-        child: Text(
-          '$label$arrow',
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.white54,
-            fontSize: 12,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRarityChip(String rarity) {
-    final selected = _selectedRarity == rarity;
-    final color = _rarityColor(rarity);
-    return GestureDetector(
-      onTap: () => _onRarityTap(rarity),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected ? color.withOpacity(0.25) : const Color(0xFF16213E),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? color : color.withOpacity(0.4),
-          ),
-        ),
-        child: Text(
-          rarity,
-          style: TextStyle(
-            color: selected ? color : color.withOpacity(0.6),
-            fontSize: 12,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardItem(Map<String, dynamic> card) {
-    final cardId = card['cardId'] ?? '';
-    final name = card['name'] ?? '';
-    final rarity = card['rarityCode'] ?? '';
-    final number = card['collectionNumber'] ?? '';
-    final latestPrice = card['latestPrice'] as num?;
-    final imageUrl = resolveCardImageUrl(card);
-
-    return GestureDetector(
-      onTap: () => context.push('/card/$cardId', extra: card),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFF16213E),
-          borderRadius: BorderRadius.circular(12),
-        ),
+  Widget _buildHeader() {
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
         child: Row(
           children: [
-            CardImage(
-              imageUrl: imageUrl,
-              width: 44,
-              height: 62,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      if (rarity.isNotEmpty) ...[
-                        _buildRarityBadge(rarity),
-                        const SizedBox(width: 6),
-                      ],
-                      if (number.isNotEmpty)
-                        Text(number,
-                            style: const TextStyle(
-                                color: Colors.white38, fontSize: 12)),
-                    ],
-                  ),
-                ],
+            const Text(
+              '시세',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
               ),
             ),
-            if (latestPrice != null) ...[
-              const SizedBox(width: 8),
-              Text(
-                _formatPrice(latestPrice.toInt()),
-                style: const TextStyle(
-                    color: Color(0xFF4CAF50),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600),
-              ),
-            ],
-            const SizedBox(width: 4),
-            const Icon(Icons.chevron_right, color: Colors.white30, size: 20),
+            const Spacer(),
+            Text(
+              _totalElements > 0 ? '$_totalElements종' : '',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildRarityBadge(String rarity) {
-    final color = _rarityColor(rarity);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.5)),
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        height: 42,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            const Icon(Icons.search_rounded, color: AppColors.textMuted, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                decoration: const InputDecoration(
+                  hintText: '카드명 검색',
+                  hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onChanged: _onSearch,
+              ),
+            ),
+            if (_searchQuery.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  _searchController.clear();
+                  _onSearch('');
+                },
+                child: const Padding(
+                  padding: EdgeInsets.all(10),
+                  child: Icon(Icons.close_rounded, color: AppColors.textMuted, size: 16),
+                ),
+              ),
+          ],
+        ),
       ),
-      child: Text(rarity,
+    );
+  }
+
+  Widget _buildFilterBar() {
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 36,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              _SortChip(label: '가격순', mode: _SortMode.price, current: _sortMode, asc: _sortAscending, onTap: _onSortTap),
+              const SizedBox(width: 8),
+              _SortChip(label: '등급순', mode: _SortMode.rarity, current: _sortMode, asc: _sortAscending, onTap: _onSortTap),
+              const SizedBox(width: 8),
+              _SortChip(label: '이름순', mode: _SortMode.name, current: _sortMode, asc: _sortAscending, onTap: _onSortTap),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 30,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: _allRarities.map((r) => Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _RarityChip(rarity: r, selected: _selectedRarity == r, onTap: _onRarityTap),
+            )).toList(),
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  Widget _buildCardRow(Map<String, dynamic> card) {
+    final cardId = card['cardId'] as String? ?? '';
+    final name = card['name'] as String? ?? '';
+    final rarity = card['rarityCode'] as String? ?? '';
+    final setName = card['productName'] as String?
+        ?? card['seriesName'] as String?;
+    final koPrice = (card['koEstimatedPrice'] as num?)?.toInt()
+        ?? (card['latestPrice'] as num?)?.toInt();
+    final priceLabel = _priceLabel(card);
+    final imageUrl = resolveCardImageUrl(card);
+    final cdnUrl = resolveCdnImageUrl(card);
+    final glowColor = AppColors.rarityGlow(rarity);
+    final hasGlow = rarity.isNotEmpty && glowColor != Colors.transparent;
+
+    return GestureDetector(
+      onTap: () => context.push('/card/$cardId', extra: card),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: hasGlow ? glowColor.withValues(alpha: 0.25) : AppColors.divider,
+          ),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: CardImage(
+                imageUrl: imageUrl,
+                cdnFallbackUrl: cdnUrl,
+                width: 44,
+                height: 62,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      if (rarity.isNotEmpty) _RarityTag(rarity: rarity),
+                      if (rarity.isNotEmpty && setName != null) const SizedBox(width: 6),
+                      if (setName != null)
+                        Flexible(
+                          child: Text(
+                            setName,
+                            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  koPrice != null ? AppColors.formatPrice(koPrice) : '-',
+                  style: TextStyle(
+                    color: koPrice != null ? AppColors.textPrimary : AppColors.textMuted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(priceLabel, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+              ],
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SortChip extends StatelessWidget {
+  final String label;
+  final _SortMode mode;
+  final _SortMode current;
+  final bool asc;
+  final void Function(_SortMode) onTap;
+
+  const _SortChip({
+    required this.label,
+    required this.mode,
+    required this.current,
+    required this.asc,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = mode == current;
+    return GestureDetector(
+      onTap: () => onTap(mode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.blue.withValues(alpha: 0.15) : AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? AppColors.blue.withValues(alpha: 0.5) : AppColors.divider,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? AppColors.blue : AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+              ),
+            ),
+            if (selected) ...[
+              const SizedBox(width: 2),
+              Icon(
+                asc ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                size: 11,
+                color: AppColors.blue,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RarityChip extends StatelessWidget {
+  final String rarity;
+  final bool selected;
+  final void Function(String) onTap;
+
+  const _RarityChip({required this.rarity, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AppColors.rarityColor(rarity);
+    return GestureDetector(
+      onTap: () => onTap(rarity),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.2) : AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? color : AppColors.divider),
+        ),
+        child: Text(
+          rarity,
           style: TextStyle(
-              color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+            color: selected ? color : AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+          ),
+        ),
+      ),
     );
   }
+}
 
-  Widget _imagePlaceholder() {
+class _RarityTag extends StatelessWidget {
+  final String rarity;
+  const _RarityTag({required this.rarity});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AppColors.rarityColor(rarity);
     return Container(
-      width: 44,
-      height: 62,
-      color: Colors.white10,
-      child: const Icon(Icons.catching_pokemon, color: Colors.white24, size: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        rarity,
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
     );
-  }
-
-  String _formatPrice(int price) {
-    if (price <= 0) return '0원';
-    final rounded = (price / 10).round() * 10;
-    final s = rounded.toString().replaceAllMapped(
-        RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
-    return '$s원';
-  }
-
-  Color _rarityColor(String rarity) {
-    switch (rarity) {
-      case 'SSR': return const Color(0xFFFF6B6B);
-      case 'SAR': return const Color(0xFFFFD700);
-      case 'BWR': return const Color(0xFFE8F5E9);
-      case 'CSR': return const Color(0xFF00BCD4);
-      case 'CHR': return const Color(0xFF4FC3F7);
-      case 'UR':  return const Color(0xFF9C27B0);
-      case 'SR':  return const Color(0xFF7E57C2);
-      case 'AR':  return const Color(0xFFFF9800);
-      case 'MA':  return const Color(0xFFFF4081);
-      case 'MUR': return const Color(0xFFE040FB);
-      default:    return Colors.white54;
-    }
   }
 }

@@ -1,85 +1,68 @@
-# 포켓몬 카드 앱 — CLAUDE.md
+# PokeFolio — CLAUDE.md
+
+## AI 협업 원칙 (필수 준수)
+
+> **Claude는 모든 주요 작업에서 Codex와 함께 움직인다.**
+>
+> - 구현 전: Codex와 레퍼런스 수집 및 설계 토론
+> - 구현 후: Codex에게 코드 리뷰 요청
+> - 버그/이슈: Codex와 공동 디버깅
+> - 사용자 답변: 두 관점을 종합해 일목요연하게 정리해서 전달
+>
+> 단순 수정(오타, 한 줄 패딩)은 예외. 기능 설계·복잡한 UI·백엔드 로직은 반드시 Codex와 상의 후 최상의 퀄리티를 추구한다.
 
 ## 프로젝트 구조
-
 ```
-pokemon_card_app/
-├── back/   # Spring Boot (Java 17), port 8080
-└── front/  # Flutter
+pokemon-card-app/
+├── back/       # Spring Boot 4.0.4, Java 20, port 8080
+├── front/      # Flutter 3.41.4, iOS
+├── grading/    # FastAPI, port 8081 (그레이딩 서비스)
+├── scanner/    # FastAPI, port 8082 (DINOv2+FAISS, 동작 중)
+│   └── data/cards/  # 카드 이미지 (EN/JP/KO, ~10,237장)
+└── docs/       # 상세 문서
 ```
 
-## 스택
+## 실행 명령어
+```bash
+# 백엔드
+cd back && ./gradlew bootRun
 
-- **백엔드**: Spring Boot, PostgreSQL (`pokemon_card_db`), ddl-auto: validate
-- **프론트**: Flutter, go_router, fl_chart
-- **인증**: Kakao OAuth2 + JWT
-- **이미지**: scrydex (`https://images.scrydex.com/pokemon/{ref}/medium`)
+# 그레이딩
+cd grading && source venv/bin/activate && uvicorn main:app --host 0.0.0.0 --port 8081
+
+# 스캐너
+cd scanner && KMP_DUPLICATE_LIB_OK=TRUE OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES \
+  /Users/fury/miniconda3/envs/scanner_v2/bin/uvicorn main:app --host 0.0.0.0 --port 8082
+
+# Flutter
+cd front && flutter run
+```
 
 ## 핵심 규칙
 
-### 이미지
-- KO imageUrl(`pokemonkorea.co.kr`) 사용 금지 — 저작권 이슈
-- 반드시 `resolveCardImageUrl(card)` 전역 함수 사용 (`lib/core/widgets/card_image.dart`)
-- 우선순위: JP scrydex ref → EN scrydex ref → null(카드 뒷면)
-- scrydex 매핑은 반드시 set_id + 번호 조합. 이름 기반(slug) 절대 금지
+**이미지**: `resolveCardImageUrl(card)` 전역 함수만 사용 (`lib/core/widgets/card_image.dart`)
+- 우선순위: 로컬(`/images/cards/{cardId}_jp.png`) → scrydex CDN → null(카드 뒷면)
+- `pokemonkorea.co.kr` URL 절대 사용 금지
 
-### DB cards 테이블 주요 컬럼
-- `jp_scrydex_ref`: `sv7a_ja-93` 형식 (JP 이미지 + JP 시세)
-- `en_scrydex_ref`: `sv4pt5-223` 형식 (EN 이미지 + EN 시세)
-- `NO_EN` / `NO_JP`: 해당 언어 버전 없음을 명시적으로 표시
-- `rarity_code`: SSR/SAR/BWR/CSR/CHR/UR/SR/AR/HR/ACE/RRR/RR/PR/H/MA/MUR/C/U/TR
-- PR 카드 = 프로모 카드 (SM-P, SV-P, SWSH-P 등)
-
-### 시세
-- KO 시세: `price_snapshots` 테이블 (RAW/GRADED, 당근/번개/ICU)
-- EN/JP 시세: scrydex API (`/api/scrydex/prices/{ref}`)
-- KO 예상가 = EN RAW 시세 × 환율 × 계수 (card_detail_screen에서 계산)
+**시세**: KO 예상가 = EN RAW scrydex × 환율 × 계수
+- 백엔드에서 `koEstimatedPrice`로 계산해서 반환
 - 가격 포맷: 1의 자리 반올림 + 콤마 + "원"
 
-### 용어
-- 생카드 → RAW | 등급카드 → GRADED
-- "매입가" 표현 사용 금지
-- 총 자산 = 평균시세 × 수량 합산
+**DB**: 9,728장 (KO 기준, C/U/R 삭제됨), ddl-auto: validate
+- `nightfury` 유저, `pokemon_card_db` DB
 
-## 주요 API 엔드포인트
-
-| 엔드포인트 | 설명 |
-|---|---|
-| `GET /api/cards/market?rarities=...&sortBy=price` | 시세 목록. sortBy=price 시 LATERAL JOIN 가격순 |
-| `GET /api/cards/{cardId}` | 카드 상세 |
-| `GET /api/cards/product/{productId}` | 팩별 카드 목록 |
-| `GET /api/assets` | 내 자산 목록 |
-| `GET /api/scrydex/prices/{ref}` | scrydex 시세 조회 |
-
-## Flutter 주요 화면 파일
-
-| 파일 | 역할 |
-|---|---|
-| `lib/features/price/price_screen.dart` | 시세 목록. 가격순=백엔드 재조회 |
-| `lib/features/card/card_detail_screen.dart` | 카드 상세 + 차트(KO/EN/JP 탭) |
-| `lib/features/card/product_cards_screen.dart` | 팩별 카드 목록 (C/U/TR 필터링) |
-| `lib/features/asset/asset_screen.dart` | 자산 관리 |
-| `lib/core/widgets/card_image.dart` | `resolveCardImageUrl()` 전역 함수 위치 |
-
-## 백엔드 재시작 필요 상황
-
-Java 코드 변경 후 반드시 재시작 필요 (hot reload 없음):
-```bash
-# 실행 중인 프로세스 확인
-lsof -i :8080 | grep java
-
-# 종료 후 재시작
-kill {PID}
-cd back && ./gradlew bootRun
-```
-
-## SM-P / SV-P 프로모 카드 scrydex ref 패턴
-
-- SM-P 일본 독점: `en_scrydex_ref = 'NO_EN'`, `jp_scrydex_ref = 'smp_ja-{번호}'`
-- SV-P 글로벌: `en_scrydex_ref = 'svp-{번호}'`, `jp_scrydex_ref = 'svp_ja-{번호}'`
-- HGSS 블랙스타: `en_scrydex_ref = 'hsp-HGSS{번호}'`
-- Celebrations(swsh25th) 세트: #1=피카츄VMAX, #2=피카츄V, #3=레쿠우자 — ref 혼동 주의
-
-## MCP 설치 현황
-
-- `sequential-thinking`: ✓ Connected
+## 상세 문서
+| 문서 | 내용 |
+|------|------|
+| [docs/SETUP.md](docs/SETUP.md) | 새 맥 환경 세팅 |
+| [docs/KREAM.md](docs/KREAM.md) | KREAM 메타몽 프로모 시세 자동 수집 (CDP attach + sales API incremental) |
+| [docs/IMAGES.md](docs/IMAGES.md) | 이미지 파이프라인 (로컬 서빙, scrydex) |
+| [docs/PRICE.md](docs/PRICE.md) | 시세 시스템 (KO/EN/JP, 예상가 계산) |
+| [docs/SCANNER.md](docs/SCANNER.md) | DINOv2+FAISS 스캐너 개발 |
+| [docs/GRADING.md](docs/GRADING.md) | 그레이딩 알고리즘 |
+| [docs/PIPELINE.md](docs/PIPELINE.md) | 번개장터 크롤→라벨→DB 파이프라인 |
+| [docs/SCRYDEX.md](docs/SCRYDEX.md) | scrydex_mapper.html JP/EN ref 매핑 툴 |
+| [docs/COST.md](docs/COST.md) | API 호출 비용 최적화 패턴 (mutation-aware refresh, silent refresh 등) |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | 앱 분석, 시장, 전체 로드맵, 오늘/내일 할 일 |
+| [docs/TODO.md](docs/TODO.md) | 기능별 상세 TODO (신고, 가격 파이프라인 등) |

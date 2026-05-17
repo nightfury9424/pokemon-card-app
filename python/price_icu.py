@@ -18,7 +18,7 @@ from config import DB_CONFIG, HEADERS, TARGET_RARITIES
 
 ICU_BASE = "https://icu.gg"
 
-GRADED_STATES = {"PSA", "BRG", "BGS", "CGC", "SGC", "ACE", "PSG", "기타"}
+GRADED_STATES = {"PSA", "BRG"}
 
 def parse_card_status(card_state: str) -> tuple[str, str | None, str | None]:
     """
@@ -123,12 +123,13 @@ def save_snapshot(conn, card_id: str, price: int, card_state: str,
             cur.execute("""
                 INSERT INTO price_snapshots
                   (price_snapshot_id, card_id, source, source_item_id,
-                   price, currency, card_status, grading_company, grade_value,
-                   traded_at, collected_at, created_at)
-                VALUES (%s, %s, 'ICU', %s, %s, 'KRW', %s, %s, %s, %s, NOW(), NOW())
+                   price, card_status, grading_company, grade_value,
+                   traded_at, collected_at, created_at,
+                   raw_price, raw_currency)
+                VALUES (%s, %s, 'ICU', %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s, 'KRW')
                 ON CONFLICT DO NOTHING
             """, (snapshot_id, card_id, source_item_id, price,
-                  card_status, grading_company, grade_value, traded_at))
+                  card_status, grading_company, grade_value, traded_at, price))
         conn.commit()
         return True
     except Exception as e:

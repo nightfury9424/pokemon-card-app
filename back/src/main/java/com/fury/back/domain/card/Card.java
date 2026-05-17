@@ -2,11 +2,13 @@ package com.fury.back.domain.card;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "cards")
+@SQLRestriction("is_visible = true")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -52,17 +54,36 @@ public class Card {
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
+    @Column(name = "local_image_path", length = 500)
+    private String localImagePath;
+
     @Column(name = "en_scrydex_ref", length = 100)
     private String enScrydexRef;
 
     @Column(name = "jp_scrydex_ref", length = 200)
     private String jpScrydexRef;
 
+    @Builder.Default
+    @Column(name = "is_promo_exclusive", nullable = false)
+    private boolean isPromoExclusive = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "promo_type", length = 30)
+    private PromoType promoType;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(name = "is_visible", nullable = false)
+    private Boolean isVisible = true;
+
+    public void updateLocalImagePath(String path) {
+        this.localImagePath = path;
+        this.updatedAt = LocalDateTime.now();
+    }
 
     public void updateEnScrydexRef(String enScrydexRef) {
         this.enScrydexRef = enScrydexRef;

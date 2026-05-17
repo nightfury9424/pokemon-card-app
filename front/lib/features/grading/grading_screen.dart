@@ -35,16 +35,8 @@ class GradingScreen extends StatelessWidget {
   const GradingScreen({super.key});
 
   static const _steps = [
-    ('앞면 전체', '센터링 측정'),
-    ('뒷면 전체', '화이트닝 감지'),
-    ('앞 좌상단', '코너 마모'),
-    ('앞 우상단', '코너 마모'),
-    ('앞 좌하단', '코너 마모'),
-    ('앞 우하단', '코너 마모'),
-    ('뒤 좌상단', '코너 + 화이트닝'),
-    ('뒤 우상단', '코너 + 화이트닝'),
-    ('뒤 좌하단', '코너 + 화이트닝'),
-    ('뒤 우하단', '코너 + 화이트닝'),
+    ('앞면 전체', '센터링 · 코너 · 표면 측정'),
+    ('뒷면 전체', '화이트닝 · 코너 감지'),
   ];
 
   @override
@@ -78,7 +70,7 @@ class GradingScreen extends StatelessWidget {
                 const Text('카드 등급 예측',
                     style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                const Text('갤러리에서 사진 10장을 선택하면\n센터링, 코너, 표면, 화이트닝을 분석해 예상 등급을 알려드립니다.',
+                const Text('앞면·뒷면 사진 2장만 선택하면\n센터링, 코너, 표면, 화이트닝을 분석해 예상 등급을 알려드립니다.',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.5)),
               ],
             ),

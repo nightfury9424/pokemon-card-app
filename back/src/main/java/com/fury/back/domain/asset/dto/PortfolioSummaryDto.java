@@ -9,5 +9,6 @@ public class PortfolioSummaryDto {
 
     private int totalCards;
     private int totalPurchasePrice;
+    private int totalMarketValue;
     private long distinctCardCount;
 }

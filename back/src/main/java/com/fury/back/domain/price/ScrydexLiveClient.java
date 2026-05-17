@@ -22,6 +22,7 @@ public class ScrydexLiveClient {
     private static final String BASE = "https://scrydex.com/pokemon/cards/_/";
     private static final Duration TIMEOUT = Duration.ofSeconds(15);
     private static final long CACHE_TTL_MS = 2 * 60 * 60 * 1000L; // 2시간
+    private static final double JPY_USD_RATE = 150.0; // JPY→USD 변환용 (scrydex JP 페이지는 ¥로 표시)
 
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(TIMEOUT)
@@ -81,8 +82,20 @@ public class ScrydexLiveClient {
     }
 
     private ScrydexLivePriceDto parseLive(String html, String ref, String source) {
-        Double rawNm = parseRawNm(html);
+        Double rawNm = parseRawNm(html, "JP".equals(source));
         Map<String, Double> psaPrices = parsePsaLatest(html);
+
+        // Sanity check: RAW가 PSA9의 20% 미만이면 파싱 오류로 간주
+        // PSA10은 프로모 카드의 경우 RAW 대비 10배 이상 가능하므로 체크 제외
+        if (rawNm != null) {
+            Double psa9 = psaPrices.get("9");
+            if (psa9 != null && psa9 > 0 && rawNm < psa9 * 0.20) {
+                log.warn("[ScrydexLive] RAW sanity 실패 (ref={}, raw={}, psa9={}) → RAW 무효 처리",
+                        ref, rawNm, psa9);
+                rawNm = null;
+            }
+        }
+
         if (rawNm == null && psaPrices.isEmpty()) return null;
         return ScrydexLivePriceDto.builder()
                 .rawNm(rawNm)
@@ -174,11 +187,51 @@ public class ScrydexLiveClient {
 
     // ─── 파싱 유틸 (현재가용) ──────────────────────────────────────
 
-    private Double parseRawNm(String html) {
-        Pattern p = Pattern.compile("Near Mint.*?\\$(\\d+\\.?\\d*)", Pattern.DOTALL);
-        Matcher m = p.matcher(html);
-        if (m.find()) {
-            try { return Double.parseDouble(m.group(1)); } catch (NumberFormatException ignored) {}
+    /** Raw NM 현재가: 차트 마지막 포인트 우선 → 차트 없는 JP만 ¥ 텍스트 파싱 폴백 */
+    private Double parseRawNm(String html, boolean isJp) {
+        // 1. Chartkick _Raw_ 차트 마지막 non-null 포인트 (EN/JP 공통, 가장 신뢰도 높음)
+        Double fromChart = parseRawNmFromChart(html);
+        if (fromChart != null) return fromChart;
+
+        // 2. 차트 없는 JP 페이지만 ¥ 텍스트 파싱 폴백
+        if (isJp) {
+            Pattern jpyPat = Pattern.compile("Near Mint[^¥￥]{0,300}[¥￥]([\\d,]+)", Pattern.DOTALL);
+            Matcher m = jpyPat.matcher(html);
+            if (m.find()) {
+                try {
+                    double jpy = Double.parseDouble(m.group(1).replace(",", ""));
+                    return jpy / JPY_USD_RATE;
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        return null;
+    }
+
+    /** Chartkick _Raw_ 차트에서 마지막 10개 non-null NM 포인트의 중앙값 */
+    private Double parseRawNmFromChart(String html) {
+        Pattern chartPat = Pattern.compile(
+                "new Chartkick\\[\"LineChart\"\\]\\(\"([^\"]+)\",\\s*(\\[.*?\\]),\\s*\\{",
+                Pattern.DOTALL);
+        Matcher cm = chartPat.matcher(html);
+        while (cm.find()) {
+            if (!cm.group(1).contains("_Raw_")) continue;
+            List<ScrydexHistoryDto.PricePoint> pts = parseSeriesFirst(cm.group(2));
+            if (pts == null) continue;
+            List<Double> recent = new ArrayList<>();
+            for (int i = pts.size() - 1; i >= 0; i--) {
+                Double price = pts.get(i).getPrice();
+                if (price != null && price > 0) {
+                    recent.add(price);
+                    if (recent.size() == 10) break;
+                }
+            }
+            if (recent.isEmpty()) continue;
+            if (recent.size() < 3) return recent.get(0);
+            Collections.sort(recent);
+            int mid = recent.size() / 2;
+            return recent.size() % 2 == 0
+                    ? (recent.get(mid - 1) + recent.get(mid)) / 2.0
+                    : recent.get(mid);
         }
         return null;
     }

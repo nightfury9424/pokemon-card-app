@@ -12,8 +12,11 @@ public class GradingResultDto {
     private BigDecimal whiteningScore;
     private BigDecimal totalScore;
     private boolean heavyWhitening;
+    private String centeringRatio;
+    private Double detectionConfidence;
     private String centeringDetail;
     private String cornerDetail;
     private String surfaceDetail;
     private String whiteningDetail;
+    private boolean identityVerified;
 }

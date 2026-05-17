@@ -112,7 +112,7 @@
 - **URL**: `https://www.ebay.com/sch/i.html?_nkw={검색어}+PSA+10&LH_Sold=1&LH_Complete=1`
 - **검색어**: `{EN카드명} {세트명} PSA 10` (등급별로 검색)
 - **수집 대상**: 낙찰완료 (Sold listings)
-- **데이터**: 낙찰가(USD), 등급(PSA10/PSA9/BGS등)
+- **데이터**: 낙찰가(USD), 등급(PSA10/PSA9/BRG등)
 - **source**: `EBAY`
 - **매핑**: `cards.tcgplayer_card_id` 있으면 자동 연결
 

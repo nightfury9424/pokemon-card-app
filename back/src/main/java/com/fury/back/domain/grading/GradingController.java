@@ -20,7 +20,9 @@ public class GradingController {
 
     @Operation(summary = "카드 등급 분석", description = "사진 10장을 받아 항목별 점수와 종합 예상 등급 반환")
     @PostMapping(value = "/analyze", consumes = "multipart/form-data")
-    public ReturnData<GradingResultDto> analyze(@RequestParam Map<String, MultipartFile> photos) {
-        return gradingService.analyze(photos);
+    public ReturnData<GradingResultDto> analyze(
+            @RequestParam Map<String, MultipartFile> photos,
+            @RequestParam(value = "cardId", required = false) String cardId) {
+        return gradingService.analyze(photos, cardId);
     }
 }

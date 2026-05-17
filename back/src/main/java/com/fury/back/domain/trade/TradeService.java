@@ -13,6 +13,8 @@ public interface TradeService {
 
     ReturnData<TradePostDto> createTrade(String sellerId, ParameterData parameterData);
 
+    ReturnData<TradePostDto> createTradeFromAsset(String sellerId, ParameterData parameterData);
+
     ReturnData<TradePostDto> updateTrade(String tradeId, String userId, ParameterData parameterData);
 
     ReturnData<Void> deleteTrade(String tradeId, String userId);

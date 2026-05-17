@@ -16,7 +16,6 @@ public class PriceSnapshotDto {
     private String sourceItemId;
     private String sourceUrl;
     private Integer price;
-    private String currency;
     private String cardStatus;
     private String gradingCompany;
     private String gradeValue;
@@ -32,7 +31,6 @@ public class PriceSnapshotDto {
                 .sourceItemId(ps.getSourceItemId())
                 .sourceUrl(ps.getSourceUrl())
                 .price(ps.getPrice())
-                .currency(ps.getCurrency())
                 .cardStatus(ps.getCardStatus())
                 .gradingCompany(ps.getGradingCompany())
                 .gradeValue(ps.getGradeValue())

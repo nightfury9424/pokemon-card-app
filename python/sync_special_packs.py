@@ -90,7 +90,7 @@ def main():
                         WHEN official_card_code LIKE 'PR%' THEN 'PR'
                         WHEN official_card_code LIKE 'CP%' THEN 'CP'
                         WHEN official_card_code LIKE 'PROMO%' THEN 'PROMO'
-                        ELSE 'OTHER'
+                        ELSE 'MISC'
                     END AS prefix,
                     COUNT(*) AS cnt
                 FROM cards

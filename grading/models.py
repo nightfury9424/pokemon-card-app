@@ -2,6 +2,8 @@ from pydantic import BaseModel
 
 class AnalysisResult(BaseModel):
     centering_score: float
+    centering_ratio: str = ""
+    detection_confidence: float = 1.0
     corner_score: float
     surface_score: float
     whitening_score: float

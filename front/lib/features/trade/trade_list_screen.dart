@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/card_image.dart';
+import 'trade_search_screen.dart';
 
 class TradeListScreen extends StatefulWidget {
   final String? filterCardId;
@@ -25,18 +27,118 @@ class TradeListScreen extends StatefulWidget {
 
 class _TradeListScreenState extends State<TradeListScreen> {
   List<Map<String, dynamic>> _trades = [];
+  // 4차-Round4-4 Phase 3 (재설계): 거래 탭 메인 = 카드 list (종목 list 패턴)
+  List<Map<String, dynamic>> _marketCards = [];
+  int _sortTab = 0; // 0=시세 1=인기 2=급상승 3=급하락
+  bool _loadingMarket = false;
   bool _loading = true;
   int _page = 0;
   bool _hasMore = true;
   bool _loadingMore = false;
 
+  /// 카드 찜 상태 (cardId → liked). 거래 리스트 row 하트 표시용.
+  final Set<String> _likedCardIds = {};
+
   final _scrollController = ScrollController();
+
+  bool get _isMainTab =>
+      widget.filterCardId == null && widget.filterSellerId == null;
 
   @override
   void initState() {
     super.initState();
-    _loadTrades();
+    if (_isMainTab) {
+      _loadMarketCards();
+    } else {
+      _loadTrades();
+    }
     _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _loadMarketCards() async {
+    setState(() => _loadingMarket = true);
+    try {
+      List<Map<String, dynamic>> result;
+      // 탭별 endpoint 분기 — 모두 백엔드가 정렬 보장.
+      // 0=시세(가격 desc), 1=인기(관심수 desc), 2=급상승(gain_pct desc), 3=급하락(gain_pct asc)
+      if (_sortTab == 1) {
+        final list = await ApiClient.getList('/api/cards/market/popular', params: {'size': 50});
+        result = list.whereType<Map>().map((c) => Map<String, dynamic>.from(c)).toList();
+      } else if (_sortTab == 2) {
+        final list = await ApiClient.getList('/api/cards/market/top-gainers', params: {'size': 50});
+        result = list.whereType<Map>().map((c) => Map<String, dynamic>.from(c)).toList();
+      } else if (_sortTab == 3) {
+        final list = await ApiClient.getList('/api/cards/market/top-losers', params: {'size': 50});
+        result = list.whereType<Map>().map((c) => Map<String, dynamic>.from(c)).toList();
+      } else {
+        // _sortTab == 0 (시세): 가격순 paginated
+        final res = await ApiClient.get('/api/cards/market', params: {
+          'rarities': 'SSR,SAR,CSR,SR,UR,CHR,RR,RRR,HR,AR,BWR,MA,MUR,PR',
+          'sortBy': 'price',
+          'sortDir': 'desc',
+          'page': 0,
+          'size': 50,
+        });
+        final data = res['data'] as Map<String, dynamic>?;
+        result = List<Map<String, dynamic>>.from(data?['content'] ?? []);
+      }
+      if (!mounted) return;
+      setState(() {
+        _marketCards = result;
+        _loadingMarket = false;
+        _loading = false;
+      });
+      _loadLikedStatuses();
+    } catch (_) {
+      if (mounted) setState(() { _loadingMarket = false; _loading = false; });
+    }
+  }
+
+  /// 현재 list의 카드들에 대해 찜 여부 batch 조회 → _likedCardIds 갱신.
+  Future<void> _loadLikedStatuses() async {
+    final cardIds = _marketCards
+        .map((c) => c['cardId'] as String?)
+        .whereType<String>()
+        .toList();
+    if (cardIds.isEmpty) return;
+    try {
+      final res = await ApiClient.get(
+        '/api/card-interests/statuses',
+        params: {'cardIds': cardIds.join(',')},
+      );
+      final data = (res['data'] as Map?) ?? const {};
+      if (!mounted) return;
+      setState(() {
+        _likedCardIds.clear();
+        data.forEach((k, v) {
+          if (v == true) _likedCardIds.add(k as String);
+        });
+      });
+    } catch (_) {}
+  }
+
+  /// 하트 토글 — optimistic UI, 실패 시 롤백.
+  Future<void> _toggleLike(String cardId) async {
+    final wasLiked = _likedCardIds.contains(cardId);
+    setState(() {
+      if (wasLiked) {
+        _likedCardIds.remove(cardId);
+      } else {
+        _likedCardIds.add(cardId);
+      }
+    });
+    try {
+      await ApiClient.post('/api/card-interests/$cardId/toggle', const {});
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (wasLiked) {
+          _likedCardIds.add(cardId);
+        } else {
+          _likedCardIds.remove(cardId);
+        }
+      });
+    }
   }
 
   @override
@@ -46,17 +148,22 @@ class _TradeListScreenState extends State<TradeListScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200
-        && _hasMore && !_loadingMore) {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        _hasMore &&
+        !_loadingMore) {
       _loadMore();
     }
   }
 
   Future<void> _loadTrades() async {
+    setState(() => _loading = true);
     try {
       final params = <String, dynamic>{'page': 0, 'size': 20};
       if (widget.filterCardId != null) params['cardId'] = widget.filterCardId;
-      if (widget.filterSellerId != null) params['sellerId'] = widget.filterSellerId;
+      if (widget.filterSellerId != null) {
+        params['sellerId'] = widget.filterSellerId;
+      }
       final res = await ApiClient.get('/api/trades', params: params);
       final data = res['data'] as Map<String, dynamic>?;
       if (!mounted) return;
@@ -77,13 +184,14 @@ class _TradeListScreenState extends State<TradeListScreen> {
     try {
       final params = <String, dynamic>{'page': _page + 1, 'size': 20};
       if (widget.filterCardId != null) params['cardId'] = widget.filterCardId;
-      if (widget.filterSellerId != null) params['sellerId'] = widget.filterSellerId;
+      if (widget.filterSellerId != null) {
+        params['sellerId'] = widget.filterSellerId;
+      }
       final res = await ApiClient.get('/api/trades', params: params);
       final data = res['data'] as Map<String, dynamic>?;
       if (!mounted) return;
-      final more = List<Map<String, dynamic>>.from(data?['content'] ?? []);
       setState(() {
-        _trades.addAll(more);
+        _trades.addAll(List<Map<String, dynamic>>.from(data?['content'] ?? []));
         _hasMore = !(data?['last'] as bool? ?? true);
         _page++;
         _loadingMore = false;
@@ -97,85 +205,456 @@ class _TradeListScreenState extends State<TradeListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(
-        backgroundColor: AppColors.bg,
-        elevation: 0,
-        title: Text(
-          widget.title ?? (widget.filterCardName != null ? '${widget.filterCardName} 판매 글' : '판매 중인 카드'),
-          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: AppColors.textSecondary),
-            onPressed: () {},
+      // main_shell BottomNav 위에 검정 빈 공간이 생기던 원인:
+      // child Scaffold가 default true로 viewInsets만큼 body를 줄여서.
+      resizeToAvoidBottomInset: false,
+      appBar: _isMainTab
+          ? AppBar(
+              title: const Text('거래'),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: GestureDetector(
+                    onTap: _openSearch,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                      child: const Icon(
+                        Icons.search_rounded,
+                        color: AppColors.textPrimary,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : AppBar(
+              leading: const BackButton(color: AppColors.textPrimary),
+              foregroundColor: AppColors.textPrimary,
+              title: Text(
+                widget.title ??
+                    (widget.filterCardName != null
+                        ? '${widget.filterCardName} 판매글'
+                        : '판매 목록'),
+              ),
+            ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_isMainTab) ...[
+            _buildSortTabs(),
+          ],
+          Expanded(
+            child: _isMainTab ? _buildMarketList() : _buildBody(),
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.blue))
-          : _trades.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.storefront_outlined, color: AppColors.textMuted, size: 56),
-                      SizedBox(height: 16),
-                      Text('등록된 판매 카드가 없습니다',
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 15)),
-                    ],
+    );
+  }
+
+  // 정렬 sub-tab (시세/인기/급상승/급하락)
+  Widget _buildSortTabs() {
+    final tabs = ['시세', '인기', '급상승', '급하락'];
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: List.generate(tabs.length, (i) {
+            final sel = _sortTab == i;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() => _sortTab = i);
+                  _loadMarketCards();
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: sel ? AppColors.blue : AppColors.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadTrades,
-                  color: AppColors.blue,
-                  backgroundColor: AppColors.surface,
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _trades.length + (_loadingMore ? 1 : 0),
-                    itemBuilder: (context, i) {
-                      if (i == _trades.length) {
-                        return const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: CircularProgressIndicator(color: AppColors.blue),
-                            ));
-                      }
-                      return _buildTradeCard(_trades[i]);
-                    },
+                  child: Text(
+                    tabs[i],
+                    style: TextStyle(
+                      color: sel ? Colors.white : AppColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
+              ),
+            );
+          }),
+        ),
+      ),
     );
+  }
+
+  Widget _buildMarketList() {
+    if (_loadingMarket) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.blue, strokeWidth: 2));
+    }
+    final cards = _marketCards;
+    if (cards.isEmpty) {
+      return _buildEmptyMarketState();
+    }
+    return RefreshIndicator(
+      onRefresh: _loadMarketCards,
+      color: AppColors.blue,
+      backgroundColor: AppColors.surface,
+      child: ListView.separated(
+        controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(0, 0, 0, 20),
+        itemCount: cards.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.dividerSoft, indent: 78),
+        itemBuilder: (ctx, i) {
+          final card = cards[i];
+          return _buildMarketCardRow(card, i + 1);
+        },
+      ),
+    );
+  }
+
+  /// 빈 상태 — 마켓 비어있음일 때만 (검색은 풀스크린 분리됨).
+  Widget _buildEmptyMarketState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.storefront_outlined,
+              color: AppColors.textMuted,
+              size: 48,
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              '카드가 없습니다',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '우상단 돋보기를 눌러 카드를 검색해 보세요',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 카드 list row — 토스 종목 list 패턴 (이미지 + 이름 + 시세 + 변동률)
+  Widget _buildMarketCardRow(Map<String, dynamic> card, int rank) {
+    final cardId = card['cardId'] as String? ?? '';
+    final name = card['name'] as String? ?? '';
+    final price = (card['koEstimatedPrice'] as num?)?.toInt() ??
+        (card['latestPrice'] as num?)?.toInt();
+    final pct = (card['gainPct'] as num?)?.toDouble();
+    final liked = _likedCardIds.contains(cardId);
+    // 시세 정렬일 때만 랭킹 번호 (다른 정렬은 misleading)
+    final showRank = _sortTab == 0;
+
+    // PriceDisplayPolicy (2026-05-16): 저가 카드 % 숨김/Stage B 전체 숨김/Stage C 변동 적음
+    // API에 prevPrice가 없어서 price + pct로 역산 후 정책 판단
+    int? prevPriceApprox;
+    if (price != null && pct != null && pct > -100) {
+      prevPriceApprox = (price / (1 + pct / 100)).round();
+    }
+    final display = PriceDisplayPolicy.buildChangeDisplay(
+      lastPrice: price,
+      prevPrice: prevPriceApprox,
+      prefix: '',
+    );
+    final String pctLabel = display?.label.trim() ?? '';
+    final Color pctColor = display == null
+        ? AppColors.textMuted
+        : switch (display.color) {
+            PriceChangeColor.positive => AppColors.green,
+            PriceChangeColor.negative => AppColors.red,
+            PriceChangeColor.neutral => AppColors.textMuted,
+          };
+
+    return InkWell(
+      onTap: () async {
+        await context.push('/card/$cardId', extra: {'cardData': card});
+        if (mounted) _loadMarketCards();
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            if (showRank) ...[
+              SizedBox(
+                width: 22,
+                child: Text(
+                  '$rank',
+                  style: TextStyle(
+                    color: AppColors.blue.withValues(alpha: rank <= 3 ? 1.0 : 0.5),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            // 카드 thumbnail — 직사각형 유지 (원형 crop은 카드 아트 잘림)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: CardImage(
+                imageUrl: resolveCardImageUrl(card),
+                cdnFallbackUrl: resolveCdnImageUrl(card),
+                width: 44,
+                height: 60,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 14),
+            // 카드명(위) + 가격·변동률(아래) 토스 종목 row 패턴
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        price != null ? AppColors.formatPrice(price) : '시세 없음',
+                        style: TextStyle(
+                          color: price != null
+                              ? AppColors.textSecondary
+                              : AppColors.textMuted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        pctLabel,
+                        style: TextStyle(
+                          color: pctColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // 하트 — 카드 단위 찜 토글
+            GestureDetector(
+              onTap: () => _toggleLike(cardId),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(
+                  liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                  color: liked ? AppColors.red : AppColors.textMuted,
+                  size: 22,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 풀스크린 검색 모달 push — 화면 전환 애니메이션이 iOS 키보드 cold-start lag을 가려줌.
+  void _openSearch() {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        builder: (_) => const TradeSearchScreen(),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.blue, strokeWidth: 2),
+      );
+    }
+    if (_trades.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.storefront_outlined,
+              color: AppColors.textMuted,
+              size: 52,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              _isMainTab ? '아직 판매 중인 카드가 없습니다' : '등록된 판매 카드가 없습니다',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _loadTrades,
+      color: AppColors.blue,
+      backgroundColor: AppColors.surface,
+      child: ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        itemCount: _trades.length + (_loadingMore ? 1 : 0),
+        itemBuilder: (context, i) {
+          if (i == _trades.length) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(
+                  color: AppColors.blue,
+                  strokeWidth: 2,
+                ),
+              ),
+            );
+          }
+          return _buildTradeCard(_trades[i]);
+        },
+      ),
+    );
+  }
+
+  String _timeAgo(String ts) {
+    if (ts.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(ts);
+      final diff = DateTime.now().difference(dt);
+      if (diff.inMinutes < 1) return '방금';
+      if (diff.inHours < 1) return '${diff.inMinutes}분 전';
+      if (diff.inDays < 1) return '${diff.inHours}시간 전';
+      if (diff.inDays < 7) return '${diff.inDays}일 전';
+      return '${dt.month}/${dt.day}';
+    } catch (_) {
+      return ts.length >= 10 ? ts.substring(0, 10) : ts;
+    }
   }
 
   Widget _buildTradeCard(Map<String, dynamic> trade) {
     final tradeId = trade['tradeId'] ?? '';
-    final cardId = trade['cardId'] ?? '';
     final title = trade['title'] ?? '';
     final price = trade['price'] as num?;
-    final cardData = trade['card'] as Map<String, dynamic>? ?? {};
-    final rarity = cardData['rarityCode'] ?? '';
-    final imageUrl = resolveCardImageUrl(cardData);
-    final sellerNickname = (trade['seller'] as Map<String, dynamic>?)?['nickname'] ?? '';
-    final createdAt = trade['createdAt'] ?? '';
+    final cardData =
+        (trade['card'] is Map
+            ? Map<String, dynamic>.from(trade['card'] as Map)
+            : null) ??
+        {};
+    final rarity = cardData['rarityCode'] as String? ?? '';
+    final rawImageUrl = trade['imageUrl'] as String?;
+    final imageUrl = rawImageUrl != null && rawImageUrl.isNotEmpty
+        ? ApiConstants.tradeImageUrl(rawImageUrl)
+        : resolveCardImageUrl(cardData);
+    final cdnUrl = resolveCdnImageUrl(cardData);
+    final sellerData =
+        (trade['seller'] is Map
+            ? Map<String, dynamic>.from(trade['seller'] as Map)
+            : null) ??
+        {};
+    final sellerNickname = sellerData['nickname'] as String? ?? '';
+    final createdAt = trade['createdAt'] as String? ?? '';
+    final tradeStatus = trade['status'] as String? ?? 'OPEN';
+    final condition = trade['condition'] as String?;
+    final conditionScore = condition != null
+        ? double.tryParse(condition)
+        : null;
+    final glowColor = AppColors.rarityGlow(rarity);
+    final hasGlow = rarity.isNotEmpty && glowColor != Colors.transparent;
 
     return GestureDetector(
-      onTap: () => context.push('/trades/$tradeId'),
+      onTap: () async {
+        final changed = await context.push<bool>('/trades/$tradeId');
+        if (changed == true && mounted) _loadTrades();
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(
+            color: hasGlow
+                ? glowColor.withValues(alpha: 0.2)
+                : AppColors.divider,
+          ),
         ),
         child: Row(
           children: [
-            CardImage(
-              imageUrl: imageUrl,
-              width: 80,
-              height: 100,
-              fit: BoxFit.cover,
-              borderRadius: const BorderRadius.horizontal(left: Radius.circular(14)),
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(14),
+                  ),
+                  child: CardImage(
+                    imageUrl: imageUrl,
+                    cdnFallbackUrl: cdnUrl,
+                    width: 80,
+                    height: 108,
+                    fit: BoxFit.cover,
+                    borderRadius: BorderRadius.zero,
+                  ),
+                ),
+                if (tradeStatus != 'OPEN')
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(14),
+                      ),
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        child: Center(
+                          child: Text(
+                            tradeStatus == 'RESERVED' ? '예약중' : '판매완료',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -184,40 +663,104 @@ class _TradeListScreenState extends State<TradeListScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
-                        maxLines: 2, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    if (rarity.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.rarityColor(rarity).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: AppColors.rarityColor(rarity).withOpacity(0.4)),
-                        ),
-                        child: Text(rarity,
-                            style: TextStyle(color: AppColors.rarityColor(rarity), fontSize: 10, fontWeight: FontWeight.bold)),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        if (rarity.isNotEmpty) _RarityTag(rarity: rarity),
+                        if (conditionScore != null) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.green.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '앱분석 ${conditionScore.toStringAsFixed(1)}점',
+                              style: const TextStyle(
+                                color: AppColors.green,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                     const SizedBox(height: 8),
-                    if (price != null)
-                      Text(AppColors.formatPrice(price.toInt()),
-                          style: const TextStyle(color: AppColors.green, fontSize: 15, fontWeight: FontWeight.bold))
-                    else
-                      const Text('가격 협의', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                    Text(
+                      price != null
+                          ? AppColors.formatPrice(price.toInt())
+                          : '가격 협의',
+                      style: TextStyle(
+                        color: price != null
+                            ? AppColors.textPrimary
+                            : AppColors.textMuted,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
                         if (sellerNickname.isNotEmpty) ...[
-                          const Icon(Icons.person_outline, color: AppColors.textMuted, size: 12),
-                          const SizedBox(width: 3),
-                          Text(sellerNickname,
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                          const SizedBox(width: 8),
+                          Text(
+                            sellerNickname,
+                            style: const TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const Text(
+                            ' · ',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 11,
+                            ),
+                          ),
                         ],
-                        if (createdAt.isNotEmpty)
-                          Text(createdAt.length > 10 ? createdAt.substring(0, 10) : createdAt,
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                        Text(
+                          _timeAgo(createdAt),
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 11,
+                          ),
+                        ),
+                        if ((trade['viewCount'] as num? ?? 0) > 0) ...[
+                          const Text(
+                            ' · ',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const Icon(
+                            Icons.visibility_outlined,
+                            color: AppColors.textMuted,
+                            size: 11,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            '${trade['viewCount']}',
+                            style: const TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -226,9 +769,38 @@ class _TradeListScreenState extends State<TradeListScreen> {
             ),
             const Padding(
               padding: EdgeInsets.only(right: 12),
-              child: Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
+              child: Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textMuted,
+                size: 18,
+              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RarityTag extends StatelessWidget {
+  final String rarity;
+  const _RarityTag({required this.rarity});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AppColors.rarityColor(rarity);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        rarity,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );

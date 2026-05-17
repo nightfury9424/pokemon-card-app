@@ -26,7 +26,7 @@ public class SwaggerConfig {
 
                                 **카드 상태 분류**
                                 - `RAW`: 일반 카드
-                                - `GRADED`: PSA / BGS / CGC 등 그레이딩 카드
+                                - `GRADED`: PSA / BRG 그레이딩 카드
                                 """)
                         .version("v1.0")
                         .contact(new Contact().name("pokemon-card-app")));
