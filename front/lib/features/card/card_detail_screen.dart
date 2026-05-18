@@ -11,6 +11,7 @@ import '../../core/widgets/holographic_card_viewer.dart';
 import '../../core/widgets/rarity_aura.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
+import 'hoga/hoga_board.dart';
 
 class CardDetailScreen extends StatefulWidget {
   final String cardId;
@@ -921,6 +922,36 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: _buildOrderBookHeader(),
+          ),
+        ),
+        // 호가창 (Phase G 임시 통합 — KREAM/StockX hybrid)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: HogaBoard(
+              cardId: widget.cardId,
+              onRowTap: (price, side, status) {
+                // Phase E: 하단시트 (가격별 등록자 리스트)
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('호가 클릭: ${side.name.toUpperCase()} $price원 (Phase E에서 하단시트 연결 예정)'),
+                  duration: const Duration(seconds: 2),
+                ));
+              },
+              onAskRegister: () {
+                // Phase F: 판매 호가 등록 모달
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('판매 호가 등록 — Phase F에서 모달 연결 예정'),
+                  duration: Duration(seconds: 2),
+                ));
+              },
+              onBidRegister: () {
+                // Phase F: 매수 호가 등록 모달
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('매수 호가 등록 — Phase F에서 모달 연결 예정'),
+                  duration: Duration(seconds: 2),
+                ));
+              },
+            ),
           ),
         ),
         SliverToBoxAdapter(
