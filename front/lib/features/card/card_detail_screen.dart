@@ -51,7 +51,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   // HogaBoard 외부 refresh trigger — TradePost/BuyOrder 생성·취소 후 ++.
   int _hogaRefreshKey = 0;
   // 등록 완료 상단 banner — 매수/판매 성공 시 2초 표시. 중복 큐 차단 token.
+  // Phase 5: error 분기 추가 — green vs red 색상 결정.
   String? _successBannerText;
+  bool _bannerIsError = false;
   int _bannerToken = 0;
   // 내 자산 탭 "대기 중인 주문" — 본인 BuyOrder + 본인 TradePost (이 카드 한정).
   List<Map<String, dynamic>> _myBuyOrders = [];
@@ -272,6 +274,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       text: currentPrice > 0 ? _formatThousands(currentPrice) : '',
     );
     String? submitError;
+    bool submitting = false; // Phase 5: 수정 중 중복 클릭 방지.
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -324,7 +327,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   const SizedBox(height: 20),
                   Builder(builder: (_) {
                     final priceVal = int.tryParse(priceCtrl.text.replaceAll(',', '').trim());
-                    final canSubmit = priceVal != null && priceVal > 0 && priceVal != currentPrice;
+                    final canSubmit = priceVal != null && priceVal > 0 && priceVal != currentPrice && !submitting;
                     return SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -337,6 +340,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                         ),
                         onPressed: canSubmit
                             ? () async {
+                                setSheet(() {
+                                  submitting = true;
+                                  submitError = null;
+                                });
                                 try {
                                   await ApiClient.patch(
                                     '/api/buy-orders/$buyOrderId/price',
@@ -346,13 +353,30 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                                 } catch (e) {
                                   debugPrint('BuyOrder edit error: $e');
                                   if (sheetCtx.mounted) {
-                                    setSheet(() => submitError = '수정에 실패했어요. 잠시 후 다시 시도해주세요.');
+                                    setSheet(() {
+                                      submitting = false;
+                                      submitError = '수정에 실패했어요. 잠시 후 다시 시도해주세요.';
+                                    });
                                   }
                                 }
                               }
                             : null,
-                        child: const Text('수정',
-                            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                        child: submitting
+                            ? const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 14, height: 14,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text('수정 중...',
+                                      style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
+                                ],
+                              )
+                            : const Text('수정',
+                                style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
                       ),
                     );
                   }),
@@ -398,6 +422,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       _showSuccessBanner('매수 호가가 취소되었습니다');
     } catch (e) {
       debugPrint('BuyOrder delete error: $e');
+      _showFailureBanner('취소에 실패했어요. 잠시 후 다시 시도해주세요.');
     }
   }
 
@@ -425,6 +450,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     );
     final memoCtrl = TextEditingController(text: currentDesc);
     String? submitError;
+    bool submitting = false; // Phase 5: 수정 중 중복 클릭 방지.
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -538,7 +564,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   const SizedBox(height: 20),
                   Builder(builder: (_) {
                     final priceVal = int.tryParse(priceCtrl.text.replaceAll(',', '').trim());
-                    final canSubmit = priceVal != null && priceVal > 0;
+                    final canSubmit = priceVal != null && priceVal > 0 && !submitting;
                     return SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -551,6 +577,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                         ),
                         onPressed: canSubmit
                             ? () async {
+                                setSheet(() {
+                                  submitting = true;
+                                  submitError = null;
+                                });
                                 try {
                                   // PUT 전체 body — title/description 보존 (백엔드 partial 미지원).
                                   await ApiClient.put('/api/trades/$tradeId', {
@@ -566,13 +596,30 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                                 } catch (e) {
                                   debugPrint('TradePost edit error: $e');
                                   if (sheetCtx.mounted) {
-                                    setSheet(() => submitError = '수정에 실패했어요. 잠시 후 다시 시도해주세요.');
+                                    setSheet(() {
+                                      submitting = false;
+                                      submitError = '수정에 실패했어요. 잠시 후 다시 시도해주세요.';
+                                    });
                                   }
                                 }
                               }
                             : null,
-                        child: const Text('수정',
-                            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                        child: submitting
+                            ? const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 14, height: 14,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text('수정 중...',
+                                      style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
+                                ],
+                              )
+                            : const Text('수정',
+                                style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
                       ),
                     );
                   }),
@@ -618,6 +665,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       _showSuccessBanner('판매글이 취소되었습니다');
     } catch (e) {
       debugPrint('TradePost delete error: $e');
+      _showFailureBanner('취소에 실패했어요. 잠시 후 다시 시도해주세요.');
     }
   }
 
@@ -694,7 +742,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
-                        color: AppColors.green,
+                        color: _bannerIsError ? AppColors.red : AppColors.green,
                         borderRadius: BorderRadius.circular(10),
                         boxShadow: [
                           BoxShadow(
@@ -706,8 +754,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.check_circle_rounded,
-                              color: Colors.white, size: 18),
+                          Icon(
+                            _bannerIsError
+                                ? Icons.error_outline_rounded
+                                : Icons.check_circle_rounded,
+                            color: Colors.white, size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -1423,15 +1475,27 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            '대기 중인 주문',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-            ),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Row(
+            children: [
+              const Text(
+                '대기 중인 주문',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              // Phase 5: re-fetch 진행 표시 — 기존 데이터 있는 상태에서도 작은 spinner.
+              if (_pendingOrdersLoading) ...[
+                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 10, height: 10,
+                  child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.textMuted),
+                ),
+              ],
+            ],
           ),
         ),
         // 매도 (내 판매글) — 정책: 매도 = red
@@ -1811,6 +1875,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     );
     final memoCtrl = TextEditingController();
     String? submitError; // 등록 실패 시 sheet 내부 inline 표시.
+    bool submitting = false; // Phase 5: 등록 중 중복 클릭 방지 + "등록 중..." 표시.
     // 카드 거래 수량은 1 고정 — 수량 UI 제거.
 
     final result = await showModalBottomSheet<bool>(
@@ -1982,7 +2047,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     final priceOk = priceVal != null && priceVal > 0;
                     final gradeOk = cardStatus == 'RAW' ||
                         (gradingCompany != null && gradeValue != null);
-                    final canSubmit = priceOk && gradeOk;
+                    final canSubmit = priceOk && gradeOk && !submitting;
                     return SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -1996,6 +2061,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                         ),
                         onPressed: canSubmit
                             ? () async {
+                                setSheet(() {
+                                  submitting = true;
+                                  submitError = null;
+                                });
                                 try {
                                   await ApiClient.post('/api/buy-orders', {
                                     'data': {
@@ -2014,14 +2083,31 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                                   debugPrint('BuyOrder create error: $e');
                                   if (sheetCtx.mounted) {
                                     setSheet(() {
+                                      submitting = false;
                                       submitError = '등록에 실패했어요. 잠시 후 다시 시도해주세요.';
                                     });
                                   }
                                 }
                               }
                             : null,
-                        child: const Text('매수 호가 등록',
-                            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                        child: submitting
+                            ? const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 14, height: 14,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white, strokeWidth: 2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text('등록 중...',
+                                      style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
+                                ],
+                              )
+                            : const Text('매수 호가 등록',
+                                style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
                       ),
                     );
                   }),
@@ -3522,10 +3608,28 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   void _showSuccessBanner(String text) {
     if (!mounted) return;
     final token = ++_bannerToken;
-    setState(() => _successBannerText = text);
+    setState(() {
+      _successBannerText = text;
+      _bannerIsError = false;
+    });
     Future.delayed(const Duration(seconds: 2), () {
       if (!mounted) return;
       // 다른 banner 가 덮어쓴 경우 무시.
+      if (_bannerToken != token) return;
+      setState(() => _successBannerText = null);
+    });
+  }
+
+  /// 실패 banner — DELETE 등 mutation 실패 시 호출. Phase 5: 사용자 피드백 보강.
+  void _showFailureBanner(String text) {
+    if (!mounted) return;
+    final token = ++_bannerToken;
+    setState(() {
+      _successBannerText = text;
+      _bannerIsError = true;
+    });
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!mounted) return;
       if (_bannerToken != token) return;
       setState(() => _successBannerText = null);
     });

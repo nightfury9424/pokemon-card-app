@@ -67,6 +67,9 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
   bool _submitting = false;
   // 등록 실패 또는 사진 누락 inline error (SnackBar 금지 정책, feedback_hoga_design_invariants.md 가드레일 11).
   String? _submitError;
+  // Phase 5: 자산 이미지 자동첨부 진행/실패 상태 — 사진 영역 spinner/안내.
+  bool _loadingAssetImages = false;
+  String? _assetImageError;
 
   String get _cardStatus => widget.cardStatus ?? 'RAW';
 
@@ -99,6 +102,12 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
   }
 
   Future<void> _loadAssetImages(String assetId) async {
+    if (mounted) {
+      setState(() {
+        _loadingAssetImages = true;
+        _assetImageError = null;
+      });
+    }
     try {
       debugPrint('[TradeCreate] _loadAssetImages start assetId=$assetId');
       final res = await ApiClient.get('/api/assets/$assetId/images');
@@ -158,6 +167,13 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
       }
     } catch (e, st) {
       debugPrint('[TradeCreate] _loadAssetImages error: $e\n$st');
+      if (mounted) {
+        setState(() {
+          _assetImageError = '자산 사진을 불러오지 못했어요. 직접 사진을 추가해주세요.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loadingAssetImages = false);
     }
   }
 
@@ -528,6 +544,30 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
                 height: 1.4,
               ),
             ),
+            // Phase 5: 자동첨부 진행 / 실패 안내.
+            if (_loadingAssetImages) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 12, height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 1.8, color: AppColors.blue),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    '자산 사진을 불러오는 중...',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  ),
+                ],
+              ),
+            ],
+            if (_assetImageError != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                _assetImageError!,
+                style: const TextStyle(color: AppColors.red, fontSize: 11, fontWeight: FontWeight.w600),
+              ),
+            ],
             const SizedBox(height: 8),
             SizedBox(
               height: 80,
