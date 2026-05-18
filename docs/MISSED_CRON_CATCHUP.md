@@ -173,3 +173,81 @@ cd back && ./gradlew bootRun
 
 따라서 bootstrap SQL은 **선택이 아니라 권장**. 첫 도입 후 1회만 실행하면 됨 (ON CONFLICT DO NOTHING 가드).
 
+## ⚠️ 운영 적용 전 필수 체크리스트
+
+본 브랜치(`feat/price-sync-catchup`)는 **코드 준비 완료** 상태다. **운영 적용은 별도 작업**이며, 아래 순서를 반드시 지킨다.
+
+### 적용 시나리오: merge → migration → bootstrap → enable → bootRun
+
+```text
+0. (이미 완료) feat/price-sync-catchup 코드 merge
+
+1. price_sync_runs 테이블 생성
+   psql -d pokemon_card_db -U nightfury -f back/sql/price_sync_runs_migration.sql
+
+2. 기존 SCRYDEX SUCCESS 시드
+   psql -d pokemon_card_db -U nightfury -f back/sql/price_sync_runs_bootstrap.sql
+
+3. seed 검증
+   psql -c "SELECT business_date, status, row_count_en, row_count_jp
+              FROM price_sync_runs
+             WHERE job_name = 'SCRYDEX_DAILY'
+             ORDER BY business_date DESC;"
+
+4. enable
+   export PRICE_SYNC_CATCHUP_ENABLED=true
+
+5. bootRun
+
+6. 첫 watchdog (10분 이내) 또는 정규 cron(21:00) 시점에 price_sync_runs에
+   SCRYDEX_DAILY RUNNING → SUCCESS 기록 생성 확인
+
+7. 정규 cron / startup catch-up / watchdog 동시 trigger 시 ON CONFLICT로 1개만 실행되는지 검증
+```
+
+### ⚠️ 주의 1 — ddl-auto=validate
+
+본 PR이 merge된 상태에서 `price_sync_runs` 테이블 없이 `bootRun` 하면 **JPA entity validation 실패로 startup 자체가 실패**한다.
+
+**Migration SQL 미적용 시 bootRun 금지.** 단계 1 SQL 적용을 누락하면 안 된다.
+
+### ⚠️ 주의 2 — kill switch 기본값 false
+
+`price.sync.catchup.enabled=false` 상태에서는 `ScrydexSyncService.runIfNeeded()` / `KoEstimatedSyncService.runIfNeeded()`가 즉시 `SKIPPED`로 return한다.
+
+기존 `PriceSyncScheduler` ① / ⑥ cron 본체도 `runIfNeeded(CRON)` 호출로 교체됐기 때문에, kill switch가 false면:
+
+- STARTUP catch-up ❌
+- WATCHDOG 10분 ❌
+- **정규 21:00 SCRYDEX cron ❌**
+- **정규 23:45 KO_ESTIMATED cron ❌**
+
+즉 enable 안 하면 시세 수집이 통째로 멈춘다. 운영 적용 시 반드시 `PRICE_SYNC_CATCHUP_ENABLED=true`로 켤 것.
+
+### ⚠️ 주의 3 — 부분 적용 금지
+
+다음 조합은 위험하다.
+
+| Migration | Bootstrap | Enable | 결과 |
+|-----------|-----------|--------|------|
+| ❌ | — | — | bootRun startup fail (JPA validation) |
+| ✅ | ❌ | ✅ | 첫날 KO catch-up이 SCRYDEX SUCCESS 없음으로 skip — KO 시세 1일 누락 |
+| ✅ | ✅ | ❌ | 정규 cron까지 멈춤 — 시세 수집 통째 정지 |
+| ✅ | ✅ | ✅ | 정상 ✅ |
+
+세 단계 모두 한 번에 진행할 것.
+
+### Rollback 절차
+
+운영 적용 후 문제 발견 시:
+```bash
+# 1. 즉시 kill switch off
+export PRICE_SYNC_CATCHUP_ENABLED=false
+# bootRun 재시작 (또는 application.properties에서 false 설정)
+
+# 2. 테이블 유지 (rollback 시에도 데이터 보존)
+# DROP TABLE은 절대 금지. UNIQUE 제약 + 인덱스 유지 시 다음 enable에 그대로 사용.
+```
+
+기존 `PriceSyncScheduler` 본체가 `runIfNeeded` 호출로 교체된 상태라, kill switch false면 사실상 시세 수집 자체가 중단된다는 점 명심. 정규 cron만 복구하려면 PriceSyncScheduler 본체에서 임시로 원래 `runPython` 호출 복원 가능 (긴급 hotfix용).
+
