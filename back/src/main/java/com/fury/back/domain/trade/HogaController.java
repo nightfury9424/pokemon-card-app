@@ -2,8 +2,11 @@ package com.fury.back.domain.trade;
 
 import com.fury.back.domain.trade.dto.HogaBoardResponse;
 import com.fury.back.domain.trade.dto.HogaListingsResponse;
+import com.fury.back.auth.JwtUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,9 +38,11 @@ public class HogaController {
     private static final Set<String> ALLOWED_GRADES = Set.of("10", "9");
 
     private final HogaService hogaService;
+    private final JwtUtil jwtUtil;
 
     @GetMapping("/{cardId}/hoga")
     public HogaBoardResponse getBoard(
+            HttpServletRequest request,
             @PathVariable String cardId,
             @RequestParam(defaultValue = "RAW") String status,
             @RequestParam(required = false) String grade,
@@ -45,7 +50,19 @@ public class HogaController {
         HogaStatus parsed = parseStatus(status);
         String parsedGrade = parseGrade(parsed, grade);
         int bound = Math.max(1, Math.min(limit, MAX_LIMIT));
-        return hogaService.getBoard(cardId, parsed, parsedGrade, bound);
+        // Phase 4: viewer 식별 — 익명 호출 시 null (hasMine=false fallback).
+        String viewerUserId = extractUserId(request);
+        return hogaService.getBoard(cardId, parsed, parsedGrade, bound, viewerUserId);
+    }
+
+    /** Bearer JWT 추출 — 토큰 없거나 무효면 null (anonymous OK). */
+    private String extractUserId(HttpServletRequest request) {
+        String bearer = request.getHeader("Authorization");
+        if (StringUtils.hasText(bearer) && bearer.startsWith("Bearer ")) {
+            String token = bearer.substring(7);
+            if (jwtUtil.isValid(token)) return jwtUtil.extractUserId(token);
+        }
+        return null;
     }
 
     @GetMapping("/{cardId}/hoga/{price}")

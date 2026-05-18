@@ -30,6 +30,24 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
     Page<TradePost> findBySellerIdAndCardIdOrderByCreatedAtDesc(
             String sellerId, String cardId, Pageable pageable);
 
+    /** 호가창 MY badge — 내가 등록한 OPEN ASK 가격 set (Phase 4). */
+    @Query("""
+            SELECT DISTINCT t.price FROM TradePost t
+            WHERE t.sellerId = :sellerId
+              AND t.cardId = :cardId
+              AND t.status = 'OPEN'
+              AND t.price IS NOT NULL
+              AND t.cardStatus = :cardStatus
+              AND ((:gradingCompany IS NULL) OR t.gradingCompany = :gradingCompany)
+              AND ((:gradeValue IS NULL) OR t.gradeValue = :gradeValue)
+            """)
+    List<Integer> findMyOpenAskPrices(
+            @Param("sellerId") String sellerId,
+            @Param("cardId") String cardId,
+            @Param("cardStatus") String cardStatus,
+            @Param("gradingCompany") String gradingCompany,
+            @Param("gradeValue") String gradeValue);
+
     List<TradePost> findByAssetIdOrderByCreatedAtDesc(String assetId);
 
     List<TradePost> findByAssetIdAndStatus(String assetId, String status);

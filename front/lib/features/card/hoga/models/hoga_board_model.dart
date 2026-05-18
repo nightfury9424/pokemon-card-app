@@ -49,17 +49,21 @@ class HogaLevel {
   final int price;
   final int count;
   final double barRatio;
+  /// Phase 4 — 현재 로그인 유저가 이 가격에 OPEN 주문/판매글을 가지고 있는지.
+  final bool hasMine;
 
   const HogaLevel({
     required this.price,
     required this.count,
     required this.barRatio,
+    this.hasMine = false,
   });
 
   factory HogaLevel.fromJson(Map<String, dynamic> json) => HogaLevel(
         price: (json['price'] as num).toInt(),
         count: (json['count'] as num).toInt(),
         barRatio: ((json['barRatio'] as num?) ?? 0).toDouble(),
+        hasMine: (json['hasMine'] as bool?) ?? false,
       );
 }
 

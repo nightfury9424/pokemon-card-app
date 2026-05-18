@@ -67,6 +67,24 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
     /** 카드 상세의 "대기 중인 주문" 영역에서 내 매수 주문 카드별 필터. */
     List<BuyOrder> findByBuyerIdAndCardIdAndStatusOrderByCreatedAtDesc(String buyerId, String cardId, String status);
 
+    /** 호가창 MY badge — 내가 등록한 OPEN BID 가격 set (Phase 4). */
+    @Query("""
+            SELECT DISTINCT b.bidPrice FROM BuyOrder b
+            WHERE b.buyerId = :buyerId
+              AND b.cardId = :cardId
+              AND b.status = 'OPEN'
+              AND b.bidPrice IS NOT NULL
+              AND b.cardStatus = :cardStatus
+              AND ((:gradingCompany IS NULL) OR b.gradingCompany = :gradingCompany)
+              AND ((:gradeValue IS NULL) OR b.gradeValue = :gradeValue)
+            """)
+    List<Integer> findMyOpenBidPrices(
+            @Param("buyerId") String buyerId,
+            @Param("cardId") String cardId,
+            @Param("cardStatus") String cardStatus,
+            @Param("gradingCompany") String gradingCompany,
+            @Param("gradeValue") String gradeValue);
+
     /** 동일 사용자 + 동일 카드 + OPEN 존재 여부 (1개만 제약) */
     Optional<BuyOrder> findFirstByBuyerIdAndCardIdAndStatus(String buyerId, String cardId, String status);
 

@@ -33,13 +33,43 @@ class HogaRow extends StatelessWidget {
     final bgRatio = level.barRatio.clamp(0.0, 1.0);
 
     // 중앙 가격 (모든 row 공통, x축 고정)
-    final priceWidget = Text(
-      formatKrw(level.price),
-      style: TextStyle(
-        color: color,
-        fontSize: 13,
-        fontWeight: highlight ? FontWeight.w900 : FontWeight.w700,
-        letterSpacing: -0.3,
+    // FittedBox 로 감싸 center cell 124px 고정 폭 overflow 방지 (Codex 즉시수정).
+    final priceWidget = FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            formatKrw(level.price),
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: highlight ? FontWeight.w900 : FontWeight.w700,
+              letterSpacing: -0.3,
+            ),
+          ),
+          // Phase 4: MY badge — 내가 등록한 호가에만 작게 표시 (ASK 빨강 / BID 파랑 계열).
+          if (level.hasMine) ...[
+            const SizedBox(width: 5),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.20),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Text(
+                'MY',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
 

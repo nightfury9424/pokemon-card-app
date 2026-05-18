@@ -30,7 +30,7 @@ public class HogaServiceImpl implements HogaService {
     private final UserRepository userRepository;
 
     @Override
-    public HogaBoardResponse getBoard(String cardId, HogaStatus status, String grade, int limit) {
+    public HogaBoardResponse getBoard(String cardId, HogaStatus status, String grade, int limit, String viewerUserId) {
         String cardStatus = status.dbCardStatus();
         String gradingCompany = status.dbGradingCompany();
         String gradeValue = status.requiresGrade() ? grade : null;
@@ -58,8 +58,20 @@ public class HogaServiceImpl implements HogaService {
         }
         long tickUnit = HogaTickResolver.resolve(marketPrice == null ? 1L : marketPrice);
 
-        List<HogaLevelResponse> asks = toLevels(rawAsks, limit);
-        List<HogaLevelResponse> bids = toLevels(rawBids, limit);
+        // Phase 4: viewerUserId 가 있으면 내 OPEN 가격 set 가져와 row 매칭. anonymous 시 빈 set.
+        java.util.Set<Long> myAskPrices = (viewerUserId == null || viewerUserId.isBlank())
+                ? java.util.Set.of()
+                : tradePostRepository
+                        .findMyOpenAskPrices(viewerUserId, cardId, cardStatus, gradingCompany, gradeValue)
+                        .stream().map(Integer::longValue).collect(Collectors.toSet());
+        java.util.Set<Long> myBidPrices = (viewerUserId == null || viewerUserId.isBlank())
+                ? java.util.Set.of()
+                : buyOrderRepository
+                        .findMyOpenBidPrices(viewerUserId, cardId, cardStatus, gradingCompany, gradeValue)
+                        .stream().map(Integer::longValue).collect(Collectors.toSet());
+
+        List<HogaLevelResponse> asks = toLevels(rawAsks, limit, myAskPrices);
+        List<HogaLevelResponse> bids = toLevels(rawBids, limit, myBidPrices);
 
         return new HogaBoardResponse(
                 cardId,
@@ -124,14 +136,15 @@ public class HogaServiceImpl implements HogaService {
     }
 
     /** group-by 결과를 응답 row + bar ratio로 변환. */
-    private List<HogaLevelResponse> toLevels(List<HogaLevelDto> raw, int limit) {
+    private List<HogaLevelResponse> toLevels(List<HogaLevelDto> raw, int limit, Set<Long> myPrices) {
         if (raw.isEmpty()) return List.of();
         long max = raw.stream().mapToLong(HogaLevelDto::countLong).max().orElse(1L);
         List<HogaLevelResponse> out = new ArrayList<>(Math.min(raw.size(), limit));
         for (int i = 0; i < raw.size() && i < limit; i++) {
             HogaLevelDto d = raw.get(i);
             double ratio = max == 0 ? 0.0 : ((double) d.countLong()) / max;
-            out.add(new HogaLevelResponse(d.priceLong(), d.countLong(), ratio));
+            boolean hasMine = myPrices.contains(d.priceLong());
+            out.add(new HogaLevelResponse(d.priceLong(), d.countLong(), ratio, hasMine));
         }
         return out;
     }
