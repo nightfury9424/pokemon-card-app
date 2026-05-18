@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/card_image.dart';
 import 'models/hoga_board_model.dart';
 import 'models/hoga_listing_model.dart';
 import 'services/hoga_api.dart';
@@ -9,13 +8,23 @@ import 'utils/hoga_format.dart';
 
 /// 호가 row 클릭 시 등장하는 하단 시트 — 그 가격에 걸린 등록자 리스트.
 ///
-/// `showModalBottomSheet`로 띄움. 각 row = 판매자/매수자 + 메모 + 채팅 버튼.
+/// 정책 (feedback_hoga_design_invariants.md):
+/// - ASK row → 실제 TradePost 리스트. row 탭 시 sheet 닫고 호출자가 `/trades/{tradeId}` 로 push.
+///   sheet 내부 context 로 직접 push 하면 deactivated context 리스크가 있어, parent context 콜백 패턴 사용.
+/// - BID row → 실제 BuyOrder 리스트. 1차는 disabled + inline "준비 중" 안내. SnackBar 금지.
+/// - ASK 인데 tradeId 결손이면 disabled + inline 결함 안내. silent 무동작 금지.
 class HogaRowDetailSheet extends StatefulWidget {
   final String cardId;
   final HogaStatus status;
   final HogaGrade? grade;
   final HogaSide side;
   final int price;
+
+  /// ASK row 탭 시 sheet pop 후 호출됨. 호출자가 parent context 로 라우팅한다.
+  final void Function(String tradeId)? onOpenTradeDetail;
+
+  /// DraggableScrollableSheet 의 scroll controller. ListView 와 sheet drag 를 연결.
+  final ScrollController? scrollController;
 
   const HogaRowDetailSheet({
     super.key,
@@ -24,6 +33,8 @@ class HogaRowDetailSheet extends StatefulWidget {
     required this.grade,
     required this.side,
     required this.price,
+    this.onOpenTradeDetail,
+    this.scrollController,
   });
 
   /// 편의 호출자 — `showModalBottomSheet`로 띄움.
@@ -34,6 +45,7 @@ class HogaRowDetailSheet extends StatefulWidget {
     required HogaGrade? grade,
     required HogaSide side,
     required int price,
+    void Function(String tradeId)? onOpenTradeDetail,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -50,6 +62,8 @@ class HogaRowDetailSheet extends StatefulWidget {
           grade: grade,
           side: side,
           price: price,
+          onOpenTradeDetail: onOpenTradeDetail,
+          scrollController: scroll,
         ),
       ),
     );
@@ -143,6 +157,21 @@ class _HogaRowDetailSheetState extends State<HogaRowDetailSheet> {
             ),
           ),
           const Divider(color: AppColors.divider, height: 1),
+          // BID 시트는 1차 전체 disabled 상태 — 헤더 색(파랑)이 "매수 가능"으로 오인되지 않게 상단 안내 1줄.
+          if (widget.side == HogaSide.bid)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+              color: AppColors.blue.withValues(alpha: 0.06),
+              child: const Text(
+                '매수 호가 상세는 준비 중입니다. 곧 판매 제안/채팅으로 연결돼요.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           // 리스트
           Expanded(
             child: FutureBuilder<HogaListings>(
@@ -178,10 +207,10 @@ class _HogaRowDetailSheetState extends State<HogaRowDetailSheet> {
                   );
                 }
                 return ListView.separated(
-                  controller: PrimaryScrollController.maybeOf(ctx),
+                  controller: widget.scrollController,
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: data.listings.length,
-                  separatorBuilder: (_, __) => const Divider(
+                  separatorBuilder: (_, _) => const Divider(
                     color: AppColors.dividerSoft,
                     height: 1,
                     indent: 20,
@@ -192,6 +221,7 @@ class _HogaRowDetailSheetState extends State<HogaRowDetailSheet> {
                     cardId: widget.cardId,
                     side: widget.side,
                     color: color,
+                    onOpenTradeDetail: widget.onOpenTradeDetail,
                   ),
                 );
               },
@@ -208,12 +238,14 @@ class _ListingTile extends StatelessWidget {
   final String cardId;
   final HogaSide side;
   final Color color;
+  final void Function(String tradeId)? onOpenTradeDetail;
 
   const _ListingTile({
     required this.listing,
     required this.cardId,
     required this.side,
     required this.color,
+    required this.onOpenTradeDetail,
   });
 
   String _relative(DateTime dt) {
@@ -233,18 +265,29 @@ class _ListingTile extends StatelessWidget {
     final hasMemo = listing.memo != null && listing.memo!.trim().isNotEmpty;
 
     final bool isAsk = side == HogaSide.ask;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
+    final String? tradeId = listing.tradeId;
+    final bool clickable = isAsk && tradeId != null && tradeId.isNotEmpty;
+
+    // 정책 (feedback_hoga_design_invariants.md):
+    // - BID → 1차 disabled + inline "준비 중" 안내.
+    // - ASK 인데 tradeId 결손 → disabled + inline 결함 안내. 백엔드 모니터링 대상.
+    final String? helperText = !isAsk
+        ? '매수 호가 상세는 준비 중입니다'
+        : (clickable ? null : '판매글 정보를 불러올 수 없습니다');
+
+    final Color nameColor = clickable ? AppColors.textPrimary : AppColors.textMuted;
+    final Color memoColor = clickable ? AppColors.textSecondary : AppColors.textMuted;
+
+    final tile = Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // ASK: 카드 이미지 썸네일 (사용자 업로드 → fallback 카드 기본 이미지)
-          // BID: 프로필 이니셜
           if (isAsk)
             _AskThumbnail(
               tradeImageUrl: listing.tradeImageUrl,
               cardId: cardId,
-              borderColor: color,
+              borderColor: clickable ? color : AppColors.divider,
             )
           else
             Container(
@@ -266,7 +309,6 @@ class _ListingTile extends StatelessWidget {
               ),
             ),
           const SizedBox(width: 12),
-          // 닉네임 + 메모 + 시각
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,8 +316,8 @@ class _ListingTile extends StatelessWidget {
               children: [
                 Text(
                   nick,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: nameColor,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                   ),
@@ -286,9 +328,20 @@ class _ListingTile extends StatelessWidget {
                     listing.memo!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: memoColor,
                       fontSize: 11,
+                    ),
+                  ),
+                ],
+                if (helperText != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    helperText,
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 10,
+                      fontStyle: FontStyle.italic,
                     ),
                   ),
                 ],
@@ -303,27 +356,26 @@ class _ListingTile extends StatelessWidget {
               ],
             ),
           ),
-          // 채팅 버튼 — ASK는 판매자 채팅, BID는 매수자 채팅 (둘 다 채팅 흐름)
-          TextButton.icon(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text(
-                  isAsk
-                      ? '$nick 판매자와 채팅 — Phase F에서 ChatService 연결'
-                      : '$nick 매수자와 채팅 — Phase F에서 ChatRoom 확장 + 연결',
-                ),
-                duration: const Duration(seconds: 2),
-              ));
-            },
-            icon: const Icon(Icons.chat_bubble_outline, size: 16),
-            label: const Text('채팅', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-            style: TextButton.styleFrom(
-              foregroundColor: color,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            ),
-          ),
+          // trailing — clickable 일 때만 chevron (토스식 "상세 진입 가능" 신호)
+          if (clickable)
+            const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textMuted, size: 20),
         ],
+      ),
+    );
+
+    if (!clickable) return tile;
+
+    // Material > InkWell 패턴 — ripple ancestor 보장.
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          final id = tradeId; // clickable 가드로 non-null 보장.
+          Navigator.of(context).pop();
+          onOpenTradeDetail?.call(id);
+        },
+        child: tile,
       ),
     );
   }
@@ -360,7 +412,7 @@ class _AskThumbnail extends StatelessWidget {
             ? Image.network(
                 url,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _fallbackCardImage(),
+                errorBuilder: (_, _, _) => _fallbackCardImage(),
               )
             : _fallbackCardImage(),
       ),
@@ -368,12 +420,10 @@ class _AskThumbnail extends StatelessWidget {
   }
 
   Widget _fallbackCardImage() {
-    // 카드 기본 이미지 (운영 정책: resolveCardImageUrl 우선이지만 cardId만으로는 dict 필요).
-    // 가장 단순한 fallback: scrydex CDN 또는 local /images/cards/{id}.jpg.
     return Image.network(
       ApiConstants.cardImageUrl(cardId),
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => const Center(
+      errorBuilder: (_, _, _) => const Center(
         child: Icon(Icons.image_not_supported, color: AppColors.textMuted, size: 20),
       ),
     );

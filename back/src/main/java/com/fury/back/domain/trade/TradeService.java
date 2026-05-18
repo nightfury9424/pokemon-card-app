@@ -7,7 +7,11 @@ import org.springframework.data.domain.Page;
 
 public interface TradeService {
 
-    ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId);
+    /**
+     * Phase 1: sellerId+cardId 동시 필터 + status optional 지원.
+     * status 미지정(null) 시 기존 동작(전체) 호환.
+     */
+    ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId, String status);
 
     ReturnData<TradePostDto> getTrade(String tradeId);
 

@@ -78,12 +78,17 @@ public class BuyOrderServiceImpl implements BuyOrderService {
     }
 
     @Override
-    public ReturnData<List<BuyOrderDto>> getMyOrders(String buyerId, String status) {
+    public ReturnData<List<BuyOrderDto>> getMyOrders(String buyerId, String status, String cardId) {
         if (buyerId == null || buyerId.isBlank()) {
             return ReturnData.badRequest("buyerId는 필수입니다.");
         }
         String s = (status == null || status.isBlank()) ? "OPEN" : status;
-        List<BuyOrder> orders = buyOrderRepository.findByBuyerIdAndStatusOrderByCreatedAtDesc(buyerId, s);
+        List<BuyOrder> orders;
+        if (cardId != null && !cardId.isBlank()) {
+            orders = buyOrderRepository.findByBuyerIdAndCardIdAndStatusOrderByCreatedAtDesc(buyerId, cardId, s);
+        } else {
+            orders = buyOrderRepository.findByBuyerIdAndStatusOrderByCreatedAtDesc(buyerId, s);
+        }
         return ReturnData.success(enrichWithDetails(orders));
     }
 

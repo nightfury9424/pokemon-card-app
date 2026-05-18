@@ -22,6 +22,14 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
 
     List<TradePost> findBySellerIdAndStatus(String sellerId, String status);
 
+    /** 카드 상세 "대기 중인 주문" — 내 판매글을 카드별 필터 (Phase 1). */
+    Page<TradePost> findBySellerIdAndCardIdAndStatusOrderByCreatedAtDesc(
+            String sellerId, String cardId, String status, Pageable pageable);
+
+    /** sellerId + cardId 단순 매칭 (status 무시 — 디버깅/내림차순). */
+    Page<TradePost> findBySellerIdAndCardIdOrderByCreatedAtDesc(
+            String sellerId, String cardId, Pageable pageable);
+
     List<TradePost> findByAssetIdOrderByCreatedAtDesc(String assetId);
 
     List<TradePost> findByAssetIdAndStatus(String assetId, String status);

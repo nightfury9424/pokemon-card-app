@@ -64,6 +64,9 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
     /** 사용자 OPEN 매수 호가 (5개 한도 체크 + 내 주문 목록) */
     List<BuyOrder> findByBuyerIdAndStatusOrderByCreatedAtDesc(String buyerId, String status);
 
+    /** 카드 상세의 "대기 중인 주문" 영역에서 내 매수 주문 카드별 필터. */
+    List<BuyOrder> findByBuyerIdAndCardIdAndStatusOrderByCreatedAtDesc(String buyerId, String cardId, String status);
+
     /** 동일 사용자 + 동일 카드 + OPEN 존재 여부 (1개만 제약) */
     Optional<BuyOrder> findFirstByBuyerIdAndCardIdAndStatus(String buyerId, String cardId, String status);
 

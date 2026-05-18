@@ -60,9 +60,13 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
 
   final _memoCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
+  // inline error 보일 때 자동 scroll-to-top — body 하단에서 등록 실패해도 사용자가 에러 즉시 보게 (Codex 즉시수정).
+  final _scrollCtrl = ScrollController();
   final List<_TradePhoto> _photos = [];
   int? _selectedPhotoIndex;
   bool _submitting = false;
+  // 등록 실패 또는 사진 누락 inline error (SnackBar 금지 정책, feedback_hoga_design_invariants.md 가드레일 11).
+  String? _submitError;
 
   String get _cardStatus => widget.cardStatus ?? 'RAW';
 
@@ -90,15 +94,22 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
   void dispose() {
     _memoCtrl.dispose();
     _priceCtrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _loadAssetImages(String assetId) async {
     try {
+      debugPrint('[TradeCreate] _loadAssetImages start assetId=$assetId');
       final res = await ApiClient.get('/api/assets/$assetId/images');
       final data = res['data'];
-      if (data is! List) return;
+      if (data is! List) {
+        debugPrint('[TradeCreate] _loadAssetImages — data not List: $data');
+        return;
+      }
       final images = List<Map<String, dynamic>>.from(data);
+      debugPrint('[TradeCreate] _loadAssetImages — ${images.length} images: '
+          '${images.map((i) => i['imageType']).toList()}');
       final autoPhotos = <_TradePhoto>[];
 
       for (final imageType in ['FRONT', 'BACK']) {
@@ -106,7 +117,10 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
             .where((i) => i['imageType'] == imageType)
             .firstOrNull;
         final relUrl = image?['imageUrl'] as String?;
-        if (relUrl == null) continue;
+        if (relUrl == null) {
+          debugPrint('[TradeCreate] _loadAssetImages — $imageType skip (relUrl null)');
+          continue;
+        }
 
         final fullUrl = relUrl.startsWith('http')
             ? relUrl
@@ -128,16 +142,23 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
               imageType: imageType,
             ),
           );
+        } else {
+          debugPrint('[TradeCreate] _loadAssetImages — $imageType download fail status=${response.statusCode}');
         }
       }
 
       if (autoPhotos.isNotEmpty && mounted) {
+        debugPrint('[TradeCreate] _loadAssetImages — attached ${autoPhotos.length} photos');
         setState(() {
           final slots = (_maxPhotos - _photos.length).clamp(0, _maxPhotos);
           _photos.insertAll(0, autoPhotos.take(slots));
         });
+      } else {
+        debugPrint('[TradeCreate] _loadAssetImages — no autoPhotos (mounted=$mounted)');
       }
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('[TradeCreate] _loadAssetImages error: $e\n$st');
+    }
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
@@ -225,7 +246,15 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
   }
 
   Future<void> _submit() async {
-    setState(() => _submitting = true);
+    // 사진 1장 이상 필수 (feedback_hoga_design_invariants.md). RAW/PSA/BRG 동일.
+    if (_photos.isEmpty) {
+      _setInlineError('판매글 등록을 위해 실물 사진을 1장 이상 첨부해주세요.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _submitError = null;
+    });
     try {
       final priceText = _priceCtrl.text
           .trim()
@@ -278,7 +307,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
       context.pop(true);
     } catch (e) {
       debugPrint('등록 실패 원인: $e');
-      _showSnack('등록 실패: $e');
+      _setInlineError('등록에 실패했어요. 잠시 후 다시 시도해주세요.');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -293,10 +322,18 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
     return [...frontPhotos, ...backPhotos, ...otherPhotos];
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: AppColors.surfaceElevated),
-    );
+  /// SnackBar 금지 정책 — inline error state 로 표시 + scroll-to-top.
+  void _setInlineError(String msg) {
+    if (!mounted) return;
+    setState(() => _submitError = msg);
+    // 사용자가 스크롤 하단에 있을 경우 inline error 가 뷰포트 밖이므로 최상단으로 이동.
+    if (_scrollCtrl.hasClients) {
+      _scrollCtrl.animateTo(
+        0,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   @override
@@ -315,33 +352,69 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: _submitting ? null : _submit,
-            child: _submitting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      color: AppColors.blue,
-                      strokeWidth: 2,
+          Builder(builder: (_) {
+            // 사진 1장 이상 + 등록 중 아닐 때만 활성 (정책).
+            final canSubmit = !_submitting && _photos.isNotEmpty;
+            return TextButton(
+              onPressed: canSubmit ? _submit : null,
+              child: _submitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: AppColors.blue,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Text(
+                      '등록',
+                      style: TextStyle(
+                        color: canSubmit
+                            ? AppColors.blue
+                            : AppColors.blue.withValues(alpha: 0.35),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
-                  )
-                : const Text(
-                    '등록',
-                    style: TextStyle(
-                      color: AppColors.blue,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-          ),
+            );
+          }),
         ],
       ),
       body: SingleChildScrollView(
+        controller: _scrollCtrl,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 등록 실패 / 사진 누락 inline error (SnackBar 금지).
+            if (_submitError != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.red.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.red.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline_rounded, color: AppColors.red, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _submitError!,
+                        style: const TextStyle(
+                          color: AppColors.red,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             // 카드 정보
             Container(
               padding: const EdgeInsets.all(12),
@@ -403,6 +476,15 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                const SizedBox(width: 4),
+                const Text(
+                  '*',
+                  style: TextStyle(
+                    color: AppColors.red,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
                 const SizedBox(width: 6),
                 Text(
                   '(${_photos.length}/$_maxPhotos)',
@@ -412,6 +494,17 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _cardStatus == 'GRADED'
+                  ? '판매글 등록을 위해 사진 1장 이상 필수예요. 등급 카드는 슬랩과 라벨이 보이도록 촬영해주세요.'
+                  : '판매글 등록을 위해 사진 1장 이상 필수예요.',
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 11,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 8),
             SizedBox(

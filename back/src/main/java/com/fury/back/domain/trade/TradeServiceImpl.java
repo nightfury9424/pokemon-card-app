@@ -44,15 +44,23 @@ public class TradeServiceImpl implements TradeService {
     private String tradeImageDir;
 
     @Override
-    public ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId) {
+    public ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId, String status) {
         PageRequest pageable = PageRequest.of(page, size);
         Page<TradePost> posts;
-        if (sellerId != null && !sellerId.isBlank()) {
+        final boolean hasSeller = sellerId != null && !sellerId.isBlank();
+        final boolean hasCard = cardId != null && !cardId.isBlank();
+        final boolean hasStatus = status != null && !status.isBlank();
+        // Phase 1: sellerId + cardId + status 동시 필터 우선 (기존 sellerId/cardId 단독 분기로 인한 cardId 무시 버그 해결).
+        if (hasSeller && hasCard && hasStatus) {
+            posts = tradePostRepository.findBySellerIdAndCardIdAndStatusOrderByCreatedAtDesc(sellerId, cardId, status, pageable);
+        } else if (hasSeller && hasCard) {
+            posts = tradePostRepository.findBySellerIdAndCardIdOrderByCreatedAtDesc(sellerId, cardId, pageable);
+        } else if (hasSeller) {
             posts = tradePostRepository.findBySellerIdOrderByCreatedAtDesc(sellerId, pageable);
-        } else if (cardId != null && !cardId.isBlank()) {
+        } else if (hasCard) {
             posts = tradePostRepository.findOpenByCardId(cardId, pageable);
         } else {
-            posts = tradePostRepository.findByStatusOrderByCreatedAtDesc("OPEN", pageable);
+            posts = tradePostRepository.findByStatusOrderByCreatedAtDesc(hasStatus ? status : "OPEN", pageable);
         }
 
         List<String> sellerIds = posts.stream().map(TradePost::getSellerId).distinct().toList();

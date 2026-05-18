@@ -13,21 +13,22 @@ typedef HogaCountsChanged = void Function(int askCount, int bidCount);
 /// PokeFolio 호가창 메인 위젯 — 코인/주식 호가창 스타일 컴팩트 표.
 ///
 /// 외곽 카드 박스 없음. row 중심.
+/// CTA([판매하기]/[구매하기])는 CardDetailScreen 하단 sticky footer 담당 — HogaBoard 내부에 등록 버튼 두지 않는다
+/// (feedback_hoga_design_invariants.md).
 class HogaBoard extends StatefulWidget {
   final String cardId;
   final HogaRowTap? onRowTap;
-  final VoidCallback? onAskRegister;
-  final VoidCallback? onBidRegister;
   /// chip 기준 카운트가 갱신될 때 호출 — 카드 상세 헤더와 동기화 용.
   final HogaCountsChanged? onCountsChanged;
+  /// 외부 trigger — TradePost/BuyOrder 생성·취소 후 부모가 ++ 하면 캐시 비우고 재조회.
+  final int refreshKey;
 
   const HogaBoard({
     super.key,
     required this.cardId,
     this.onRowTap,
-    this.onAskRegister,
-    this.onBidRegister,
     this.onCountsChanged,
+    this.refreshKey = 0,
   });
 
   @override
@@ -57,7 +58,7 @@ class _HogaBoardState extends State<HogaBoard> {
   @override
   void didUpdateWidget(covariant HogaBoard old) {
     super.didUpdateWidget(old);
-    if (old.cardId != widget.cardId) {
+    if (old.cardId != widget.cardId || old.refreshKey != widget.refreshKey) {
       _cache.clear();
     }
   }
@@ -152,45 +153,6 @@ class _HogaBoardState extends State<HogaBoard> {
             mainAxisSize: MainAxisSize.min,
             children: _tableRows(board),
           ),
-        ),
-        const SizedBox(height: 10),
-        // 등록 버튼 — 가볍게
-        Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 34,
-                child: OutlinedButton(
-                  onPressed: widget.onAskRegister,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.red,
-                    side: const BorderSide(color: AppColors.red, width: 1),
-                    padding: EdgeInsets.zero,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                  child: const Text('판매 호가 등록',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: SizedBox(
-                height: 34,
-                child: ElevatedButton(
-                  onPressed: widget.onBidRegister,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.blue,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.zero,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                  child: const Text('매수 호가 등록',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                ),
-              ),
-            ),
-          ],
         ),
       ],
     );

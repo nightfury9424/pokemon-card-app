@@ -1,5 +1,7 @@
 import 'dart:ui' show ImageFilter;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show TextInputFormatter, TextEditingValue, TextSelection;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -46,6 +48,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   // HogaBoard chip 기준 카운트 동기화 (2026-05-18). null = 아직 미수신 (헤더는 전체값 fallback).
   int? _hogaAskCount;
   int? _hogaBidCount;
+  // HogaBoard 외부 refresh trigger — TradePost/BuyOrder 생성·취소 후 ++.
+  int _hogaRefreshKey = 0;
+  // 등록 완료 상단 banner — 매수/판매 성공 시 2초 표시. 중복 큐 차단 token.
+  String? _successBannerText;
+  int _bannerToken = 0;
+  // 내 자산 탭 "대기 중인 주문" — 본인 BuyOrder + 본인 TradePost (이 카드 한정).
+  List<Map<String, dynamic>> _myBuyOrders = [];
+  List<Map<String, dynamic>> _myTradePosts = [];
+  bool _pendingOrdersLoading = false;
   String _selectedMarket = 'KO';
   String _selectedGlobalGrade = 'RAW';
 
@@ -59,10 +70,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     _localAsset = widget.myAsset != null
         ? Map<String, dynamic>.from(widget.myAsset!)
         : null;
+    // 탭 순서 = [시세, 거래, 내 자산]. 기본 진입 = 시세 (index 0).
+    // 사용자 흐름: "얼마야 → 사고팔 수 있어 → 내 거/주문은" (feedback_hoga_design_invariants.md 가드레일 8).
     _tabController = TabController(
       length: 3,
       vsync: this,
-      initialIndex: _localAsset != null ? 0 : 1,
+      initialIndex: 0,
     );
     _loadData();
     _maybeShowCoachMark();
@@ -161,8 +174,84 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         // 검색/거래탭/홀로그래픽 등에서 myAsset 없이 진입한 경우, 사용자 자산 목록에서 cardId 매칭으로 찾음.
         await _lookupOwnedAsset();
       }
+      // 내 자산 탭 "대기 중인 주문" — 본인 BuyOrder + 본인 TradePost (이 카드 한정).
+      // 자산 보유 무관 — BuyOrder 는 자산 없어도 가능 (가드레일 9).
+      _loadMyPendingOrders();
     } catch (e) {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// 본인 BuyOrder OPEN + 본인 TradePost OPEN 을 이 카드 한정으로 fetch.
+  /// Phase 1: 백엔드 sellerId+cardId+status 동시 필터로 정정. TradePost 도 status=OPEN 명시.
+  Future<void> _loadMyPendingOrders() async {
+    if (!mounted) return;
+    setState(() => _pendingOrdersLoading = true);
+    debugPrint('[Pending] start fetch — cardId=${widget.cardId}');
+    try {
+      // 본인 BuyOrder (이 카드 + OPEN).
+      List<Map<String, dynamic>> buyOrders = [];
+      try {
+        final res = await ApiClient.get(
+          '/api/buy-orders/me',
+          params: {'status': 'OPEN', 'cardId': widget.cardId},
+        );
+        if (res['data'] is List) {
+          buyOrders = List<Map<String, dynamic>>.from(
+              (res['data'] as List).cast<Map>().map((m) => Map<String, dynamic>.from(m)));
+        }
+        debugPrint('[Pending] BuyOrder fetched — count=${buyOrders.length} '
+            'cardIds=${buyOrders.map((b) => b['cardId']).toList()}');
+      } catch (e) {
+        debugPrint('[Pending] BuyOrder me fetch error: $e');
+      }
+
+      // 본인 TradePost (이 카드 + OPEN, sellerId + cardId + status 동시 필터).
+      List<Map<String, dynamic>> tradePosts = [];
+      try {
+        final meRes = await ApiClient.get('/api/users/me');
+        final myUserId = (meRes['data'] as Map?)?['userId'] as String?;
+        debugPrint('[Pending] me userId=$myUserId');
+        if (myUserId != null) {
+          final res = await ApiClient.get(
+            '/api/trades',
+            params: {
+              'cardId': widget.cardId,
+              'sellerId': myUserId,
+              'status': 'OPEN',
+              'size': '20',
+            },
+          );
+          // Page 응답 — content 배열에서 가져옴.
+          final dataMap = res['data'];
+          final content = dataMap is Map ? dataMap['content'] : null;
+          if (content is List) {
+            tradePosts = List<Map<String, dynamic>>.from(
+                content.cast<Map>().map((m) => Map<String, dynamic>.from(m)));
+            // 안전망: 혹시 백엔드가 잘못 반환해도 cardId + status=OPEN 클라이언트 재필터.
+            tradePosts = tradePosts
+                .where((t) => t['status'] == 'OPEN' && t['cardId'] == widget.cardId)
+                .toList();
+          }
+          debugPrint('[Pending] TradePost fetched — content count=${(content is List) ? content.length : -1} '
+              'after-filter count=${tradePosts.length} '
+              'cardIds=${tradePosts.map((t) => t['cardId']).toList()}');
+        }
+      } catch (e) {
+        debugPrint('[Pending] TradePost me fetch error: $e');
+      }
+
+      if (mounted) {
+        setState(() {
+          _myBuyOrders = buyOrders;
+          _myTradePosts = tradePosts;
+          _pendingOrdersLoading = false;
+        });
+        debugPrint('[Pending] state set — buyOrders=${buyOrders.length} tradePosts=${tradePosts.length}');
+      }
+    } catch (e) {
+      debugPrint('[Pending] _loadMyPendingOrders error: $e');
+      if (mounted) setState(() => _pendingOrdersLoading = false);
     }
   }
 
@@ -211,10 +300,87 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      bottomNavigationBar: (_localAsset ?? widget.myAsset) != null
-          ? _buildSellBar(name, rarity, imageUrl, resolveCdnImageUrl(data))
-          : null,
-      body: NestedScrollView(
+      // CardDetailScreen 전체 하단 sticky CTA — 모든 탭/자산 보유 무관 항상 표시
+      // (feedback_hoga_design_invariants.md 가드레일 2).
+      bottomNavigationBar: _buildBottomCta(
+        cardName: name,
+        rarity: rarity,
+        imageUrl: imageUrl,
+        cdnImageUrl: resolveCdnImageUrl(data),
+      ),
+      body: Stack(
+        children: [
+          _buildNestedScrollBody(data, name, rarity, number, productName,
+              seriesName, productType, imageUrl, cardWidth, cardHeight,
+              heroTopPadding, heroExpandedHeight),
+          // 등록 완료 상단 banner (Codex 권장: SafeArea top + Stack + AnimatedPositioned + green 2초).
+          if (_successBannerText != null)
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: AnimatedSlide(
+                  offset: Offset.zero,
+                  duration: const Duration(milliseconds: 220),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.green,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle_rounded,
+                              color: Colors.white, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _successBannerText!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 기존 body NestedScrollView 부분을 helper 로 분리 (Stack wrap 위해).
+  Widget _buildNestedScrollBody(
+    Map<String, dynamic>? data,
+    String name,
+    String rarity,
+    String number,
+    String? productName,
+    String? seriesName,
+    String? productType,
+    String? imageUrl,
+    double cardWidth,
+    double cardHeight,
+    double heroTopPadding,
+    double heroExpandedHeight,
+  ) {
+    return NestedScrollView(
         headerSliverBuilder: (ctx, innerBoxIsScrolled) => [
           SliverOverlapAbsorber(
             handle: NestedScrollView.sliverOverlapAbsorberHandleFor(ctx),
@@ -265,9 +431,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     child: TabBar(
                 controller: _tabController,
                 tabs: const [
-                  Tab(text: '내 자산'),
                   Tab(text: '시세'),
                   Tab(text: '거래'),
+                  Tab(text: '내 자산'),
                 ],
                 labelColor: Colors.white,
                 unselectedLabelColor: AppColors.textSecondary,
@@ -319,18 +485,18 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               ? const NeverScrollableScrollPhysics()
               : null,
           children: [
+            // 탭 순서 = [시세, 거래, 내 자산] (가드레일 8).
+            Builder(builder: (ctx) => _buildMarketTab(ctx)),
+            Builder(builder: (ctx) => _buildTradeTab(ctx, name, rarity)),
             Builder(
               builder: (ctx) => _buildAssetTab(
                 ctx, data, name, rarity, imageUrl, productName, seriesName, productType,
               ),
             ),
-            Builder(builder: (ctx) => _buildMarketTab(ctx)),
-            Builder(builder: (ctx) => _buildTradeTab(ctx, name, rarity)),
           ],
           ),
         ),
-      ),
-    );
+      );
   }
 
   // ─────────────────────────────────────────────
@@ -550,6 +716,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               ),
             ),
           ),
+          // 자산 미보유 분기에도 "대기 중인 주문" 영역 — BuyOrder 는 자산 없어도 가능 (가드레일 9).
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              child: _buildPendingOrdersSection(),
+            ),
+          ),
+          // 하단 sticky CTA 가림 방지 padding.
+          const SliverToBoxAdapter(child: SizedBox(height: 96)),
         ],
       );
     }
@@ -618,6 +793,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
                 // 보유 메타
                 _buildAssetMetaCard(asset),
+                const SizedBox(height: 16),
+                // 토스 패턴 "대기 중인 주문" — 본인 BuyOrder + 본인 TradePost (가드레일 9).
+                _buildPendingOrdersSection(),
               ],
             ),
           ),
@@ -839,6 +1017,186 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     );
   }
 
+  /// 토스 패턴 "대기 중인 주문" — 본인 BuyOrder OPEN + 본인 TradePost OPEN (이 카드 한정).
+  /// 가드레일 9: 자산 보유 무관 표시. 수정/취소 wiring 은 Step 2-C.
+  Widget _buildPendingOrdersSection() {
+    final hasAny = _myBuyOrders.isNotEmpty || _myTradePosts.isNotEmpty;
+    if (_pendingOrdersLoading && !hasAny) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        alignment: Alignment.center,
+        child: const SizedBox(
+          width: 18, height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    if (!hasAny) {
+      // 빈 상태도 사용자가 "내 주문 영역이 있다"는 사실 인지하게 약하게 표시.
+      return Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.divider, width: 0.6),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.receipt_long_outlined, color: AppColors.textMuted, size: 16),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                '대기 중인 주문이 없어요',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            '대기 중인 주문',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        // 매도 (내 판매글) — 정책: 매도 = red
+        for (final tp in _myTradePosts)
+          _pendingOrderRow(
+            isBuy: false,
+            badge: '판매중',
+            badgeColor: AppColors.green,
+            label: '판매',
+            cardStatus: tp['cardStatus'] as String?,
+            gradingCompany: tp['gradingCompany'] as String?,
+            gradeValue: tp['gradeValue'] as String?,
+            price: (tp['price'] as num?)?.toInt() ?? 0,
+            qty: 1,
+          ),
+        // 매수 (내 주문) — 정책: 매수 = blue
+        for (final bo in _myBuyOrders)
+          _pendingOrderRow(
+            isBuy: true,
+            badge: '대기',
+            badgeColor: AppColors.blue,
+            label: '구매',
+            cardStatus: bo['cardStatus'] as String?,
+            gradingCompany: bo['gradingCompany'] as String?,
+            gradeValue: bo['gradeValue'] as String?,
+            price: (bo['bidPrice'] as num?)?.toInt() ?? 0,
+            qty: (bo['qty'] as num?)?.toInt() ?? 1,
+          ),
+      ],
+    );
+  }
+
+  Widget _pendingOrderRow({
+    required bool isBuy,
+    required String badge,
+    required Color badgeColor,
+    required String label,
+    required String? cardStatus,
+    required String? gradingCompany,
+    required String? gradeValue,
+    required int price,
+    required int qty,
+  }) {
+    final actionColor = isBuy ? AppColors.blue : AppColors.red;
+    final stateLabel = cardStatus == 'GRADED' &&
+            gradingCompany != null &&
+            gradeValue != null
+        ? '$gradingCompany $gradeValue'
+        : (cardStatus ?? 'RAW');
+    final priceStr = price.toString().replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider, width: 0.6),
+      ),
+      child: Row(
+        children: [
+          // [대기/판매중] badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: badgeColor.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              badge,
+              style: TextStyle(
+                color: badgeColor,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // 구매/판매 N장 + 상태/가격
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '$label $qty장',
+                      style: TextStyle(
+                        color: actionColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        stateLabel,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$priceStr원',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // [수정]/[취소] 버튼은 Phase 2 에서 wiring 후 노출 — 현재는 숨김
+          // (disabled 보이는 게 고장처럼 보인다는 사용자 피드백 반영).
+        ],
+      ),
+    );
+  }
+
   Widget _buildAssetMetaCard(Map<String, dynamic> asset) {
     final cardStatus = asset['cardStatus'] as String? ?? 'RAW';
     final addedAt = asset['createdAt'] as String?;
@@ -904,6 +1262,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             child: _buildPriceSection(),
           ),
         ),
+        // 하단 sticky CTA 가림 방지 padding.
+        const SliverToBoxAdapter(child: SizedBox(height: 96)),
       ],
     );
   }
@@ -931,6 +1291,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: HogaBoard(
               cardId: widget.cardId,
+              refreshKey: _hogaRefreshKey,
               onCountsChanged: (ask, bid) {
                 if (mounted &&
                     (_hogaAskCount != ask || _hogaBidCount != bid)) {
@@ -948,28 +1309,22 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   grade: grade,
                   side: side,
                   price: price,
+                  // Phase E2: ASK row 탭 시 sheet 닫힌 뒤 parent context 로 push.
+                  onOpenTradeDetail: (tradeId) {
+                    if (!context.mounted) return;
+                    context.push('/trades/$tradeId');
+                  },
                 );
               },
-              onAskRegister: () {
-                // Phase F: 판매 호가 등록 모달
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('판매 호가 등록 — Phase F에서 모달 연결 예정'),
-                  duration: Duration(seconds: 2),
-                ));
-              },
-              onBidRegister: () {
-                // Phase F: 매수 호가 등록 모달
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('매수 호가 등록 — Phase F에서 모달 연결 예정'),
-                  duration: Duration(seconds: 2),
-                ));
-              },
+              // 등록 CTA 는 CardDetailScreen 하단 sticky footer [판매하기][구매하기] 담당
+              // — HogaBoard 내부 버튼 두지 않음 (feedback_hoga_design_invariants.md).
             ),
           ),
         ),
         // 기존 "이 카드 판매 중" / "이 카드 매수 호가" 박스는 HogaBoard로 대체됨 (2026-05-18).
         // _buildListingsSection / _buildBuyOrdersSection 호출 제거.
-        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        // 하단 sticky CTA 가림 방지 padding.
+        const SliverToBoxAdapter(child: SizedBox(height: 96)),
       ],
     );
   }
@@ -1052,9 +1407,19 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     String cardStatus = 'RAW';
     String? gradingCompany;
     String? gradeValue;
-    final priceCtrl = TextEditingController();
+    // 예상가치를 가격 초기값으로 (KO mid 대표 시세) — tick 단위로 floor.
+    // ex) 26,210,940 + tick 100,000 → 26,200,000
+    final midPrice = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
+    final initialPrice = midPrice != null ? _floorToTick(midPrice) : null;
+    // 컨트롤러 dispose 는 sheet dismiss animation 중 TextField rebuild 와 충돌 (TextEditingController used after disposed).
+    // 정석은 별도 StatefulWidget 으로 분리해 State.dispose 활용 — 다음 polish 에서 처리. 지금은 dispose 생략 (1회성 시트라 누수 무시).
+    final priceCtrl = TextEditingController(
+      // 입력 표시는 콤마 포맷 — 자릿수 가독성 위해. 파싱 시 콤마 제거.
+      text: initialPrice != null ? _formatThousands(initialPrice) : '',
+    );
     final memoCtrl = TextEditingController();
-    int qty = 1;
+    String? submitError; // 등록 실패 시 sheet 내부 inline 표시.
+    // 카드 거래 수량은 1 고정 — 수량 UI 제거.
 
     final result = await showModalBottomSheet<bool>(
       context: context,
@@ -1127,7 +1492,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: ['10', '9.5', '9', '8.5', '8', '7', '6', '5'].map((v) {
+                      children: ['10', '9', '8'].map((v) {
                         final sel = gradeValue == v;
                         return GestureDetector(
                           onTap: () => setSheet(() => gradeValue = v),
@@ -1150,9 +1515,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   TextField(
                     controller: priceCtrl,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [_ThousandsCommaFormatter()],
+                    onChanged: (_) => setSheet(() {}),
                     style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
                     decoration: InputDecoration(
-                      hintText: '예: 50000',
+                      hintText: '예: 26,200,000',
                       hintStyle: const TextStyle(color: Colors.white24),
                       suffixText: '원',
                       suffixStyle: const TextStyle(color: AppColors.textSecondary),
@@ -1167,19 +1534,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                         borderSide: const BorderSide(color: AppColors.blue),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Text('수량', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
-                      const SizedBox(width: 16),
-                      _qtyButton(Icons.remove, () => setSheet(() { if (qty > 1) qty--; })),
-                      Container(
-                        width: 40, alignment: Alignment.center,
-                        child: Text('$qty', style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
-                      ),
-                      _qtyButton(Icons.add, () => setSheet(() => qty++)),
-                    ],
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -1201,49 +1555,84 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.green,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
+                  if (submitError != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.red.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.red.withValues(alpha: 0.35)),
                       ),
-                      onPressed: () async {
-                        final price = int.tryParse(priceCtrl.text.trim());
-                        if (price == null || price <= 0) {
-                          ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                            const SnackBar(content: Text('매수 가격을 입력해주세요.')),
-                          );
-                          return;
-                        }
-                        if (cardStatus == 'GRADED' && (gradingCompany == null || gradeValue == null)) {
-                          ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                            const SnackBar(content: Text('감정사와 등급을 선택해주세요.')),
-                          );
-                          return;
-                        }
-                        try {
-                          await ApiClient.post('/api/buy-orders', {
-                            'data': {
-                              'cardId': widget.cardId,
-                              'bidPrice': price,
-                              'qty': qty,
-                              'cardStatus': cardStatus,
-                              if (gradingCompany != null) 'gradingCompany': gradingCompany,
-                              if (gradeValue != null) 'gradeValue': gradeValue,
-                              if (memoCtrl.text.trim().isNotEmpty) 'memo': memoCtrl.text.trim(),
-                            },
-                          });
-                          if (sheetCtx.mounted) Navigator.pop(sheetCtx, true);
-                        } catch (_) {}
-                      },
-                      child: const Text('매수 호가 등록',
-                          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline_rounded,
+                              color: AppColors.red, size: 14),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              submitError!,
+                              style: const TextStyle(
+                                color: AppColors.red,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
+                  const SizedBox(height: 24),
+                  Builder(builder: (_) {
+                    // 검증 (Codex 정책: SnackBar 대신 버튼 비활성). 파싱은 콤마 제거 후.
+                    final priceVal = int.tryParse(priceCtrl.text.replaceAll(',', '').trim());
+                    final priceOk = priceVal != null && priceVal > 0;
+                    final gradeOk = cardStatus == 'RAW' ||
+                        (gradingCompany != null && gradeValue != null);
+                    final canSubmit = priceOk && gradeOk;
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          // 색상 정책 (feedback_color_policy.md): 매수 액션 = 빨강 (토스 컨벤션).
+                          backgroundColor: AppColors.red,
+                          disabledBackgroundColor: AppColors.red.withValues(alpha: 0.35),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                        onPressed: canSubmit
+                            ? () async {
+                                try {
+                                  await ApiClient.post('/api/buy-orders', {
+                                    'data': {
+                                      'cardId': widget.cardId,
+                                      'bidPrice': priceVal,
+                                      'qty': 1,
+                                      'cardStatus': cardStatus,
+                                      if (gradingCompany != null) 'gradingCompany': gradingCompany,
+                                      if (gradeValue != null) 'gradeValue': gradeValue,
+                                      if (memoCtrl.text.trim().isNotEmpty) 'memo': memoCtrl.text.trim(),
+                                    },
+                                  });
+                                  if (sheetCtx.mounted) Navigator.pop(sheetCtx, true);
+                                } catch (e) {
+                                  // 등록 실패 — sheet 내부 inline error 표시 (SnackBar 금지).
+                                  debugPrint('BuyOrder create error: $e');
+                                  if (sheetCtx.mounted) {
+                                    setSheet(() {
+                                      submitError = '등록에 실패했어요. 잠시 후 다시 시도해주세요.';
+                                    });
+                                  }
+                                }
+                              }
+                            : null,
+                        child: const Text('매수 호가 등록',
+                            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -1251,7 +1640,13 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         );
       }),
     );
-    if (result == true && mounted) _loadData();
+    // priceCtrl/memoCtrl dispose — sheet dismiss animation 중 rebuild 충돌로 크래시.
+    // StatefulWidget 분리 polish 전까지 생략 (1회성 시트, 누수 무시 가능).
+    if (result == true && mounted) {
+      _loadData();
+      setState(() => _hogaRefreshKey++);
+      _showSuccessBanner('매수 호가가 등록되었습니다');
+    }
   }
 
   Widget _statusChip(String label, String value, String current, VoidCallback onTap) {
@@ -1276,21 +1671,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 )),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _qtyButton(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 32, height: 32,
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Icon(icon, color: Colors.white, size: 16),
       ),
     );
   }
@@ -2741,210 +3121,246 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   }
 
   // ─────────────────────────────────────────────
-  // 판매하기 바
+  // 하단 sticky CTA — [판매하기] [구매하기]
+  // 모든 탭/자산 보유 무관 항상 표시 (feedback_hoga_design_invariants.md 가드레일 2).
+  // 색상: 판매하기=파랑 / 구매하기=빨강 (토스증권 액션 컨벤션, 호가창 row 색과 반대).
   // ─────────────────────────────────────────────
 
-  Widget _buildSellBar(
+  /// 등록 완료 상단 banner — 매수/판매 성공 시 호출. 2초 자동 사라짐, 중복 큐 차단.
+  /// SnackBar 금지 정책 (feedback_hoga_design_invariants.md 가드레일 11).
+  void _showSuccessBanner(String text) {
+    if (!mounted) return;
+    final token = ++_bannerToken;
+    setState(() => _successBannerText = text);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      // 다른 banner 가 덮어쓴 경우 무시.
+      if (_bannerToken != token) return;
+      setState(() => _successBannerText = null);
+    });
+  }
+
+  Widget _buildBottomCta({
+    required String cardName,
+    required String rarity,
+    String? imageUrl,
+    String? cdnImageUrl,
+  }) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceCard,
+          border: Border(top: BorderSide(color: Colors.white12)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => _onSellTap(cardName, rarity, imageUrl, cdnImageUrl),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.blue,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                  ),
+                  child: const Text('판매하기'),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _onBuyTap,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.red,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                  ),
+                  child: const Text('구매하기'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // CTA 액션 분기 (탭 index: 시세=0 / 거래=1 / 내자산=2)
+  // 정책: feedback_hoga_design_invariants.md
+  // ─────────────────────────────────────────────
+
+  Future<void> _onSellTap(
     String cardName,
     String rarity,
     String? imageUrl,
     String? cdnImageUrl,
-  ) {
-    final assetId = _localAsset?['assetId'] as String?;
-    final isSelling = _localAsset?['isSelling'] == true;
-    final activeTradeId = _localAsset?['activeTradeId'] as String?;
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceCard,
-        border: Border(top: BorderSide(color: Colors.white12)),
+  ) async {
+    final asset = _localAsset ?? widget.myAsset;
+    if (asset == null) {
+      // 자산 X — 내 자산 탭으로 이동. 빈 상태 UI 가 "스캔으로 추가" 안내.
+      if (_tabController.index != 2) {
+        _tabController.animateTo(2);
+      }
+      return;
+    }
+    final activeTradeId = asset['activeTradeId'] as String?;
+    if (activeTradeId != null) {
+      // 활성 판매글 — 그 trade 상세 이동.
+      final changed = await context.push<bool>('/trades/$activeTradeId');
+      if (changed == true && mounted) {
+        _loadData();
+        setState(() => _hogaRefreshKey++);
+      }
+      return;
+    }
+    // RAW + 자체 그레이딩 분석 결과 없음 → 판매 차단 (가드레일 10).
+    final cardStatus = asset['cardStatus'] as String?;
+    final estimatedGrade = asset['estimatedGrade'];
+    if (cardStatus == 'RAW' && estimatedGrade == null) {
+      await _showGradingRequiredSheet(asset: asset, cardName: cardName);
+      return;
+    }
+    // 자산 보유 + 비활성 + 판매 가능 — 거래 탭 이동 + 바로 /trades/create push.
+    // 판매 상태 확인 sheet 폐기 (사용자 정책 2026-05-18): 카드당 자산 1개, 판매는 등록된 자산 상태 그대로.
+    if (_tabController.index != 1) {
+      _tabController.animateTo(1);
+    }
+    final assetId = asset['assetId'] as String?;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final created = await context.push<bool>('/trades/create', extra: {
+        'cardId': widget.cardId,
+        'cardName': cardName,
+        'rarity': rarity,
+        'imageUrl': imageUrl,
+        'cdnImageUrl': cdnImageUrl,
+        'assetId': assetId,
+        'cardStatus': asset['cardStatus'],
+        'estimatedGrade': asset['estimatedGrade'],
+        'gradingCompany': asset['gradingCompany'],
+        'gradeValue': asset['gradeValue'],
+        'certNumber': asset['certNumber'],
+      });
+      if (created == true && mounted) {
+        _loadData();
+        setState(() => _hogaRefreshKey++);
+        _showSuccessBanner('판매글이 등록되었습니다');
+      }
+    });
+  }
+
+  /// RAW 자산 + 자체 그레이딩 미완료 → 판매 전 분석 안내 sheet.
+  /// 가드레일 10: 분석 후 자동 sheet 재진입 X. 사용자 수동 재클릭.
+  Future<void> _showGradingRequiredSheet({
+    required Map<String, dynamic> asset,
+    required String cardName,
+  }) async {
+    final assetId = asset['assetId'] as String?;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: GestureDetector(
-              onTap: () async {
-                final estimatedGrade = (_localAsset?['estimatedGrade'] as num?)
-                    ?.toDouble();
-                if (estimatedGrade != null) {
-                  _showExistingGradingResult();
-                  return;
-                }
-                final graded = await context.push<bool>(
-                  '/grading/capture',
-                  extra: {
-                    'assetId': assetId,
-                    'cardId': widget.cardId,
-                    'cardName': cardName,
-                  },
-                );
-                if (graded == true && mounted) _loadData();
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceCard,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.blue),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.stars_rounded, color: AppColors.blue, size: 18),
-                    SizedBox(width: 6),
-                    Text(
-                      '등급 확인',
-                      style: TextStyle(
-                        color: AppColors.blue,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+      builder: (sheetCtx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 4, bottom: 14),
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            flex: 3,
-            child: isSelling
-                ? GestureDetector(
-                    onTap: () async {
-                      if (activeTradeId == null) return;
-                      final changed = await context.push<bool>(
-                        '/trades/$activeTradeId',
-                      );
-                      if (changed == true && mounted) _loadData();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade800,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.storefront_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            '내 판매글 보러가기',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : GestureDetector(
-                    onTap: () async {
-                      final cardStatus = _localAsset?['cardStatus'] as String?;
-                      final estimatedGrade = _localAsset?['estimatedGrade'];
-                      if (cardStatus == 'RAW' && estimatedGrade == null) {
-                        final goToGrading = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            backgroundColor: AppColors.surfaceCard,
-                            title: const Text(
-                              '등급 확인 필요',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                            content: const Text(
-                              '판매하기 전에 앱 등급 분석을 먼저 완료해주세요.',
-                              style: TextStyle(color: Colors.white54),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text(
-                                  '취소',
-                                  style: TextStyle(color: Colors.white38),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('등급 확인하러 가기'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (goToGrading == true && mounted) {
-                          final graded = await context.push<bool>(
-                            '/grading/capture',
-                            extra: {
-                              'assetId': assetId,
-                              'cardId': widget.cardId,
-                              'cardName': cardName,
-                            },
-                          );
-                          if (graded == true && mounted) _loadData();
-                        }
-                        return;
-                      }
-                      final created = await context.push<bool>(
-                        '/trades/create',
+              const Text(
+                '먼저 카드 상태를 분석해주세요',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'RAW 카드는 앱 자체 상태 분석을 먼저 진행해야 판매할 수 있어요.\n분석을 마치면 다시 판매하기를 눌러주세요.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(sheetCtx).pop();
+                    if (!mounted) return;
+                    // parent context 로 push (sheet context 직접 push 시 deactivated 위험).
+                    WidgetsBinding.instance.addPostFrameCallback((_) async {
+                      if (!mounted) return;
+                      final graded = await context.push<bool>(
+                        '/grading/capture',
                         extra: {
+                          'assetId': assetId,
                           'cardId': widget.cardId,
                           'cardName': cardName,
-                          'rarity': rarity,
-                          'imageUrl': imageUrl,
-                          'cdnImageUrl': cdnImageUrl,
-                          'assetId': assetId,
-                          'cardStatus': _localAsset?['cardStatus'],
-                          'estimatedGrade': _localAsset?['estimatedGrade'],
-                          'gradingCompany': _localAsset?['gradingCompany'],
-                          'gradeValue': _localAsset?['gradeValue'],
-                          'certNumber': _localAsset?['certNumber'],
-                          // 판매가 default: 자산 displayPrice(language/grade 반영) 우선, fallback만 KO mid.
-                          'defaultPrice':
-                              (_localAsset?['displayPrice'] as num?)?.toInt() ??
-                                  ((_priceSummary?['ko'] as Map?)?['mid'] as num?)?.toInt(),
                         },
                       );
-                      if (created == true && mounted) _loadData();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.blue, Color(0xFF1A56B0)],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.sell_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            '이 카드 판매하기',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
+                      if (graded == true && mounted) _loadData();
+                    });
+                  },
+                  icon: const Icon(Icons.auto_awesome_rounded),
+                  label: const Text('상태 분석하기'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.blue,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
+  }
+
+  void _onBuyTap() {
+    // 거래 탭 이동 + 매수 호가 등록 sheet 자동 오픈.
+    if (_tabController.index != 1) {
+      _tabController.animateTo(1);
+    }
+    // 탭 전환 직후 시트는 mount/컨텍스트 타이밍이 애매 → 프레임 이후 열기 (Codex 권장).
+    // refreshKey 증분은 _showBuyOrderRegisterSheet 내부 result == true 분기에서 처리.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _showBuyOrderRegisterSheet();
+    });
   }
 
   Widget _buildAssetGradeSection() {
@@ -3526,6 +3942,33 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     );
     return '${formatter}원';
   }
+
+  // ─────────────────────────────────────────────
+  // 매수 호가 sheet helper — tick 정규화 + 콤마 포맷
+  // HogaTickResolver(Java) 포팅 — 가격 구간별 동적 tick.
+  // ─────────────────────────────────────────────
+
+  static int _tickFor(int price) {
+    if (price < 100000) return 1000;
+    if (price < 1000000) return 5000;
+    if (price < 10000000) return 10000;
+    return 100000;
+  }
+
+  static int _floorToTick(int price) {
+    final t = _tickFor(price);
+    return (price ~/ t) * t;
+  }
+
+  static String _formatThousands(int v) {
+    final s = v.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+      buf.write(s[i]);
+    }
+    return buf.toString();
+  }
 }
 
 /// 카드 상세 첫 진입 시 1회 표시되는 Coach Mark.
@@ -3643,6 +4086,22 @@ class _CardDetailCoachBubble extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 가격 입력칸 콤마 자동 포맷터. ex) 26210940 → 26,210,940.
+class _ThousandsCommaFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue old, TextEditingValue updated) {
+    if (updated.text.isEmpty) return updated;
+    final digits = updated.text.replaceAll(',', '');
+    final value = int.tryParse(digits);
+    if (value == null) return old;
+    final formatted = _CardDetailScreenState._formatThousands(value);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

@@ -14,8 +14,8 @@ public interface BuyOrderService {
     /** 페이징 카드별 호가 */
     ReturnData<Page<BuyOrderDto>> getByCardPaged(String cardId, int page, int size);
 
-    /** 내 매수 주문 list */
-    ReturnData<List<BuyOrderDto>> getMyOrders(String buyerId, String status);
+    /** 내 매수 주문 list. cardId 옵션 — 카드 상세의 "대기 중인 주문" 영역에서 사용. */
+    ReturnData<List<BuyOrderDto>> getMyOrders(String buyerId, String status, String cardId);
 
     /** 전체 OPEN 매수 호가 페이징 (거래 탭 매수 list용) */
     ReturnData<Page<BuyOrderDto>> getAllOpen(int page, int size);
