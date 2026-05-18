@@ -121,6 +121,21 @@ public class TradeServiceImpl implements TradeService {
             if (!hasAsset) return ReturnData.badRequest("내 자산에 등록된 카드만 판매할 수 있습니다.");
         }
 
+        // 판매 가격 필수 (Phase 2: "가격 협의" 폐지. 호가창 ASK 쿼리는 price IS NOT NULL 조건).
+        Integer price = parameterData.getInteger("price");
+        if (price == null || price <= 0) {
+            return ReturnData.badRequest("판매 가격은 필수입니다.");
+        }
+
+        // 동일 assetId OPEN 판매글 중복 차단 (1 자산 = 1 OPEN 판매글).
+        if (assetId != null && !assetId.isBlank()) {
+            boolean alreadyOpen = tradePostRepository.findByAssetIdOrderByCreatedAtDesc(assetId)
+                    .stream().anyMatch(p -> "OPEN".equals(p.getStatus()));
+            if (alreadyOpen) {
+                return ReturnData.fail("E409", "이미 판매 중인 판매글이 있어요. 기존 판매글을 수정하거나 취소해주세요.");
+            }
+        }
+
         String cardStatus = parameterData.getString("cardStatus");
         String condition = parameterData.getString("condition");
         String gradingCompany = parameterData.getString("gradingCompany");
@@ -154,7 +169,7 @@ public class TradeServiceImpl implements TradeService {
                 .assetId(asset != null ? asset.getAssetId() : null)
                 .title(title)
                 .description(description)
-                .price(parameterData.getInteger("price"))
+                .price(price)
                 .cardStatus(cardStatus != null ? cardStatus : "RAW")
                 .condition(condition)
                 .gradingCompany(effectiveGradingCompany)

@@ -234,8 +234,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 .toList();
           }
           debugPrint('[Pending] TradePost fetched — content count=${(content is List) ? content.length : -1} '
-              'after-filter count=${tradePosts.length} '
-              'cardIds=${tradePosts.map((t) => t['cardId']).toList()}');
+              'after-filter count=${tradePosts.length}');
         }
       } catch (e) {
         debugPrint('[Pending] TradePost me fetch error: $e');
@@ -252,6 +251,373 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     } catch (e) {
       debugPrint('[Pending] _loadMyPendingOrders error: $e');
       if (mounted) setState(() => _pendingOrdersLoading = false);
+    }
+  }
+
+  /// 등록/수정/취소 mutation 후 통합 refresh — 사용자 정책: 즉시 화면 반영.
+  /// _loadData() + _loadMyPendingOrders() + _hogaRefreshKey++ 한 번에.
+  Future<void> _refreshAfterOrderMutation() async {
+    if (!mounted) return;
+    await _loadData();
+    await _loadMyPendingOrders();
+    if (mounted) setState(() => _hogaRefreshKey++);
+  }
+
+  /// 매수 호가 가격 수정 sheet — 기존 등록 sheet 와 같은 구조 (가격 + tick + 콤마).
+  Future<void> _showBuyOrderEditSheet(Map<String, dynamic> order) async {
+    final buyOrderId = order['buyOrderId'] as String?;
+    if (buyOrderId == null) return;
+    final currentPrice = (order['bidPrice'] as num?)?.toInt() ?? 0;
+    final priceCtrl = TextEditingController(
+      text: currentPrice > 0 ? _formatThousands(currentPrice) : '',
+    );
+    String? submitError;
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheet) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('매수 호가 가격 수정',
+                      style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 16),
+                  const Text('새 매수 가격',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: priceCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [_ThousandsCommaFormatter()],
+                    onChanged: (_) => setSheet(() {}),
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                    decoration: InputDecoration(
+                      suffixText: '원',
+                      suffixStyle: const TextStyle(color: AppColors.textSecondary),
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.divider),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.blue),
+                      ),
+                    ),
+                  ),
+                  if (submitError != null) ...[
+                    const SizedBox(height: 10),
+                    Text(submitError!,
+                        style: const TextStyle(color: AppColors.red, fontSize: 11, fontWeight: FontWeight.w700)),
+                  ],
+                  const SizedBox(height: 20),
+                  Builder(builder: (_) {
+                    final priceVal = int.tryParse(priceCtrl.text.replaceAll(',', '').trim());
+                    final canSubmit = priceVal != null && priceVal > 0 && priceVal != currentPrice;
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.red,
+                          disabledBackgroundColor: AppColors.red.withValues(alpha: 0.35),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                        onPressed: canSubmit
+                            ? () async {
+                                try {
+                                  await ApiClient.patch(
+                                    '/api/buy-orders/$buyOrderId/price',
+                                    data: {'bidPrice': priceVal},
+                                  );
+                                  if (sheetCtx.mounted) Navigator.pop(sheetCtx, true);
+                                } catch (e) {
+                                  debugPrint('BuyOrder edit error: $e');
+                                  if (sheetCtx.mounted) {
+                                    setSheet(() => submitError = '수정에 실패했어요. 잠시 후 다시 시도해주세요.');
+                                  }
+                                }
+                              }
+                            : null,
+                        child: const Text('수정',
+                            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+    if (result == true && mounted) {
+      await _refreshAfterOrderMutation();
+      _showSuccessBanner('매수 호가가 수정되었습니다');
+    }
+  }
+
+  /// 매수 호가 취소 — AlertDialog 확인 후 DELETE.
+  Future<void> _confirmCancelBuyOrder(Map<String, dynamic> order) async {
+    final buyOrderId = order['buyOrderId'] as String?;
+    if (buyOrderId == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceCard,
+        title: const Text('매수 호가를 취소할까요?', style: TextStyle(color: Colors.white)),
+        content: const Text('이 가격의 매수 호가가 취소돼요.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('아니오')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.red),
+            child: const Text('취소하기', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ApiClient.delete('/api/buy-orders/$buyOrderId');
+      if (!mounted) return;
+      await _refreshAfterOrderMutation();
+      _showSuccessBanner('매수 호가가 취소되었습니다');
+    } catch (e) {
+      debugPrint('BuyOrder delete error: $e');
+    }
+  }
+
+  /// 판매글 가격/메모 수정 sheet. 사진은 read-only 프리뷰만 (교체/삭제는 추후 phase).
+  Future<void> _showTradePostEditSheet(Map<String, dynamic> trade) async {
+    final tradeId = trade['tradeId'] as String?;
+    if (tradeId == null) return;
+    final currentPrice = (trade['price'] as num?)?.toInt() ?? 0;
+    final currentDesc = trade['description'] as String? ?? '';
+    final currentTitle = trade['title'] as String? ?? '';
+    // 이미지 URL 추출 — imageUrls (신규) 우선, 없으면 imageUrl comma-sep 파싱 (구버전 호환, Codex [9]).
+    final List<String> imageUrls = () {
+      final raw = trade['imageUrls'];
+      if (raw is List) {
+        return raw.whereType<String>().where((s) => s.isNotEmpty).toList();
+      }
+      final single = trade['imageUrl'];
+      if (single is String && single.isNotEmpty) {
+        return single.split(',').where((s) => s.isNotEmpty).toList();
+      }
+      return <String>[];
+    }();
+    final priceCtrl = TextEditingController(
+      text: currentPrice > 0 ? _formatThousands(currentPrice) : '',
+    );
+    final memoCtrl = TextEditingController(text: currentDesc);
+    String? submitError;
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => StatefulBuilder(builder: (sheetCtx, setSheet) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('판매글 수정',
+                      style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 16),
+                  // 사진 프리뷰 — read-only. 교체/삭제는 추후 phase (사용자 정책).
+                  if (imageUrls.isNotEmpty) ...[
+                    const Text('등록된 사진',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 80,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: imageUrls.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (_, i) {
+                          final raw = imageUrls[i];
+                          final url = raw.startsWith('http')
+                              ? raw
+                              : '${ApiConstants.baseUrl}$raw';
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              width: 80, height: 80,
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                border: Border.all(color: AppColors.divider),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Image.network(
+                                url,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => const Center(
+                                  child: Icon(Icons.image_not_supported,
+                                      color: AppColors.textMuted, size: 20),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  const Text('판매 가격',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: priceCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [_ThousandsCommaFormatter()],
+                    onChanged: (_) => setSheet(() {}),
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                    decoration: InputDecoration(
+                      suffixText: '원',
+                      suffixStyle: const TextStyle(color: AppColors.textSecondary),
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.divider),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.blue),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('메모 (선택)',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: memoCtrl,
+                    maxLines: 2,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.divider),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.blue),
+                      ),
+                    ),
+                  ),
+                  if (submitError != null) ...[
+                    const SizedBox(height: 10),
+                    Text(submitError!,
+                        style: const TextStyle(color: AppColors.red, fontSize: 11, fontWeight: FontWeight.w700)),
+                  ],
+                  const SizedBox(height: 20),
+                  Builder(builder: (_) {
+                    final priceVal = int.tryParse(priceCtrl.text.replaceAll(',', '').trim());
+                    final canSubmit = priceVal != null && priceVal > 0;
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.blue,
+                          disabledBackgroundColor: AppColors.blue.withValues(alpha: 0.35),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                        onPressed: canSubmit
+                            ? () async {
+                                try {
+                                  // PUT 전체 body — title/description 보존 (백엔드 partial 미지원).
+                                  await ApiClient.put('/api/trades/$tradeId', {
+                                    'data': {
+                                      'title': currentTitle,
+                                      'description': memoCtrl.text.trim().isNotEmpty
+                                          ? memoCtrl.text.trim()
+                                          : currentDesc,
+                                      'price': priceVal,
+                                    },
+                                  });
+                                  if (sheetCtx.mounted) Navigator.pop(sheetCtx, true);
+                                } catch (e) {
+                                  debugPrint('TradePost edit error: $e');
+                                  if (sheetCtx.mounted) {
+                                    setSheet(() => submitError = '수정에 실패했어요. 잠시 후 다시 시도해주세요.');
+                                  }
+                                }
+                              }
+                            : null,
+                        child: const Text('수정',
+                            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+    if (result == true && mounted) {
+      await _refreshAfterOrderMutation();
+      _showSuccessBanner('판매글이 수정되었습니다');
+    }
+  }
+
+  /// 판매글 취소 — AlertDialog 확인 후 DELETE.
+  Future<void> _confirmCancelTradePost(Map<String, dynamic> trade) async {
+    final tradeId = trade['tradeId'] as String?;
+    if (tradeId == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceCard,
+        title: const Text('판매글을 취소할까요?', style: TextStyle(color: Colors.white)),
+        content: const Text('이 판매글이 호가창에서 사라져요.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('아니오')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.red),
+            child: const Text('취소하기', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ApiClient.delete('/api/trades/$tradeId');
+      if (!mounted) return;
+      await _refreshAfterOrderMutation();
+      _showSuccessBanner('판매글이 취소되었습니다');
+    } catch (e) {
+      debugPrint('TradePost delete error: $e');
     }
   }
 
@@ -1080,6 +1446,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             gradeValue: tp['gradeValue'] as String?,
             price: (tp['price'] as num?)?.toInt() ?? 0,
             qty: 1,
+            onEdit: () => _showTradePostEditSheet(tp),
+            onCancel: () => _confirmCancelTradePost(tp),
           ),
         // 매수 (내 주문) — 정책: 매수 = blue
         for (final bo in _myBuyOrders)
@@ -1093,6 +1461,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             gradeValue: bo['gradeValue'] as String?,
             price: (bo['bidPrice'] as num?)?.toInt() ?? 0,
             qty: (bo['qty'] as num?)?.toInt() ?? 1,
+            onEdit: () => _showBuyOrderEditSheet(bo),
+            onCancel: () => _confirmCancelBuyOrder(bo),
           ),
       ],
     );
@@ -1108,6 +1478,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     required String? gradeValue,
     required int price,
     required int qty,
+    required VoidCallback onEdit,
+    required VoidCallback onCancel,
   }) {
     final actionColor = isBuy ? AppColors.blue : AppColors.red;
     final stateLabel = cardStatus == 'GRADED' &&
@@ -1190,8 +1562,28 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               ],
             ),
           ),
-          // [수정]/[취소] 버튼은 Phase 2 에서 wiring 후 노출 — 현재는 숨김
-          // (disabled 보이는 게 고장처럼 보인다는 사용자 피드백 반영).
+          // [수정] ghost — Phase 2 wiring 완료.
+          TextButton(
+            onPressed: onEdit,
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 28),
+              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            ),
+            child: const Text('수정'),
+          ),
+          // [취소] danger.
+          TextButton(
+            onPressed: onCancel,
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.red,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 28),
+              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            ),
+            child: const Text('취소'),
+          ),
         ],
       ),
     );
@@ -1643,8 +2035,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     // priceCtrl/memoCtrl dispose — sheet dismiss animation 중 rebuild 충돌로 크래시.
     // StatefulWidget 분리 polish 전까지 생략 (1회성 시트, 누수 무시 가능).
     if (result == true && mounted) {
-      _loadData();
-      setState(() => _hogaRefreshKey++);
+      await _refreshAfterOrderMutation();
       _showSuccessBanner('매수 호가가 등록되었습니다');
     }
   }
@@ -3235,6 +3626,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       _tabController.animateTo(1);
     }
     final assetId = asset['assetId'] as String?;
+    // 예상가치 (KO mid) tick floor 를 기본 가격으로 전달 — 사용자 정책: 가격 협의 폐지, 자동 기본값.
+    final midPrice = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
+    final defaultPrice = midPrice != null ? _floorToTick(midPrice) : null;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final created = await context.push<bool>('/trades/create', extra: {
@@ -3249,10 +3643,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         'gradingCompany': asset['gradingCompany'],
         'gradeValue': asset['gradeValue'],
         'certNumber': asset['certNumber'],
+        if (defaultPrice != null) 'defaultPrice': defaultPrice,
       });
       if (created == true && mounted) {
-        _loadData();
-        setState(() => _hogaRefreshKey++);
+        await _refreshAfterOrderMutation();
         _showSuccessBanner('판매글이 등록되었습니다');
       }
     });

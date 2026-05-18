@@ -84,8 +84,8 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
   void initState() {
     super.initState();
     if (widget.defaultPrice != null && widget.defaultPrice! > 0) {
-      final rounded = ((widget.defaultPrice! / 100).round() * 100);
-      _priceCtrl.text = rounded.toString();
+      // 호출자(_onSellTap)에서 이미 tick floor 처리. 100원 재-round 제거 (Codex 즉시수정).
+      _priceCtrl.text = widget.defaultPrice!.toString();
     }
     if (widget.assetId != null) _loadAssetImages(widget.assetId!);
   }
@@ -261,6 +261,20 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
           .replaceAll(',', '')
           .replaceAll('원', '');
       final price = int.tryParse(priceText);
+      // 판매 가격 필수 (Phase 2: 가격 협의 폐지).
+      if (price == null || price <= 0) {
+        if (mounted) {
+          setState(() {
+            _submitting = false;
+            _submitError = '판매 가격을 입력해주세요.';
+          });
+          if (_scrollCtrl.hasClients) {
+            _scrollCtrl.animateTo(0,
+                duration: const Duration(milliseconds: 240), curve: Curves.easeOut);
+          }
+        }
+        return;
+      }
       final memo = _memoCtrl.text.trim();
       final cardName = widget.cardName ?? widget.cardId;
       final description = memo.isNotEmpty
@@ -307,7 +321,15 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
       context.pop(true);
     } catch (e) {
       debugPrint('등록 실패 원인: $e');
-      _setInlineError('등록에 실패했어요. 잠시 후 다시 시도해주세요.');
+      // 백엔드 에러 메시지 보존 (E409 중복 판매 등) — Codex 즉시수정.
+      String msg = '등록에 실패했어요. 잠시 후 다시 시도해주세요.';
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map && data['message'] is String) {
+          msg = data['message'] as String;
+        }
+      }
+      _setInlineError(msg);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -525,19 +547,32 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
 
             const SizedBox(height: 20),
 
-            // 가격
-            const Text(
-              '가격',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
+            // 가격 (필수 — "가격 협의" 폐지: 호가창 ASK 쿼리는 price IS NOT NULL).
+            Row(
+              children: const [
+                Text(
+                  '가격',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(width: 4),
+                Text(
+                  '*',
+                  style: TextStyle(
+                    color: AppColors.red,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             _buildTextField(
               _priceCtrl,
-              '가격 입력 (비우면 가격 협의)',
+              '판매 가격을 입력해주세요',
               keyboardType: TextInputType.number,
               suffix: '원',
             ),
