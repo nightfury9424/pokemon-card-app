@@ -930,10 +930,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: HogaBoard(
               cardId: widget.cardId,
-              onRowTap: (price, side, status) {
+              onRowTap: (price, side, status, grade) {
                 // Phase E: 하단시트 (가격별 등록자 리스트)
+                final label = grade == null ? status.label : '${status.label} ${grade.label}';
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('호가 클릭: ${side.name.toUpperCase()} $price원 (Phase E에서 하단시트 연결 예정)'),
+                  content: Text('호가 클릭: $label ${side.name.toUpperCase()} $price원 (Phase E에서 하단시트 연결 예정)'),
                   duration: const Duration(seconds: 2),
                 ));
               },
@@ -954,18 +955,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             ),
           ),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: _buildListingsSection(cardName, rarity),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            child: _buildBuyOrdersSection(cardName, rarity),
-          ),
-        ),
+        // 기존 "이 카드 판매 중" / "이 카드 매수 호가" 박스는 HogaBoard로 대체됨 (2026-05-18).
+        // _buildListingsSection / _buildBuyOrdersSection 호출 제거.
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
   }

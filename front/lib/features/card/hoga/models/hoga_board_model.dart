@@ -1,7 +1,9 @@
-/// 호가창 상태 필터 (back HogaStatus와 1:1).
+/// 호가창 1단 chip 상태 (back HogaStatus와 1:1).
+///
+/// PSA/BRG는 [HogaGrade] 2단 chip으로 추가 좁힘.
 enum HogaStatus {
   raw('RAW'),
-  psa10('PSA10'),
+  psa('PSA'),
   brg('BRG');
 
   final String wire;
@@ -15,9 +17,22 @@ enum HogaStatus {
 
   String get label => switch (this) {
         HogaStatus.raw => 'RAW',
-        HogaStatus.psa10 => 'PSA 10',
+        HogaStatus.psa => 'PSA',
         HogaStatus.brg => 'BRG',
       };
+
+  bool get requiresGrade => this == HogaStatus.psa || this == HogaStatus.brg;
+}
+
+/// 2단 chip — PSA/BRG 등급 (10 / 9). RAW에는 사용 안 함.
+enum HogaGrade {
+  ten('10'),
+  nine('9');
+
+  final String wire;
+  const HogaGrade(this.wire);
+
+  String get label => wire;
 }
 
 /// ASK = 매도(파랑) / BID = 매수(초록).
@@ -29,7 +44,7 @@ enum HogaSide {
   const HogaSide(this.wire);
 }
 
-/// 호가창 한 행 — 가격 + 등록 건수 + 잔량 막대 비율.
+/// 호가창 한 행.
 class HogaLevel {
   final int price;
   final int count;

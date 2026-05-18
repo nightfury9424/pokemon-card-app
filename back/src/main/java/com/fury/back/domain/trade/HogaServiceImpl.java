@@ -30,10 +30,10 @@ public class HogaServiceImpl implements HogaService {
     private final UserRepository userRepository;
 
     @Override
-    public HogaBoardResponse getBoard(String cardId, HogaStatus status, int limit) {
+    public HogaBoardResponse getBoard(String cardId, HogaStatus status, String grade, int limit) {
         String cardStatus = status.dbCardStatus();
         String gradingCompany = status.dbGradingCompany();
-        String gradeValue = status.dbGradeValue();
+        String gradeValue = status.requiresGrade() ? grade : null;
 
         List<HogaLevelDto> rawAsks =
                 tradePostRepository.findHogaLevels(cardId, cardStatus, gradingCompany, gradeValue);
@@ -76,10 +76,10 @@ public class HogaServiceImpl implements HogaService {
 
     @Override
     public HogaListingsResponse getListingsAtPrice(
-            String cardId, HogaStatus status, HogaSide side, long price) {
+            String cardId, HogaStatus status, String grade, HogaSide side, long price) {
         String cardStatus = status.dbCardStatus();
         String gradingCompany = status.dbGradingCompany();
-        String gradeValue = status.dbGradeValue();
+        String gradeValue = status.requiresGrade() ? grade : null;
         Integer priceI = Math.toIntExact(price);
 
         List<HogaListingResponse> listings;
@@ -144,7 +144,7 @@ public class HogaServiceImpl implements HogaService {
     private HogaStatusValue toStatusValue(HogaStatus status) {
         return switch (status) {
             case RAW -> HogaStatusValue.RAW;
-            case PSA10 -> HogaStatusValue.PSA10;
+            case PSA -> HogaStatusValue.PSA;
             case BRG -> HogaStatusValue.BRG;
         };
     }

@@ -7,7 +7,7 @@ import 'hoga_summary_row.dart';
 import 'models/hoga_board_model.dart';
 import 'services/hoga_api.dart';
 
-typedef HogaRowTap = void Function(int price, HogaSide side, HogaStatus status);
+typedef HogaRowTap = void Function(int price, HogaSide side, HogaStatus status, HogaGrade? grade);
 
 /// PokeFolio 호가창 메인 위젯.
 ///
@@ -43,19 +43,27 @@ class HogaBoard extends StatefulWidget {
 
 class _HogaBoardState extends State<HogaBoard> {
   HogaStatus _status = HogaStatus.raw;
-  final Map<HogaStatus, Future<HogaBoardData>> _cache = {};
+  HogaGrade? _grade; // PSA/BRG일 때만 사용
 
-  Future<HogaBoardData> _load(HogaStatus status) =>
-      _cache.putIfAbsent(status, () => HogaApi.fetchBoard(widget.cardId, status: status));
+  String _cacheKey(HogaStatus s, HogaGrade? g) => s.requiresGrade ? '${s.wire}_${g?.wire ?? "10"}' : s.wire;
+  final Map<String, Future<HogaBoardData>> _cache = {};
+
+  Future<HogaBoardData> _load(HogaStatus status, HogaGrade? grade) {
+    final key = _cacheKey(status, grade);
+    return _cache.putIfAbsent(
+      key,
+      () => HogaApi.fetchBoard(widget.cardId, status: status, grade: grade),
+    );
+  }
 
   void _retry() {
-    setState(() => _cache.remove(_status));
+    setState(() => _cache.remove(_cacheKey(_status, _grade)));
   }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<HogaBoardData>(
-      future: _load(_status),
+      future: _load(_status, _grade),
       builder: (ctx, snap) {
         return Container(
           decoration: BoxDecoration(
@@ -67,18 +75,21 @@ class _HogaBoardState extends State<HogaBoard> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // status chip (항상 표시)
+              // 1단 + 2단 chip
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: HogaStatusChipBar(
-                  selected: _status,
-                  onChanged: (s) {
-                    if (s != _status) setState(() => _status = s);
+                  selectedStatus: _status,
+                  selectedGrade: _grade,
+                  onChanged: (s, g) {
+                    setState(() {
+                      _status = s;
+                      _grade = g;
+                    });
                   },
                 ),
               ),
               const SizedBox(height: 10),
-              // 본문 (loading / error / content)
               if (snap.connectionState == ConnectionState.waiting)
                 _loading()
               else if (snap.hasError)
@@ -198,7 +209,7 @@ class _HogaBoardState extends State<HogaBoard> {
             highlight: lowestAsk != null && ask.price == lowestAsk,
             onTap: widget.onRowTap == null
                 ? null
-                : () => widget.onRowTap!(ask.price, HogaSide.ask, _status),
+                : () => widget.onRowTap!(ask.price, HogaSide.ask, _status, _grade),
           ),
         HogaPivotRow(marketPrice: board.marketPrice, tickUnit: board.tickUnit),
         for (final bid in bids)
@@ -208,7 +219,7 @@ class _HogaBoardState extends State<HogaBoard> {
             highlight: highestBid != null && bid.price == highestBid,
             onTap: widget.onRowTap == null
                 ? null
-                : () => widget.onRowTap!(bid.price, HogaSide.bid, _status),
+                : () => widget.onRowTap!(bid.price, HogaSide.bid, _status, _grade),
           ),
       ],
     );

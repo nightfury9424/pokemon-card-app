@@ -1,20 +1,22 @@
 package com.fury.back.domain.trade;
 
 /**
- * 호가창 상태 필터 (1차: RAW / PSA10 / BRG).
+ * 호가창 1단 chip 상태 (2026-05-18: PSA/BRG 등급은 별도 param으로 분리).
  *
- * <p>UI chip 단위로 호가 데이터를 분리한다. CGC/BGS는 미지원 (2026-05-18 정책).
+ * <p>UI chip 단위: RAW / PSA / BRG. CGC/BGS 미지원.
+ *
+ * <p>PSA/BRG 선택 시 2단 등급 chip [10] [9]로 추가 좁힘. 등급은 {@code grade} query param.
  *
  * <p>DB 매핑:
  * <ul>
- *   <li>RAW   = card_status='RAW'</li>
- *   <li>PSA10 = card_status='GRADED' AND grading_company='PSA' AND grade_value='10'</li>
- *   <li>BRG   = card_status='GRADED' AND grading_company='BRG' (grade_value 무관)</li>
+ *   <li>RAW = card_status='RAW'</li>
+ *   <li>PSA = card_status='GRADED' AND grading_company='PSA' (+ grade_value)</li>
+ *   <li>BRG = card_status='GRADED' AND grading_company='BRG' (+ grade_value)</li>
  * </ul>
  */
 public enum HogaStatus {
     RAW,
-    PSA10,
+    PSA,
     BRG;
 
     public String dbCardStatus() {
@@ -25,13 +27,13 @@ public enum HogaStatus {
     public String dbGradingCompany() {
         return switch (this) {
             case RAW -> null;
-            case PSA10 -> "PSA";
+            case PSA -> "PSA";
             case BRG -> "BRG";
         };
     }
 
-    /** null 이면 grade_value 무관(=RAW, BRG 케이스). */
-    public String dbGradeValue() {
-        return this == PSA10 ? "10" : null;
+    /** 이 status가 별도 grade param을 요구하는지. */
+    public boolean requiresGrade() {
+        return this == PSA || this == BRG;
     }
 }

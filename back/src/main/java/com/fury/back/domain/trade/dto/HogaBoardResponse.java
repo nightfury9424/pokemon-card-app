@@ -33,7 +33,7 @@ public record HogaBoardResponse(
     /** JSON 직렬화용 status enum 별칭 (외부 노출 안전성). */
     public enum HogaStatusValue {
         RAW,
-        PSA10,
+        PSA,
         BRG
     }
 }
