@@ -1119,10 +1119,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     label: '스캔으로 추가',
                     icon: Icons.camera_alt_outlined,
                     onTap: () async {
+                      // Phase 6: 스캔 후 자동 복귀 + 통합 refresh + green banner.
+                      // ScannerScreen 은 expectedCardId 검증 + 등록 후 pop(true) 패턴 이미 구현됨.
                       final result = await context.push<bool>(
                         '/scanner?expectedCardId=${widget.cardId}',
                       );
-                      if (result == true) _loadData();
+                      if (result == true && mounted) {
+                        await _refreshAfterOrderMutation();
+                        _showSuccessBanner('자산이 등록되었습니다');
+                      }
                     },
                   ),
                   const SizedBox(height: 12),
