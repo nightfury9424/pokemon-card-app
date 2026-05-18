@@ -1,12 +1,14 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/thousands_comma_formatter.dart';
 import '../../core/widgets/card_image.dart';
 
 class _TradePhoto {
@@ -88,7 +90,8 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
     super.initState();
     if (widget.defaultPrice != null && widget.defaultPrice! > 0) {
       // 호출자(_onSellTap)에서 이미 tick floor 처리. 100원 재-round 제거 (Codex 즉시수정).
-      _priceCtrl.text = widget.defaultPrice!.toString();
+      // 천 단위 콤마 포맷 적용 — card_detail의 매수 등록/수정 sheet와 동일 UX.
+      _priceCtrl.text = formatThousands(widget.defaultPrice!);
     }
     if (widget.assetId != null) _loadAssetImages(widget.assetId!);
   }
@@ -615,6 +618,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
               '판매 가격을 입력해주세요',
               keyboardType: TextInputType.number,
               suffix: '원',
+              inputFormatters: [ThousandsCommaFormatter()],
             ),
 
             const SizedBox(height: 16),
@@ -818,11 +822,13 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
     int maxLines = 1,
     TextInputType? keyboardType,
     String? suffix,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextField(
       controller: ctrl,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
       decoration: InputDecoration(
         hintText: hint,

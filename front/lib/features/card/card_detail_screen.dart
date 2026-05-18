@@ -37,6 +37,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   late TabController _tabController;
   // 차트 위에서 시작된 swipe를 TabBarView가 못 받게 — Listener로 PointerDown 위치 detect.
   final GlobalKey _chartKey = GlobalKey();
+  // NestedScrollView outer controller 접근용 — 자산 X 판매 시도 시 헤더 collapse로 탭 body 노출.
+  final GlobalKey<NestedScrollViewState> _nestedKey = GlobalKey<NestedScrollViewState>();
   bool _swipeLockedByChart = false;
 
   bool _loading = true;
@@ -799,6 +801,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     double heroExpandedHeight,
   ) {
     return NestedScrollView(
+        key: _nestedKey,
         headerSliverBuilder: (ctx, innerBoxIsScrolled) => [
           SliverOverlapAbsorber(
             handle: NestedScrollView.sliverOverlapAbsorberHandleFor(ctx),
@@ -3706,10 +3709,24 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   ) async {
     final asset = _localAsset ?? widget.myAsset;
     if (asset == null) {
-      // 자산 X — 내 자산 탭으로 이동. 빈 상태 UI 가 "스캔으로 추가" 안내.
+      // 자산 X — 내 자산 탭 이동 + outer scroll collapse + 안내 banner.
+      // 사용자 피드백 (2026-05-19): 탭만 이동하면 카드 이미지 위에 머물러 빈 상태 UI 안 보임.
       if (_tabController.index != 2) {
         _tabController.animateTo(2);
       }
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        if (!mounted) return;
+        final outer = _nestedKey.currentState?.outerController;
+        if (outer != null && outer.hasClients) {
+          outer.animateTo(
+            outer.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+      _showSuccessBanner('판매하려면 먼저 자산 등록이 필요해요');
       return;
     }
     final activeTradeId = asset['activeTradeId'] as String?;

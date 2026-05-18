@@ -416,6 +416,13 @@ class _ScannerScreenState extends State<ScannerScreen>
                 ),
               );
               _dismissResult();
+
+              // Phase 6: 카드 상세에서 expectedCardId로 진입한 경우 등록 직후 자동 복귀.
+              // 일반 흐름(expectedCardId == null)에는 영향 없음. return으로 후속 setState/snackbar 차단.
+              if (widget.expectedCardId != null && mounted) {
+                context.pop(true);
+                return;
+              }
             } catch (_) {
               if (!ctx.mounted) return;
               setModal(() => submitting = false);
