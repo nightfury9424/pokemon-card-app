@@ -6,7 +6,7 @@ typedef HogaStatusChanged = void Function(HogaStatus status, HogaGrade? grade);
 
 /// 2단 chip — RAW / PSA / BRG, PSA·BRG 선택 시 [10] [9] sub-row 등장.
 ///
-/// 정책: CGC/BGS 미지원. 등급 10, 9만 (PSA 9 미만 제외).
+/// 코인 호가창 스타일 — compact. CGC/BGS 미지원, PSA 9 미만 1차 제외.
 class HogaStatusChipBar extends StatelessWidget {
   final HogaStatus selectedStatus;
   final HogaGrade? selectedGrade;
@@ -30,13 +30,12 @@ class HogaStatusChipBar extends StatelessWidget {
           children: HogaStatus.values.map((s) {
             final isSel = s == selectedStatus;
             return Padding(
-              padding: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsets.only(right: 4),
               child: _Chip(
                 label: s.label,
                 isSelected: isSel,
                 onTap: () {
                   if (s == selectedStatus) return;
-                  // PSA/BRG 선택 시 자동으로 grade 10 기본값.
                   final defaultGrade =
                       s.requiresGrade ? (selectedGrade ?? HogaGrade.ten) : null;
                   onChanged(s, defaultGrade);
@@ -46,12 +45,12 @@ class HogaStatusChipBar extends StatelessWidget {
           }).toList(),
         ),
         if (needsGrade) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Row(
             children: HogaGrade.values.map((g) {
               final isSel = g == selectedGrade;
               return Padding(
-                padding: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.only(right: 4),
                 child: _Chip(
                   label: g.label,
                   isSelected: isSel,
@@ -90,12 +89,12 @@ class _Chip extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         padding: EdgeInsets.symmetric(
-          horizontal: small ? 12 : 14,
-          vertical: small ? 6 : 7,
+          horizontal: small ? 9 : 11,
+          vertical: small ? 4 : 5,
         ),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.blueDeep : AppColors.surface,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isSelected ? AppColors.blue : AppColors.divider,
           ),
@@ -104,7 +103,7 @@ class _Chip extends StatelessWidget {
           label,
           style: TextStyle(
             color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-            fontSize: small ? 12 : 13,
+            fontSize: small ? 11 : 12,
             fontWeight: FontWeight.w700,
           ),
         ),

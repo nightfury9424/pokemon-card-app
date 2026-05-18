@@ -9,20 +9,9 @@ import 'services/hoga_api.dart';
 
 typedef HogaRowTap = void Function(int price, HogaSide side, HogaStatus status, HogaGrade? grade);
 
-/// PokeFolio 호가창 메인 위젯.
+/// PokeFolio 호가창 메인 위젯 — 코인/주식 호가창 스타일 컴팩트 표.
 ///
-/// 카드 상세에서 사용: `HogaBoard(cardId: card.cardId, onRowTap: ..., onAskRegister: ..., onBidRegister: ...)`
-///
-/// 1차 출시 (Phase D):
-/// - status chip (RAW / PSA10 / BRG)
-/// - summary (lowest ask / highest bid / spread / counts)
-/// - ASK section (위, 파랑, 가격 내림차순)
-/// - pivot row (기준가 + tick unit)
-/// - BID section (아래, 초록, 가격 내림차순)
-/// - empty state CTA
-/// - loading / error / retry
-/// - row tap callback (Phase E에서 하단시트 연결)
-/// - register callback (Phase F에서 등록 모달 연결)
+/// 외곽 카드 박스 없음. row 중심.
 class HogaBoard extends StatefulWidget {
   final String cardId;
   final HogaRowTap? onRowTap;
@@ -43,9 +32,10 @@ class HogaBoard extends StatefulWidget {
 
 class _HogaBoardState extends State<HogaBoard> {
   HogaStatus _status = HogaStatus.raw;
-  HogaGrade? _grade; // PSA/BRG일 때만 사용
+  HogaGrade? _grade;
 
-  String _cacheKey(HogaStatus s, HogaGrade? g) => s.requiresGrade ? '${s.wire}_${g?.wire ?? "10"}' : s.wire;
+  String _cacheKey(HogaStatus s, HogaGrade? g) =>
+      s.requiresGrade ? '${widget.cardId}_${s.wire}_${g?.wire ?? "10"}' : '${widget.cardId}_${s.wire}';
   final Map<String, Future<HogaBoardData>> _cache = {};
 
   Future<HogaBoardData> _load(HogaStatus status, HogaGrade? grade) {
@@ -61,66 +51,64 @@ class _HogaBoardState extends State<HogaBoard> {
   }
 
   @override
+  void didUpdateWidget(covariant HogaBoard old) {
+    super.didUpdateWidget(old);
+    if (old.cardId != widget.cardId) {
+      _cache.clear();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<HogaBoardData>(
       future: _load(_status, _grade),
       builder: (ctx, snap) {
-        return Container(
-          decoration: BoxDecoration(
-            color: AppColors.surfaceElevated,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1단 + 2단 chip
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: HogaStatusChipBar(
-                  selectedStatus: _status,
-                  selectedGrade: _grade,
-                  onChanged: (s, g) {
-                    setState(() {
-                      _status = s;
-                      _grade = g;
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (snap.connectionState == ConnectionState.waiting)
-                _loading()
-              else if (snap.hasError)
-                _error(snap.error)
-              else
-                _content(snap.data!),
-            ],
-          ),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // chip
+            HogaStatusChipBar(
+              selectedStatus: _status,
+              selectedGrade: _grade,
+              onChanged: (s, g) {
+                setState(() {
+                  _status = s;
+                  _grade = g;
+                });
+              },
+            ),
+            const SizedBox(height: 8),
+            if (snap.connectionState == ConnectionState.waiting)
+              _loading()
+            else if (snap.hasError)
+              _error(snap.error)
+            else
+              _content(snap.data!),
+          ],
         );
       },
     );
   }
 
   Widget _loading() => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 36),
-        child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))),
+        padding: EdgeInsets.symmetric(vertical: 28),
+        child: Center(
+          child: SizedBox(
+            width: 20, height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
       );
 
   Widget _error(Object? e) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 18),
         child: Center(
           child: Column(
             children: [
               const Text('호가를 불러오지 못했습니다.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               const SizedBox(height: 4),
-              Text('$e',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
-              const SizedBox(height: 8),
               TextButton(onPressed: _retry, child: const Text('재시도')),
             ],
           ),
@@ -132,96 +120,138 @@ class _HogaBoardState extends State<HogaBoard> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: HogaSummaryRow(board: board),
+        HogaSummaryRow(board: board),
+        const SizedBox(height: 6),
+        // 호가창 row 묶음 (외곽 박스 없이 표처럼)
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.divider, width: 0.6),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: _tableRows(board),
+          ),
         ),
         const SizedBox(height: 10),
-        if (board.isEmpty) _emptyState() else _rows(board),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: [
-              Expanded(
+        // 등록 버튼 — 가볍게
+        Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 34,
                 child: OutlinedButton(
                   onPressed: widget.onAskRegister,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.blue,
-                    side: const BorderSide(color: AppColors.blue),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    side: const BorderSide(color: AppColors.blue, width: 1),
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
-                  child: const Text('판매 호가 등록'),
+                  child: const Text('판매 호가 등록',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: SizedBox(
+                height: 34,
                 child: ElevatedButton(
                   onPressed: widget.onBidRegister,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.green,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
-                  child: const Text('매수 호가 등록'),
+                  child: const Text('매수 호가 등록',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _emptyState() => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 12),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.swap_vert_rounded, color: AppColors.textMuted, size: 36),
-              const SizedBox(height: 10),
-              const Text(
-                '아직 등록된 호가가 없습니다.',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                '첫 번째 판매자/매수자가 되어보세요.',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-              ),
-            ],
-          ),
-        ),
-      );
-
-  Widget _rows(HogaBoardData board) {
-    final asks = board.asks; // 가격 내림차순. 위쪽이 비싼 매도.
-    final bids = board.bids; // 가격 내림차순. 위쪽이 비싼 매수.
+  /// 호가창 표 행들. 빈 상태도 표 안에서 처리.
+  List<Widget> _tableRows(HogaBoardData board) {
     final lowestAsk = board.lowestAsk;
     final highestBid = board.highestBid;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final ask in asks)
-          HogaRow(
-            level: ask,
-            side: HogaSide.ask,
-            highlight: lowestAsk != null && ask.price == lowestAsk,
-            onTap: widget.onRowTap == null
-                ? null
-                : () => widget.onRowTap!(ask.price, HogaSide.ask, _status, _grade),
+    final rows = <Widget>[];
+
+    // 매도 라벨
+    rows.add(_sectionLabel('매도', AppColors.blue, board.askCount));
+
+    if (board.asks.isEmpty) {
+      rows.add(_emptyMini('매도 호가 없음'));
+    } else {
+      for (final ask in board.asks) {
+        rows.add(HogaRow(
+          level: ask,
+          side: HogaSide.ask,
+          highlight: lowestAsk != null && ask.price == lowestAsk,
+          onTap: widget.onRowTap == null
+              ? null
+              : () => widget.onRowTap!(ask.price, HogaSide.ask, _status, _grade),
+        ));
+      }
+    }
+
+    rows.add(HogaPivotRow(marketPrice: board.marketPrice, tickUnit: board.tickUnit));
+
+    // 매수 라벨
+    rows.add(_sectionLabel('매수', AppColors.green, board.bidCount));
+
+    if (board.bids.isEmpty) {
+      rows.add(_emptyMini('매수 호가 없음'));
+    } else {
+      for (final bid in board.bids) {
+        rows.add(HogaRow(
+          level: bid,
+          side: HogaSide.bid,
+          highlight: highestBid != null && bid.price == highestBid,
+          onTap: widget.onRowTap == null
+              ? null
+              : () => widget.onRowTap!(bid.price, HogaSide.bid, _status, _grade),
+        ));
+      }
+    }
+
+    return rows;
+  }
+
+  Widget _sectionLabel(String label, Color color, int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        border: const Border(bottom: BorderSide(color: AppColors.dividerSoft, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.6),
           ),
-        HogaPivotRow(marketPrice: board.marketPrice, tickUnit: board.tickUnit),
-        for (final bid in bids)
-          HogaRow(
-            level: bid,
-            side: HogaSide.bid,
-            highlight: highestBid != null && bid.price == highestBid,
-            onTap: widget.onRowTap == null
-                ? null
-                : () => widget.onRowTap!(bid.price, HogaSide.bid, _status, _grade),
+          const SizedBox(width: 6),
+          Text(
+            '$count건',
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w700),
           ),
-      ],
+        ],
+      ),
     );
   }
+
+  Widget _emptyMini(String msg) => Container(
+        height: 30,
+        alignment: Alignment.center,
+        child: Text(
+          msg,
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+        ),
+      );
 }
