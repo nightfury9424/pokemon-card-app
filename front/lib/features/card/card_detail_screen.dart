@@ -12,6 +12,7 @@ import '../../core/widgets/rarity_aura.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
 import 'hoga/hoga_board.dart';
+import 'hoga/hoga_row_detail_sheet.dart';
 
 class CardDetailScreen extends StatefulWidget {
   final String cardId;
@@ -931,12 +932,14 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             child: HogaBoard(
               cardId: widget.cardId,
               onRowTap: (price, side, status, grade) {
-                // Phase E: 하단시트 (가격별 등록자 리스트)
-                final label = grade == null ? status.label : '${status.label} ${grade.label}';
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('호가 클릭: $label ${side.name.toUpperCase()} $price원 (Phase E에서 하단시트 연결 예정)'),
-                  duration: const Duration(seconds: 2),
-                ));
+                HogaRowDetailSheet.show(
+                  context,
+                  cardId: widget.cardId,
+                  status: status,
+                  grade: grade,
+                  side: side,
+                  price: price,
+                );
               },
               onAskRegister: () {
                 // Phase F: 판매 호가 등록 모달

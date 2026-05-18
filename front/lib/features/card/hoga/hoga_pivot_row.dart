@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import 'utils/hoga_format.dart';
 
-/// 호가창 중앙 기준가 행. ASK와 BID 사이.
-///
-/// 1차 기준가 = backend marketPrice (mid(lowestAsk, highestBid) fallback).
-/// 추후 KO 추정가로 교체 예정 (CODEX_PLAN.md TODO).
+/// 호가창 중앙 기준가 행. ASK와 BID 사이 — 코인 호가창 pivot 느낌.
 class HogaPivotRow extends StatelessWidget {
   final int? marketPrice;
   final int tickUnit;
@@ -19,8 +16,8 @@ class HogaPivotRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(
           top: BorderSide(color: AppColors.divider, width: 1),
@@ -28,24 +25,35 @@ class HogaPivotRow extends StatelessWidget {
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const Text(
             '기준가',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
           ),
           const SizedBox(width: 10),
           Text(
             marketPrice == null ? '—' : formatKrw(marketPrice!),
             style: const TextStyle(
               color: AppColors.textPrimary,
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.w900,
+              letterSpacing: -0.4,
             ),
           ),
           const Spacer(),
           Text(
             '1tick ${formatKrw(tickUnit)}',
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

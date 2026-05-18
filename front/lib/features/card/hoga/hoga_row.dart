@@ -3,9 +3,10 @@ import '../../../core/theme/app_colors.dart';
 import 'models/hoga_board_model.dart';
 import 'utils/hoga_format.dart';
 
-/// 호가창 단일 행 — 가격 + 등록 건수 + 잔량 막대(barRatio).
+/// 호가창 단일 행 — 가격 + count + barRatio.
 ///
-/// 색상: ASK=파랑(좌측 정렬), BID=초록(우측 정렬). Red 금지.
+/// 코인 거래소 스타일: 컴팩트 row, 막대는 row 배경에 옅게.
+/// ASK = 파랑, BID = 초록. Red 금지.
 class HogaRow extends StatelessWidget {
   final HogaLevel level;
   final HogaSide side;
@@ -27,18 +28,11 @@ class HogaRow extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      child: Container(
-        height: 36,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: highlight ? color.withValues(alpha: 0.05) : null,
-          border: Border(
-            bottom: BorderSide(color: AppColors.dividerSoft, width: 0.5),
-          ),
-        ),
+      child: SizedBox(
+        height: 30,
         child: Stack(
           children: [
-            // 잔량 막대 (배경)
+            // 막대 (배경) — count 비율만큼 row 안쪽 채움
             Positioned.fill(
               child: Align(
                 alignment: side == HogaSide.ask
@@ -47,37 +41,41 @@ class HogaRow extends StatelessWidget {
                 child: FractionallySizedBox(
                   widthFactor: bgRatio,
                   child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    margin: const EdgeInsets.symmetric(vertical: 3),
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(3),
+                      color: color.withValues(alpha: highlight ? 0.28 : 0.20),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                 ),
               ),
             ),
             // 가격 + count
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    formatKrw(level.price),
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 14,
-                      fontWeight: highlight ? FontWeight.w900 : FontWeight.w700,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      formatKrw(level.price),
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 13,
+                        fontWeight: highlight ? FontWeight.w900 : FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
                     ),
                   ),
-                ),
-                Text(
-                  '${level.count}건',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                  Text(
+                    '${level.count}건',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
