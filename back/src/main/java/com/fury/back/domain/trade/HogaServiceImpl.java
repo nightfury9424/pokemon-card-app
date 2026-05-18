@@ -97,7 +97,8 @@ public class HogaServiceImpl implements HogaService {
                             t.getCreatedAt(),
                             t.getAssetId(),
                             t.getTradeId(),
-                            null))
+                            null,
+                            t.getImageUrl()))
                     .toList();
         } else {
             List<BuyOrder> rows =
@@ -113,7 +114,8 @@ public class HogaServiceImpl implements HogaService {
                             b.getCreatedAt(),
                             null,
                             null,
-                            b.getBuyOrderId()))
+                            b.getBuyOrderId(),
+                            null))
                     .toList();
         }
 

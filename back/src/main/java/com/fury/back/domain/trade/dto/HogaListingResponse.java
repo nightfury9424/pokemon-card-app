@@ -22,4 +22,5 @@ public record HogaListingResponse(
         LocalDateTime createdAt,
         String assetId,
         String tradeId,
-        String buyOrderId) {}
+        String buyOrderId,
+        String tradeImageUrl) {}

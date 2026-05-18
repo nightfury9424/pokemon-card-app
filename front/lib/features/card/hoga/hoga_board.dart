@@ -8,6 +8,7 @@ import 'models/hoga_board_model.dart';
 import 'services/hoga_api.dart';
 
 typedef HogaRowTap = void Function(int price, HogaSide side, HogaStatus status, HogaGrade? grade);
+typedef HogaCountsChanged = void Function(int askCount, int bidCount);
 
 /// PokeFolio 호가창 메인 위젯 — 코인/주식 호가창 스타일 컴팩트 표.
 ///
@@ -17,6 +18,8 @@ class HogaBoard extends StatefulWidget {
   final HogaRowTap? onRowTap;
   final VoidCallback? onAskRegister;
   final VoidCallback? onBidRegister;
+  /// chip 기준 카운트가 갱신될 때 호출 — 카드 상세 헤더와 동기화 용.
+  final HogaCountsChanged? onCountsChanged;
 
   const HogaBoard({
     super.key,
@@ -24,6 +27,7 @@ class HogaBoard extends StatefulWidget {
     this.onRowTap,
     this.onAskRegister,
     this.onBidRegister,
+    this.onCountsChanged,
   });
 
   @override
@@ -116,11 +120,27 @@ class _HogaBoardState extends State<HogaBoard> {
       );
 
   Widget _content(HogaBoardData board) {
+    // 카운트 변경을 부모에게 전파 (build 직후 안전한 콜백).
+    final cb = widget.onCountsChanged;
+    if (cb != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        cb(board.askCount, board.bidCount);
+      });
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
         HogaSummaryRow(board: board),
+        const SizedBox(height: 4),
+        // row 클릭 안내 (작게)
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 2),
+          child: Text(
+            '호가를 누르면 등록자 목록을 볼 수 있어요.',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+          ),
+        ),
         const SizedBox(height: 6),
         // 호가창 row 묶음 (외곽 박스 없이 표처럼)
         Container(

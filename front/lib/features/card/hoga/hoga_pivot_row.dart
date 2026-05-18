@@ -28,7 +28,7 @@ class HogaPivotRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const Text(
-            '기준가',
+            '중간가',
             style: TextStyle(
               color: AppColors.textMuted,
               fontSize: 10,

@@ -43,7 +43,7 @@ class HogaRow extends StatelessWidget {
                   child: Container(
                     margin: const EdgeInsets.symmetric(vertical: 3),
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: highlight ? 0.28 : 0.20),
+                      color: color.withValues(alpha: highlight ? 0.22 : 0.14),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),

@@ -7,9 +7,10 @@ class HogaListing {
   final int price;
   final String? memo;
   final DateTime createdAt;
-  final String? assetId;      // ASK 만
-  final String? tradeId;      // ASK 만
-  final String? buyOrderId;   // BID 만
+  final String? assetId;        // ASK 만
+  final String? tradeId;        // ASK 만
+  final String? buyOrderId;     // BID 만
+  final String? tradeImageUrl;  // ASK 사용자 업로드 사진 (nullable)
 
   const HogaListing({
     required this.userId,
@@ -20,6 +21,7 @@ class HogaListing {
     required this.assetId,
     required this.tradeId,
     required this.buyOrderId,
+    required this.tradeImageUrl,
   });
 
   factory HogaListing.fromJson(Map<String, dynamic> json) => HogaListing(
@@ -31,6 +33,7 @@ class HogaListing {
         assetId: json['assetId'] as String?,
         tradeId: json['tradeId'] as String?,
         buyOrderId: json['buyOrderId'] as String?,
+        tradeImageUrl: json['tradeImageUrl'] as String?,
       );
 
   /// 채팅 자동 생성에 필요한 saleListingId (ASK일 때만 유효).

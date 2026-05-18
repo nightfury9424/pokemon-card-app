@@ -43,6 +43,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   Map<String, dynamic>? _localAsset;
   List<Map<String, dynamic>> _listings = [];
   List<Map<String, dynamic>> _buyOrders = [];  // 4차-Round4-4 Phase 2: 매수 호가
+  // HogaBoard chip 기준 카운트 동기화 (2026-05-18). null = 아직 미수신 (헤더는 전체값 fallback).
+  int? _hogaAskCount;
+  int? _hogaBidCount;
   String _selectedMarket = 'KO';
   String _selectedGlobalGrade = 'RAW';
 
@@ -931,6 +934,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: HogaBoard(
               cardId: widget.cardId,
+              onCountsChanged: (ask, bid) {
+                if (mounted &&
+                    (_hogaAskCount != ask || _hogaBidCount != bid)) {
+                  setState(() {
+                    _hogaAskCount = ask;
+                    _hogaBidCount = bid;
+                  });
+                }
+              },
               onRowTap: (price, side, status, grade) {
                 HogaRowDetailSheet.show(
                   context,
@@ -968,8 +980,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   /// 호가창 상단 — 현재가 + 매도/매수 카운트 한 줄
   Widget _buildOrderBookHeader() {
     final koMid = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
-    final sellCount = _listings.length;
-    final buyCount = _buyOrders.length;
+    // 호가창 chip 기준 카운트 우선. HogaBoard에서 setState로 받음.
+    final sellCount = _hogaAskCount ?? _listings.length;
+    final buyCount = _hogaBidCount ?? _buyOrders.length;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(

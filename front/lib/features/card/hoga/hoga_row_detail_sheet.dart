@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/card_image.dart';
 import 'models/hoga_board_model.dart';
 import 'models/hoga_listing_model.dart';
 import 'services/hoga_api.dart';
@@ -186,6 +188,7 @@ class _HogaRowDetailSheetState extends State<HogaRowDetailSheet> {
                   ),
                   itemBuilder: (_, i) => _ListingTile(
                     listing: data.listings[i],
+                    cardId: widget.cardId,
                     side: widget.side,
                     color: color,
                   ),
@@ -201,11 +204,13 @@ class _HogaRowDetailSheetState extends State<HogaRowDetailSheet> {
 
 class _ListingTile extends StatelessWidget {
   final HogaListing listing;
+  final String cardId;
   final HogaSide side;
   final Color color;
 
   const _ListingTile({
     required this.listing,
+    required this.cardId,
     required this.side,
     required this.color,
   });
@@ -226,30 +231,39 @@ class _ListingTile extends StatelessWidget {
         : listing.nickname!;
     final hasMemo = listing.memo != null && listing.memo!.trim().isNotEmpty;
 
+    final bool isAsk = side == HogaSide.ask;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // 프로필 (이니셜)
-          Container(
-            width: 38, height: 38,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(19),
-              border: Border.all(color: color.withValues(alpha: 0.4)),
-            ),
-            child: Center(
-              child: Text(
-                nick.characters.first,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
+          // ASK: 카드 이미지 썸네일 (사용자 업로드 → fallback 카드 기본 이미지)
+          // BID: 프로필 이니셜
+          if (isAsk)
+            _AskThumbnail(
+              tradeImageUrl: listing.tradeImageUrl,
+              cardId: cardId,
+              borderColor: color,
+            )
+          else
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: color.withValues(alpha: 0.4)),
+              ),
+              child: Center(
+                child: Text(
+                  nick.characters.first,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ),
-          ),
           const SizedBox(width: 12),
           // 닉네임 + 메모 + 시각
           Expanded(
@@ -288,39 +302,78 @@ class _ListingTile extends StatelessWidget {
               ],
             ),
           ),
-          // 채팅 버튼 (ASK만 — Phase E TODO: BID는 다른 흐름)
-          if (side == HogaSide.ask)
-            TextButton.icon(
-              onPressed: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('$nick 와(과) 채팅 — Phase E TODO (ChatService.getOrCreateRoom)'),
-                  duration: const Duration(seconds: 2),
-                ));
-              },
-              icon: const Icon(Icons.chat_bubble_outline, size: 16),
-              label: const Text('채팅', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-              style: TextButton.styleFrom(
-                foregroundColor: color,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              ),
-            )
-          else
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('매수 호가 연결 — 1차는 알림만 (옵션 A)'),
-                  duration: Duration(seconds: 2),
-                ));
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: color,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              ),
-              child: const Text('판매 등록', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+          // 채팅 버튼 — ASK는 판매자 채팅, BID는 매수자 채팅 (둘 다 채팅 흐름)
+          TextButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(
+                  isAsk
+                      ? '$nick 판매자와 채팅 — Phase F에서 ChatService 연결'
+                      : '$nick 매수자와 채팅 — Phase F에서 ChatRoom 확장 + 연결',
+                ),
+                duration: const Duration(seconds: 2),
+              ));
+            },
+            icon: const Icon(Icons.chat_bubble_outline, size: 16),
+            label: const Text('채팅', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+            style: TextButton.styleFrom(
+              foregroundColor: color,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// ASK 호가 row 썸네일 — 사용자 업로드 → fallback 카드 기본 이미지.
+class _AskThumbnail extends StatelessWidget {
+  final String? tradeImageUrl;
+  final String cardId;
+  final Color borderColor;
+
+  const _AskThumbnail({
+    required this.tradeImageUrl,
+    required this.cardId,
+    required this.borderColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final base = ApiConstants.baseUrl;
+    final url = (tradeImageUrl != null && tradeImageUrl!.isNotEmpty)
+        ? (tradeImageUrl!.startsWith('http') ? tradeImageUrl! : '$base$tradeImageUrl')
+        : null;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 56, height: 56,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border.all(color: borderColor.withValues(alpha: 0.4)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: url != null
+            ? Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _fallbackCardImage(),
+              )
+            : _fallbackCardImage(),
+      ),
+    );
+  }
+
+  Widget _fallbackCardImage() {
+    // 카드 기본 이미지 (운영 정책: resolveCardImageUrl 우선이지만 cardId만으로는 dict 필요).
+    // 가장 단순한 fallback: scrydex CDN 또는 local /images/cards/{id}.jpg.
+    return Image.network(
+      ApiConstants.cardImageUrl(cardId),
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => const Center(
+        child: Icon(Icons.image_not_supported, color: AppColors.textMuted, size: 20),
       ),
     );
   }
