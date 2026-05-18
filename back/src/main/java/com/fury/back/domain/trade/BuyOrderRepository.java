@@ -19,6 +19,9 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
     /**
      * 호가창 매수 group-by. 같은 cardStatus + grading 필터 + 동일 가격끼리 묶어 count.
      *
+     * <p><b>중요</b>: 호가창은 BuyOrder를 가격별로 묶어 보여주는 read view다.
+     * 별도 Hoga/Orderbook entity를 만들지 말 것. 새 글 객체 도입 금지.
+     *
      * <p>{@code gradingCompany}/{@code gradeValue}가 null이면 해당 필터 무시 (RAW 케이스).
      */
     @Query("""

@@ -45,7 +45,7 @@ public class HogaController {
         HogaStatus parsed = parseStatus(status);
         String parsedGrade = parseGrade(parsed, grade);
         int bound = Math.max(1, Math.min(limit, MAX_LIMIT));
-        return hogaService.getBoard(cardId, parsed, parsedGrade, bound == 0 ? DEFAULT_LIMIT : bound);
+        return hogaService.getBoard(cardId, parsed, parsedGrade, bound);
     }
 
     @GetMapping("/{cardId}/hoga/{price}")

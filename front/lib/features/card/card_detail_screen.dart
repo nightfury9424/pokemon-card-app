@@ -890,6 +890,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   // ─────────────────────────────────────────────
 
   Widget _buildMarketTab(BuildContext ctx) {
+    // 시세 탭 = 시세 차트만. 매도 호가 리스트는 거래 탭의 HogaBoard로 이전 (2026-05-18).
+    // _buildOrderBookSection() 함수는 아직 남아있지만 호출 제거됨.
     return CustomScrollView(
       slivers: [
         SliverOverlapInjector(
@@ -898,13 +900,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-            child: Column(
-              children: [
-                _buildPriceSection(),
-                const SizedBox(height: 16),
-                _buildOrderBookSection(),
-              ],
-            ),
+            child: _buildPriceSection(),
           ),
         ),
       ],
