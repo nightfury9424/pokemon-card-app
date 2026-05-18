@@ -49,7 +49,7 @@ class HogaLevel {
 }
 
 /// 호가창 전체 응답.
-class HogaBoard {
+class HogaBoardData {
   final String cardId;
   final HogaStatus status;
   final int tickUnit;
@@ -61,7 +61,7 @@ class HogaBoard {
   final List<HogaLevel> asks;
   final List<HogaLevel> bids;
 
-  const HogaBoard({
+  const HogaBoardData({
     required this.cardId,
     required this.status,
     required this.tickUnit,
@@ -76,7 +76,7 @@ class HogaBoard {
 
   bool get isEmpty => askCount == 0 && bidCount == 0;
 
-  factory HogaBoard.fromJson(Map<String, dynamic> json) => HogaBoard(
+  factory HogaBoardData.fromJson(Map<String, dynamic> json) => HogaBoardData(
         cardId: json['cardId'] as String,
         status: HogaStatus.fromWire(json['status'] as String),
         tickUnit: (json['tickUnit'] as num).toInt(),

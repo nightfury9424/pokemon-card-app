@@ -12,7 +12,7 @@ class HogaApi {
   HogaApi._();
 
   /// 호가창 (매도 N + 매수 N).
-  static Future<HogaBoard> fetchBoard(
+  static Future<HogaBoardData> fetchBoard(
     String cardId, {
     HogaStatus status = HogaStatus.raw,
     int limit = 5,
@@ -21,7 +21,7 @@ class HogaApi {
       '${ApiConstants.cards}/$cardId/hoga',
       params: {'status': status.wire, 'limit': '$limit'},
     );
-    return HogaBoard.fromJson(res);
+    return HogaBoardData.fromJson(res);
   }
 
   /// 특정 가격 등록자 리스트 (하단시트).
