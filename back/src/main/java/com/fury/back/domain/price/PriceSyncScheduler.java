@@ -1,5 +1,8 @@
 package com.fury.back.domain.price;
 
+import com.fury.back.domain.price.sync.KoEstimatedSyncService;
+import com.fury.back.domain.price.sync.ScrydexSyncService;
+import com.fury.back.domain.price.sync.TriggerSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +32,8 @@ public class PriceSyncScheduler {
     private final CoefficientCache   coefficientCache;
     private final com.fury.back.domain.notification.NotificationService notificationService;
     private final RawPsa10RatioCalculator rawPsa10RatioCalculator;
+    private final ScrydexSyncService scrydexSyncService;
+    private final KoEstimatedSyncService koEstimatedSyncService;
 
     // Option B-lite (2026-05-18): Java recalculateEnJpRatios() 자동 cron 비활성화.
     // RARITY coef 단일 진실원 = Python recalc.py --mode rarity (주1회 월요일 03:00).
@@ -42,9 +47,10 @@ public class PriceSyncScheduler {
      */
     @Scheduled(cron = "0 0 21 * * *")
     public void syncGlobalPrices() {
-        log.info("[PriceSync] ① scrydex 해외 시세 수집 시작");
-        runPython(SCRAPER_PATH);
-        log.info("[PriceSync] ① scrydex 해외 시세 수집 완료");
+        // CRON entry (단일). 누락 catch-up은 SyncCatchUp (STARTUP + WATCHDOG)이 담당.
+        // docs/MISSED_CRON_CATCHUP.md 참조.
+        log.info("[PriceSync] ① scrydex 해외 시세 수집 — CRON entry");
+        scrydexSyncService.runIfNeeded(TriggerSource.CRON);
     }
 
     /**
@@ -155,13 +161,10 @@ public class PriceSyncScheduler {
      */
     @Scheduled(cron = "0 45 23 * * *")
     public void refreshKoEstimates() {
-        log.info("[PriceSync] ⑥ KO_ESTIMATED 최종 재계산 시작");
-        try {
-            globalPriceService.refreshKoEstimatesFromSnapshots();
-            log.info("[PriceSync] ⑥ KO_ESTIMATED 최종 재계산 완료");
-        } catch (Exception e) {
-            log.error("[PriceSync] ⑥ KO_ESTIMATED 최종 재계산 실패: {}", e.getMessage(), e);
-        }
+        // CRON entry (단일). 누락 catch-up은 SyncCatchUp (STARTUP + WATCHDOG)이 담당.
+        // SCRYDEX_DAILY SUCCESS 의존성은 KoEstimatedSyncService 내부에서 검사.
+        log.info("[PriceSync] ⑥ KO_ESTIMATED 최종 재계산 — CRON entry");
+        koEstimatedSyncService.runIfNeeded(TriggerSource.CRON);
     }
 
     /**
