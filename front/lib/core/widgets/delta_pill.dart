@@ -25,9 +25,11 @@ class DeltaPill extends StatelessWidget {
     if (amount == null || percent == null) return const SizedBox.shrink();
     final isUp = amount! > 0;
     final isFlat = amount! == 0;
+    // 색상 정책 (feedback_color_policy.md, 2026-05-18): 한국 주식 관습.
+    // 양수(상승) = 빨강, 음수(하락) = 파랑. 미국식(green up / red down) 아님.
     final color = isFlat
         ? AppColors.textSecondary
-        : (isUp ? AppColors.green : AppColors.red);
+        : (isUp ? AppColors.red : AppColors.blue);
     final icon = isFlat
         ? Icons.remove_rounded
         : (isUp ? Icons.arrow_drop_up_rounded : Icons.arrow_drop_down_rounded);

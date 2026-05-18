@@ -937,7 +937,8 @@ class _AssetScreenState extends State<AssetScreen> {
                   return '$sign${_formatPrice(diff)} (${isPos ? '+' : ''}${totalRate.toStringAsFixed(1)}%)';
                 }(),
                 style: TextStyle(
-                  color: isPos ? AppColors.green : Colors.redAccent,
+                  // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+                  color: isPos ? AppColors.red : AppColors.blue,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1301,7 +1302,8 @@ class _AssetScreenState extends State<AssetScreen> {
                           Text(
                             '${diff >= 0 ? '+' : ''}${_formatPrice(diff)} (${diff >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%)',
                             style: TextStyle(
-                              color: diff >= 0 ? AppColors.green : AppColors.red,
+                              // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+                              color: diff >= 0 ? AppColors.red : AppColors.blue,
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1598,7 +1600,8 @@ class _AssetScreenState extends State<AssetScreen> {
                           Text(
                             '${rate >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%',
                             style: TextStyle(
-                              color: rate >= 0 ? AppColors.green : AppColors.red,
+                              // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+                              color: rate >= 0 ? AppColors.red : AppColors.blue,
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                               shadows: const [

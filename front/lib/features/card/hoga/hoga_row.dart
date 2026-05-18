@@ -10,7 +10,7 @@ import 'utils/hoga_format.dart';
 /// - ASK row: 좌측 column에 count + bar(우→좌, 중앙 가격축 방향), 중앙은 가격, 우측은 빈 칸
 /// - BID row: 좌측 빈 칸, 중앙은 가격, 우측 column에 count + bar(좌→우, 중앙 가격축 방향)
 ///
-/// 색상: ASK = AppColors.blue, BID = AppColors.green. Red 금지.
+/// 색상 정책 (feedback_color_policy.md): ASK = AppColors.red, BID = AppColors.blue (한국 주식 관습).
 class HogaRow extends StatelessWidget {
   final HogaLevel level;
   final HogaSide side;
@@ -28,7 +28,8 @@ class HogaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAsk = side == HogaSide.ask;
-    final color = isAsk ? AppColors.blue : AppColors.green;
+    // 색상 정책 (feedback_color_policy.md): 매도(위쪽)=빨강, 매수(아래쪽)=파랑.
+    final color = isAsk ? AppColors.red : AppColors.blue;
     final bgRatio = level.barRatio.clamp(0.0, 1.0);
 
     // 중앙 가격 (모든 row 공통, x축 고정)

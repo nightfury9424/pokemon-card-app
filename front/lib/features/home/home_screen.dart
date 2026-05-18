@@ -445,7 +445,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Text(
                         '$sign${AppColors.formatPrice(diff.toInt())} ($sign${rate.toStringAsFixed(1)}%)',
                         style: TextStyle(
-                          color: isPos ? AppColors.green : AppColors.red,
+                          // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+                          color: isPos ? AppColors.red : AppColors.blue,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
@@ -636,7 +637,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: isPositive ? AppColors.green : AppColors.red,
+                                // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+                                color: isPositive ? AppColors.red : AppColors.blue,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: -0.2,
@@ -1610,8 +1612,9 @@ class _CarouselCardState extends State<_CarouselCard>
                 );
                 if (display == null) return const SizedBox.shrink();
                 final color = switch (display.color) {
-                  PriceChangeColor.positive => AppColors.green,
-                  PriceChangeColor.negative => AppColors.red,
+                  // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+                  PriceChangeColor.positive => AppColors.red,
+                  PriceChangeColor.negative => AppColors.blue,
                   PriceChangeColor.neutral => AppColors.textMuted,
                 };
                 return Text(

@@ -76,7 +76,8 @@ class _HogaRowDetailSheetState extends State<HogaRowDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.side == HogaSide.ask ? AppColors.blue : AppColors.green;
+    // 색상 정책 (feedback_color_policy.md): 매도=빨강, 매수=파랑.
+    final color = widget.side == HogaSide.ask ? AppColors.red : AppColors.blue;
     final sideLabel = widget.side == HogaSide.ask ? '판매 호가' : '매수 호가';
     final statusLabel = widget.grade == null
         ? widget.status.label

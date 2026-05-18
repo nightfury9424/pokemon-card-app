@@ -388,8 +388,9 @@ class _TradeListScreenState extends State<TradeListScreen> {
     final Color pctColor = display == null
         ? AppColors.textMuted
         : switch (display.color) {
-            PriceChangeColor.positive => AppColors.green,
-            PriceChangeColor.negative => AppColors.red,
+            // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+            PriceChangeColor.positive => AppColors.red,
+            PriceChangeColor.negative => AppColors.blue,
             PriceChangeColor.neutral => AppColors.textMuted,
           };
 

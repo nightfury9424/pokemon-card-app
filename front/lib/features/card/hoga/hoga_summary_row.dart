@@ -26,16 +26,17 @@ class HogaSummaryRow extends StatelessWidget {
           children: [
             _label('최저매도'),
             const SizedBox(width: 4),
+            // 색상 정책 (feedback_color_policy.md): 매도=빨강, 매수=파랑.
             Text(
               lowestAsk == null ? '—' : formatKrw(lowestAsk),
-              style: const TextStyle(color: AppColors.blue, fontSize: 11, fontWeight: FontWeight.w800),
+              style: const TextStyle(color: AppColors.red, fontSize: 11, fontWeight: FontWeight.w800),
             ),
             const SizedBox(width: 12),
             _label('최고매수'),
             const SizedBox(width: 4),
             Text(
               highestBid == null ? '—' : formatKrw(highestBid),
-              style: const TextStyle(color: AppColors.green, fontSize: 11, fontWeight: FontWeight.w800),
+              style: const TextStyle(color: AppColors.blue, fontSize: 11, fontWeight: FontWeight.w800),
             ),
             const SizedBox(width: 12),
             _label('스프레드'),

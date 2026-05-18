@@ -163,8 +163,8 @@ class _HogaBoardState extends State<HogaBoard> {
                 child: OutlinedButton(
                   onPressed: widget.onAskRegister,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.blue,
-                    side: const BorderSide(color: AppColors.blue, width: 1),
+                    foregroundColor: AppColors.red,
+                    side: const BorderSide(color: AppColors.red, width: 1),
                     padding: EdgeInsets.zero,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
@@ -180,7 +180,7 @@ class _HogaBoardState extends State<HogaBoard> {
                 child: ElevatedButton(
                   onPressed: widget.onBidRegister,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.green,
+                    backgroundColor: AppColors.blue,
                     foregroundColor: Colors.white,
                     padding: EdgeInsets.zero,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -202,8 +202,8 @@ class _HogaBoardState extends State<HogaBoard> {
     final highestBid = board.highestBid;
     final rows = <Widget>[];
 
-    // 매도 라벨
-    rows.add(_sectionLabel('매도', AppColors.blue, board.askCount));
+    // 매도 라벨 (색상 정책: 매도=빨강)
+    rows.add(_sectionLabel('매도', AppColors.red, board.askCount));
 
     if (board.asks.isEmpty) {
       rows.add(_emptyMini('매도 호가 없음'));
@@ -222,8 +222,8 @@ class _HogaBoardState extends State<HogaBoard> {
 
     rows.add(HogaPivotRow(marketPrice: board.marketPrice, tickUnit: board.tickUnit));
 
-    // 매수 라벨
-    rows.add(_sectionLabel('매수', AppColors.green, board.bidCount));
+    // 매수 라벨 (색상 정책: 매수=파랑)
+    rows.add(_sectionLabel('매수', AppColors.blue, board.bidCount));
 
     if (board.bids.isEmpty) {
       rows.add(_emptyMini('매수 호가 없음'));

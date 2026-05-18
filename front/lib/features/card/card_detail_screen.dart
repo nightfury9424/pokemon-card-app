@@ -681,7 +681,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final diff = marketPrice - purchasePrice;
     final pct = purchasePrice > 0 ? (diff * 100.0 / purchasePrice) : 0.0;
     final isGain = diff >= 0;
-    final color = isGain ? AppColors.green : AppColors.red;
+    // 색상 정책 (feedback_color_policy.md): 한국 주식 관습. 양=빨강, 음=파랑.
+    final color = isGain ? AppColors.red : AppColors.blue;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1011,16 +1012,17 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
+              // 색상 정책 (feedback_color_policy.md): 매도=빨강, 매수=파랑.
               Row(
                 children: [
                   Container(
                     width: 6, height: 6,
-                    decoration: const BoxDecoration(color: AppColors.blue, shape: BoxShape.circle),
+                    decoration: const BoxDecoration(color: AppColors.red, shape: BoxShape.circle),
                   ),
                   const SizedBox(width: 5),
                   Text(
                     '매도 $sellCount',
-                    style: const TextStyle(color: AppColors.blue, fontSize: 12, fontWeight: FontWeight.w800),
+                    style: const TextStyle(color: AppColors.red, fontSize: 12, fontWeight: FontWeight.w800),
                   ),
                 ],
               ),
@@ -1029,12 +1031,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 children: [
                   Container(
                     width: 6, height: 6,
-                    decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
+                    decoration: const BoxDecoration(color: AppColors.blue, shape: BoxShape.circle),
                   ),
                   const SizedBox(width: 5),
                   Text(
                     '매수 $buyCount',
-                    style: const TextStyle(color: AppColors.green, fontSize: 12, fontWeight: FontWeight.w800),
+                    style: const TextStyle(color: AppColors.blue, fontSize: 12, fontWeight: FontWeight.w800),
                   ),
                 ],
               ),
@@ -1605,8 +1607,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     if (display != null) {
                       changeLabel = display.label;
                       changeColor = switch (display.color) {
-                        PriceChangeColor.positive => AppColors.green,
-                        PriceChangeColor.negative => AppColors.red,
+                        PriceChangeColor.positive => AppColors.red,
+                        PriceChangeColor.negative => AppColors.blue,
                         PriceChangeColor.neutral => Colors.white54,
                       };
                     }
@@ -1616,8 +1618,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     if (display != null) {
                       changeLabel = display.label;
                       changeColor = switch (display.color) {
-                        PriceChangeColor.positive => AppColors.green,
-                        PriceChangeColor.negative => AppColors.red,
+                        PriceChangeColor.positive => AppColors.red,
+                        PriceChangeColor.negative => AppColors.blue,
                         PriceChangeColor.neutral => Colors.white54,
                       };
                     }
