@@ -43,7 +43,7 @@ public class BuyOrder {
     @Column(name = "card_status", nullable = false, length = 20)
     private String cardStatus;
 
-    /** PSA / BRG / CGC — GRADED일 때만 */
+    /** PSA / BRG — GRADED일 때만 (CGC/BGS 미지원) */
     @Column(name = "grading_company", length = 20)
     private String gradingCompany;
 

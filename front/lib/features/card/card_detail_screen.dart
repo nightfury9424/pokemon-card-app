@@ -1068,7 +1068,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 6,
-                      children: ['PSA', 'BRG', 'CGC'].map((c) {
+                      children: ['PSA', 'BRG'].map((c) {
                         final sel = gradingCompany == c;
                         return GestureDetector(
                           onTap: () => setSheet(() => gradingCompany = c),

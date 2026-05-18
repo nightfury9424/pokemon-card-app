@@ -50,7 +50,7 @@
 | **Cardmarket** (EU) | 유럽 TCG. 가격 정렬, 상태 필터, 판매자 국가/언어 표시 |
 | **Channel Fireball Marketplace** | 미국 TCG. 단순한 리스트, 카트 시스템 |
 
-→ **카드 거래 row 정보**: 가격 / 상태(RAW·PSA·BRG·CGC + 등급) / 판매자 평점 / 사진 / 등록일. 채팅 버튼 제일 오른쪽.
+→ **카드 거래 row 정보**: 가격 / 상태(RAW·PSA·BRG + 등급) / 판매자 평점 / 사진 / 등록일. 채팅 버튼 제일 오른쪽. (CGC/BGS 미지원)
 
 ---
 
@@ -119,7 +119,7 @@
 
 **리스트 row 정보**:
 - 판매자 닉네임 + 평점 (없으면 "—")
-- 카드 상태 (RAW / PSA10 등급 / BRG 등급 / CGC 등급)
+- 카드 상태 (RAW / PSA10 등급 / BRG 등급) — CGC/BGS 미지원
 - 메모 (사진 슬리브 상태 등)
 - 등록 시각 (상대시간)
 - **채팅하기 버튼** — 클릭 → 자동 채팅방 생성 (BuyOrder.userId ↔ Asset.userId 매칭, ROADMAP.md 명시)
@@ -143,11 +143,11 @@
 
 ### 4-2. RAW / 감정등급 분리 (필수)
 
-이유: RAW와 PSA10은 5~50배 차이. 섞이면 시세 왜곡 + 거래 사고. (메모리 `feedback_grading_companies.md` PSA/BRG/CGC만, BGS 금지.)
+이유: RAW와 PSA10은 5~50배 차이. 섞이면 시세 왜곡 + 거래 사고. (메모리 `feedback_grading_companies.md`: PSA/BRG만. CGC/BGS 금지.)
 
 호가창 상단 필터 chip:
 ```
-[RAW] [PSA 10] [PSA 9] [BRG] [CGC] ...
+[RAW] [PSA 10] [BRG]
 ```
 
 1차 출시 단순화:
@@ -238,7 +238,7 @@
 ## 6. 의존성 / 주의
 
 ### 메모리 정책
-- `feedback_grading_companies.md`: 외부 등급사 = **PSA / BRG / CGC 만**. BGS 절대 금지.
+- `feedback_grading_companies.md`: 외부 등급사 = **PSA / BRG 만**. CGC + BGS 금지 (2026-05-18 CGC 추가 제외).
 - `feedback_scanner_only_asset_entry.md`: 자산 등록은 스캐너 단일 게이트. 호가 등록 시 자산 selector도 스캐너 게이트.
 - `project_pokefolio_status.md`: 출시 전 5개 작업 중 1번이 이 작업. 핵심.
 

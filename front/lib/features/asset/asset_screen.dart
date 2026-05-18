@@ -1667,7 +1667,7 @@ class _AssetScreenState extends State<AssetScreen> {
               _buildOptionTile(
                 icon: Icons.verified_rounded,
                 label: '외부 감정 카드 등록',
-                sub: 'PSA · BRG · CGC 등급 카드 보유 중이신가요?',
+                sub: 'PSA · BRG 등급 카드 보유 중이신가요?',
                 onTap: () {
                   Navigator.pop(context);
                   _showGradedCardAdd();
@@ -1888,7 +1888,7 @@ class _AssetScreenState extends State<AssetScreen> {
     bool added = false;
     String selectedLanguage = 'KO';
 
-    const companies = ['PSA', 'BRG', 'CGC'];
+    const companies = ['PSA', 'BRG'];
     const grades = ['10', '9', '8', '7', '6', '5'];
 
     Future<void> doSearch(String q, StateSetter setModal) async {

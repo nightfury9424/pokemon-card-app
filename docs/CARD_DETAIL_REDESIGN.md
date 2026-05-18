@@ -86,7 +86,7 @@ PSA 가격 가이드는 등급별 가격을 기준으로 탐색한다. PSA 10과
 
 PokeFolio 적용:
 
-- `cardStatus == GRADED`이면 히어로와 `내 자산` 탭 모두에 `PSA 10`, `BGS 9.5`, `CGC 10` 같은 grade badge를 크게 표시한다.
+- `cardStatus == GRADED`이면 히어로와 `내 자산` 탭 모두에 `PSA 10`, `BRG 9.5` 같은 grade badge를 크게 표시한다. (CGC/BGS 미지원 — 2026-05-18 확정)
 - `시세` 탭의 EN/JP 가격 chip은 현재 코드처럼 `RAW`, `PSA 10`, `PSA 9`를 유지한다.
 - KO 예상가는 현재 백엔드 DTO상 RAW 중심이다. graded KO 가격은 **TBD**로 명시한다.
 
@@ -195,7 +195,7 @@ Order inside expanded hero:
 
 1. Card image centered, large.
 2. Overlay top-right: rarity badge using `AppColors.rarityColor(rarity)`.
-3. Overlay top-left if owned and graded: grade badge (`PSA 10`, `BGS 9.5`, `CGC 10`) with `AppColors.gold`.
+3. Overlay top-left if owned and graded: grade badge (`PSA 10`, `BRG 9.5`) with `AppColors.gold`. (CGC/BGS 미지원)
 4. Bottom gradient scrim.
 5. Card name, `collectionNumber`, product line.
 6. Optional compact KO price line: `KO 추정가 32,920원` if `_priceSummary.ko.mid` exists.
@@ -262,7 +262,7 @@ Important: If `quantity > 1`, label purchase/current prices as per-copy. Current
 Fields:
 
 - `카드 상태`: `_localAsset['cardStatus']`, values `RAW` / `GRADED`.
-- `감정사`: `_localAsset['gradingCompany']`, current add flow allows `PSA`, `BGS`, `CGC`; one sell sheet currently uses `BRG`, likely typo/TBD.
+- `감정사`: `_localAsset['gradingCompany']`, **확정값 `PSA` / `BRG` 만** (CGC/BGS 미지원, 2026-05-18 정책 확정).
 - `등급`: `_localAsset['gradeValue']`.
 - `인증번호`: `_localAsset['certNumber']`.
 
@@ -744,7 +744,7 @@ Reason:
 
 Owned graded card:
 
-- Hero top-left badge: `PSA 10`, `BGS 9.5`, `CGC 10`.
+- Hero top-left badge: `PSA 10`, `BRG 9.5`. (CGC/BGS 미지원)
 - `내 자산` tab first grade card uses gold border.
 - Cert number is visible but secondary.
 - Slab image from asset images should be displayed if `SLAB` exists.

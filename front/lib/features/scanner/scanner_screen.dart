@@ -368,7 +368,7 @@ class _ScannerScreenState extends State<ScannerScreen>
         builder: (ctx, setModal) {
           Future<void> submit() async {
             if (selectedType == null || submitting) return;
-            // GRADED 선택 시 회사·등급 필수. PSA만 활성(BRG/CGC는 데이터 부재)
+            // GRADED 선택 시 회사·등급 필수. PSA·BRG만 지원 (CGC/BGS 미지원)
             if (selectedType == 'GRADED' &&
                 (gradingCompany == null || gradeValue == null)) {
               ScaffoldMessenger.of(
@@ -549,7 +549,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                     ),
                     const SizedBox(height: 8),
                     Row(
-                      children: ['PSA', 'BRG', 'CGC'].map((c) {
+                      children: ['PSA', 'BRG'].map((c) {
                         final sel = gradingCompany == c;
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
@@ -585,7 +585,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                       }).toList(),
                     ),
                     // PSA10 + EN/JP는 실제 시세 데이터 있을 확률 ↑ → 안내 숨김.
-                    // 나머지 조합(BRG/CGC, KO+PSA, PSA 9 이하 등)은 RAW 폴백 가능성 안내.
+                    // 나머지 조합(BRG, KO+PSA, PSA 9 이하 등)은 RAW 폴백 가능성 안내.
                     if (!((selectedLanguage == 'EN' ||
                             selectedLanguage == 'JP') &&
                         gradingCompany == 'PSA' &&
