@@ -1014,37 +1014,47 @@ class _AssetScreenState extends State<AssetScreen> {
 
   Widget _tabText(String label, int index) {
     final selected = _tabIndex == index;
+    // fixed height + strutStyle 로 w500/w700 baseline 미세 어긋남 방지.
     return GestureDetector(
       onTap: () {
         setState(() => _tabIndex = index);
         if (index == 2 && _myBuyOrders.isEmpty) _loadMyBuyOrders();
       },
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected ? AppColors.textPrimary : AppColors.textSecondary,
-                fontSize: 15,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                letterSpacing: -0.2,
+      child: SizedBox(
+        height: 38,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                label,
+                strutStyle: const StrutStyle(
+                  forceStrutHeight: true,
+                  fontSize: 15,
+                  height: 1.2,
+                ),
+                style: TextStyle(
+                  color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+                  fontSize: 15,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  letterSpacing: -0.2,
+                  height: 1.2,
+                ),
               ),
             ),
-          ),
-          // underline indicator
-          Container(
-            height: 2.5,
-            width: 22,
-            decoration: BoxDecoration(
-              color: selected ? AppColors.blue : Colors.transparent,
-              borderRadius: BorderRadius.circular(1.5),
+            Container(
+              height: 2.5,
+              width: 22,
+              decoration: BoxDecoration(
+                color: selected ? AppColors.blue : Colors.transparent,
+                borderRadius: BorderRadius.circular(1.5),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1204,9 +1214,9 @@ class _AssetScreenState extends State<AssetScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.green.withValues(alpha: 0.06),
+        color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.green.withValues(alpha: 0.18)),
+        border: Border.all(color: AppColors.divider),
       ),
       child: Row(
         children: [
