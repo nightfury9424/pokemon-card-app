@@ -69,6 +69,17 @@ class ApiClient {
     return ApiErrorInfo(statusCode: status, message: err.message ?? '요청 중 오류가 발생했습니다.');
   }
 
+  /// 인증 헤더 포함 byte 다운로드 — proxy endpoint (/api/images/secure/**) 호출용.
+  /// url이 절대 URL(http(s)://...)이면 Dio가 baseUrl 무시.
+  /// 인증 토글(API_AUTH_ENFORCED=true) 상태에서 사용자 업로드 이미지 받을 때 필수.
+  static Future<List<int>?> downloadBytes(String url) async {
+    final res = await _dio.get<List<int>>(
+      url,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return res.statusCode == 200 ? res.data : null;
+  }
+
   static Future<Map<String, dynamic>> post(String path, Map<String, dynamic> data) async {
     final res = await _dio.post(path, data: data);
     return res.data;

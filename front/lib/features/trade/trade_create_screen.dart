@@ -138,15 +138,14 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
             ? relUrl
             : '${ApiConstants.baseUrl}$relUrl';
 
-        final response = await Dio().get<List<int>>(
-          fullUrl,
-          options: Options(responseType: ResponseType.bytes),
-        );
-        if (response.statusCode == 200 && response.data != null) {
+        // prod 인증 toggle(API_AUTH_ENFORCED=true) 시 /api/images/secure/** 는 JWT 필요.
+        // 새 Dio() 사용하면 interceptor 미적용 → 401/403. ApiClient.downloadBytes 사용.
+        final bytes = await ApiClient.downloadBytes(fullUrl);
+        if (bytes != null) {
           final type = imageType.toLowerCase();
           final docsDir = await getApplicationDocumentsDirectory();
           final tempFile = File('${docsDir.path}/asset_${type}_$assetId.jpg');
-          await tempFile.writeAsBytes(response.data!);
+          await tempFile.writeAsBytes(bytes);
           autoPhotos.add(
             _TradePhoto(
               file: tempFile,
@@ -155,7 +154,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
             ),
           );
         } else {
-          debugPrint('[TradeCreate] _loadAssetImages — $imageType download fail status=${response.statusCode}');
+          debugPrint('[TradeCreate] _loadAssetImages — $imageType download fail (no bytes)');
         }
       }
 
