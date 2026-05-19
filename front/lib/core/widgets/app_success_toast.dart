@@ -103,59 +103,68 @@ class _ToastBodyState extends State<_ToastBody>
   Widget build(BuildContext context) {
     return Positioned.fill(
       child: IgnorePointer(
-        child: AnimatedBuilder(
-          animation: _ctrl,
-          builder: (_, _) => Opacity(
-            opacity: _fade.value,
-            child: Center(
-              child: Transform.scale(
-                scale: _scale.value,
-                child: Container(
-                  constraints: const BoxConstraints(minWidth: 160, maxWidth: 280),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 24,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.82),
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.25),
-                        blurRadius: 24,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: AppColors.green.withValues(alpha: 0.18),
-                          shape: BoxShape.circle,
+        // Material wrap — Overlay 안에서 DefaultTextStyle 없으면 Text가 노란 wavy
+        // underline + black 배경으로 보임 (Flutter Material debug 기본).
+        child: Material(
+          type: MaterialType.transparency,
+          child: AnimatedBuilder(
+            animation: _ctrl,
+            builder: (_, _) => Opacity(
+              opacity: _fade.value,
+              child: Center(
+                child: Transform.scale(
+                  scale: _scale.value,
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minWidth: 200,
+                      maxWidth: 320,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 36,
+                      vertical: 32,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.82),
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 32,
+                          offset: const Offset(0, 8),
                         ),
-                        child: const Icon(
-                          Icons.check_rounded,
-                          color: AppColors.green,
-                          size: 36,
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            color: AppColors.green.withValues(alpha: 0.18),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.check_rounded,
+                            color: AppColors.green,
+                            size: 46,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        widget.message,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
-                          height: 1.35,
+                        const SizedBox(height: 18),
+                        Text(
+                          widget.message,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
+                            height: 1.35,
+                            decoration: TextDecoration.none,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

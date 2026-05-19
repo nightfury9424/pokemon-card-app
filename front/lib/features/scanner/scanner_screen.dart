@@ -52,6 +52,14 @@ class _ScannerScreenState extends State<ScannerScreen>
   DateTime _lastScan = DateTime(0);
   static const _scanInterval = Duration(milliseconds: 1000);
 
+  // 2026-05-20 Phase B: 토스트 표시 동안 스캔 차단 + 방금 등록 카드 즉시 재인식 차단.
+  // 등록 후 토스트 1.3초 + 마진 = 1.6초 동안 _processFrame skip.
+  DateTime? _scanPausedUntil;
+  // 최근 등록한 cardId — 같은 카드 즉시 재인식 차단 (60초 cooldown).
+  // {cardId: 등록 시각} — _processFrame에서 매칭 cardId가 60초 안이면 skip.
+  final Map<String, DateTime> _recentlyRegistered = {};
+  static const _recentRegisterCooldown = Duration(seconds: 60);
+
   late AnimationController _glowCtrl;
   late Animation<double> _glowAnim;
   // 카드 프레임 안에서 위 → 아래로 sweep하는 라인 (스캔이 살아있다는 시각 신호).
@@ -160,6 +168,10 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   Future<void> _processFrame(CameraImage frame) async {
     if (!mounted || _isProcessing) return;
+    // 토스트 표시 동안 스캔 일시 중지.
+    if (_scanPausedUntil != null && DateTime.now().isBefore(_scanPausedUntil!)) {
+      return;
+    }
     _isProcessing = true;
 
     try {
@@ -196,6 +208,20 @@ class _ScannerScreenState extends State<ScannerScreen>
 
       final rawCandidates = data?['candidates'] as List? ?? [];
       final matchedCardId = card['cardId'] as String?;
+
+      // 2026-05-20 Phase B: 방금 등록한 카드 즉시 재인식 차단 (60초 cooldown).
+      // 사용자가 등록 직후 폰을 든 상태로 이미 그 카드를 잡고 있으면
+      // 자동으로 다시 결과 시트가 떠서 혼란. 등록 후 cooldown.
+      if (matchedCardId != null) {
+        final registeredAt = _recentlyRegistered[matchedCardId];
+        if (registeredAt != null) {
+          if (DateTime.now().difference(registeredAt) < _recentRegisterCooldown) {
+            return;
+          }
+          _recentlyRegistered.remove(matchedCardId);  // expire
+        }
+      }
+
       final expected = widget.expectedCardId;
       // expectedCardId가 지정되어 있으면, matchedCardId가 null이거나 다를 때 모두 mismatch로 차단.
       // 비정상 응답으로 null이 와도 등록 UI가 열리지 않도록 가드.
@@ -381,6 +407,10 @@ class _ScannerScreenState extends State<ScannerScreen>
               if (!mounted) return;
               AssetNotifier.instance.notifyChanged();
               AppSuccessToast.show(context, '자산에 추가됐습니다');
+              // Phase B: 토스트 표시 동안 (1.3초 + margin 0.3초) 스캔 일시 중지.
+              _scanPausedUntil = DateTime.now().add(const Duration(milliseconds: 1600));
+              // 방금 등록한 cardId 60초 cooldown — 즉시 재인식 차단.
+              _recentlyRegistered[cardId] = DateTime.now();
               _dismissResult();
 
               // Phase 6: 카드 상세에서 expectedCardId로 진입한 경우 등록 직후 자동 복귀.
