@@ -3,37 +3,66 @@ import '../constants/api_constants.dart';
 
 const _cardBackUrl = 'https://images.scrydex.com/pokemon/card-back/medium';
 
-/// 로컬 이미지 URL 반환 (없으면 null)
+bool _hasValidRef(String? ref) =>
+    ref != null && ref.isNotEmpty && !ref.startsWith('NO_');
+
+/// dev 환경 한정. prod 빌드에서는 항상 null.
 String? _localUrl(String? cardId, String lang) {
+  if (!ApiConstants.useLocalCardImages) return null;
   if (cardId == null || cardId.isEmpty) return null;
   return '${ApiConstants.baseUrl}/images/cards/${cardId}_$lang.png';
 }
 
-/// scrydex CDN URL 반환
+/// S3 cards/v1/{lang}/{cardId}.png — prod 표준.
+String? _s3Url(String? cardId, String lang) {
+  if (cardId == null || cardId.isEmpty) return null;
+  return '${ApiConstants.cardCdnBase}/$lang/$cardId.png';
+}
+
+/// scrydex CDN URL — JP/EN 미러링 안정화 전까지 CardImage.cdnFallbackUrl로만 사용.
+/// 미러링 완료 후 폐기 예정.
 String? _cdnUrl(String? ref) {
   if (ref == null || ref.isEmpty || ref.startsWith('NO_')) return null;
   return 'https://images.scrydex.com/pokemon/$ref/medium';
 }
 
-/// JP → EN 순으로 로컬 우선, fallback CDN
+/// 카드 마스터 이미지 URL 결정.
+///
+/// 우선순위:
+///   dev (USE_LOCAL_CARD_IMAGES=true):
+///     local jp → local en → S3 jp → S3 en → S3 special → null
+///   prod:
+///     S3 jp → S3 en → S3 special → null
+///
+/// KO fallback은 정책상 넣지 않음 (한국판 이미지 보류).
 String? resolveCardImageUrl(Map<String, dynamic>? card) {
   final cardId = card?['cardId'] as String?;
   final jpRef  = card?['jpScrydexRef'] as String?;
   final enRef  = card?['enScrydexRef'] as String?;
 
-  if (jpRef != null) {
-    // NO_JP: scrydex CDN 없음, 로컬만 시도
-    if (jpRef.startsWith('NO_')) return _localUrl(cardId, 'jp');
-    return _localUrl(cardId, 'jp') ?? _cdnUrl(jpRef);
+  if (ApiConstants.useLocalCardImages) {
+    if (_hasValidRef(jpRef)) {
+      final u = _localUrl(cardId, 'jp');
+      if (u != null) return u;
+    }
+    if (_hasValidRef(enRef)) {
+      final u = _localUrl(cardId, 'en');
+      if (u != null) return u;
+    }
   }
-  if (enRef != null) {
-    if (enRef.startsWith('NO_')) return _localUrl(cardId, 'en');
-    return _localUrl(cardId, 'en') ?? _cdnUrl(enRef);
+
+  if (_hasValidRef(jpRef)) return _s3Url(cardId, 'jp');
+  if (_hasValidRef(enRef)) return _s3Url(cardId, 'en');
+
+  // 둘 다 NO_/null → special. 현재는 메타몽 1장만 S3에 있음.
+  if (cardId != null && cardId.isNotEmpty) {
+    return '${ApiConstants.cardCdnBase}/special/$cardId.png';
   }
   return null;
 }
 
-/// scrydex CDN URL (로컬 없을 때 fallback용)
+/// scrydex CDN URL — CardImage.cdnFallbackUrl로 전달해 S3 객체 미존재 시 임시 fallback.
+/// JP/EN 미러링 완료 후 호출처 정리 + 폐기 예정.
 String? resolveCdnImageUrl(Map<String, dynamic>? card) {
   final jpRef = card?['jpScrydexRef'] as String?;
   final enRef = card?['enScrydexRef'] as String?;
@@ -94,7 +123,7 @@ class CardImage extends StatelessWidget {
             height: height,
             fit: fit,
             gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => _buildUnavailable(),
+            errorBuilder: (_, _, _) => _buildUnavailable(),
           );
         }
         return _buildUnavailable();
@@ -110,7 +139,7 @@ class CardImage extends StatelessWidget {
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => _buildFallbackBox(),
+          errorBuilder: (_, _, _) => _buildFallbackBox(),
         ),
         Positioned.fill(
           child: ClipRRect(

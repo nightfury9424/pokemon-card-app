@@ -6,6 +6,22 @@ class ApiConstants {
     defaultValue: 'http://localhost:8080',
   );
 
+  /// 카드 마스터 이미지 CDN base — cards/v1 prefix까지 포함.
+  /// prod 기본값 = S3 cards/v1. dart-define으로 dev/CloudFront 오버라이드 가능.
+  static const String cardCdnBase = String.fromEnvironment(
+    'CARD_CDN_BASE',
+    defaultValue:
+        'https://pokefolio-beta-assets-759135635310-ap-northeast-2-an.s3.ap-northeast-2.amazonaws.com/cards/v1',
+  );
+
+  /// dev에서 로컬 백엔드의 /images/cards/*를 우선 시도할지.
+  /// prod-safe default = false. dev 빌드에서 명시:
+  ///   flutter run --dart-define=USE_LOCAL_CARD_IMAGES=true
+  static const bool useLocalCardImages = bool.fromEnvironment(
+    'USE_LOCAL_CARD_IMAGES',
+    defaultValue: false,
+  );
+
   static String cardImageUrl(String cardId) => '$baseUrl/images/cards/$cardId.jpg';
   static String tradeImageUrl(String path) => '$baseUrl$path';
 
