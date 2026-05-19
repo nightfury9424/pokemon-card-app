@@ -24,7 +24,10 @@ COPY scanner/main.py /app/scanner/
 COPY scanner/app /app/scanner/app
 
 # non-root
+# /app/scanner/data — main.py의 StaticFiles mount("/data") 필수 (없으면 FastAPI startup fail).
+# /app/scanner/data/cards — admin 카드 이미지 업로드 시 저장처 (Phase 2에서 volume mount 권고).
 RUN useradd -ms /bin/bash -u 1000 pokefolio \
+    && mkdir -p /app/scanner/data/cards \
     && chown -R pokefolio:pokefolio /app
 USER pokefolio
 
