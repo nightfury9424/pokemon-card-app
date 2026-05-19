@@ -16,14 +16,14 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PriceSyncScheduler {
 
-    private static final String PYTHON3             = "/usr/bin/python3";
-    private static final String VENV_KREAM_PYTHON   = "/Users/fury/pokemon-card-app/python/.venv_kream/bin/python";
-    private static final String SCRAPER_PATH       = "/Users/fury/pokemon-card-app/python/price_scrydex.py";
-    private static final String CAFE_SCRAPER_PATH  = "/Users/fury/pokemon-card-app/python/price_naver_cafe.py";
-    private static final String RECALC_COEF_PATH   = "/Users/fury/pokemon-card-app/python/recalc_coefficients.py";
-    private static final String CARD_COEF_PATH     = "/Users/fury/pokemon-card-app/python/calc_ko_coefficients_v1.py";
-    private static final String PROMO_SCRAPER_PATH = "/Users/fury/pokemon-card-app/python/price_promo_ebay.py";
-    private static final String KREAM_DITTO_PATH   = "/Users/fury/pokemon-card-app/python/kream_ditto.py";
+    @Value("${app.python.system}")
+    private String python3;
+
+    @Value("${app.python.venv-kream}")
+    private String venvKreamPython;
+
+    @Value("${app.python.scripts-dir}")
+    private String pythonScriptsDir;
 
     private final GlobalPriceService globalPriceService;
     private final CoefficientCache   coefficientCache;
@@ -36,6 +36,11 @@ public class PriceSyncScheduler {
     @Value("${price.rarity-java-cron.enabled:false}")
     private boolean rarityJavaCronEnabled;
 
+    /** scripts-dir 기준으로 python 스크립트 절대경로 조립. */
+    private String script(String name) {
+        return pythonScriptsDir + "/" + name;
+    }
+
     /**
      * 매일 21:00: scrydex 해외 시세 수집 (SCRYDEX_EN / SCRYDEX_JP)
      * ~30분 소요. 완료 후 price_scrydex.py가 오늘자 KO_ESTIMATED 1차 재계산 자동 호출.
@@ -43,7 +48,7 @@ public class PriceSyncScheduler {
     @Scheduled(cron = "0 0 21 * * *")
     public void syncGlobalPrices() {
         log.info("[PriceSync] ① scrydex 해외 시세 수집 시작");
-        runPython(SCRAPER_PATH);
+        runPython(script("price_scrydex.py"));
         log.info("[PriceSync] ① scrydex 해외 시세 수집 완료");
     }
 
@@ -53,7 +58,7 @@ public class PriceSyncScheduler {
     @Scheduled(cron = "0 30 21 * * *")
     public void syncPromoPrice() {
         log.info("[PriceSync] 프로모 eBay 가격 수집 시작");
-        runPython(PROMO_SCRAPER_PATH);
+        runPython(script("price_promo_ebay.py"));
         log.info("[PriceSync] 프로모 eBay 가격 수집 완료");
     }
 
@@ -66,7 +71,7 @@ public class PriceSyncScheduler {
     @Scheduled(cron = "0 45 21 * * *")
     public void syncKreamDittoPromo() {
         log.info("[PriceSync] KREAM 메타몽 프로모 시세 수집 시작");
-        runWithPython(VENV_KREAM_PYTHON, KREAM_DITTO_PATH);
+        runWithPython(venvKreamPython, script("kream_ditto.py"));
         log.info("[PriceSync] KREAM 메타몽 프로모 시세 수집 완료");
     }
 
@@ -76,7 +81,7 @@ public class PriceSyncScheduler {
     @Scheduled(cron = "0 0 22 * * *")
     public void syncNaverCafeAuctions() {
         log.info("[PriceSync] ② 네이버 카페 낙찰가 수집 시작");
-        runPython(CAFE_SCRAPER_PATH, "--days", "30");
+        runPython(script("price_naver_cafe.py"), "--days", "30");
         log.info("[PriceSync] ② 네이버 카페 낙찰가 수집 완료");
     }
 
@@ -90,7 +95,7 @@ public class PriceSyncScheduler {
     @Scheduled(cron = "0 0 23 * * *")
     public void recalcGlobalDaily() {
         log.info("[PriceSync] ③ GLOBAL 매일 재계산 시작 (--mode global)");
-        runPython(RECALC_COEF_PATH, "--mode", "global");
+        runPython(script("recalc_coefficients.py"), "--mode", "global");
         log.info("[PriceSync] ③ GLOBAL 매일 재계산 완료");
     }
 
@@ -103,9 +108,9 @@ public class PriceSyncScheduler {
     @Scheduled(cron = "0 0 3 * * MON")
     public void recalcRarityAndCardWeekly() {
         log.info("[PriceSync] 월요일 03:00 RARITY 재계산 시작 (--mode rarity)");
-        runPython(RECALC_COEF_PATH, "--mode", "rarity");
+        runPython(script("recalc_coefficients.py"), "--mode", "rarity");
         log.info("[PriceSync] 월요일 03:00 RARITY 완료 → CARD coef 보강 시작");
-        runPython(CARD_COEF_PATH);
+        runPython(script("calc_ko_coefficients_v1.py"));
         log.info("[PriceSync] 월요일 03:00 RARITY + CARD 통합 작업 완료");
     }
 
@@ -182,7 +187,7 @@ public class PriceSyncScheduler {
     }
 
     private void runPython(String scriptPath, String... extraArgs) {
-        runWithPython(PYTHON3, scriptPath, extraArgs);
+        runWithPython(python3, scriptPath, extraArgs);
     }
 
     private void runWithPython(String pythonPath, String scriptPath, String... extraArgs) {
