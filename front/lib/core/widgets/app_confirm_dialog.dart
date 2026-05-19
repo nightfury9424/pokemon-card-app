@@ -27,10 +27,16 @@ class AppConfirmDialog {
     String cancelLabel = '취소',
     String confirmLabel = '확인',
     bool destructive = false,
+    // 2026-05-20 확장: 기존 호출부 모두 optional default라 깨지지 X.
+    IconData? icon,                 // null이면 icon 영역 자체 X
+    Color? iconColor,               // default = amber (warning 색)
+    bool singleButton = false,      // true → cancel 숨김, confirm 한 줄
+    bool barrierDismissible = true, // 동의/consent dialog는 false 권고
   }) {
     return showDialog<bool>(
       context: context,
       barrierColor: Colors.black54,
+      barrierDismissible: barrierDismissible,
       builder: (ctx) => Dialog(
         backgroundColor: AppColors.surfaceCard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -45,6 +51,15 @@ class AppConfirmDialog {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (icon != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Icon(
+                        icon,
+                        color: iconColor ?? const Color(0xFFEAB308),
+                        size: 26,
+                      ),
+                    ),
                   Text(
                     title,
                     style: const TextStyle(
@@ -73,15 +88,17 @@ class AppConfirmDialog {
             IntrinsicHeight(
               child: Row(
                 children: [
-                  Expanded(
-                    child: _ActionButton(
-                      label: cancelLabel,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      onTap: () => Navigator.of(ctx).pop(false),
+                  if (!singleButton) ...[
+                    Expanded(
+                      child: _ActionButton(
+                        label: cancelLabel,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        onTap: () => Navigator.of(ctx).pop(false),
+                      ),
                     ),
-                  ),
-                  Container(width: 1, color: AppColors.divider),
+                    Container(width: 1, color: AppColors.divider),
+                  ],
                   Expanded(
                     child: _ActionButton(
                       label: confirmLabel,

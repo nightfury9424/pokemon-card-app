@@ -3386,25 +3386,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     if (assetId == null) return;
     if (_localAsset?['isSelling'] == true) {
       if (mounted) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: AppColors.surfaceCard,
-            title: const Text('삭제 불가', style: TextStyle(color: Colors.white)),
-            content: const Text(
-              '판매 등록된 카드입니다.\n먼저 판매를 내린 후 삭제해주세요.',
-              style: TextStyle(color: Colors.white54),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text(
-                  '확인',
-                  style: TextStyle(color: AppColors.blue),
-                ),
-              ),
-            ],
-          ),
+        AppConfirmDialog.show(
+          context,
+          title: '삭제 불가',
+          message: '판매 등록된 카드입니다.\n먼저 판매를 내린 후 삭제해주세요.',
+          confirmLabel: '확인',
+          singleButton: true,
         );
       }
       return;

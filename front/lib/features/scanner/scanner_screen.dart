@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
@@ -300,51 +301,16 @@ class _ScannerScreenState extends State<ScannerScreen>
     String cardId,
     Map<String, dynamic> card,
   ) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A2035),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(
-              Icons.warning_amber_rounded,
-              color: Color(0xFFEAB308),
-              size: 22,
-            ),
-            SizedBox(width: 8),
-            Text(
-              '인식 신뢰도 낮음',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-        content: const Text(
+    final ok = await AppConfirmDialog.show(
+      context,
+      icon: Icons.warning_amber_rounded,
+      iconColor: const Color(0xFFEAB308),
+      title: '인식 신뢰도 낮음',
+      message:
           '카드 인식 신뢰도가 낮아 다른 카드일 수 있어요.\n'
           '실물 카드와 화면 카드가 일치하는지 다시 확인하세요.',
-          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('취소', style: TextStyle(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text('맞아요, 등록', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+      cancelLabel: '취소',
+      confirmLabel: '맞아요, 등록',
     );
     if (ok == true && mounted) {
       await _addToAsset(cardId, card);

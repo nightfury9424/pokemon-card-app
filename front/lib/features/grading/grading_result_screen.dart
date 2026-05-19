@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
 import '../../core/network/api_client.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
@@ -217,28 +218,17 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
   }
 
   Future<bool> _showIdentityConsentDialog() async {
-    final agreed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text('⚠ 카드 미확인 안내', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-        content: const Text(
+    final agreed = await AppConfirmDialog.show(
+      context,
+      icon: Icons.warning_amber_rounded,
+      iconColor: AppColors.gold,
+      title: '카드 미확인 안내',
+      message:
           '이 사진은 스캐너가 등록된 카드와 일치하지 않거나 인식하지 못한 사진입니다.\n\n'
           '실제 카드와 다른 사진을 업로드하여 판매하는 행위는 사기에 해당하며, 민·형사상 법적 책임을 질 수 있습니다. 구매자 또는 관계 기관의 요청 시 판매자 정보 및 거래 내역이 제공될 수 있습니다.',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.45),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('취소', style: TextStyle(color: AppColors.textMuted)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('동의하고 계속', style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+      cancelLabel: '취소',
+      confirmLabel: '동의하고 계속',
+      barrierDismissible: false,
     );
     return agreed == true;
   }
