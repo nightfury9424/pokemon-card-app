@@ -54,12 +54,14 @@ public class ImageProxyController {
         String uri = request.getRequestURI();
         int idx = uri.indexOf(URI_PREFIX);
         if (idx < 0) {
+            log.warn("[ImageProxy] uri prefix not found: {}", uri);
             return ResponseEntity.badRequest().build();
         }
         String rawKey = uri.substring(idx + URI_PREFIX.length());
         String key = URLDecoder.decode(rawKey, StandardCharsets.UTF_8);
 
         if (key.isBlank()) {
+            log.warn("[ImageProxy] blank key uri={}", uri);
             return ResponseEntity.badRequest().build();
         }
         // path traversal / 비정상 경로 차단
@@ -75,8 +77,10 @@ public class ImageProxyController {
         }
 
         if (!imageStorageService.exists(key)) {
+            log.warn("[ImageProxy] key not found in storage: {}", key);
             return ResponseEntity.notFound().build();
         }
+        log.info("[ImageProxy] serve key={}", key);
 
         String contentType = imageStorageService.contentType(key);
         MediaType mt;

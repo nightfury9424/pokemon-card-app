@@ -43,10 +43,14 @@ class ApiClient {
       },
       onError: (DioException err, handler) {
         final info = _classify(err);
-        if (kDebugMode) {
-          debugPrint('[ApiClient] ${err.requestOptions.method} ${err.requestOptions.path} → ${info.statusCode} ${info.message}');
+        final path = err.requestOptions.uri.path;
+        // 항상 로그 — release에서도 진단 가능 (debugPrint는 release에서 일부 무시)
+        debugPrint('[ApiClient] ${err.requestOptions.method} $path → ${info.statusCode} ${info.message}');
+        // 이미지 proxy(/api/images/secure/**) fail은 SnackBar 표시 X (AuthImage가 자체 errorBuilder 처리).
+        // 그 외엔 main.dart의 setErrorHandler 콜백 발화 (SnackBar).
+        if (!path.startsWith('/api/images/secure')) {
+          _onError?.call(info);
         }
-        _onError?.call(info);
         handler.next(err);
       },
     ));
@@ -72,12 +76,21 @@ class ApiClient {
   /// 인증 헤더 포함 byte 다운로드 — proxy endpoint (/api/images/secure/**) 호출용.
   /// url이 절대 URL(http(s)://...)이면 Dio가 baseUrl 무시.
   /// 인증 토글(API_AUTH_ENFORCED=true) 상태에서 사용자 업로드 이미지 받을 때 필수.
+  ///
+  /// 실패 시 throw 대신 null 반환 — AuthImage가 errorBuilder로 처리.
+  /// 인터셉터의 SnackBar 콜백은 /api/images/secure/** path 제외 (image fail은 조용히).
   static Future<List<int>?> downloadBytes(String url) async {
-    final res = await _dio.get<List<int>>(
-      url,
-      options: Options(responseType: ResponseType.bytes),
-    );
-    return res.statusCode == 200 ? res.data : null;
+    try {
+      final res = await _dio.get<List<int>>(
+        url,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      debugPrint('[ApiClient.downloadBytes] ${res.statusCode} bytes=${res.data?.length} url=$url');
+      return res.statusCode == 200 ? res.data : null;
+    } catch (e) {
+      debugPrint('[ApiClient.downloadBytes] FAIL url=$url err=$e');
+      return null;
+    }
   }
 
   static Future<Map<String, dynamic>> post(String path, Map<String, dynamic> data) async {
