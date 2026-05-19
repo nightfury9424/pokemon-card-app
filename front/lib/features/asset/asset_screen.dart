@@ -785,9 +785,7 @@ class _AssetScreenState extends State<AssetScreen> {
         backgroundColor: AppColors.bg,
         foregroundColor: Colors.white,
         title: const Text('내 자산'),
-        actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: _showAddOptions),
-        ],
+        // Polish: 상단 + 버튼 제거. 자산 등록 동선은 하단 스캐너 버튼(FAB) 단일화 (feedback_scanner_only_asset_entry).
       ),
       body: _loading
           ? const Center(
@@ -894,7 +892,13 @@ class _AssetScreenState extends State<AssetScreen> {
     final totalRate = hasRate
         ? (totalCurrent - totalPurchase) / totalPurchase * 100
         : 0.0;
-    final isPos = totalRate >= 0;
+    // 색상 정책: 양(>0)=빨강, 음(<0)=파랑, 변동 없음(=0)=회색.
+    // 0.0%일 때 red 표시는 의미 충돌 (변동 없음 = neutral).
+    final isFlat = totalRate.abs() < 0.05;  // -0.05 ~ 0.05% 는 변동 없음으로 처리
+    final isPos = totalRate > 0;
+    final rateColor = isFlat
+        ? AppColors.textMuted
+        : (isPos ? AppColors.red : AppColors.blue);
 
     // Polish Step 1 (2026-05-19): summary card 축소.
     // - margin top 8 → 6, padding 18 → (20,16,20,14), height ~144 → ~100
@@ -952,13 +956,11 @@ class _AssetScreenState extends State<AssetScreen> {
                         TextSpan(
                           text: () {
                             final diff = totalCurrent - totalPurchase;
-                            final sign = isPos ? '+' : '';
+                            final sign = isFlat ? '' : (isPos ? '+' : '');
                             return '$sign${_formatPrice(diff)} ($sign${totalRate.toStringAsFixed(1)}%)';
                           }(),
-                          // 색상 정책: 양=빨강, 음=파랑
-                          style: TextStyle(
-                            color: isPos ? AppColors.red : AppColors.blue,
-                          ),
+                          // 색상 정책: >0 빨강, <0 파랑, =0 회색(변동 없음)
+                          style: TextStyle(color: rateColor),
                         ),
                         const TextSpan(
                           text: '  ·  ',
@@ -990,12 +992,13 @@ class _AssetScreenState extends State<AssetScreen> {
   }
 
   Widget _buildSortRow() {
+    // Polish: tab row와 좌측 정렬 통일 (padding 12 → 16).
     return SizedBox(
       height: 40,
       child: ListView(
         scrollDirection: Axis.horizontal,
         physics: const ClampingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           Center(child: _buildSortChip('등급순', _SortMode.rarity)),
           const SizedBox(width: 6),
