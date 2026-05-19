@@ -12,6 +12,8 @@ import com.fury.back.domain.trade.dto.TradePostDto;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
 import com.fury.back.domain.notification.NotificationService;
+import com.fury.back.storage.ImageStorageService;
+import com.fury.back.storage.StorageKeyUrls;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -39,9 +41,10 @@ public class TradeServiceImpl implements TradeService {
     private final com.fury.back.domain.asset.AssetRepository assetRepository;
     private final AssetImageRepository assetImageRepository;
     private final NotificationService notificationService;
+    private final ImageStorageService imageStorageService;
 
     @Value("${trade.image.dir}")
-    private String tradeImageDir;
+    private String tradeImageDir;  // Phase 1-7: legacy static handler 호환용 (신규 업로드는 ImageStorageService 사용)
 
     @Override
     public ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId, String status) {
@@ -344,20 +347,19 @@ public class TradeServiceImpl implements TradeService {
         if (!post.getSellerId().equals(userId)) return ReturnData.fail("F403", "권한이 없습니다.");
 
         try {
-            String ext = getExtension(file.getOriginalFilename());
-            // 3차-C: 디렉토리 풀스캔(listFiles) 제거 → UUID 8자 suffix 사용. 충돌 확률 ≈ 1/2^32.
-            String filename = tradeId + "_" + java.util.UUID.randomUUID().toString().substring(0, 8) + ext;
-            File dest = new File(tradeImageDir + "/" + filename);
-            dest.getParentFile().mkdirs();
-            file.transferTo(dest);
-
-            String newImageUrl = "/images/trades/" + filename;
+            // Phase 1-7: ImageStorageService 사용 (local=disk / prod=S3).
+            // DB에는 storage key 저장. 응답은 /api/images/secure/{key} proxy URL.
+            String key = imageStorageService.store(
+                    "uploads/trade/" + tradeId,
+                    file.getOriginalFilename(),
+                    file
+            );
             if (post.getImageUrl() == null || post.getImageUrl().isBlank()) {
-                post.updateImageUrl(newImageUrl);
+                post.updateImageUrl(key);
             } else {
-                post.updateImageUrl(post.getImageUrl() + "," + newImageUrl);
+                post.updateImageUrl(post.getImageUrl() + "," + key);
             }
-            return ReturnData.success(newImageUrl);
+            return ReturnData.success(StorageKeyUrls.toProxyUrl(key));
         } catch (IOException e) {
             return ReturnData.fail("F500", "이미지 저장 실패: " + e.getMessage());
         }

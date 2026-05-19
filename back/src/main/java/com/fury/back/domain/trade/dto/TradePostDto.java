@@ -3,6 +3,7 @@ package com.fury.back.domain.trade.dto;
 import com.fury.back.domain.card.Card;
 import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.user.User;
+import com.fury.back.storage.StorageKeyUrls;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -45,7 +46,7 @@ public class TradePostDto {
                 .title(post.getTitle())
                 .description(post.getDescription())
                 .price(post.getPrice())
-                .imageUrl(post.getImageUrl())
+                .imageUrl(StorageKeyUrls.toProxyCsv(post.getImageUrl()))
                 .imageUrls(splitImageUrls(post.getImageUrl()))
                 .cardStatus(post.getCardStatus())
                 .condition(post.getCondition())
@@ -66,7 +67,7 @@ public class TradePostDto {
                 .title(post.getTitle())
                 .description(post.getDescription())
                 .price(post.getPrice())
-                .imageUrl(post.getImageUrl())
+                .imageUrl(StorageKeyUrls.toProxyCsv(post.getImageUrl()))
                 .imageUrls(splitImageUrls(post.getImageUrl()))
                 .cardStatus(post.getCardStatus())
                 .condition(post.getCondition())
@@ -85,9 +86,11 @@ public class TradePostDto {
         if (imageUrl == null || imageUrl.isBlank()) {
             return List.of();
         }
+        // Phase 1-7: DB는 storage key 저장 → 응답에서 /api/images/secure/{key} proxy URL로 변환.
         return Arrays.stream(imageUrl.split(","))
                 .map(String::trim)
                 .filter(url -> !url.isBlank())
+                .map(StorageKeyUrls::toProxyUrl)
                 .toList();
     }
 

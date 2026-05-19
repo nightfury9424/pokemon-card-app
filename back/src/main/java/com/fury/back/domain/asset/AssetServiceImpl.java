@@ -12,6 +12,8 @@ import com.fury.back.domain.price.PriceSnapshot;
 import com.fury.back.domain.price.PriceSnapshotRepository;
 import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.trade.TradePostRepository;
+import com.fury.back.storage.ImageStorageService;
+import com.fury.back.storage.StorageKeyUrls;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -41,9 +43,10 @@ public class AssetServiceImpl implements AssetService {
     private final TradePostRepository tradePostRepository;
     private final PriceSnapshotRepository priceSnapshotRepository;
     private final ExchangeRateClient exchangeRateClient;
+    private final ImageStorageService imageStorageService;
 
     @Value("${asset.grading.image.dir:${user.home}/pokemon-card-app/asset_grading_images}")
-    private String assetGradingImageDir;
+    private String assetGradingImageDir;  // Phase 1-7: legacy static handler 호환용
 
     @Override
     public ReturnData<List<AssetDto>> getMyAssets(String userId) {
@@ -398,28 +401,29 @@ public class AssetServiceImpl implements AssetService {
         asset.updateCertNumberIfEmpty(req.appAnalysisId());
 
         try {
-            String frontFilename = assetId + "_front.jpg";
-            String backFilename = assetId + "_back.jpg";
-            saveImage(frontImage, frontFilename);
-            saveImage(backImage, backFilename);
+            // Phase 1-7: ImageStorageService 사용 (local=disk / prod=S3).
+            // DB에는 storage key, 응답은 /api/images/secure/{key} proxy URL.
+            String frontKey = imageStorageService.store(
+                    "uploads/asset/" + assetId,
+                    frontImage.getOriginalFilename(),
+                    frontImage
+            );
+            String backKey = imageStorageService.store(
+                    "uploads/asset/" + assetId,
+                    backImage.getOriginalFilename(),
+                    backImage
+            );
 
-            List<String> imageUrls = new ArrayList<>();
-            imageUrls.add("/images/asset-grading/" + frontFilename);
-            imageUrls.add("/images/asset-grading/" + backFilename);
+            assetImageRepository.save(AssetImage.of(assetId, "FRONT", frontKey));
+            assetImageRepository.save(AssetImage.of(assetId, "BACK", backKey));
 
-            assetImageRepository.save(AssetImage.of(assetId, "FRONT", imageUrls.get(0)));
-            assetImageRepository.save(AssetImage.of(assetId, "BACK", imageUrls.get(1)));
-
-            return ReturnData.success(imageUrls);
+            return ReturnData.success(List.of(
+                    StorageKeyUrls.toProxyUrl(frontKey),
+                    StorageKeyUrls.toProxyUrl(backKey)
+            ));
         } catch (IOException e) {
             return ReturnData.fail("F500", "이미지 저장 실패: " + e.getMessage());
         }
-    }
-
-    private void saveImage(MultipartFile image, String filename) throws IOException {
-        File dest = new File(assetGradingImageDir + "/" + filename);
-        dest.getParentFile().mkdirs();
-        image.transferTo(dest);
     }
 
     @Override
@@ -443,9 +447,13 @@ public class AssetServiceImpl implements AssetService {
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new IOException("자산을 찾을 수 없습니다. assetId=" + assetId));
 
-        String filename = "slab_" + assetId + "_" + System.currentTimeMillis() + getExtension(file.getOriginalFilename());
-        saveImage(file, filename);
-        assetImageRepository.save(AssetImage.of(asset.getAssetId(), "SLAB", "/images/asset-grading/" + filename));
+        // Phase 1-7: ImageStorageService 사용 (slab도 동일 prefix).
+        String key = imageStorageService.store(
+                "uploads/asset/" + assetId,
+                file.getOriginalFilename(),
+                file
+        );
+        assetImageRepository.save(AssetImage.of(asset.getAssetId(), "SLAB", key));
     }
 
     private String getExtension(String filename) {
@@ -464,7 +472,7 @@ public class AssetServiceImpl implements AssetService {
                 .map(img -> Map.of(
                         "imageId", img.getImageId(),
                         "imageType", img.getImageType(),
-                        "imageUrl", img.getImageUrl()
+                        "imageUrl", StorageKeyUrls.toProxyUrl(img.getImageUrl())
                 ))
                 .toList();
         return ReturnData.success(result);
