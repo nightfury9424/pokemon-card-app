@@ -267,6 +267,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     await _loadData();
     await _loadMyPendingOrders();
     if (mounted) setState(() => _hogaRefreshKey++);
+    // Fix (2026-05-20): 판매글 등록/취소/매수 호가 등록/취소 후 자산 탭 즉시 동기화.
+    // 누락 시 사용자가 자산 탭 진입해도 isSelling 미반영 → 수동 새로고침 필요.
+    AssetNotifier.instance.notifyChanged();
   }
 
   /// 매수 호가 가격 수정 sheet — 기존 등록 sheet 와 같은 구조 (가격 + tick + 콤마).
