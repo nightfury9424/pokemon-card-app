@@ -896,60 +896,93 @@ class _AssetScreenState extends State<AssetScreen> {
         : 0.0;
     final isPos = totalRate >= 0;
 
+    // Polish Step 1 (2026-05-19): summary card 축소.
+    // - margin top 8 → 6, padding 18 → (20,16,20,14), height ~144 → ~100
+    // - radius 20 → 18 (살짝 sharp)
+    // - "총 평가 자산" 12 → 13px, letterSpacing -0.2 (한글 가독)
+    // - 금액 32 w900 → 30 w800 (덜 강조, 그러나 임팩트 유지)
+    // - 수익률 + 보유 종수 → RichText 한 줄 (dot separator)
+    // - 박스/border 유지 (보수)
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 0),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.divider),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
               '총 평가 자산',
               style: TextStyle(
                 color: AppColors.textSecondary,
-                fontSize: 12,
-                letterSpacing: 0.2,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                letterSpacing: -0.2,
               ),
             ),
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: 4),
             // 4차-Round1: TweenedCounter — 자산 추가/삭제 시 부드러운 보간
             TweenedCounter(
               value: totalMarketValue,
               formatter: (v) => _formatPrice(v.toDouble()),
               style: const TextStyle(
                 color: AppColors.textPrimary,
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1.2,
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1.0,
                 height: 1.05,
               ),
             ),
-            const SizedBox(height: 4),
-            if (hasRate) ...[
-              Text(
-                () {
-                  final diff = totalCurrent - totalPurchase;
-                  final sign = isPos ? '+' : '';
-                  return '$sign${_formatPrice(diff)} (${isPos ? '+' : ''}${totalRate.toStringAsFixed(1)}%)';
-                }(),
-                style: TextStyle(
-                  // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
-                  color: isPos ? AppColors.red : AppColors.blue,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-            ],
-            Text(
-              '$distinctCount종 보유',
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
-            ),
+            const SizedBox(height: 6),
+            // 수익률 + 보유 종수 한 줄. hasRate 없으면 보유 종수만.
+            hasRate
+                ? RichText(
+                    text: TextSpan(
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
+                      children: [
+                        TextSpan(
+                          text: () {
+                            final diff = totalCurrent - totalPurchase;
+                            final sign = isPos ? '+' : '';
+                            return '$sign${_formatPrice(diff)} ($sign${totalRate.toStringAsFixed(1)}%)';
+                          }(),
+                          // 색상 정책: 양=빨강, 음=파랑
+                          style: TextStyle(
+                            color: isPos ? AppColors.red : AppColors.blue,
+                          ),
+                        ),
+                        const TextSpan(
+                          text: '  ·  ',
+                          style: TextStyle(color: AppColors.textMuted),
+                        ),
+                        TextSpan(
+                          text: '$distinctCount종 보유',
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : Text(
+                    '$distinctCount종 보유',
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
           ],
         ),
       ),
