@@ -56,6 +56,7 @@ services:
       - /opt/pokefolio/data/uploads:/opt/pokefolio/data/uploads  # LocalImageStorage fallback
       - /opt/pokefolio/data/images:/opt/pokefolio/data/images    # Spring static (legacy)
       - /opt/pokefolio/data/logs:/app/logs
+      - /opt/pokefolio/config/python/config.py:/app/python/config.py:ro  # Phase 1-1: python script config (env getenv 템플릿)
     networks:
       - pokefolio
 

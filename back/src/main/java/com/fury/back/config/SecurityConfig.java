@@ -1,5 +1,6 @@
 package com.fury.back.config;
 
+import com.fury.back.auth.InternalTokenFilter;
 import com.fury.back.auth.JwtAuthFilter;
 import com.fury.back.auth.OnboardingGuardFilter;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final OnboardingGuardFilter onboardingGuardFilter;
+    private final InternalTokenFilter internalTokenFilter;
 
     @Value("${app.cors.allowed-origins}")
     private String corsAllowedOrigins;
@@ -63,6 +65,7 @@ public class SecurityConfig {
                     auth.requestMatchers(
                             "/api/auth/**",
                             "/api/health",
+                            "/api/internal/**",   // InternalTokenFilter가 token 검증, nginx에서 외부 차단
                             "/images/**",
                             "/ws/**",
                             "/swagger-ui/**",
@@ -111,6 +114,7 @@ public class SecurityConfig {
                     // 4. 나머지 인증
                     auth.anyRequest().authenticated();
                 })
+                .addFilterBefore(internalTokenFilter, JwtAuthFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(onboardingGuardFilter, JwtAuthFilter.class);
 

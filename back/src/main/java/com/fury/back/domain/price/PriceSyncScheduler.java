@@ -200,6 +200,12 @@ public class PriceSyncScheduler {
             for (String arg : extraArgs) cmd.add(arg);
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
+            // Phase 1-1 fix: cwd = script parent. default cwd=/app이면 script가 같은 디렉토리
+            // config.py를 import 못 하고 ModuleNotFoundError (cron 자동 실행 시 silent fail).
+            java.io.File scriptDir = new java.io.File(scriptPath).getParentFile();
+            if (scriptDir != null && scriptDir.isDirectory()) {
+                pb.directory(scriptDir);
+            }
             pb.redirectErrorStream(true);
             Process process = pb.start();
 
