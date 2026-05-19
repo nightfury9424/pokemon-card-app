@@ -12,6 +12,12 @@ chromium 불필요 → prod cron에서 동작.
 [추출]
 <meta property="product:price:amount" content="207000">
 
+[deterministic noise]
+- KREAM raw 그대로 저장 시 "출처 그대로" 인지 위험.
+- 0.5~2% magnitude × sign random, seed=sha256(cardId+date+tag).
+- 같은 카드 같은 날 → 항상 같은 값 (hot restart 영향 X).
+- KO_ESTIMATED 자체가 추정값이라 1~2% 변동성 자연.
+
 [validation]
 - price > 0 and < 10억
 - 전일 대비 ±70% 이내 (outlier 차단)
@@ -30,6 +36,7 @@ PriceSyncScheduler에 새 @Scheduled cron 추가 (별도 작업).
 """
 
 import argparse
+import hashlib
 import re
 import sys
 import time
@@ -67,6 +74,26 @@ PRICE_META_RE = re.compile(
     r'<meta\s+property="product:price:amount"\s+content="(\d+)"', re.IGNORECASE
 )
 SOURCE = "KREAM"
+
+# Deterministic noise — KREAM raw 그대로 표시 시 "출처 그대로" 인지 위험.
+# 0.5%~2% 범위는 KO_ESTIMATED 추정값 오차 수준이라 사용자 신뢰 X 깨짐.
+# cardId + observed_date seed → 같은 날 같은 카드는 항상 같은 값 (hot restart 영향 X).
+NOISE_MIN_PCT = 0.005  # 0.5%
+NOISE_MAX_PCT = 0.020  # 2.0%
+NOISE_SEED_TAG = "kream_noise_v1"
+
+
+def apply_deterministic_noise(card_id: str, raw_price: int, observed_date: str) -> int:
+    """sha256(cardId + date + tag) seed → magnitude ∈ [0.5%, 2%], sign random."""
+    seed = f"{card_id}_{observed_date}_{NOISE_SEED_TAG}".encode("utf-8")
+    h = hashlib.sha256(seed).hexdigest()
+    # 첫 8 hex → uniform [0, 1)
+    magnitude_rnd = int(h[:8], 16) / float(0x100000000)
+    sign_byte = int(h[8:10], 16)
+    sign = 1 if sign_byte >= 128 else -1
+    magnitude = NOISE_MIN_PCT + magnitude_rnd * (NOISE_MAX_PCT - NOISE_MIN_PCT)
+    noise = magnitude * sign
+    return int(round(raw_price * (1 + noise)))
 
 
 def fetch_kream_price(product_id: str) -> Optional[int]:
@@ -165,15 +192,20 @@ def main():
 
     for card_id, product_id in products.items():
         print(f"[{card_id}] kream product {product_id}")
-        new_price = fetch_kream_price(product_id)
-        if new_price is None:
+        raw_price = fetch_kream_price(product_id)
+        if raw_price is None:
             failed += 1
             continue
+
+        # deterministic noise (0.5~2%) — KO_ESTIMATED는 추정값이라 자연 변동성 안.
+        date_str = now.strftime("%Y%m%d")
+        new_price = apply_deterministic_noise(card_id, raw_price, date_str)
+        noise_pct = (new_price / raw_price - 1) * 100
 
         prev = get_prev_kream_price(conn, card_id)
         valid, reason = validate(new_price, prev)
         prev_str = f"{prev:,}" if prev else "None"
-        print(f"  price={new_price:,} prev={prev_str} validate={reason}")
+        print(f"  raw={raw_price:,} noisy={new_price:,} ({noise_pct:+.2f}%) prev={prev_str} validate={reason}")
 
         if not valid:
             print(f"  [SKIP] validation fail")
