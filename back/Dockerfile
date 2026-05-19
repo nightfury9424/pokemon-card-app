@@ -27,9 +27,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && echo "Asia/Seoul" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
-# Python deps (시세 스크래퍼)
+# Python deps (시세 스크래퍼).
+# jammy(22.04)는 PEP 668 미적용 + pip 22.0.2라 --break-system-packages 옵션 자체가 없음 (pip 23.0+).
+# noble(24.04)로 base 올리면 옵션 추가 또는 venv 분리 필요 (출시 후 개선 — Codex Medium).
 COPY python/requirements.txt /tmp/requirements.txt
-RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
 # Spring boot jar
 COPY --from=build /workspace/build/libs/*.jar /app/app.jar
