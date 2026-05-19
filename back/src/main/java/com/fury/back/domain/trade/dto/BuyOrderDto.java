@@ -47,28 +47,17 @@ public class BuyOrderDto {
                 .build();
     }
 
-    public static BuyOrderDto fromWithDetails(BuyOrder o, User buyer, Card card) {
+    /**
+     * #62 (2026-05-20): scrydex hotlink 직접 조립 제거. caller (Service layer)에서
+     * CardCdnUrls.forCard(card)로 S3 URL을 미리 만들어 String으로 주입.
+     * DTO는 plain string만 받음 (Spring Component 의존성 없음).
+     */
+    public static BuyOrderDto fromWithDetails(BuyOrder o, User buyer, Card card, String cardImageUrl) {
         return from(o).toBuilder()
                 .buyerNickname(buyer != null ? buyer.getNickname() : null)
                 .cardName(card != null ? card.getName() : null)
-                // Fix (2026-05-20): card.getImageUrl()은 pokemonkorea.co.kr URL (deprecated, Flutter
-                // CardImage가 "이미지 없음" 처리). scrydex CDN URL 직접 조립 (jp 우선, en fallback).
-                .cardImageUrl(resolveCardImageUrl(card))
+                .cardImageUrl(cardImageUrl)
                 .rarityCode(card != null ? card.getRarityCode() : null)
                 .build();
-    }
-
-    /** Card → scrydex CDN URL (jp 우선, en fallback, NO_/null이면 null). */
-    private static String resolveCardImageUrl(Card card) {
-        if (card == null) return null;
-        final String jpRef = card.getJpScrydexRef();
-        if (jpRef != null && !jpRef.isBlank() && !jpRef.startsWith("NO_")) {
-            return "https://images.scrydex.com/pokemon/" + jpRef + "/medium";
-        }
-        final String enRef = card.getEnScrydexRef();
-        if (enRef != null && !enRef.isBlank() && !enRef.startsWith("NO_")) {
-            return "https://images.scrydex.com/pokemon/" + enRef + "/medium";
-        }
-        return null;
     }
 }

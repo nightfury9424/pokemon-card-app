@@ -10,6 +10,7 @@ import com.fury.back.domain.notification.NotificationService;
 import com.fury.back.domain.trade.dto.BuyOrderDto;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
+import com.fury.back.storage.CardCdnUrls;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -42,6 +43,7 @@ public class BuyOrderServiceImpl implements BuyOrderService {
     private final UserRepository userRepository;
     private final AssetRepository assetRepository;
     private final NotificationService notificationService;
+    private final CardCdnUrls cardCdnUrls;
 
     @Override
     public ReturnData<List<BuyOrderDto>> getByCard(String cardId) {
@@ -221,7 +223,14 @@ public class BuyOrderServiceImpl implements BuyOrderService {
         Map<String, Card> cardMap = cardRepository.findAllById(cardIds).stream()
                 .collect(Collectors.toMap(Card::getCardId, Function.identity()));
         return orders.stream()
-                .map(o -> BuyOrderDto.fromWithDetails(o, userMap.get(o.getBuyerId()), cardMap.get(o.getCardId())))
+                .map(o -> {
+                    final Card card = cardMap.get(o.getCardId());
+                    return BuyOrderDto.fromWithDetails(
+                            o,
+                            userMap.get(o.getBuyerId()),
+                            card,
+                            cardCdnUrls.forCard(card));
+                })
                 .toList();
     }
 }
