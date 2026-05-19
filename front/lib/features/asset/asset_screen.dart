@@ -796,8 +796,7 @@ class _AssetScreenState extends State<AssetScreen> {
               child: CustomScrollView(
                 slivers: [
                   SliverToBoxAdapter(child: _buildPortfolioSummary()),
-                  SliverToBoxAdapter(child: _buildSortRow()),
-                  SliverToBoxAdapter(child: _buildTabRow()),
+                  SliverToBoxAdapter(child: _buildTabAndSortRow()),
                   // 내 매수 주문 탭 (index 2)
                   if (_tabIndex == 2) ...[
                     if (_myBuyOrders.isEmpty)
@@ -991,63 +990,189 @@ class _AssetScreenState extends State<AssetScreen> {
     );
   }
 
-  Widget _buildSortRow() {
-    // Polish: tab row와 좌측 정렬 통일 (padding 12 → 16).
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        physics: const ClampingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: [
-          Center(child: _buildSortChip('등급순', _SortMode.rarity)),
-          const SizedBox(width: 6),
-          Center(child: _buildSortChip('가격순', _SortMode.price)),
-          const SizedBox(width: 6),
-          Center(child: _buildSortChip('이름순', _SortMode.name)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSortChip(String label, _SortMode mode) {
-    final selected = _sortMode == mode;
-    final arrow = selected ? (_sortAscending ? ' ↑' : ' ↓') : '';
-    return GestureDetector(
-      onTap: () => _onSortTap(mode),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-        decoration: BoxDecoration(
-          // 4차 디자인: selected = brand blue (이전엔 green이라 손익 시그널과 의미 충돌)
-          color: selected ? AppColors.blueDeep : AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          border: Border.all(
-            color: selected ? AppColors.blue : AppColors.divider,
-          ),
-        ),
-        child: Text(
-          '$label$arrow',
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.white54,
-            fontSize: 12,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabRow() {
+  /// Polish Step 2 (2026-05-20): tab + sort 한 row 통합.
+  /// - tab = text + underline (primary navigation, 토스/Apple HIG)
+  /// - sort = 우측 dropdown trigger (secondary, BottomSheet popup)
+  /// - 기존 chip pill 두 row (sort row 40 + tab row 56)을 한 row로
+  Widget _buildTabAndSortRow() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _tabChip('전체', 0),
-          const SizedBox(width: 8),
-          _tabChip('판매중', 1),
-          const SizedBox(width: 8),
-          _tabChip('내 매수', 2),
+          _tabText('전체', 0),
+          const SizedBox(width: 18),
+          _tabText('판매중', 1),
+          const SizedBox(width: 18),
+          _tabText('내 매수', 2),
+          const Spacer(),
+          _sortDropdown(),
         ],
+      ),
+    );
+  }
+
+  Widget _tabText(String label, int index) {
+    final selected = _tabIndex == index;
+    return GestureDetector(
+      onTap: () {
+        setState(() => _tabIndex = index);
+        if (index == 2 && _myBuyOrders.isEmpty) _loadMyBuyOrders();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+                fontSize: 15,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ),
+          // underline indicator
+          Container(
+            height: 2.5,
+            width: 22,
+            decoration: BoxDecoration(
+              color: selected ? AppColors.blue : Colors.transparent,
+              borderRadius: BorderRadius.circular(1.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _sortLabel() {
+    switch (_sortMode) {
+      case _SortMode.rarity:
+        return '등급순';
+      case _SortMode.price:
+        return '가격순';
+      case _SortMode.name:
+        return '이름순';
+      case _SortMode.quantity:
+        return '수량순';
+    }
+  }
+
+  Widget _sortDropdown() {
+    return GestureDetector(
+      onTap: _showSortSheet,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _sortLabel(),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              _sortAscending ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+              color: AppColors.textSecondary,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showSortSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '정렬 기준',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _sortOption(ctx, '등급순', _SortMode.rarity),
+            _sortOption(ctx, '가격순', _SortMode.price),
+            _sortOption(ctx, '이름순', _SortMode.name),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sortOption(BuildContext ctx, String label, _SortMode mode) {
+    final selected = _sortMode == mode;
+    return InkWell(
+      onTap: () {
+        _onSortTap(mode);
+        Navigator.pop(ctx);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? AppColors.blue : AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                letterSpacing: -0.2,
+              ),
+            ),
+            if (selected) ...[
+              const SizedBox(width: 6),
+              Icon(
+                _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                color: AppColors.blue,
+                size: 14,
+              ),
+            ],
+            const Spacer(),
+            if (selected)
+              const Icon(Icons.check, color: AppColors.blue, size: 18),
+          ],
+        ),
       ),
     );
   }
@@ -1060,36 +1185,6 @@ class _AssetScreenState extends State<AssetScreen> {
         _myBuyOrders = List<Map<String, dynamic>>.from(res['data'] ?? []);
       });
     } catch (_) {}
-  }
-
-  Widget _tabChip(String label, int index) {
-    final selected = _tabIndex == index;
-    return GestureDetector(
-      onTap: () {
-        setState(() => _tabIndex = index);
-        if (index == 2 && _myBuyOrders.isEmpty) _loadMyBuyOrders();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.blue : AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppColors.blue : AppColors.divider,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : AppColors.textSecondary,
-            fontSize: 12,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
   }
 
   /// 4차-Round4-4 Phase 5: 내 매수 호가 한 줄 row
