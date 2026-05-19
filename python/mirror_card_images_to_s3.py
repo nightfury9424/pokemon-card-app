@@ -13,8 +13,8 @@ Pokemon card master images → S3 cards/v1/ mirror.
 
 [안전장치]
 - Resumable: S3 HEAD으로 이미 있으면 skip
-- Rate limit: --rate (default 8 req/s) for scrydex CDN
-- Retry: backoff 0.5/1/2 sec, 최대 3회
+- Concurrency: --concurrency (default 8) ThreadPoolExecutor for jp/en
+- Retry: backoff 0.5/1/2 sec, 최대 3회 (scrydex download)
 - Dry-run: --dry-run 플래그 (DB만 읽고 plan/카운트/sample/reachability test)
 - Failure log: mirror_failures_YYYYMMDD_HHMM.csv
 
@@ -35,8 +35,10 @@ import csv
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 from typing import Optional, List, Tuple
 
 import psycopg2
@@ -151,8 +153,8 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="계획만 출력, 업로드 X")
     parser.add_argument("--only", choices=["jp", "en", "special"], default=None,
                         help="특정 카테고리만 처리")
-    parser.add_argument("--rate", type=float, default=8.0,
-                        help="scrydex CDN 요청 속도 (req/s). 기본 8.")
+    parser.add_argument("--concurrency", type=int, default=8,
+                        help="동시 worker 수 (default 8). scrydex 부담 줄이려면 4~6.")
     parser.add_argument("--limit", type=int, default=None,
                         help="테스트용 처리 개수 제한 (uploaded + skipped 기준)")
     args = parser.parse_args()
@@ -169,7 +171,7 @@ def main():
     print(f"[Local]    {local_dir}")
     print(f"[Mode]     {'DRY-RUN' if args.dry_run else 'REAL UPLOAD'}")
     print(f"[Filter]   {args.only or 'all'}")
-    print(f"[Rate]     {args.rate} req/s")
+    print(f"[Concurr]  {args.concurrency} workers")
     if args.limit:
         print(f"[Limit]    {args.limit}")
     print("=" * 60)
@@ -263,40 +265,31 @@ def main():
 
     s3 = boto3.client("s3", region_name=region)
 
-    sleep_per = 1.0 / args.rate
     failures: List[Tuple[str, str, str, str]] = []
     skipped = 0
     uploaded = 0
+    counter_lock = Lock()
 
-    def process_lang(items: List[Tuple[str, str, str]], lang: str) -> None:
-        nonlocal skipped, uploaded
-        if args.only and args.only != lang:
-            return
-        for cid, ref, _name in items:
-            if args.limit and (uploaded + skipped) >= args.limit:
-                return
-            key = f"{prefix}/{lang}/{cid}.png"
-            try:
-                if s3_head_exists(s3, bucket, key):
-                    skipped += 1
-                    continue
-            except Exception as e:
-                failures.append((cid, lang, ref, f"head_failed: {e}"))
-                continue
-            data = download_scrydex(ref)
-            if not data:
-                failures.append((cid, lang, ref, "download_failed"))
-                continue
-            try:
-                upload(s3, bucket, key, data)
-                uploaded += 1
-            except Exception as e:
-                failures.append((cid, lang, ref, f"upload_failed: {e}"))
-            if uploaded > 0 and uploaded % 50 == 0:
-                print(f"  [{lang}] uploaded={uploaded}, skipped={skipped}, failed={len(failures)}")
-            time.sleep(sleep_per)
+    def upload_one(job: Tuple[str, str, str]) -> Tuple[str, str, str, str, Optional[str]]:
+        """worker: HEAD → download → put. returns (kind, cid, lang, ref, err)."""
+        cid, ref, lang = job
+        key = f"{prefix}/{lang}/{cid}.png"
+        try:
+            if s3_head_exists(s3, bucket, key):
+                return ("skipped", cid, lang, ref, None)
+        except Exception as e:
+            return ("failed", cid, lang, ref, f"head_failed: {e}")
+        data = download_scrydex(ref)
+        if not data:
+            return ("failed", cid, lang, ref, "download_failed")
+        try:
+            upload(s3, bucket, key, data)
+            return ("uploaded", cid, lang, ref, None)
+        except Exception as e:
+            return ("failed", cid, lang, ref, f"upload_failed: {e}")
 
     def process_special() -> None:
+        """special은 1장이라 sequential 유지 (로컬 PNG → S3)."""
         nonlocal skipped, uploaded
         if args.only and args.only != "special":
             return
@@ -321,8 +314,41 @@ def main():
 
     print("=== upload 시작 ===")
     process_special()
-    process_lang(jp_list, "jp")
-    process_lang(en_list, "en")
+
+    # jp + en 병렬 처리
+    jobs: List[Tuple[str, str, str]] = []
+    if not args.only or args.only == "jp":
+        jobs += [(cid, ref, "jp") for cid, ref, _ in jp_list]
+    if not args.only or args.only == "en":
+        jobs += [(cid, ref, "en") for cid, ref, _ in en_list]
+    if args.limit:
+        jobs = jobs[: args.limit]
+
+    if jobs:
+        total = len(jobs)
+        t0 = time.time()
+        print(f"  [parallel] {total} jobs × {args.concurrency} workers")
+        done = 0
+        with ThreadPoolExecutor(max_workers=args.concurrency) as ex:
+            futures = [ex.submit(upload_one, j) for j in jobs]
+            for f in as_completed(futures):
+                kind, cid, lang, ref, err = f.result()
+                with counter_lock:
+                    done += 1
+                    if kind == "uploaded":
+                        uploaded += 1
+                    elif kind == "skipped":
+                        skipped += 1
+                    else:
+                        failures.append((cid, lang, ref, err or "unknown"))
+                    cur_done = done
+                if cur_done % 100 == 0:
+                    elapsed = time.time() - t0
+                    rate = cur_done / elapsed if elapsed > 0 else 0
+                    eta = (total - cur_done) / rate if rate > 0 else 0
+                    print(f"  progress: {cur_done}/{total} "
+                          f"(up={uploaded}, skip={skipped}, fail={len(failures)}) "
+                          f"{rate:.1f}/s ETA {eta:.0f}s")
 
     print()
     print(f"uploaded: {uploaded}")
