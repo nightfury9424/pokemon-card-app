@@ -114,8 +114,8 @@ public class SecurityConfig {
                     // 4. 나머지 인증
                     auth.anyRequest().authenticated();
                 })
-                .addFilterBefore(internalTokenFilter, JwtAuthFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(internalTokenFilter, JwtAuthFilter.class)
                 .addFilterAfter(onboardingGuardFilter, JwtAuthFilter.class);
 
         return http.build();
