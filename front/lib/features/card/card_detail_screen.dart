@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/app_success_toast.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
@@ -3569,21 +3570,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   // 색상: 판매하기=파랑 / 구매하기=빨강 (토스증권 액션 컨벤션, 호가창 row 색과 반대).
   // ─────────────────────────────────────────────
 
-  /// 등록 완료 상단 banner — 매수/판매 성공 시 호출. 2초 자동 사라짐, 중복 큐 차단.
-  /// SnackBar 금지 정책 (feedback_hoga_design_invariants.md 가드레일 11).
+  /// 등록 완료 성공 toast — 2026-05-20 Phase B: 상단 banner → AppSuccessToast (가운데 ✓ fade).
+  /// 호출처 9곳 그대로 유지 (시그니처 호환). _showFailureBanner는 별도 (실패는 별 widget 필요).
   void _showSuccessBanner(String text) {
     if (!mounted) return;
-    final token = ++_bannerToken;
-    setState(() {
-      _successBannerText = text;
-      _bannerIsError = false;
-    });
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      // 다른 banner 가 덮어쓴 경우 무시.
-      if (_bannerToken != token) return;
-      setState(() => _successBannerText = null);
-    });
+    AppSuccessToast.show(context, text);
   }
 
   /// 실패 banner — DELETE 등 mutation 실패 시 호출. Phase 5: 사용자 피드백 보강.

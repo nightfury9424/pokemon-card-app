@@ -9,6 +9,7 @@ import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
 import '../../core/network/api_client.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
+import '../../core/widgets/app_success_toast.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
@@ -379,12 +380,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               await _loadOwnedCards();
               if (!mounted) return;
               AssetNotifier.instance.notifyChanged();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('자산에 추가됐습니다'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              AppSuccessToast.show(context, '자산에 추가됐습니다');
               _dismissResult();
 
               // Phase 6: 카드 상세에서 expectedCardId로 진입한 경우 등록 직후 자동 복귀.
