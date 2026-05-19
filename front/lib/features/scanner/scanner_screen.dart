@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:go_router/go_router.dart';
@@ -184,7 +185,10 @@ class _ScannerScreenState extends State<ScannerScreen>
 
       if (status == 'no_card') return;
 
-      if (mounted) setState(() => _debugText = 'status=$status score=$score');
+      // Phase 1 (2026-05-20): debug text는 dev/profile build에서만. release에서 사용자 노출 X.
+      if (kDebugMode && mounted) {
+        setState(() => _debugText = 'status=$status score=$score');
+      }
 
       if (card == null || status == 'not_found') return;
 
@@ -761,7 +765,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               ),
             ),
 
-            if (_debugText.isNotEmpty && !_resultShowing)
+            if (kDebugMode && _debugText.isNotEmpty && !_resultShowing)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 56,
                 left: 0,
@@ -819,13 +823,30 @@ class _ScannerScreenState extends State<ScannerScreen>
                               ),
                             ],
                           )
-                        : const Text(
-                            '틀 안에 카드를 맞춰주세요',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                            ),
+                        : Column(
+                            key: const ValueKey('idle'),
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Text(
+                                '카드를 프레임 안에 맞춰주세요',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                              SizedBox(height: 6),
+                              Text(
+                                '밝은 곳에서 정면으로 촬영하면 더 정확해요',
+                                style: TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                            ],
                           ),
                   ),
                 ),
@@ -1395,7 +1416,7 @@ class _ScannerScreenState extends State<ScannerScreen>
             border: Border.all(color: const Color(0xFFEAB308), width: 3),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFEAB308).withOpacity(0.5),
+                color: const Color(0xFFEAB308).withValues(alpha: 0.5),
                 blurRadius: 16,
                 spreadRadius: 2,
               ),
@@ -1451,7 +1472,7 @@ class _CardFramePainter extends CustomPainter {
       );
     }
 
-    // ── 1. dim overlay (카드 영역 외 어둡게)
+    // ── 1. dim overlay (카드 영역 외 어둡게) — Phase 1 (2026-05-20): idle alpha 강화
     final outerPath = Path()
       ..moveTo(quad[0].dx, quad[0].dy)
       ..lineTo(quad[1].dx, quad[1].dy)
@@ -1459,64 +1480,25 @@ class _CardFramePainter extends CustomPainter {
       ..lineTo(quad[3].dx, quad[3].dy)
       ..close();
     final all = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-    final dimAlpha = detected ? 0.55 : 0.32;
+    final dimAlpha = detected ? 0.65 : 0.55;
     canvas.drawPath(
       Path.combine(PathOperation.difference, all, outerPath),
       Paint()..color = Colors.black.withValues(alpha: dimAlpha),
     );
 
-    // ── 2. 외곽 (accent)
+    // ── 2. 외곽 (accent) — Phase 1: 얇게, 시각 노이즈 줄임
     canvas.drawPath(
       outerPath,
       Paint()
-        ..color = frameColor.withValues(alpha: detected ? 1.0 : 0.85)
+        ..color = frameColor.withValues(alpha: detected ? 1.0 : 0.55)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5,
+        ..strokeWidth = detected ? 2.5 : 1.5,
     );
 
-    // ── 3. 내부 wireframe (Codex: detect 시 alpha 낮춰서 시끄럽지 않게)
-    final innerAlpha = detected ? 0.28 : 0.45;
-    final inner = Paint()
-      ..color = Colors.white.withValues(alpha: innerAlpha)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    // 3a. 상단 ribbon (이름/HP 영역)
-    final ribbon = Path()
-      ..moveTo(at(0.06, 0.04).dx, at(0.06, 0.04).dy)
-      ..lineTo(at(0.94, 0.04).dx, at(0.94, 0.04).dy)
-      ..lineTo(at(0.94, 0.11).dx, at(0.94, 0.11).dy)
-      ..lineTo(at(0.06, 0.11).dx, at(0.06, 0.11).dy)
-      ..close();
-    canvas.drawPath(ribbon, inner);
-
-    // 3b. art-frame (top-left clipped — 포켓몬 카드 art-frame 모양)
-    final art = Path()
-      ..moveTo(at(0.17, 0.14).dx, at(0.17, 0.14).dy)
-      ..lineTo(at(0.93, 0.14).dx, at(0.93, 0.14).dy)
-      ..lineTo(at(0.93, 0.62).dx, at(0.93, 0.62).dy)
-      ..lineTo(at(0.07, 0.62).dx, at(0.07, 0.62).dy)
-      ..lineTo(at(0.07, 0.24).dx, at(0.07, 0.24).dy)
-      ..close();
-    canvas.drawPath(art, inner);
-
-    // 3c. info bar (기술명)
-    canvas.drawLine(at(0.10, 0.69), at(0.90, 0.69), inner);
-
-    // 3d. 하단 rule box
-    final rule = Path()
-      ..moveTo(at(0.04, 0.85).dx, at(0.04, 0.85).dy)
-      ..lineTo(at(0.96, 0.85).dx, at(0.96, 0.85).dy)
-      ..lineTo(at(0.96, 0.93).dx, at(0.96, 0.93).dy)
-      ..lineTo(at(0.04, 0.93).dx, at(0.04, 0.93).dy)
-      ..close();
-    canvas.drawPath(
-      rule,
-      Paint()
-        ..color = Colors.white.withValues(alpha: detected ? 0.22 : 0.30)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2,
-    );
+    // ── 3. 내부 wireframe 제거 (Phase 1, 2026-05-20)
+    //   ribbon/art-frame/info-bar/rule box → 카드 외곽만 맞추는 단순 UX.
+    //   사용자가 "내 카드 안에 그림 맞춰야 하나?" 혼란 제거.
+    //   TCGplayer/StripeCardScan/VisionKit 표준 패턴.
 
     // ── 4. 4 코너 bracket (quad 4점에서 안쪽으로)
     final edgeAvg = (_dist(quad[0], quad[1]) + _dist(quad[1], quad[2])) / 2;
@@ -1616,7 +1598,7 @@ class _RegistrationTypeButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         color: selected
-            ? const Color(0xFF2563EB).withOpacity(0.22)
+            ? const Color(0xFF2563EB).withValues(alpha: 0.22)
             : Colors.white10,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
