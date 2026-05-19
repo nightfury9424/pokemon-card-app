@@ -1368,17 +1368,15 @@ class _AssetScreenState extends State<AssetScreen> {
     final rarity = cardData['rarityCode'] as String? ?? '';
     final imageUrl = resolveCardImageUrl(cardData);
 
+    // badgeLabel만 사용 (하단 정보 line의 'KO · RAW 6.5'). badge 컬러는
+    // 90d94f3e badge 재배치 이후 미사용 → 제거.
     late final String badgeLabel;
-    late final Color badgeColor;
     if (cardStatus == 'GRADED' && gradingCompany != null) {
       badgeLabel = '$gradingCompany${gradeValue != null ? " $gradeValue" : ""}';
-      badgeColor = AppColors.gold;
     } else if (estimatedGrade != null) {
       badgeLabel = 'RAW ${estimatedGrade.toStringAsFixed(1)}';
-      badgeColor = AppColors.blue;
     } else {
       badgeLabel = 'RAW';
-      badgeColor = AppColors.textMuted;
     }
 
     // 4차-Round4: 풀 오버레이 디자인 — 카드 이미지 풀 + 하단 그라데이션 위 정보 (NFT 갤러리 패턴)
@@ -1631,6 +1629,8 @@ class _AssetScreenState extends State<AssetScreen> {
     );
   }
 
+  // 자산 추가 옵션 sheet — 상단 + 제거 후 일시 unused. 다음 Step (ghost tile)에서 재사용 예정.
+  // ignore: unused_element
   void _showAddOptions() {
     showModalBottomSheet(
       context: context,
