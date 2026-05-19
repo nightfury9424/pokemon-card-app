@@ -1,0 +1,19 @@
+# PriceSyncScheduler가 호출하는 시세 스크립트 deps.
+# 베타 1단계 minimal — 정확한 버전은 conda env에서 `pip freeze` 비교 후 보정.
+#
+# 사용자 conda env 추출:
+#   conda activate scanner_v2
+#   pip freeze | grep -v '^scanner\|^torch\|^faiss\|^transformers' > /tmp/freeze.txt
+# 비교 후 이 파일 갱신.
+
+psycopg2-binary==2.9.9
+requests==2.32.3
+beautifulsoup4==4.12.3
+lxml==5.2.2
+python-dotenv==1.0.1
+
+# KREAM (curl_cffi 우회) — kream_ditto.py
+curl_cffi==0.7.0b4
+
+# DAANGN/NAVER 크롤러 — playwright
+playwright==1.45.0

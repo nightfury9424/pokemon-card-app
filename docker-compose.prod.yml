@@ -1,0 +1,107 @@
+# PokeFolio prod — Phase 1 (베타 1단계)
+#
+# 사용:
+#   1. /opt/pokefolio/.env.prod 작성 (chmod 600, .env.prod.example 참고)
+#   2. docker compose --env-file /opt/pokefolio/.env.prod -f docker-compose.prod.yml build
+#   3. docker compose --env-file /opt/pokefolio/.env.prod -f docker-compose.prod.yml up -d
+#
+# 구조:
+#   - back/scanner/grading은 internal network (docker bridge "pokefolio")
+#   - Spring API만 host 8080 → Nginx/Caddy reverse proxy에서 443으로
+#   - PostgreSQL은 internal only (5432 외부 차단)
+#   - scanner DINOv2 모델 + FAISS index는 host volume read-only mount
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: pokefolio-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-pokemon_card_db}
+      POSTGRES_USER: ${DB_USER:-nightfury}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: Asia/Seoul
+    volumes:
+      - /opt/pokefolio/data/postgres:/var/lib/postgresql/data
+    networks:
+      - pokefolio
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-nightfury} -d ${DB_NAME:-pokemon_card_db}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  back:
+    build:
+      context: .
+      dockerfile: back/Dockerfile
+    image: pokefolio-back:latest
+    container_name: pokefolio-back
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - /opt/pokefolio/.env.prod
+    environment:
+      # docker network 내부 hostname overrides (.env.prod의 host=localhost 무시)
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-pokemon_card_db}
+      GRADING_SERVICE_URL: http://grading:8081
+      SCANNER_BASE_URL: http://scanner:8082
+      PYTHON_SCRIPTS_DIR: /app/python
+      TZ: Asia/Seoul
+    ports:
+      - "127.0.0.1:8080:8080"   # localhost만 노출 → Nginx/Caddy reverse proxy
+    volumes:
+      - /opt/pokefolio/data/uploads:/opt/pokefolio/data/uploads  # LocalImageStorage fallback
+      - /opt/pokefolio/data/images:/opt/pokefolio/data/images    # Spring static (legacy)
+      - /opt/pokefolio/data/logs:/app/logs
+    networks:
+      - pokefolio
+
+  scanner:
+    build:
+      context: .
+      dockerfile: scanner/Dockerfile
+    image: pokefolio-scanner:latest
+    container_name: pokefolio-scanner
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Seoul
+    volumes:
+      - /opt/pokefolio/data/models:/app/scanner/model:ro      # DINOv2 (read-only)
+      - /opt/pokefolio/data/faiss:/app/scanner/db:ro          # FAISS index (read-only)
+    expose:
+      - "8082"
+    networks:
+      - pokefolio
+
+  grading:
+    build:
+      context: .
+      dockerfile: grading/Dockerfile
+    image: pokefolio-grading:latest
+    container_name: pokefolio-grading
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Seoul
+    expose:
+      - "8081"
+    networks:
+      - pokefolio
+
+networks:
+  pokefolio:
+    driver: bridge
+
+# 참고:
+#   - Nginx/Caddy reverse proxy는 별도 서비스 (host에 직접 또는 docker compose 분리)
+#     예: Caddyfile — api.pokefolio.kr { reverse_proxy 127.0.0.1:8080 }
+#   - 매일 pg_dump backup cron:
+#       0 4 * * * docker exec pokefolio-postgres pg_dump -U $DB_USER -Fc $DB_NAME \
+#         > /opt/pokefolio/data/backups/postgres/$(date +\%F).dump
+#       그 후 aws s3 sync /opt/pokefolio/data/backups/postgres s3://${AWS_S3_BUCKET}/backups/postgres/
+#   - Dockerfile은 별도 작성 필요 (Phase 1-8 또는 별도):
+#       back/Dockerfile        — multi-stage gradle build → java 20 jre slim
+#       scanner/Dockerfile     — python 3.11 + DINOv2 deps
+#       grading/Dockerfile     — python 3.11 slim

@@ -1,0 +1,34 @@
+# Scanner runtime deps (DINOv2 + FAISS + FastAPI).
+# 베타 1단계 — CPU 추론. GPU 필요 시 base image + torch CUDA wheel 별도.
+#
+# 사용자 conda env 추출:
+#   conda activate scanner_v2
+#   pip freeze > /tmp/scanner_freeze.txt
+# 위 파일과 비교해서 정확한 버전 보정.
+
+# PyTorch CPU (서버 빌드 시 --extra-index-url=https://download.pytorch.org/whl/cpu)
+torch==2.3.1
+torchvision==0.18.1
+
+# DINOv2 (Facebook Research) — transformers의 dinov2 모델
+transformers==4.42.4
+safetensors==0.4.3
+
+# FAISS 유사도 검색
+faiss-cpu==1.8.0
+
+# FastAPI 서빙
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+python-multipart==0.0.9
+
+# 이미지 처리
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+pillow==10.4.0
+
+# 유틸
+pydantic==2.8.2
+
+# DB 접근 (main.py가 psycopg2 import — admin_review_verify/single_auto 등)
+psycopg2-binary==2.9.9
