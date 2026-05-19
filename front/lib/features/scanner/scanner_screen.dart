@@ -1072,18 +1072,17 @@ class _ScannerScreenState extends State<ScannerScreen>
     // 신뢰도 chip — 백엔드 status가 'success'면 확실, 'low_confidence'면 검토 필요.
     final bool isLowConfidence = _resultStatus == 'low_confidence';
     final String confLabel = isLowConfidence ? '검토 필요' : '확실';
-    final Color confFg = isLowConfidence
-        ? const Color(0xFFEAB308)
-        : AppColors.green;
+    final Color confFg = isLowConfidence ? AppColors.gold : AppColors.green;
     final Color confBg = isLowConfidence
-        ? const Color(0x29EAB308) // 16% gold
-        : const Color(0x2905C072); // 16% green
+        ? AppColors.gold.withValues(alpha: 0.16)
+        : AppColors.green.withValues(alpha: 0.16);
 
     return Column(
       children: [
         Expanded(
           child: Container(
-            color: Colors.black54,
+            // C-2 (2026-05-20): dim 진하게 → 카드 영역 강조 (이전 0.54 → 0.70).
+            color: Colors.black.withValues(alpha: 0.70),
             child: Center(
               child: _buildDetectedCardFrame(imageUrl, cdnUrl, isOwned),
             ),
@@ -1091,7 +1090,8 @@ class _ScannerScreenState extends State<ScannerScreen>
         ),
         Container(
           decoration: const BoxDecoration(
-            color: Color(0xFF111827),
+            // C-2: hardcoded #111827 → AppColors.surfaceElevated 토큰 (앱 일관).
+            color: AppColors.surfaceElevated,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
@@ -1287,7 +1287,8 @@ class _ScannerScreenState extends State<ScannerScreen>
                                         label: isLowConfidence
                                             ? '확인 후 등록'
                                             : '자산 등록',
-                                        color: const Color(0xFF2563EB),
+                                        // C-2: 앱 표준 AppColors.blue (#1B64DA) 통일.
+                                        color: AppColors.blue,
                                         onTap: () => isLowConfidence
                                             ? _confirmThenAddToAsset(
                                                 cardId,
@@ -1300,7 +1301,8 @@ class _ScannerScreenState extends State<ScannerScreen>
                               Expanded(
                                 child: _ActionBtn(
                                   label: '상세 보기',
-                                  color: const Color(0xFF374151),
+                                  // C-2: 더 어두운 surface로 secondary CTA 톤다운.
+                                  color: AppColors.surfaceCard,
                                   onTap: () async {
                                     await _dismissResult();
                                     if (!mounted) return;
@@ -1349,9 +1351,8 @@ class _ScannerScreenState extends State<ScannerScreen>
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: i == 0
-                                  ? const Color(0xFFEAB308)
-                                  : Colors.white24,
+                              // C-2: top-1 후보 강조 색 토큰화 (gold).
+                              color: i == 0 ? AppColors.gold : Colors.white24,
                               width: i == 0 ? 2 : 1,
                             ),
                           ),
@@ -1650,19 +1651,22 @@ class _ActionBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
+    behavior: HitTestBehavior.opaque,
     child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      // C-2: vertical padding 10 → 14 (height ~48, 토스 표준 CTA 사이즈).
+      padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
       ),
       alignment: Alignment.center,
       child: Text(
         label,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.2,
         ),
       ),
     ),
@@ -1672,10 +1676,11 @@ class _ActionBtn extends StatelessWidget {
 class _OwnedBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 10),
+    // C-2: _ActionBtn과 height 통일.
+    padding: const EdgeInsets.symmetric(vertical: 14),
     decoration: BoxDecoration(
       color: Colors.white10,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       border: Border.all(color: Colors.white24),
     ),
     alignment: Alignment.center,
@@ -1688,8 +1693,9 @@ class _OwnedBtn extends StatelessWidget {
           '보유 중',
           style: TextStyle(
             color: Colors.white38,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
           ),
         ),
       ],
