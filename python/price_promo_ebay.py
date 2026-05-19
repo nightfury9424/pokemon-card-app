@@ -27,7 +27,8 @@ import requests
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
-DB_DSN = "host=localhost port=5432 dbname=pokemon_card_db user=nightfury"
+from config import get_db_dsn  # Phase 1-4: env 기반 DSN
+DB_DSN = get_db_dsn()
 CARD_ID = "CRD_205C20056CBF48F8B08D"
 CARD_NAME = "메타몽 (Pokemon Town 2025 프로모)"
 

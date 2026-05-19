@@ -37,3 +37,15 @@ TARGET_RARITIES = os.getenv(
     "TARGET_RARITIES",
     "SR,SAR,AR,UR,CHR,CSR,HR",
 ).split(",")
+
+
+# Phase 1-4: psycopg2 DSN 문자열 생성 — env 기반.
+# 기존 hardcoded "host=localhost port=5432 dbname=pokemon_card_db user=nightfury" 대체.
+def get_db_dsn() -> str:
+    """DB_CONFIG → psycopg2 DSN 문자열. password는 비어있으면 생략."""
+    c = DB_CONFIG
+    parts = [f"host={c['host']}", f"port={c['port']}",
+             f"dbname={c['dbname']}", f"user={c['user']}"]
+    if c["password"]:
+        parts.append(f"password={c['password']}")
+    return " ".join(parts)
