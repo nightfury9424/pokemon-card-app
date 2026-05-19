@@ -1332,39 +1332,98 @@ class _ScannerScreenState extends State<ScannerScreen>
               ),
               if (_candidates.length > 1) ...[
                 const Divider(color: Colors.white10, height: 1),
+                // C-3 (2026-05-20): top-3 후보 UX — thumbnail ↑ + 카드명 + "추천" badge.
                 SizedBox(
-                  height: 80,
+                  height: 116,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+                      horizontal: 16,
+                      vertical: 12,
                     ),
                     itemCount: _candidates.length,
                     itemBuilder: (_, i) {
                       final c = _candidates[i];
                       final cUrl = resolveCardImageUrl(c);
+                      final cName = c['name'] as String? ?? '';
+                      final isTop = i == 0;
                       return GestureDetector(
                         onTap: () => _selectCandidate(c),
+                        behavior: HitTestBehavior.opaque,
                         child: Container(
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              // C-2: top-1 후보 강조 색 토큰화 (gold).
-                              color: i == 0 ? AppColors.gold : Colors.white24,
-                              width: i == 0 ? 2 : 1,
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(5),
-                            child: CardImage(
-                              imageUrl: cUrl,
-                              cdnFallbackUrl: resolveCdnImageUrl(c),
-                              width: 43,
-                              height: 60,
-                              fit: BoxFit.cover,
-                            ),
+                          margin: const EdgeInsets.only(right: 10),
+                          width: 64,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(7),
+                                      border: Border.all(
+                                        color: isTop
+                                            ? AppColors.gold
+                                            : Colors.white24,
+                                        width: isTop ? 2 : 1,
+                                      ),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: CardImage(
+                                        imageUrl: cUrl,
+                                        cdnFallbackUrl: resolveCdnImageUrl(c),
+                                        width: 56,
+                                        height: 78,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isTop)
+                                    Positioned(
+                                      top: -6,
+                                      right: -6,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 5,
+                                          vertical: 1,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.gold,
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: const Text(
+                                          '추천',
+                                          style: TextStyle(
+                                            color: Colors.black,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: -0.2,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                cName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: isTop
+                                      ? Colors.white
+                                      : Colors.white60,
+                                  fontSize: 10,
+                                  fontWeight: isTop
+                                      ? FontWeight.w700
+                                      : FontWeight.w400,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );
