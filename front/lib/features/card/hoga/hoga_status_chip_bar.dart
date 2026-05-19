@@ -84,27 +84,34 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Polish (2026-05-19):
+    // - height 고정 (28/32) → touch target 안정
+    // - pill radius (h/2) → 토스 스타일
+    // - border 제거 + selected는 채워진 blue
+    // - font w600 + letterSpacing -0.2 (한글 가독)
+    final h = small ? 28.0 : 32.0;
+    final fs = small ? 12.0 : 13.0;
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        padding: EdgeInsets.symmetric(
-          horizontal: small ? 9 : 11,
-          vertical: small ? 4 : 5,
-        ),
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        height: h,
+        padding: EdgeInsets.symmetric(horizontal: small ? 12 : 14),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.blueDeep : AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? AppColors.blue : AppColors.divider,
-          ),
+          color: isSelected ? AppColors.blue : AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(h / 2),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-            fontSize: small ? 11 : 12,
-            fontWeight: FontWeight.w700,
+            color: isSelected ? Colors.white : AppColors.textSecondary,
+            fontSize: fs,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
+            height: 1.0,
           ),
         ),
       ),
