@@ -9,6 +9,7 @@ import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/rarity.dart';
 import '../../core/widgets/animated_counter.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pressable.dart';
@@ -1144,20 +1145,12 @@ class _AssetScreenState extends State<AssetScreen> {
   }
 
   Future<void> _confirmCancelBuyOrder(String orderId, String cardId) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text('매수 호가 취소', style: TextStyle(color: Colors.white)),
-        content: const Text('이 매수 호가를 취소하시겠어요?', style: TextStyle(color: AppColors.textSecondary)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('아니오')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('취소하기', style: TextStyle(color: AppColors.red)),
-          ),
-        ],
-      ),
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '매수 호가 취소',
+      message: '이 매수 호가를 취소하시겠어요?',
+      confirmLabel: '취소하기',
+      destructive: true,
     );
     if (ok != true) return;
     try {
@@ -2433,29 +2426,12 @@ class _AssetScreenState extends State<AssetScreen> {
       }
       return;
     }
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text(
-          '자산 삭제',
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
-        content: const Text(
-          '이 카드를 자산에서 삭제할까요?',
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text('삭제', style: TextStyle(color: Colors.red)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('취소'),
-          ),
-        ],
-      ),
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '자산 삭제',
+      message: '이 카드를 자산에서 삭제할까요?',
+      confirmLabel: '삭제',
+      destructive: true,
     );
     if (ok == true) await _deleteAsset(assetId);
   }

@@ -8,6 +8,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/holographic_card_viewer.dart';
@@ -400,22 +401,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   Future<void> _confirmCancelBuyOrder(Map<String, dynamic> order) async {
     final buyOrderId = order['buyOrderId'] as String?;
     if (buyOrderId == null) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text('매수 호가를 취소할까요?', style: TextStyle(color: Colors.white)),
-        content: const Text('이 가격의 매수 호가가 취소돼요.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('아니오')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.red),
-            child: const Text('취소하기', style: TextStyle(fontWeight: FontWeight.w800)),
-          ),
-        ],
-      ),
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '매수 호가를 취소할까요?',
+      message: '이 가격의 매수 호가가 취소돼요.',
+      confirmLabel: '취소하기',
+      destructive: true,
     );
     if (ok != true || !mounted) return;
     try {
@@ -643,22 +634,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   Future<void> _confirmCancelTradePost(Map<String, dynamic> trade) async {
     final tradeId = trade['tradeId'] as String?;
     if (tradeId == null) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text('판매글을 취소할까요?', style: TextStyle(color: Colors.white)),
-        content: const Text('이 판매글이 호가창에서 사라져요.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('아니오')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.red),
-            child: const Text('취소하기', style: TextStyle(fontWeight: FontWeight.w800)),
-          ),
-        ],
-      ),
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '판매글을 취소할까요?',
+      message: '이 판매글이 호가창에서 사라져요.',
+      confirmLabel: '취소하기',
+      destructive: true,
     );
     if (ok != true || !mounted) return;
     try {
@@ -3425,26 +3406,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       }
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text('자산 삭제', style: TextStyle(color: Colors.white)),
-        content: const Text(
-          '이 카드를 자산에서 삭제하시겠습니까?',
-          style: TextStyle(color: Colors.white54),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('취소', style: TextStyle(color: Colors.white38)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('삭제', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+    final confirmed = await AppConfirmDialog.show(
+      context,
+      title: '자산 삭제',
+      message: '이 카드를 자산에서 삭제하시겠습니까?',
+      confirmLabel: '삭제',
+      destructive: true,
     );
     if (confirmed == true && mounted) {
       try {

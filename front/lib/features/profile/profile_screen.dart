@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/user_avatar.dart';
 import '../auth/auth_service.dart';
 
@@ -78,24 +79,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _logout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('로그아웃', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
-        content: const Text('로그아웃 하시겠습니까?', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context, rootNavigator: true).pop(false),
-            child: const Text('취소', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context, rootNavigator: true).pop(true),
-            child: const Text('로그아웃', style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
+    final confirm = await AppConfirmDialog.show(
+      context,
+      title: '로그아웃',
+      message: '로그아웃 하시겠습니까?',
+      confirmLabel: '로그아웃',
+      destructive: true,
     );
     if (confirm == true && mounted) {
       await AuthService.logout();
