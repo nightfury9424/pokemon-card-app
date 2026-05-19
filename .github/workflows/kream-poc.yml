@@ -1,0 +1,49 @@
+name: kream-poc
+
+# PoC — GitHub Actions runner (Azure datacenter IP)에서 KREAM 접근 가능한지 검증.
+# 우리 AWS Lightsail Seoul IP는 KREAM cloudflare에 차단됨 (HTTP 500 + 10초 timeout).
+# Azure IP는 통과할지 미정 → 5분 PoC.
+#
+# 통과 기준: HTTP 200 + "product:price:amount" meta tag 또는 가격 JSON 발견.
+# 차단: 500/403 또는 가격 없음 → Cloudflare Workers PoC로 전환.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  kream-fetch-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Fetch KREAM product 508949 (메타몽)
+        run: |
+          curl -sk \
+            -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8" \
+            -H "Accept-Language: ko-KR,ko;q=0.9,en;q=0.8" \
+            -H "Accept-Encoding: gzip, deflate, br" \
+            -H "Sec-Fetch-Dest: document" \
+            -H "Sec-Fetch-Mode: navigate" \
+            -H "Sec-Fetch-Site: none" \
+            -H "Sec-Fetch-User: ?1" \
+            -H "Upgrade-Insecure-Requests: 1" \
+            --compressed \
+            -o /tmp/kream.html \
+            -w "HTTP %{http_code} size=%{size_download} time=%{time_total}s\n" \
+            "https://kream.co.kr/products/508949"
+
+      - name: 가격 추출 검증
+        run: |
+          echo "=== price meta tag ==="
+          grep -oE 'property="product:price:amount" content="[0-9]+"' /tmp/kream.html | head -3 || echo "  (없음)"
+          echo ""
+          echo "=== price key 출현 ==="
+          PRICE_COUNT=$(grep -c '"price":' /tmp/kream.html 2>/dev/null || echo "0")
+          echo "  count: $PRICE_COUNT"
+          echo ""
+          echo "=== HTML 처음 400자 (Cloudflare block 확인용) ==="
+          head -c 400 /tmp/kream.html || echo "  (empty)"
+          echo ""
+          echo ""
+          echo "=== HTML size ==="
+          wc -c /tmp/kream.html
