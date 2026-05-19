@@ -8,6 +8,7 @@ import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.trade.TradePostRepository;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
+import com.fury.back.storage.StorageKeyUrls;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -94,7 +95,8 @@ public class InterestController {
                             "price", t.getPrice() != null ? t.getPrice() : 0,
                             "status", t.getStatus(),
                             "cardStatus", t.getCardStatus(),
-                            "imageUrl", t.getImageUrl() != null ? t.getImageUrl() : "",
+                            "imageUrl", StorageKeyUrls.firstProxyUrl(t.getImageUrl()) != null
+                                    ? StorageKeyUrls.firstProxyUrl(t.getImageUrl()) : "",
                             "card", card != null ? Map.of(
                                     "cardId", card.getCardId(),
                                     "name", card.getName(),

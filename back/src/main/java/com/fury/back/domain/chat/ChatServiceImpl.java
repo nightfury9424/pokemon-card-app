@@ -7,6 +7,7 @@ import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.trade.TradePostRepository;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
+import com.fury.back.storage.StorageKeyUrls;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,7 +46,7 @@ public class ChatServiceImpl implements ChatService {
                 .countByChatRoomIdAndIsReadFalseAndSenderUserIdNot(room.getChatRoomId(), buyerUserId);
 
         return ChatRoomDto.from(room, buyerUserId,
-                trade.getTitle(), trade.getImageUrl(),
+                trade.getTitle(), StorageKeyUrls.firstProxyUrl(trade.getImageUrl()),
                 other != null ? other.getNickname() : "",
                 other != null ? other.getProfileImageUrl() : "",
                 unread);
@@ -75,7 +76,7 @@ public class ChatServiceImpl implements ChatService {
                     .countByChatRoomIdAndIsReadFalseAndSenderUserIdNot(room.getChatRoomId(), userId);
             return ChatRoomDto.from(room, userId,
                     trade != null ? trade.getTitle() : "",
-                    trade != null ? trade.getImageUrl() : null,
+                    trade != null ? StorageKeyUrls.firstProxyUrl(trade.getImageUrl()) : null,
                     other != null ? other.getNickname() : "",
                     other != null ? other.getProfileImageUrl() : "",
                     unread);

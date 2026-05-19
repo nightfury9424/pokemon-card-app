@@ -41,4 +41,17 @@ public final class StorageKeyUrls {
                 .map(StorageKeyUrls::toProxyUrl)
                 .collect(Collectors.joining(","));
     }
+
+    /**
+     * csv에서 첫 url만 proxy 변환. 단일 url 필드 (호가 sheet thumbnail,
+     * 채팅 헤더 trade 썸네일, 관심 카드 thumb) — 여러 사진 중 첫 장만 표시.
+     */
+    public static String firstProxyUrl(String csv) {
+        if (csv == null || csv.isBlank()) return null;
+        String[] parts = csv.split(",");
+        if (parts.length == 0) return null;
+        String first = parts[0].trim();
+        if (first.isEmpty()) return null;
+        return toProxyUrl(first);
+    }
 }

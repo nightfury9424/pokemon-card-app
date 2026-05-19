@@ -8,6 +8,7 @@ import com.fury.back.domain.trade.dto.HogaListingResponse;
 import com.fury.back.domain.trade.dto.HogaListingsResponse;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
+import com.fury.back.storage.StorageKeyUrls;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -110,7 +111,8 @@ public class HogaServiceImpl implements HogaService {
                             t.getAssetId(),
                             t.getTradeId(),
                             null,
-                            t.getImageUrl()))
+                            // Phase 1-7: storage key → /api/images/secure/{key} proxy URL 변환 (첫 사진만).
+                            StorageKeyUrls.firstProxyUrl(t.getImageUrl())))
                     .toList();
         } else {
             List<BuyOrder> rows =
