@@ -8,6 +8,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
+import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/holographic_card_viewer.dart';
 import '../../core/widgets/rarity_aura.dart';
@@ -4263,8 +4264,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         if (url != null)
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: Image.network(
-              url.startsWith('http') ? url : '${ApiConstants.baseUrl}$url',
+            // AuthImage: JWT Authorization header 자동 부착 (proxy endpoint /api/images/secure/**).
+            // 일반 Image.network는 헤더 못 부착 → 401 → broken image placeholder.
+            child: AuthImage(
+              url: url.startsWith('http') ? url : '${ApiConstants.baseUrl}$url',
               height: 180,
               fit: BoxFit.cover,
               errorBuilder: (_, e, s) => const SizedBox(
