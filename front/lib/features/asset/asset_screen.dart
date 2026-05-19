@@ -1453,107 +1453,71 @@ class _AssetScreenState extends State<AssetScreen> {
                   ),
                 ),
               ),
-              // 좌상단: 레어도 + 등급 배지 (스택)
-              Positioned(
-                top: 6,
-                left: 6,
-                right: 6,
-                child: Row(
-                  children: [
-                    if (rarity.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.55),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          border: Border.all(
-                            color: rarityColor.withValues(alpha: 0.6),
-                            width: 0.6,
-                          ),
-                        ),
-                        child: Text(
-                          rarity,
-                          style: TextStyle(
-                            color: rarityColor,
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ),
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(AppRadius.sm),
-                        border: Border.all(color: Colors.white24, width: 0.5),
-                      ),
-                      child: Text(
-                        language,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 7.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.3,
-                        ),
+              // 좌상단: 레어도 단일 chip (KO/등급은 하단 정보 line으로 이동 — 잘림 해소)
+              if (rarity.isNotEmpty)
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      border: Border.all(
+                        color: rarityColor.withValues(alpha: 0.6),
+                        width: 0.6,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    if (badgeLabel != 'RAW')
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: badgeColor.withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                        ),
-                        child: Text(
-                          badgeLabel,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 7.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
+                    child: Text(
+                      rarity,
+                      style: TextStyle(
+                        color: rarityColor,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.4,
                       ),
-                    const Spacer(),
-                    if (!isSelling)
-                      GestureDetector(
-                        onTap: () => _confirmDelete(assetId),
-                        child: Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(AppRadius.pill),
-                          ),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            color: Colors.white60,
-                            size: 11,
-                          ),
-                        ),
-                      ),
-                  ],
+                    ),
+                  ),
                 ),
-              ),
-              // 판매중 indicator (있을 때만)
+              // 우상단: isSelling=true → '판매중' chip, false → close X (중복 X)
               if (isSelling)
                 Positioned(
                   top: 6,
                   right: 6,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppColors.green.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      color: AppColors.green.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                     ),
                     child: const Text(
                       '판매중',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 8,
+                        fontSize: 9,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                // 판매중 X → 우상단 close X (자산 삭제)
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: GestureDetector(
+                    onTap: () => _confirmDelete(assetId),
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white60,
+                        size: 12,
                       ),
                     ),
                   ),
@@ -1583,6 +1547,23 @@ class _AssetScreenState extends State<AssetScreen> {
                       ),
                     ),
                     const SizedBox(height: 2),
+                    // 정보 line — KO · RAW 6.5 (좌상단에서 이동)
+                    Text(
+                      '$language · $badgeLabel',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                        height: 1.0,
+                        shadows: const [
+                          Shadow(color: Colors.black, blurRadius: 3),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 3),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
