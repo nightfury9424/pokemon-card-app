@@ -76,13 +76,30 @@ public class ImageProxyController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        if (!imageStorageService.exists(key)) {
-            log.warn("[ImageProxy] key not found in storage: {}", key);
+        // exists() 체크 제거 (IAM s3:HeadObject 누락 우회).
+        // load()에서 NoSuchKey/NoSuchFileException catch → 404 처리.
+        // contentType도 stream 미리 받은 후 byte 통째 buffer해서 일관 처리.
+        final byte[] bytes;
+        final String contentType;
+        try (InputStream in = imageStorageService.load(key)) {
+            bytes = in.readAllBytes();
+            contentType = imageStorageService.contentType(key);
+            log.info("[ImageProxy] serve key={} bytes={} content-type={}", key, bytes.length, contentType);
+        } catch (software.amazon.awssdk.services.s3.model.NoSuchKeyException e) {
+            log.warn("[ImageProxy] S3 NoSuchKey key={}", key);
             return ResponseEntity.notFound().build();
+        } catch (java.nio.file.NoSuchFileException | java.io.FileNotFoundException e) {
+            log.warn("[ImageProxy] local file not found key={} err={}", key, e.getMessage());
+            return ResponseEntity.notFound().build();
+        } catch (software.amazon.awssdk.services.s3.model.S3Exception e) {
+            log.error("[ImageProxy] S3 error key={} status={} msg={}",
+                    key, e.statusCode(), e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage());
+            return ResponseEntity.status(e.statusCode() == 404 ? HttpStatus.NOT_FOUND : HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception e) {
+            log.error("[ImageProxy] unexpected error key={} err={}", key, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-        log.info("[ImageProxy] serve key={}", key);
 
-        String contentType = imageStorageService.contentType(key);
         MediaType mt;
         try {
             mt = MediaType.parseMediaType(contentType);
@@ -90,14 +107,11 @@ public class ImageProxyController {
             mt = MediaType.APPLICATION_OCTET_STREAM;
         }
 
-        StreamingResponseBody body = out -> {
-            try (InputStream in = imageStorageService.load(key)) {
-                in.transferTo(out);
-            }
-        };
+        StreamingResponseBody body = out -> out.write(bytes);
 
         return ResponseEntity.ok()
                 .contentType(mt)
+                .contentLength(bytes.length)
                 .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePrivate())
                 .body(body);
     }
