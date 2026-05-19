@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
 import '../../core/network/api_client.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
+import '../../core/widgets/app_success_toast.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
@@ -298,9 +299,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                 );
                 nav.pop();
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('분석 결과가 저장됐습니다'), backgroundColor: Colors.green),
-                  );
+                  AppSuccessToast.show(context, '분석 결과가 저장됐습니다');
                   context.pop(true); // signal success back to capture screen → card detail
                 }
                 return;
@@ -332,9 +331,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
               AssetNotifier.instance.notifyChanged();
               nav.pop();
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('분석 결과가 저장됐습니다'), backgroundColor: Colors.green),
-                );
+                AppSuccessToast.show(context, '분석 결과가 저장됐습니다');
               }
             } catch (e) {
               if (mounted) {

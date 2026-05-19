@@ -25,7 +25,9 @@ class AppSuccessToast {
     _current?.remove();
     _current = null;
 
-    final overlay = Overlay.maybeOf(context);
+    // rootOverlay: pop 후에도 root Navigator의 Overlay에 토스트 유지.
+    // _deleteTrade 같은 case (pop 직전 호출)에서 화면이 바뀌어도 토스트 보임.
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
     if (overlay == null) return;
 
     final entry = OverlayEntry(

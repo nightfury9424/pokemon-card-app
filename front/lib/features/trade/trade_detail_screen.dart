@@ -4,6 +4,7 @@ import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
+import '../../core/widgets/app_success_toast.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 
@@ -1089,12 +1090,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
         },
       });
       if (!mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('신고가 접수되었어요. 검토 후 처리할게요.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppSuccessToast.show(context, '신고가 접수되었어요.\n검토 후 처리할게요.');
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString().contains('이미 신고하신')
@@ -1110,14 +1106,9 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     try {
       await ApiClient.delete('/api/trades/$_currentTradeId');
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
+      // rootOverlay 사용이라 pop 후에도 토스트 유지.
+      AppSuccessToast.show(context, '판매글이 삭제되었습니다');
       context.pop(true);
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('판매글이 삭제되었습니다'),
-          duration: Duration(seconds: 2),
-        ),
-      );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
