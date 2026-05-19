@@ -422,7 +422,6 @@ class _TradeListScreenState extends State<TradeListScreen> {
               borderRadius: BorderRadius.circular(8),
               child: CardImage(
                 imageUrl: resolveCardImageUrl(card),
-                cdnFallbackUrl: resolveCdnImageUrl(card),
                 width: 44,
                 height: 60,
                 fit: BoxFit.cover,
@@ -585,7 +584,6 @@ class _TradeListScreenState extends State<TradeListScreen> {
     final imageUrl = rawImageUrl != null && rawImageUrl.isNotEmpty
         ? ApiConstants.tradeImageUrl(rawImageUrl)
         : resolveCardImageUrl(cardData);
-    final cdnUrl = resolveCdnImageUrl(cardData);
     final sellerData =
         (trade['seller'] is Map
             ? Map<String, dynamic>.from(trade['seller'] as Map)
@@ -627,7 +625,6 @@ class _TradeListScreenState extends State<TradeListScreen> {
                   ),
                   child: CardImage(
                     imageUrl: imageUrl,
-                    cdnFallbackUrl: cdnUrl,
                     width: 80,
                     height: 108,
                     fit: BoxFit.cover,

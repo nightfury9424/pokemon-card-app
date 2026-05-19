@@ -19,7 +19,6 @@ import 'card_image.dart';
 /// ```
 class HolographicCardViewer extends StatefulWidget {
   final String? imageUrl;
-  final String? cdnFallbackUrl;
   final String heroTag;
   final String rarity;
 
@@ -28,7 +27,6 @@ class HolographicCardViewer extends StatefulWidget {
     required this.heroTag,
     required this.rarity,
     this.imageUrl,
-    this.cdnFallbackUrl,
   });
 
   @override
@@ -221,7 +219,6 @@ class _HolographicCardViewerState extends State<HolographicCardViewer>
                 colorFilter: _saturationFilter(1.12 + 0.06 * _intensity),
                 child: CardImage(
                   imageUrl: widget.imageUrl,
-                  cdnFallbackUrl: widget.cdnFallbackUrl,
                   width: w,
                   height: h,
                   fit: BoxFit.cover,
@@ -294,7 +291,6 @@ Future<void> openHolographicCard(
   required String heroTag,
   required String rarity,
   String? imageUrl,
-  String? cdnFallbackUrl,
 }) {
   return Navigator.of(context).push(
     PageRouteBuilder(
@@ -307,7 +303,6 @@ Future<void> openHolographicCard(
         heroTag: heroTag,
         rarity: rarity,
         imageUrl: imageUrl,
-        cdnFallbackUrl: cdnFallbackUrl,
       ),
     ),
   );

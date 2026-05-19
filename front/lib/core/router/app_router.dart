@@ -129,7 +129,6 @@ final appRouter = GoRouter(
           cardName: extra['cardName'] as String?,
           rarity: extra['rarity'] as String?,
           imageUrl: extra['imageUrl'] as String?,
-          cdnImageUrl: extra['cdnImageUrl'] as String?,
           assetId: extra['assetId'] as String?,
           cardStatus: extra['cardStatus'] as String?,
           estimatedGrade: extra['estimatedGrade'] is num

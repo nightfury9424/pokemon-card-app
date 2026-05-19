@@ -542,7 +542,6 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
               borderRadius: BorderRadius.circular(8),
               child: CardImage(
                 imageUrl: resolveCardImageUrl(card),
-                cdnFallbackUrl: resolveCdnImageUrl(card),
                 width: 56,
                 height: 78,
                 fit: BoxFit.cover,

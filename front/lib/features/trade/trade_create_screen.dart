@@ -28,7 +28,6 @@ class TradeCreateScreen extends StatefulWidget {
   final String? cardName;
   final String? rarity;
   final String? imageUrl;
-  final String? cdnImageUrl;
   final String? assetId;
   final String? cardStatus;
   final double? estimatedGrade;
@@ -43,7 +42,6 @@ class TradeCreateScreen extends StatefulWidget {
     this.cardName,
     this.rarity,
     this.imageUrl,
-    this.cdnImageUrl,
     this.assetId,
     this.cardStatus,
     this.estimatedGrade,
@@ -467,7 +465,6 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
                 children: [
                   CardImage(
                     imageUrl: widget.imageUrl,
-                    cdnFallbackUrl: widget.cdnImageUrl,
                     width: 52,
                     height: 72,
                     borderRadius: BorderRadius.circular(8),

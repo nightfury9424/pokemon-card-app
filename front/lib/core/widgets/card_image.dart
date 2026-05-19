@@ -19,13 +19,6 @@ String? _s3Url(String? cardId, String lang) {
   return '${ApiConstants.cardCdnBase}/$lang/$cardId.png';
 }
 
-/// scrydex CDN URL — JP/EN 미러링 안정화 전까지 CardImage.cdnFallbackUrl로만 사용.
-/// 미러링 완료 후 폐기 예정.
-String? _cdnUrl(String? ref) {
-  if (ref == null || ref.isEmpty || ref.startsWith('NO_')) return null;
-  return 'https://images.scrydex.com/pokemon/$ref/medium';
-}
-
 /// 카드 마스터 이미지 URL 결정.
 ///
 /// 우선순위:
@@ -54,27 +47,21 @@ String? resolveCardImageUrl(Map<String, dynamic>? card) {
   if (_hasValidRef(jpRef)) return _s3Url(cardId, 'jp');
   if (_hasValidRef(enRef)) return _s3Url(cardId, 'en');
 
-  // 둘 다 NO_/null → special. 현재는 메타몽 1장만 S3에 있음.
+  // 둘 다 NO_/null → special. 현재 메타몽 1장만.
   if (cardId != null && cardId.isNotEmpty) {
     return '${ApiConstants.cardCdnBase}/special/$cardId.png';
   }
   return null;
 }
 
-/// scrydex CDN URL — CardImage.cdnFallbackUrl로 전달해 S3 객체 미존재 시 임시 fallback.
-/// JP/EN 미러링 완료 후 호출처 정리 + 폐기 예정.
-String? resolveCdnImageUrl(Map<String, dynamic>? card) {
-  final jpRef = card?['jpScrydexRef'] as String?;
-  final enRef = card?['enScrydexRef'] as String?;
-  return _cdnUrl(jpRef) ?? _cdnUrl(enRef);
-}
-
 /// 카드 이미지 위젯
-/// - scrydex/pokemontcg.io URL → 이미지 표시
+/// - S3 cards/v1 URL → 이미지 표시
 /// - null 또는 pokemonkorea.co.kr URL → 카드 뒷면 + "이미지 없음" 블러 안내
+///
+/// #63 (2026-05-20): S3 미러링 7142/7142 완료 → scrydex hotlink fallback 폐기.
+/// cdnFallbackUrl param + resolveCdnImageUrl 함수 제거.
 class CardImage extends StatelessWidget {
   final String? imageUrl;
-  final String? _cdnFallbackUrl;
   final double width;
   final double height;
   final BoxFit fit;
@@ -85,10 +72,9 @@ class CardImage extends StatelessWidget {
     required this.imageUrl,
     required this.width,
     required this.height,
-    String? cdnFallbackUrl,
     this.fit = BoxFit.cover,
     this.borderRadius,
-  }) : _cdnFallbackUrl = cdnFallbackUrl;
+  });
 
   bool get _isUnavailable =>
       imageUrl == null ||
@@ -97,15 +83,13 @@ class CardImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Widget img = ClipRRect(
+    return ClipRRect(
       borderRadius: borderRadius ?? BorderRadius.zero,
       child: _isUnavailable ? _buildUnavailable() : _buildNetwork(),
     );
-    return img;
   }
 
   Widget _buildNetwork() {
-    final isCdnUrl = imageUrl!.contains('scrydex.com');
     return Image.network(
       imageUrl!,
       width: width,
@@ -113,21 +97,7 @@ class CardImage extends StatelessWidget {
       fit: fit,
       // 캐러셀 자동 회전 시 새 URL 로딩 중 이전 frame 유지 → 깜빡임 방지
       gaplessPlayback: true,
-      errorBuilder: (context, error, stack) {
-        // 로컬 실패 시 CDN으로 재시도
-        final cdn = _cdnFallbackUrl;
-        if (!isCdnUrl && cdn != null) {
-          return Image.network(
-            cdn,
-            width: width,
-            height: height,
-            fit: fit,
-            gaplessPlayback: true,
-            errorBuilder: (_, _, _) => _buildUnavailable(),
-          );
-        }
-        return _buildUnavailable();
-      },
+      errorBuilder: (_, _, _) => _buildUnavailable(),
     );
   }
 

@@ -708,7 +708,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         cardName: name,
         rarity: rarity,
         imageUrl: imageUrl,
-        cdnImageUrl: resolveCdnImageUrl(data),
       ),
       body: Stack(
         children: [
@@ -923,7 +922,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     required double cardHeight,
     required double topPadding,
   }) {
-    final bgUrl = imageUrl ?? resolveCdnImageUrl(data);
+    final bgUrl = imageUrl;
 
     return Stack(
       fit: StackFit.expand,
@@ -969,7 +968,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   heroTag: 'card-${widget.cardId}',
                   rarity: rarity,
                   imageUrl: imageUrl,
-                  cdnFallbackUrl: resolveCdnImageUrl(data),
                 ),
                 child: Hero(
                   tag: 'card-${widget.cardId}',
@@ -986,7 +984,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     ),
                     child: CardImage(
                       imageUrl: imageUrl,
-                      cdnFallbackUrl: resolveCdnImageUrl(data),
                       width: cardWidth,
                       height: cardHeight,
                       borderRadius: BorderRadius.circular(16),
@@ -3596,7 +3593,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     required String cardName,
     required String rarity,
     String? imageUrl,
-    String? cdnImageUrl,
   }) {
     return SafeArea(
       top: false,
@@ -3612,7 +3608,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               child: SizedBox(
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: () => _onSellTap(cardName, rarity, imageUrl, cdnImageUrl),
+                  onPressed: () => _onSellTap(cardName, rarity, imageUrl),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.blue,
                     foregroundColor: Colors.white,
@@ -3654,7 +3650,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     String cardName,
     String rarity,
     String? imageUrl,
-    String? cdnImageUrl,
   ) async {
     final asset = _localAsset ?? widget.myAsset;
     if (asset == null) {
@@ -3711,7 +3706,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         'cardName': cardName,
         'rarity': rarity,
         'imageUrl': imageUrl,
-        'cdnImageUrl': cdnImageUrl,
         'assetId': assetId,
         'cardStatus': asset['cardStatus'],
         'estimatedGrade': asset['estimatedGrade'],

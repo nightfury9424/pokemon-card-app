@@ -1225,7 +1225,6 @@ class _AssetScreenState extends State<AssetScreen> {
             borderRadius: BorderRadius.circular(8),
             child: CardImage(
               imageUrl: imageUrl,
-              cdnFallbackUrl: imageUrl,
               width: 44, height: 60,
               fit: BoxFit.cover,
             ),
@@ -1363,7 +1362,6 @@ class _AssetScreenState extends State<AssetScreen> {
                       borderRadius: BorderRadius.circular(AppRadius.md),
                       child: CardImage(
                         imageUrl: imageUrl,
-                        cdnFallbackUrl: resolveCdnImageUrl(cardData),
                         width: 96,
                         height: 134,
                         fit: BoxFit.cover,
@@ -1533,7 +1531,6 @@ class _AssetScreenState extends State<AssetScreen> {
               // 카드 이미지 — 풀 채움
               CardImage(
                 imageUrl: imageUrl,
-                cdnFallbackUrl: resolveCdnImageUrl(cardData),
                 width: double.infinity,
                 height: double.infinity,
                 fit: BoxFit.cover,
@@ -1956,12 +1953,10 @@ class _AssetScreenState extends State<AssetScreen> {
                       final name = card['name'] as String? ?? '';
                       final rarity = card['rarityCode'] as String? ?? '';
                       final imageUrl = resolveCardImageUrl(card);
-                      final cdnUrl = resolveCdnImageUrl(card);
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                         leading: CardImage(
                           imageUrl: imageUrl,
-                          cdnFallbackUrl: cdnUrl,
                           width: 36,
                           height: 50,
                           fit: BoxFit.cover,
@@ -2141,7 +2136,6 @@ class _AssetScreenState extends State<AssetScreen> {
                           children: [
                             CardImage(
                               imageUrl: resolveCardImageUrl(selectedCard!),
-                              cdnFallbackUrl: resolveCdnImageUrl(selectedCard!),
                               width: 32, height: 44,
                               fit: BoxFit.cover,
                               borderRadius: BorderRadius.circular(4),
@@ -2210,7 +2204,6 @@ class _AssetScreenState extends State<AssetScreen> {
                               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                               leading: CardImage(
                                 imageUrl: resolveCardImageUrl(card),
-                                cdnFallbackUrl: resolveCdnImageUrl(card),
                                 width: 28, height: 38,
                                 fit: BoxFit.cover,
                                 borderRadius: BorderRadius.circular(3),

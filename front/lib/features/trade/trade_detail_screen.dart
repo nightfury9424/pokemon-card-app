@@ -232,7 +232,6 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
         children: [
           _buildTradeImageSection(
             cardImageUrl,
-            resolveCdnImageUrl(cardData),
             tradeStatus,
           ),
 
@@ -385,7 +384,6 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                       children: [
                         CardImage(
                           imageUrl: cardImageUrl,
-                          cdnFallbackUrl: resolveCdnImageUrl(cardData),
                           width: 44,
                           height: 60,
                           borderRadius: BorderRadius.circular(6),
@@ -471,12 +469,10 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Widget _imageFallback(
     String? cardImageUrl,
-    double height, [
-    String? cdnFallbackUrl,
-  ]) {
+    double height,
+  ) {
     return CardImage(
       imageUrl: cardImageUrl,
-      cdnFallbackUrl: cdnFallbackUrl,
       width: double.infinity,
       height: height,
       fit: BoxFit.contain,
@@ -485,7 +481,6 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Widget _buildTradeImageSection(
     String? cardImageUrl,
-    String? cdnFallbackUrl,
     String tradeStatus,
   ) {
     final hasTradeImages = _tradeImages.isNotEmpty;
@@ -516,14 +511,13 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                         errorBuilder: (_, __, ___) => _imageFallback(
                           cardImageUrl,
                           imageHeight,
-                          cdnFallbackUrl,
                         ),
                       ),
                     );
                   },
                 )
               else
-                _imageFallback(cardImageUrl, imageHeight, cdnFallbackUrl),
+                _imageFallback(cardImageUrl, imageHeight),
               if (tradeStatus != 'OPEN')
                 Positioned.fill(
                   child: Container(

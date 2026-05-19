@@ -139,7 +139,6 @@ class _ProductCardsScreenState extends State<ProductCardsScreen> {
           children: [
             CardImage(
               imageUrl: imageUrl,
-              cdnFallbackUrl: resolveCdnImageUrl(card),
               width: 44,
               height: 62,
               borderRadius: BorderRadius.circular(6),

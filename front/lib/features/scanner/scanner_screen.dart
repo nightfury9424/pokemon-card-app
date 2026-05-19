@@ -918,7 +918,6 @@ class _ScannerScreenState extends State<ScannerScreen>
     final card = _foundCard!;
     final name = card['name'] as String? ?? '';
     final imageUrl = resolveCardImageUrl(card);
-    final cdnUrl = resolveCdnImageUrl(card);
 
     return Container(
       color: Colors.black87,
@@ -961,7 +960,6 @@ class _ScannerScreenState extends State<ScannerScreen>
                       borderRadius: BorderRadius.circular(6),
                       child: CardImage(
                         imageUrl: imageUrl,
-                        cdnFallbackUrl: cdnUrl,
                         width: 60,
                         height: 84,
                         fit: BoxFit.cover,
@@ -1038,7 +1036,6 @@ class _ScannerScreenState extends State<ScannerScreen>
     final rarity = card['rarityCode'] as String? ?? '';
     final number = card['collectionNumber'] as String? ?? '';
     final imageUrl = resolveCardImageUrl(card);
-    final cdnUrl = resolveCdnImageUrl(card);
     final owned = _ownedSummaries[cardId];
     final isOwned = owned != null;
     // ScannerController.getCardWithPrice가 채워주는 KO 환산가 + 전일 변동률.
@@ -1084,7 +1081,7 @@ class _ScannerScreenState extends State<ScannerScreen>
             // C-2 (2026-05-20): dim 진하게 → 카드 영역 강조 (이전 0.54 → 0.70).
             color: Colors.black.withValues(alpha: 0.70),
             child: Center(
-              child: _buildDetectedCardFrame(imageUrl, cdnUrl, isOwned),
+              child: _buildDetectedCardFrame(imageUrl, isOwned),
             ),
           ),
         ),
@@ -1127,7 +1124,6 @@ class _ScannerScreenState extends State<ScannerScreen>
                         borderRadius: BorderRadius.circular(8),
                         child: CardImage(
                           imageUrl: imageUrl,
-                          cdnFallbackUrl: cdnUrl,
                           width: 90,
                           height: 126,
                           fit: BoxFit.cover,
@@ -1373,7 +1369,6 @@ class _ScannerScreenState extends State<ScannerScreen>
                                       borderRadius: BorderRadius.circular(6),
                                       child: CardImage(
                                         imageUrl: cUrl,
-                                        cdnFallbackUrl: resolveCdnImageUrl(c),
                                         width: 56,
                                         height: 78,
                                         fit: BoxFit.cover,
@@ -1440,7 +1435,6 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   Widget _buildDetectedCardFrame(
     String? imageUrl,
-    String? cdnUrl,
     bool isOwned,
   ) {
     // 카메라 화면 인식 카드는 크게 (시선 집중 → 즉시 식별).
@@ -1455,7 +1449,6 @@ class _ScannerScreenState extends State<ScannerScreen>
               borderRadius: BorderRadius.circular(12),
               child: CardImage(
                 imageUrl: imageUrl,
-                cdnFallbackUrl: cdnUrl,
                 width: w,
                 height: h,
                 fit: BoxFit.cover,

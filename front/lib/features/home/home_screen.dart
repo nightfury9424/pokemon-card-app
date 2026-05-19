@@ -10,7 +10,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/rarity.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/animated_counter.dart';
-import '../../core/widgets/card_image.dart' show CardImage, resolveCardImageUrl, resolveCdnImageUrl;
+import '../../core/widgets/card_image.dart' show CardImage, resolveCardImageUrl;
 import '../../core/widgets/pressable.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -1511,7 +1511,6 @@ class _CarouselCardState extends State<_CarouselCard>
                   ),
                   child: CardImage(
                     imageUrl: imageUrl,
-                    cdnFallbackUrl: resolveCdnImageUrl(card),
                     width: double.infinity,
                     height: double.infinity,
                     fit: BoxFit.cover,
