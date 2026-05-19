@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 
 class TradeDetailScreen extends StatefulWidget {
@@ -504,8 +505,9 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                   itemBuilder: (context, index) {
                     return GestureDetector(
                       onTap: () => _showFullscreenImages(index),
-                      child: Image.network(
-                        _tradeImages[index],
+                      // AuthImage: /api/images/secure/** JWT 부착 (사용자 업로드 trade 이미지)
+                      child: AuthImage(
+                        url: _tradeImages[index],
                         width: double.infinity,
                         height: imageHeight,
                         fit: BoxFit.contain,
@@ -597,8 +599,9 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                     minScale: 1,
                     maxScale: 4,
                     child: Center(
-                      child: Image.network(
-                        _tradeImages[index],
+                      // AuthImage: fullscreen view (사용자 업로드 trade 이미지)
+                      child: AuthImage(
+                        url: _tradeImages[index],
                         fit: BoxFit.contain,
                         errorBuilder: (_, __, ___) => const Icon(
                           Icons.broken_image_outlined,

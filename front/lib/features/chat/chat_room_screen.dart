@@ -6,6 +6,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/auth_image.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String roomId;
@@ -246,9 +247,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           if (tradeImage != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
-              child: Image.network(tradeImage,
-                  width: 36, height: 36, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox()),
+              // AuthImage: JWT 부착 (사용자 업로드 trade 썸네일)
+              child: AuthImage(
+                url: tradeImage,
+                width: 36,
+                height: 36,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox(),
+              ),
             ),
           if (tradeImage != null) const SizedBox(width: 10),
           Expanded(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/auth_image.dart';
 import 'models/hoga_board_model.dart';
 import 'models/hoga_listing_model.dart';
 import 'services/hoga_api.dart';
@@ -409,8 +410,9 @@ class _AskThumbnail extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         child: url != null
-            ? Image.network(
-                url,
+            // AuthImage: 호가 row → trade 썸네일 (사용자 업로드)
+            ? AuthImage(
+                url: url,
                 fit: BoxFit.cover,
                 errorBuilder: (_, _, _) => _fallbackCardImage(),
               )
