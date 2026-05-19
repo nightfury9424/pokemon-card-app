@@ -106,3 +106,8 @@ python/kream_state.json
 back/export/
 checkpoint_20260515/
 sync_backup_20260515/
+
+# DINO 데이터칩 — 학습 데이터는 git X
+scanner/training/data/datachips_daangn.jsonl
+scanner/training/data/datachips_daangn_img/
+scanner/training/data/datachips_daangn_trash/
