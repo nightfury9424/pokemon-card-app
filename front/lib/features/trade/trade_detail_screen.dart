@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 
@@ -939,38 +940,17 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
   }
 
   Future<void> _confirmDelete() async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surfaceCard,
-          title: const Text(
-            '판매글 삭제',
-            style: TextStyle(color: AppColors.textPrimary),
-          ),
-          content: const Text(
-            '삭제하면 되돌릴 수 없습니다. 진행 중인 채팅에 영향을 줄 수 있습니다.',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                '취소',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _deleteTrade();
-              },
-              child: const Text('삭제', style: TextStyle(color: AppColors.red)),
-            ),
-          ],
-        );
-      },
+    // Polish (2026-05-19): Material AlertDialog → AppConfirmDialog (토스 스타일)
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '판매글 삭제',
+      message: '삭제하면 되돌릴 수 없습니다.\n진행 중인 채팅에 영향을 줄 수 있습니다.',
+      confirmLabel: '삭제',
+      destructive: true,
     );
+    if (ok == true && mounted) {
+      await _deleteTrade();
+    }
   }
 
   void _showReportSheet() {
