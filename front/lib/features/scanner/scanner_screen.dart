@@ -800,7 +800,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                                 width: 12,
                                 height: 12,
                                 child: CircularProgressIndicator(
-                                  color: Color(0xFF3B82F6),
+                                  color: Color(0xFF60A5FA),
                                   strokeWidth: 2,
                                 ),
                               ),
@@ -808,38 +808,64 @@ class _ScannerScreenState extends State<ScannerScreen>
                               Text(
                                 '인식 중...',
                                 style: TextStyle(
-                                  color: Color(0xFF3B82F6),
+                                  color: Color(0xFF60A5FA),
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
                           )
-                        : Column(
-                            key: const ValueKey('idle'),
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Text(
-                                '카드를 프레임 안에 맞춰주세요',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                              SizedBox(height: 6),
-                              Text(
-                                '밝은 곳에서 정면으로 촬영하면 더 정확해요',
-                                style: TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w400,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                            ],
-                          ),
+                        : (_lastIdentifyStatus == 'not_found'
+                              ? const Column(
+                                  key: ValueKey('not_found'),
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '카드를 다시 프레임 안에 맞춰주세요',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                    SizedBox(height: 6),
+                                    Text(
+                                      '정면으로 카드 외곽이 프레임 안에 들어가게 해주세요',
+                                      style: TextStyle(
+                                        color: Colors.white60,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : const Column(
+                                  key: ValueKey('idle'),
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '카드를 프레임 안에 맞춰주세요',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                    SizedBox(height: 6),
+                                    Text(
+                                      '밝은 곳에서 정면으로 촬영하면 더 정확해요',
+                                      style: TextStyle(
+                                        color: Colors.white60,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                  ],
+                                )),
                   ),
                 ),
               ),
@@ -872,8 +898,9 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   Widget _buildCardFrame() {
-    // 인식 중에는 파란색 강조, 대기 중에는 흰색. 화면 가운데 고정 wireframe.
-    final color = _isProcessing ? const Color(0xFF3B82F6) : Colors.white;
+    // C-1 Lite (2026-05-20): 인식 중 soft blue (60A5FA), idle white.
+    // hard blue (3B82F6)는 너무 강조 → soft tint로 고급스러움 유지.
+    final color = _isProcessing ? const Color(0xFF60A5FA) : Colors.white;
     return AnimatedBuilder(
       animation: Listenable.merge([_glowAnim, _sweepCtrl]),
       builder: (_, _) => CustomPaint(
