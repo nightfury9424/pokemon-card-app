@@ -44,6 +44,9 @@ dependencies:
   # WebSocket (STOMP 채팅)
   stomp_dart_client: ^2.1.0
 
+  # 카드 이미지 캐싱 — S3 immutable 마스터 이미지 디스크 캐시
+  cached_network_image: ^3.4.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
