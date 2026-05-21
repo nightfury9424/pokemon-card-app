@@ -838,10 +838,11 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 // Bundle 2-A.4: 기존 채팅방 여부에 따라 CTA 문구 분기.
+                                // 거래 앱 톤 — "판매자에게 문의하기"는 고객센터 느낌이라 회피.
                                 Text(
                                   _existingChatRoomId != null
-                                      ? '대화 중인 채팅방 보기'
-                                      : '판매자에게 문의하기',
+                                      ? '대화 이어가기'
+                                      : '채팅하기',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 15,
