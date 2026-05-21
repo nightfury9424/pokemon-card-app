@@ -1649,6 +1649,17 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final addedAt = asset['createdAt'] as String?;
     final quantity = (asset['quantity'] as num?)?.toInt() ?? 1;
     final certNumber = asset['certNumber'] as String?;
+    final estimatedGrade = (asset['estimatedGrade'] as num?)?.toDouble();
+
+    // certNumber 라벨 분기 — 앱 분석 ID(APP-...)와 외부 등급사 cert# 구분.
+    // 1순위: APP- prefix → "앱 분석 ID"
+    // 2순위: RAW + estimatedGrade 존재 + (certNumber 없거나 APP-) → "앱 분석 ID"
+    // 그 외 (GRADED + 외부 PSA/BRG cert#) → "인증번호" 유지
+    final isAppAnalysisId = (certNumber?.startsWith('APP-') ?? false)
+        || (cardStatus == 'RAW'
+            && estimatedGrade != null
+            && (certNumber == null || certNumber.startsWith('APP-')));
+    final certLabel = isAppAnalysisId ? '앱 분석 ID' : '인증번호';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1667,7 +1678,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           ],
           if (certNumber != null && certNumber.isNotEmpty) ...[
             const SizedBox(height: 8),
-            _metaRow('인증번호', certNumber),
+            _metaRow(certLabel, certNumber),
           ],
           if (addedAt != null) ...[
             const SizedBox(height: 8),
@@ -4113,13 +4124,19 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  '등급 분석 결과',
+                  '앱 분석 결과',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  '외부 등급사 인증 결과가 아닌 앱 예측 결과입니다.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 11),
                 ),
                 const SizedBox(height: 10),
                 Text(

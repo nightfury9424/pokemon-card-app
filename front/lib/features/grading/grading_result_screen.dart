@@ -101,8 +101,49 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
               Text('사진 분석 중...', style: TextStyle(color: AppColors.textSecondary)),
             ]))
           : _error != null
-              ? Center(child: Text('분석 실패: $_error', style: const TextStyle(color: AppColors.red)))
+              ? _buildErrorView()
               : _buildResult(),
+    );
+  }
+
+  void _retryAnalyze() {
+    if (!mounted) return;
+    setState(() {
+      _error = null;
+      _result = null;
+      _loading = true;
+    });
+    _analyze();
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded, color: AppColors.textMuted, size: 48),
+            const SizedBox(height: 16),
+            const Text(
+              '분석에 실패했어요.\n사진을 다시 확인한 뒤 재시도해주세요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 15, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _retryAnalyze,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.blue,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(180, 48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('다시 시도', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -127,6 +168,25 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
             border: Border.all(color: AppColors.blue.withOpacity(0.3)),
           ),
           child: Column(children: [
+            // 두 줄 neutral grey 배지 — 56pt 숫자 위에 맥락 먼저 인식시킴.
+            // gold/red 금지 (프리미엄/경고 느낌 → 외부 인증 또는 위험으로 오해 가능).
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+              ),
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('AI 예측', style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
+                  SizedBox(height: 2),
+                  Text('외부 등급사 아님', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             const Text('예상 등급', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
             const SizedBox(height: 8),
             Text(total.toStringAsFixed(1),
@@ -135,8 +195,16 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
               '${(total - 1.0).clamp(1.0, 10.0).toStringAsFixed(1)} ~ ${(total + 1.0).clamp(1.0, 10.0).toStringAsFixed(1)} 예상 범위',
               style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
             ),
-            const SizedBox(height: 4),
-            const Text('※ 실제 감정 결과와 ±1등급 차이 가능', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+            const SizedBox(height: 8),
+            // 상시 disclaimer — confidence 높아도 항상 표시 (공식 등급 오해 방지).
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                '앱의 AI 예측 결과이며, 실제 PSA/BRG 등급 또는 인증 결과와 다를 수 있습니다.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12, height: 1.4),
+              ),
+            ),
             if (confidence < 0.6) ...[
               const SizedBox(height: 8),
               Container(
@@ -199,7 +267,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
               children: [
                 Icon(Icons.verified_rounded, color: AppColors.gold, size: 18),
                 SizedBox(width: 8),
-                Text('분석 결과 저장', style: TextStyle(color: AppColors.gold, fontSize: 15)),
+                Text('앱 분석 결과 저장', style: TextStyle(color: AppColors.gold, fontSize: 15)),
               ],
             ),
           ),
@@ -357,7 +425,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                   const SizedBox(height: 16),
                   const Text('앱 분석 결과 저장', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  const Text('앱 분석 점수를 자산에 저장합니다', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                  const Text('외부 등급사 인증 결과가 아닌 앱 예측 결과입니다.', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                   const SizedBox(height: 20),
 
                   // 언어 선택 — KO/JP/EN. 자산 가격은 선택한 언어 기준으로 계산됨.
@@ -496,7 +564,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                         minimumSize: const Size(double.infinity, 52),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
-                      child: const Text('분석 결과 저장',
+                      child: const Text('앱 분석 결과 저장',
                           style: TextStyle(color: Colors.black87, fontSize: 15, fontWeight: FontWeight.bold)),
                     ),
                   ),

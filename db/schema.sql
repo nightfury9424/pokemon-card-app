@@ -173,7 +173,7 @@ CREATE TABLE buy_orders (
     bid_price           INTEGER     NOT NULL,
     qty                 INTEGER     NOT NULL DEFAULT 1,
     card_status         VARCHAR(20) NOT NULL,            -- RAW / GRADED
-    grading_company     VARCHAR(20),                     -- PSA / BGS / CGC (GRADED만)
+    grading_company     VARCHAR(20),                     -- PSA / BRG (GRADED만, 2026-05-18 정책)
     grade_value         VARCHAR(20),                     -- 10 / 9.5 / ... (GRADED만)
     memo                TEXT,
     status              VARCHAR(20) NOT NULL DEFAULT 'OPEN',  -- OPEN / MATCHED / CANCELED
