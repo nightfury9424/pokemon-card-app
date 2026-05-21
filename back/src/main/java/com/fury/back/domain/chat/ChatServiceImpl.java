@@ -45,9 +45,21 @@ public class ChatServiceImpl implements ChatService {
         // DB UNIQUE 인덱스(uq_chat_rooms_sale_buyer) + race-safe 가드 — 동시 요청 시
         // 첫 lookup empty 두 번째도 empty라 둘 다 save 시도해도 DB UNIQUE violation으로
         // 두 번째가 fail → catch 후 다시 findBy* 호출하면 첫 번째 row 반환.
+        //
+        // Bundle 2-A.6: 신규 채팅방 생성은 OPEN 거래만 허용 (비즈니스 룰).
+        // 기존 채팅방은 status 무관 반환 — 이미 대화 중인 buyer는 진행/배송/분쟁 대화 계속 필요.
+        // 프론트 CTA disabled와 별개로 백엔드도 가드 (악의 API 직접 호출 차단).
         ChatRoom room = chatRoomRepository
                 .findBySaleListingIdAndBuyerUserId(saleListingId, buyerUserId)
                 .orElseGet(() -> {
+                    if (!"OPEN".equals(trade.getStatus())) {
+                        throw new IllegalStateException(switch (trade.getStatus()) {
+                            case "RESERVED" -> "예약 중인 거래입니다.";
+                            case "COMPLETED" -> "거래가 완료되었습니다.";
+                            case "CANCELED" -> "취소된 거래입니다.";
+                            default -> "현재 거래 상태에서는 채팅을 시작할 수 없습니다.";
+                        });
+                    }
                     try {
                         return chatRoomRepository.saveAndFlush(ChatRoom.builder()
                                 .chatRoomId(IdGenerator.generate())
