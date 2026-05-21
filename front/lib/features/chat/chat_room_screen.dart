@@ -383,6 +383,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   Widget _buildMessageBubble(
       Map<String, dynamic> msg, Map<String, dynamic>? prev) {
+    // Bundle 2-C: SYSTEM 메시지 — 가운데 회색 텍스트, 말풍선 X.
+    // 사기 주의/상태 변경 안내 등. ⚠ 아이콘은 message 내용에 직접 포함 (예: "⚠ 안전한 거래...").
+    if (msg['messageType'] == 'SYSTEM') {
+      return _buildSystemMessage(msg['message'] as String? ?? '');
+    }
     final isMe = msg['senderUserId'] == _myUserId;
     final text = msg['message'] ?? '';
     final time = _formatTime(msg['createdAt']);
@@ -512,6 +517,32 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   ],
                 ),
               ],
+      ),
+    );
+  }
+
+  /// Bundle 2-C: SYSTEM 메시지 — 가운데 회색 작은 텍스트 + 약한 박스.
+  /// Codex 권장: 흰 alpha 0.06 배경 + radius 12 + textMuted 11pt + center align.
+  Widget _buildSystemMessage(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 11,
+              height: 1.4,
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -6,6 +6,7 @@ import com.fury.back.domain.card.CardRepository;
 import com.fury.back.domain.chat.dto.ChatMessageDto;
 import com.fury.back.domain.chat.dto.ChatRoomDto;
 import com.fury.back.domain.chat.event.ChatReadEvent;
+import com.fury.back.domain.chat.event.SystemMessageEvent;
 import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.trade.TradePostRepository;
 import com.fury.back.domain.user.User;
@@ -183,6 +184,35 @@ public class ChatServiceImpl implements ChatService {
         if (updated > 0) {
             eventPublisher.publishEvent(new ChatReadEvent(roomId, userId));
         }
+    }
+
+    /**
+     * Bundle 2-C: 시스템 메시지 전송. sender_user_id='SYSTEM' + message_type='SYSTEM' 저장.
+     * - last_message 갱신 (Codex 권장 (c) — 시간순 일관성, chat_screen 분기는 별도 polish)
+     * - SystemMessageEvent publish → AFTER_COMMIT 리스너가 STOMP broadcast
+     *   (commit 실패 시 메시지만 먼저 퍼지는 race 차단)
+     */
+    @Override
+    @Transactional
+    public ChatMessageDto sendSystemMessage(String roomId, String content) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방 없음: " + roomId));
+
+        ChatMessage saved = chatMessageRepository.save(ChatMessage.builder()
+                .chatMessageId(IdGenerator.generate())
+                .chatRoomId(roomId)
+                .senderUserId("SYSTEM")
+                .message(content)
+                .messageType("SYSTEM")
+                .build());
+
+        room.updateLastMessage(content);
+        chatRoomRepository.save(room);
+
+        // SYSTEM은 user lookup skip — ChatMessageDto.from 내부에서 nickname="시스템" 고정.
+        ChatMessageDto dto = ChatMessageDto.from(saved, null, null);
+        eventPublisher.publishEvent(new SystemMessageEvent(roomId, dto));
+        return dto;
     }
 
     @Override

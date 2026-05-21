@@ -154,12 +154,17 @@ CREATE TABLE chat_rooms (
 );
 
 -- 채팅 메시지
+-- Bundle 2-C (2026-05-22): message_type 컬럼 추가 — 'USER' (기본) / 'SYSTEM' (자동 메시지).
+-- prod 적용 시 ALTER TABLE 수동 (ddl-auto=validate):
+--   ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(20) NOT NULL DEFAULT 'USER';
 CREATE TABLE chat_messages (
     chat_message_id       VARCHAR(50) PRIMARY KEY,
     chat_room_id          VARCHAR(50) NOT NULL,
-    sender_user_id        VARCHAR(50) NOT NULL,
+    sender_user_id        VARCHAR(50) NOT NULL,                       -- 'SYSTEM' 특수값 허용 (Bundle 2-C)
     message               TEXT        NOT NULL,
-    created_at            TIMESTAMP NOT NULL DEFAULT NOW()
+    is_read               BOOLEAN     NOT NULL DEFAULT false,         -- Bundle 1 G1 읽음 표시
+    message_type          VARCHAR(20) NOT NULL DEFAULT 'USER',        -- USER / SYSTEM (Bundle 2-C)
+    created_at            TIMESTAMP   NOT NULL DEFAULT NOW()
 );
 
 -- =============================================================

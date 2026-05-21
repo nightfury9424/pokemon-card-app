@@ -16,4 +16,11 @@ public interface ChatService {
      * 즉시 read 처리용 lightweight endpoint. 메시지 리스트 반환 X.
      */
     void markRoomAsRead(String roomId, String userId);
+
+    /**
+     * Bundle 2-C: 시스템 메시지 전송 (sender_user_id='SYSTEM', message_type='SYSTEM').
+     * 상태 변경/사기 주의 안내 등 자동 메시지에 사용.
+     * AFTER_COMMIT 이벤트로 STOMP broadcast — 일반 메시지와 동일 topic에 push.
+     */
+    ChatMessageDto sendSystemMessage(String roomId, String content);
 }
