@@ -28,6 +28,10 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
   String? _myUserId;
   List<String> _tradeImages = [];
   int _currentImageIndex = 0;
+  // Bundle 2-A.4: 같은 saleListingId + buyerUserId로 이미 만들어진 채팅방이 있으면
+  // CTA를 "대화 중인 채팅방 보기"로 분기 + 클릭 시 기존 방으로 바로 이동.
+  String? _existingChatRoomId;
+  Map<String, dynamic>? _existingChatRoom;
 
   bool get _isSeller {
     if (_myUserId == null) return false;
@@ -55,6 +59,32 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     super.initState();
     _loadTrade();
     _loadCurrentUser();
+    _loadExistingChatRoom();
+  }
+
+  /// Bundle 2-A.4: 거래 상세 진입 시 GET /api/chat/rooms로 내가 보유한 채팅방 list 받아서
+  /// saleListingId == widget.tradeId 인 방 찾으면 CTA 분기.
+  /// (saleListingId, buyerUserId) UNIQUE라 매칭 1개 또는 0개.
+  Future<void> _loadExistingChatRoom() async {
+    try {
+      final res = await ApiClient.get('/api/chat/rooms');
+      final rooms = (res['data'] as List?) ?? [];
+      Map<String, dynamic>? existing;
+      for (final r in rooms) {
+        if (r is Map && r['saleListingId'] == widget.tradeId) {
+          existing = Map<String, dynamic>.from(r);
+          break;
+        }
+      }
+      if (existing != null && mounted) {
+        setState(() {
+          _existingChatRoomId = existing!['chatRoomId'] as String?;
+          _existingChatRoom = existing;
+        });
+      }
+    } catch (_) {
+      // silent — 실패해도 기본 "판매자에게 문의하기" CTA로 fallback
+    }
   }
 
   Future<void> _loadTrade() async {
@@ -650,6 +680,11 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Future<void> _startChat() async {
     if (_chatLoading) return;
+    // Bundle 2-A.4: 기존 채팅방 있으면 POST 없이 바로 이동 (사용자 인지 — "새 방 만드는 느낌" 차단).
+    if (_existingChatRoomId != null) {
+      await context.push('/chat/$_existingChatRoomId', extra: _existingChatRoom);
+      return;
+    }
     setState(() => _chatLoading = true);
     try {
       final res = await ApiClient.post('/api/chat/rooms', {
@@ -657,6 +692,13 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       });
       if (!mounted) return;
       final room = res['data'] as Map<String, dynamic>;
+      // 응답 받아서 _existingChatRoomId 즉시 셋 — 같은 화면 머물러서 다시 누를 때 재진입 분기 발동.
+      if (mounted) {
+        setState(() {
+          _existingChatRoomId = room['chatRoomId'] as String?;
+          _existingChatRoom = room;
+        });
+      }
       await context.push('/chat/${room['chatRoomId']}', extra: room);
     } catch (_) {
       if (mounted) {
@@ -786,18 +828,21 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                                 ),
                               ),
                             )
-                          : const Row(
+                          : Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.chat_bubble_rounded,
                                   color: Colors.white,
                                   size: 18,
                                 ),
-                                SizedBox(width: 8),
+                                const SizedBox(width: 8),
+                                // Bundle 2-A.4: 기존 채팅방 여부에 따라 CTA 문구 분기.
                                 Text(
-                                  '채팅하기',
-                                  style: TextStyle(
+                                  _existingChatRoomId != null
+                                      ? '대화 중인 채팅방 보기'
+                                      : '판매자에게 문의하기',
+                                  style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,
