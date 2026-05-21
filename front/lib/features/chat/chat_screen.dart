@@ -98,20 +98,13 @@ class _ChatScreenState extends State<ChatScreen> {
     return InkWell(
       onTap: () => context.push('/chat/${room['chatRoomId']}', extra: room),
       child: Padding(
-        // UI polish: vertical 14→12 (밀도 ↑)
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: AppColors.surfaceElevated,
-              backgroundImage:
-                  profileUrl != null ? NetworkImage(profileUrl) : null,
-              child: profileUrl == null
-                  ? const Icon(Icons.person,
-                      color: AppColors.textMuted, size: 22)
-                  : null,
-            ),
+            // Bundle 2-A.3 layout: 거래 채팅이면 카드 썸네일을 대표 이미지로 + 우하단 avatar overlay
+            // (당근식). 거래 정보 없는 dummy 채팅방은 큰 원형 avatar fallback.
+            _buildLeftThumb(showTradeRow, cardImageUrl, profileUrl),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -149,46 +142,33 @@ class _ChatScreenState extends State<ChatScreen> {
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
-                  // Bundle 2-A.1 trade summary — 썸네일 20x28 + 카드명·가격·상태 inline
+                  // Bundle 2-A.3: trade summary 한 줄 (카드명·가격·상태) — 좌측 카드 썸네일이 대표 이미지 역할.
                   if (showTradeRow) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        CardImage(
-                          imageUrl: cardImageUrl,
-                          width: 20,
-                          height: 28,
-                          borderRadius: BorderRadius.circular(3),
+                    const SizedBox(height: 4),
+                    RichText(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      text: TextSpan(
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11,
                         ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: RichText(
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            text: TextSpan(
-                              style: const TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 11,
+                        children: [
+                          TextSpan(text: tradeTitle),
+                          if (tradePrice != null)
+                            TextSpan(text: ' · ${_formatPrice(tradePrice)}원'),
+                          if (tradeStatus != null) ...[
+                            const TextSpan(text: ' · '),
+                            TextSpan(
+                              text: _statusLabel(tradeStatus),
+                              style: TextStyle(
+                                color: _statusColor(tradeStatus),
+                                fontWeight: FontWeight.w600,
                               ),
-                              children: [
-                                TextSpan(text: tradeTitle),
-                                if (tradePrice != null)
-                                  TextSpan(text: ' · ${_formatPrice(tradePrice)}원'),
-                                if (tradeStatus != null) ...[
-                                  const TextSpan(text: ' · '),
-                                  TextSpan(
-                                    text: _statusLabel(tradeStatus),
-                                    style: TextStyle(
-                                      color: _statusColor(tradeStatus),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ],
                             ),
-                          ),
-                        ),
-                      ],
+                          ],
+                        ],
+                      ),
                     ),
                   ],
                 ],
@@ -215,6 +195,59 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Bundle 2-A.3 layout: 거래 채팅이면 카드 master 이미지를 대표 이미지로 (56x78),
+  /// 우하단에 상대 avatar 작은 overlay (당근식). 거래 정보 없으면 큰 원형 avatar fallback.
+  Widget _buildLeftThumb(bool showTradeRow, String? cardImageUrl, String? profileUrl) {
+    if (showTradeRow && cardImageUrl != null) {
+      return SizedBox(
+        width: 56,
+        height: 78,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            CardImage(
+              imageUrl: cardImageUrl,
+              width: 56,
+              height: 78,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            Positioned(
+              right: -4,
+              bottom: -4,
+              child: Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.bg, width: 2),
+                ),
+                child: CircleAvatar(
+                  radius: 11,
+                  backgroundColor: AppColors.surfaceElevated,
+                  backgroundImage:
+                      profileUrl != null ? NetworkImage(profileUrl) : null,
+                  child: profileUrl == null
+                      ? const Icon(Icons.person,
+                          color: AppColors.textMuted, size: 12)
+                      : null,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    // fallback — trade 매칭 없는 채팅방: 기존 큰 원형 avatar.
+    return CircleAvatar(
+      radius: 26,
+      backgroundColor: AppColors.surfaceElevated,
+      backgroundImage: profileUrl != null ? NetworkImage(profileUrl) : null,
+      child: profileUrl == null
+          ? const Icon(Icons.person, color: AppColors.textMuted, size: 22)
+          : null,
     );
   }
 
