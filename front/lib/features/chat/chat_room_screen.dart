@@ -93,6 +93,29 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               } catch (_) {}
             },
           );
+          // Bundle 1 G1: read 이벤트 수신 → 내가 보낸 미읽음 메시지 isRead=true (카카오톡식 "1" 사라짐).
+          // 상대가 채팅방 진입 시 백엔드 ChatReadEvent → AFTER_COMMIT broadcast.
+          _stompClient?.subscribe(
+            destination: '/topic/room/${widget.roomId}/read',
+            callback: (frame) {
+              if (!mounted || frame.body == null) return;
+              try {
+                final data = jsonDecode(frame.body!) as Map<String, dynamic>;
+                final readerUserId = data['readerUserId'] as String?;
+                // 내가 읽은 이벤트는 무시 (내 메시지의 1 사라짐 = 상대가 읽었을 때만).
+                if (readerUserId == null || readerUserId == _myUserId) return;
+                bool changed = false;
+                for (int i = 0; i < _messages.length; i++) {
+                  final m = _messages[i];
+                  if (m['senderUserId'] == _myUserId && m['isRead'] != true) {
+                    _messages[i] = {...m, 'isRead': true};
+                    changed = true;
+                  }
+                }
+                if (changed) setState(() {});
+              } catch (_) {}
+            },
+          );
         },
         onDisconnect: (_) {
           if (!mounted) return;
@@ -289,12 +312,30 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: isMe
             ? [
-                // 시간 (내 메시지 왼쪽)
+                // 시간 + 카카오톡식 unread "1" (내 메시지 왼쪽).
+                // Bundle 1 G1: msg['isRead'] != true이면 시간 위에 작은 "1" 표시.
+                // 상대가 채팅방 진입 → STOMP read event → isRead=true로 갱신되며 사라짐.
                 Padding(
                   padding: const EdgeInsets.only(right: 4, bottom: 2),
-                  child: Text(time,
-                      style: const TextStyle(
-                          color: AppColors.textMuted, fontSize: 10)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (msg['isRead'] != true)
+                        const Text(
+                          '1',
+                          style: TextStyle(
+                            color: AppColors.blue,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                          ),
+                        ),
+                      Text(time,
+                          style: const TextStyle(
+                              color: AppColors.textMuted, fontSize: 10)),
+                    ],
+                  ),
                 ),
                 // 말풍선
                 Container(

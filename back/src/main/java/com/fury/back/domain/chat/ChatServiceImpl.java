@@ -3,12 +3,14 @@ package com.fury.back.domain.chat;
 import com.fury.back.common.IdGenerator;
 import com.fury.back.domain.chat.dto.ChatMessageDto;
 import com.fury.back.domain.chat.dto.ChatRoomDto;
+import com.fury.back.domain.chat.event.ChatReadEvent;
 import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.trade.TradePostRepository;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
 import com.fury.back.storage.StorageKeyUrls;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,7 @@ public class ChatServiceImpl implements ChatService {
     private final ChatMessageRepository chatMessageRepository;
     private final TradePostRepository tradePostRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -86,7 +89,12 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public List<ChatMessageDto> getMessages(String roomId, String userId) {
-        chatMessageRepository.markAllAsRead(roomId, userId);
+        // Bundle 1 G1: 실제 read 갱신된 행이 있을 때만 read 이벤트 발행.
+        // 이벤트는 @TransactionalEventListener(AFTER_COMMIT)로 STOMP broadcast → sender 화면 "1" 사라짐.
+        int updated = chatMessageRepository.markAllAsRead(roomId, userId);
+        if (updated > 0) {
+            eventPublisher.publishEvent(new ChatReadEvent(roomId, userId));
+        }
 
         Map<String, User> userMap = userRepository.findAllById(
                 chatMessageRepository.findByChatRoomIdOrderByCreatedAtAsc(roomId)
