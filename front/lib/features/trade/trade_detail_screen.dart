@@ -678,6 +678,20 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     );
   }
 
+  /// Bundle 2-A.5: 거래 상태 + 기존 채팅방 조합 CTA 라벨.
+  /// 기존 채팅방 있으면 status 무관 "대화 이어가기".
+  /// 없으면 OPEN만 신규 채팅 허용, 그 외 disabled 상태 표시.
+  String _chatCtaLabel(String tradeStatus) {
+    if (_existingChatRoomId != null) return '대화 이어가기';
+    return switch (tradeStatus) {
+      'OPEN' => '채팅하기',
+      'RESERVED' => '예약 중',
+      'COMPLETED' => '거래 완료',
+      'CANCELED' => '거래 취소',
+      _ => '채팅하기',
+    };
+  }
+
   Future<void> _startChat() async {
     if (_chatLoading) return;
     // Bundle 2-A.4: 기존 채팅방 있으면 POST 없이 바로 이동 (사용자 인지 — "새 방 만드는 느낌" 차단).
@@ -716,7 +730,12 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Widget _buildBottomBar() {
     final tradeStatus = _trade?['status'] as String? ?? 'OPEN';
-    final canChat = tradeStatus == 'OPEN' && !_chatLoading;
+    // Bundle 2-A.5: 거래 상태별 CTA 게이트.
+    // - 기존 채팅방 있으면 status 무관 활성 (이미 대화 중인 buyer는 계속 진행 가능)
+    // - 없으면 OPEN일 때만 새 채팅 시작 가능
+    // RESERVED/COMPLETED/CANCELED는 새 buyer 진입 차단.
+    final hasExistingRoom = _existingChatRoomId != null;
+    final canChat = !_chatLoading && (hasExistingRoom || tradeStatus == 'OPEN');
 
     return Container(
       decoration: const BoxDecoration(
@@ -837,12 +856,9 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                                   size: 18,
                                 ),
                                 const SizedBox(width: 8),
-                                // Bundle 2-A.4: 기존 채팅방 여부에 따라 CTA 문구 분기.
-                                // 거래 앱 톤 — "판매자에게 문의하기"는 고객센터 느낌이라 회피.
+                                // Bundle 2-A.5: 기존 채팅방 + 거래 상태 조합으로 CTA 분기.
                                 Text(
-                                  _existingChatRoomId != null
-                                      ? '대화 이어가기'
-                                      : '채팅하기',
+                                  _chatCtaLabel(tradeStatus),
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 15,
