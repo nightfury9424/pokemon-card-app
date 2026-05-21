@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/card_image.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -86,7 +87,13 @@ class _ChatScreenState extends State<ChatScreen> {
     final lastMsg = room['lastMessage'] as String?;
     final otherNickname = room['otherUserNickname'] ?? '';
     final profileUrl = room['otherUserProfileImageUrl'] as String?;
-    final tradeTitle = room['tradeTitle'] ?? '';
+    final tradeTitle = (room['tradeTitle'] as String?) ?? '';
+    // Bundle 2-A.1: 채팅 목록에서 어느 거래 채팅인지 즉시 인지하도록 trade summary line 추가.
+    // trade 매칭 없는 채팅방(dummy/삭제)은 row 생략 — 기존 동작 일관.
+    final cardImageUrl = room['cardImageUrl'] as String?;
+    final tradePrice = (room['tradePrice'] as num?)?.toInt();
+    final tradeStatus = room['tradeStatus'] as String?;
+    final showTradeRow = cardImageUrl != null && tradeTitle.isNotEmpty;
 
     return InkWell(
       onTap: () => context.push('/chat/${room['chatRoomId']}', extra: room),
@@ -142,6 +149,48 @@ class _ChatScreenState extends State<ChatScreen> {
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
+                  // Bundle 2-A.1 trade summary — 썸네일 20x28 + 카드명·가격·상태 inline
+                  if (showTradeRow) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        CardImage(
+                          imageUrl: cardImageUrl,
+                          width: 20,
+                          height: 28,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: RichText(
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            text: TextSpan(
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11,
+                              ),
+                              children: [
+                                TextSpan(text: tradeTitle),
+                                if (tradePrice != null)
+                                  TextSpan(text: ' · ${_formatPrice(tradePrice)}원'),
+                                if (tradeStatus != null) ...[
+                                  const TextSpan(text: ' · '),
+                                  TextSpan(
+                                    text: _statusLabel(tradeStatus),
+                                    style: TextStyle(
+                                      color: _statusColor(tradeStatus),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -168,6 +217,34 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
+
+  /// Bundle 2-A.1: 콤마 포맷 (반올림 X) — chat_room의 동일 helper와 정책 일관.
+  String _formatPrice(int price) {
+    final str = price.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) buf.write(',');
+      buf.write(str[i]);
+    }
+    return buf.toString();
+  }
+
+  String _statusLabel(String status) => switch (status) {
+        'OPEN' => '판매중',
+        'RESERVED' => '예약중',
+        'COMPLETED' => '거래완료',
+        'CANCELED' => '취소',
+        _ => status,
+      };
+
+  /// 채팅 미니카드와 동일 — 양 빨강/음 파랑 정책 회피.
+  Color _statusColor(String status) => switch (status) {
+        'OPEN' => AppColors.green,
+        'RESERVED' => AppColors.gold,
+        'COMPLETED' => AppColors.textMuted,
+        'CANCELED' => AppColors.textMuted,
+        _ => AppColors.textMuted,
+      };
 
   String _timeAgo(dynamic ts) {
     if (ts == null) return '';
