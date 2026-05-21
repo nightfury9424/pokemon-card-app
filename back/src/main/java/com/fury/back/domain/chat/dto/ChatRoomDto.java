@@ -20,11 +20,19 @@ public class ChatRoomDto {
     private LocalDateTime lastMessageAt;
     private long unreadCount;
     private LocalDateTime createdAt;
+    // Bundle 2-A: 거래 미니카드용. trade 또는 card 매칭 부재 시 모두 null로 내림 (stale-safe).
+    /** TradePost.status — OPEN / RESERVED / COMPLETED / CANCELED */
+    private String tradeStatus;
+    /** TradePost.price — 콤마+원 포맷은 프론트에서 처리 */
+    private Integer tradePrice;
+    /** Card master 이미지 URL (CardCdnUrls.forCard). 사용자 업로드 trade 사진 X. */
+    private String cardImageUrl;
 
     public static ChatRoomDto from(ChatRoom room, String myUserId,
                                    String tradeTitle, String tradeImageUrl,
                                    String otherNickname, String otherProfileUrl,
-                                   long unreadCount) {
+                                   long unreadCount,
+                                   String tradeStatus, Integer tradePrice, String cardImageUrl) {
         String otherUserId = myUserId.equals(room.getBuyerUserId())
                 ? room.getSellerUserId()
                 : room.getBuyerUserId();
@@ -40,6 +48,9 @@ public class ChatRoomDto {
                 .lastMessageAt(room.getLastMessageAt())
                 .unreadCount(unreadCount)
                 .createdAt(room.getCreatedAt())
+                .tradeStatus(tradeStatus)
+                .tradePrice(tradePrice)
+                .cardImageUrl(cardImageUrl)
                 .build();
     }
 }

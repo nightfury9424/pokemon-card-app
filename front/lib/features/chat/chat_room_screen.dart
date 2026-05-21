@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/auth_image.dart';
+import '../../core/widgets/card_image.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String roomId;
@@ -275,39 +276,109 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   Widget _buildTradeBanner() {
-    final tradeTitle = widget.roomInfo['tradeTitle'] ?? '';
-    final tradeImage = widget.roomInfo['tradeImageUrl'] as String?;
-    // UI polish: 거래 정보 없으면 빈 배너 영역 제거 (Bundle 2에서 거래 미니카드로 정식 도입).
-    if ((tradeTitle as String).isEmpty && (tradeImage == null || tradeImage.isEmpty)) {
+    // Bundle 2-A: 거래 미니카드 — 카드 master 이미지 + 카드명/가격 + 상태 chip + 탭→거래 상세.
+    // 사용자 업로드 trade 사진(AuthImage)은 거래 상세에서만, 미니카드는 카드 master 일관성.
+    final tradeTitle = (widget.roomInfo['tradeTitle'] as String?) ?? '';
+    final cardImageUrl = widget.roomInfo['cardImageUrl'] as String?;
+    final tradeStatus = widget.roomInfo['tradeStatus'] as String?;
+    final tradePrice = (widget.roomInfo['tradePrice'] as num?)?.toInt();
+    final saleListingId = widget.roomInfo['saleListingId'] as String?;
+
+    // 거래/카드 정보 모두 없으면 배너 hide (stale-safe).
+    if (tradeTitle.isEmpty && cardImageUrl == null) {
       return const SizedBox.shrink();
     }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: AppColors.surfaceCard,
-      child: Row(
-        children: [
-          if (tradeImage != null)
-            ClipRRect(
+
+    return InkWell(
+      onTap: saleListingId == null
+          ? null
+          : () => context.push('/trades/$saleListingId'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        color: AppColors.surfaceCard,
+        child: Row(
+          children: [
+            CardImage(
+              imageUrl: cardImageUrl,
+              width: 48,
+              height: 67,
               borderRadius: BorderRadius.circular(6),
-              // AuthImage: JWT 부착 (사용자 업로드 trade 썸네일)
-              child: AuthImage(
-                url: tradeImage,
-                width: 36,
-                height: 36,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox(),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    tradeTitle.isEmpty ? '거래 정보' : tradeTitle,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (tradePrice != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_formatPrice(tradePrice)}원',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-          if (tradeImage != null) const SizedBox(width: 10),
-          Expanded(
-            child: Text(tradeTitle,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12),
-                overflow: TextOverflow.ellipsis),
-          ),
-        ],
+            const SizedBox(width: 8),
+            if (tradeStatus != null) _buildTradeStatusChip(tradeStatus),
+          ],
+        ),
       ),
     );
+  }
+
+  /// Bundle 2-A: 거래 상태 chip. 양 빨강/음 파랑 정책 회피.
+  /// OPEN=green / RESERVED=gold / COMPLETED·CANCELED=textMuted gray.
+  Widget _buildTradeStatusChip(String status) {
+    final (label, color) = switch (status) {
+      'OPEN' => ('판매중', AppColors.green),
+      'RESERVED' => ('예약중', AppColors.gold),
+      'COMPLETED' => ('거래완료', AppColors.textMuted),
+      'CANCELED' => ('취소', AppColors.textMuted),
+      _ => (status, AppColors.textMuted),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  /// 콤마 포맷 (반올림 X). Codex 권장: trade.price는 사용자 입력 정수, 원값 그대로 표시.
+  String _formatPrice(int price) {
+    final str = price.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) buf.write(',');
+      buf.write(str[i]);
+    }
+    return buf.toString();
   }
 
   Widget _buildMessageBubble(

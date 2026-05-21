@@ -1,6 +1,8 @@
 package com.fury.back.domain.chat;
 
 import com.fury.back.common.IdGenerator;
+import com.fury.back.domain.card.Card;
+import com.fury.back.domain.card.CardRepository;
 import com.fury.back.domain.chat.dto.ChatMessageDto;
 import com.fury.back.domain.chat.dto.ChatRoomDto;
 import com.fury.back.domain.chat.event.ChatReadEvent;
@@ -8,6 +10,7 @@ import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.trade.TradePostRepository;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
+import com.fury.back.storage.CardCdnUrls;
 import com.fury.back.storage.StorageKeyUrls;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -28,6 +31,9 @@ public class ChatServiceImpl implements ChatService {
     private final TradePostRepository tradePostRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    // Bundle 2-A: 거래 미니카드용 카드 마스터 이미지 조립 (#62 CardCdnUrls 재활용).
+    private final CardRepository cardRepository;
+    private final CardCdnUrls cardCdnUrls;
 
     @Override
     @Transactional
@@ -48,11 +54,18 @@ public class ChatServiceImpl implements ChatService {
         long unread = chatMessageRepository
                 .countByChatRoomIdAndIsReadFalseAndSenderUserIdNot(room.getChatRoomId(), buyerUserId);
 
+        // Bundle 2-A: 카드 마스터 이미지 조립. card 매칭 부재 시 null (프론트 placeholder).
+        Card card = trade.getCardId() != null
+                ? cardRepository.findById(trade.getCardId()).orElse(null)
+                : null;
+        String cardImageUrl = card != null ? cardCdnUrls.forCard(card) : null;
+
         return ChatRoomDto.from(room, buyerUserId,
                 trade.getTitle(), StorageKeyUrls.firstProxyUrl(trade.getImageUrl()),
                 other != null ? other.getNickname() : "",
                 other != null ? other.getProfileImageUrl() : "",
-                unread);
+                unread,
+                trade.getStatus(), trade.getPrice(), cardImageUrl);
     }
 
     @Override
@@ -70,11 +83,25 @@ public class ChatServiceImpl implements ChatService {
         Map<String, TradePost> tradeMap = tradePostRepository.findAllById(tradeIds).stream()
                 .collect(Collectors.toMap(TradePost::getTradeId, t -> t));
 
+        // Bundle 2-A: 카드 마스터 이미지 batch 조회 (N+1 차단). null cardId/empty skip.
+        List<String> cardIds = tradeMap.values().stream()
+                .map(TradePost::getCardId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct().toList();
+        Map<String, Card> cardMap = cardIds.isEmpty()
+                ? Map.of()
+                : cardRepository.findAllById(cardIds).stream()
+                        .collect(Collectors.toMap(Card::getCardId, c -> c));
+
         return rooms.stream().map(room -> {
             String otherUserId = userId.equals(room.getBuyerUserId())
                     ? room.getSellerUserId() : room.getBuyerUserId();
             User other = userMap.get(otherUserId);
             TradePost trade = tradeMap.get(room.getSaleListingId());
+            Card card = (trade != null && trade.getCardId() != null)
+                    ? cardMap.get(trade.getCardId())
+                    : null;
+            String cardImageUrl = card != null ? cardCdnUrls.forCard(card) : null;
             long unread = chatMessageRepository
                     .countByChatRoomIdAndIsReadFalseAndSenderUserIdNot(room.getChatRoomId(), userId);
             return ChatRoomDto.from(room, userId,
@@ -82,7 +109,10 @@ public class ChatServiceImpl implements ChatService {
                     trade != null ? StorageKeyUrls.firstProxyUrl(trade.getImageUrl()) : null,
                     other != null ? other.getNickname() : "",
                     other != null ? other.getProfileImageUrl() : "",
-                    unread);
+                    unread,
+                    trade != null ? trade.getStatus() : null,
+                    trade != null ? trade.getPrice() : null,
+                    cardImageUrl);
         }).toList();
     }
 
