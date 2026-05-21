@@ -91,7 +91,8 @@ class _ChatScreenState extends State<ChatScreen> {
     return InkWell(
       onTap: () => context.push('/chat/${room['chatRoomId']}', extra: room),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        // UI polish: vertical 14→12 (밀도 ↑)
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
             CircleAvatar(
@@ -129,7 +130,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 4),
                   Text(
                     lastMsg ?? tradeTitle,
                     style: TextStyle(

@@ -225,12 +225,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         color: AppColors.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.bold)),
-                Text(
-                  _connected ? '연결됨' : '연결 중...',
-                  style: TextStyle(
-                    color: _connected ? AppColors.green : AppColors.textMuted,
-                    fontSize: 11,
-                  ),
+                // UI polish: STOMP "연결됨" presence처럼 보이는 라벨 제거.
+                // 실제 상대방 presence 시스템 없는 상태에서 오해 방지.
+                // Bundle 2에서 거래 미니카드로 자연 확장.
+                const Text(
+                  '거래 채팅',
+                  style:
+                      TextStyle(color: AppColors.textMuted, fontSize: 11),
                 ),
               ],
             ),
@@ -276,6 +277,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Widget _buildTradeBanner() {
     final tradeTitle = widget.roomInfo['tradeTitle'] ?? '';
     final tradeImage = widget.roomInfo['tradeImageUrl'] as String?;
+    // UI polish: 거래 정보 없으면 빈 배너 영역 제거 (Bundle 2에서 거래 미니카드로 정식 도입).
+    if ((tradeTitle as String).isEmpty && (tradeImage == null || tradeImage.isEmpty)) {
+      return const SizedBox.shrink();
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: AppColors.surfaceCard,
@@ -326,43 +331,45 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: isMe
             ? [
-                // 시간 + 카카오톡식 unread "1" (내 메시지 왼쪽).
-                // Bundle 1 G1: msg['isRead'] != true이면 시간 위에 작은 "1" 표시.
-                // 상대가 채팅방 진입 → STOMP read event → isRead=true로 갱신되며 사라짐.
+                // 읽음 상태 + 시간 row inline (내 메시지 왼쪽, bubble 옆 baseline 정렬).
+                // UI polish: 1:1 거래 채팅이라 카카오톡식 "1" 대신 "읽음 / 안읽음" 라벨로 명확화.
+                // 안읽음: blue alpha 0.7 / 읽음: textMuted (흐리게)
                 Padding(
                   padding: const EdgeInsets.only(right: 4, bottom: 2),
-                  child: Column(
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (msg['isRead'] != true)
-                        const Text(
-                          '1',
-                          style: TextStyle(
-                            color: AppColors.blue,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
-                          ),
+                      Text(
+                        msg['isRead'] == true ? '읽음' : '안읽음',
+                        style: TextStyle(
+                          color: msg['isRead'] == true
+                              ? AppColors.textMuted
+                              : AppColors.blue.withValues(alpha: 0.7),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          height: 1.2,
                         ),
+                      ),
+                      const SizedBox(width: 4),
                       Text(time,
                           style: const TextStyle(
                               color: AppColors.textMuted, fontSize: 10)),
                     ],
                   ),
                 ),
-                // 말풍선
+                // 말풍선 — radius 18→16 / padding horizontal 14→16 (짧은 메시지 캡슐 방지)
                 Container(
                   constraints: BoxConstraints(
                       maxWidth: MediaQuery.of(context).size.width * 0.65),
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
+                      horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
                     color: AppColors.blue,
                     borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(18),
-                      topRight: Radius.circular(18),
-                      bottomLeft: Radius.circular(18),
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
                       bottomRight: Radius.circular(4),
                     ),
                   ),
@@ -400,19 +407,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
+                        // 상대 말풍선 — radius 18→16 / padding horizontal 14→16 일관성
                         Container(
                           constraints: BoxConstraints(
                               maxWidth:
                                   MediaQuery.of(context).size.width * 0.65),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
+                              horizontal: 16, vertical: 10),
                           decoration: BoxDecoration(
                             color: AppColors.surfaceElevated,
                             borderRadius: const BorderRadius.only(
                               topLeft: Radius.circular(4),
-                              topRight: Radius.circular(18),
-                              bottomLeft: Radius.circular(18),
-                              bottomRight: Radius.circular(18),
+                              topRight: Radius.circular(16),
+                              bottomLeft: Radius.circular(16),
+                              bottomRight: Radius.circular(16),
                             ),
                           ),
                           child: Text(text,
