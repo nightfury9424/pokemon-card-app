@@ -110,6 +110,26 @@ public class ChatServiceImpl implements ChatService {
                 }).toList();
     }
 
+    /**
+     * Bundle 1.5: chat_room active 상태에서 새 메시지 STOMP 수신 시 호출.
+     * - 권한 체크 (room 참여자만)
+     * - markAllAsRead 후 affected > 0이면 ChatReadEvent → AFTER_COMMIT broadcast
+     * - 메시지 리스트 반환 X (lightweight)
+     */
+    @Override
+    @Transactional
+    public void markRoomAsRead(String roomId, String userId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방 없음: " + roomId));
+        if (!userId.equals(room.getBuyerUserId()) && !userId.equals(room.getSellerUserId())) {
+            throw new IllegalArgumentException("채팅방 참여자가 아닙니다.");
+        }
+        int updated = chatMessageRepository.markAllAsRead(roomId, userId);
+        if (updated > 0) {
+            eventPublisher.publishEvent(new ChatReadEvent(roomId, userId));
+        }
+    }
+
     @Override
     @Transactional
     public ChatMessageDto sendMessage(String roomId, String senderUserId, String message) {

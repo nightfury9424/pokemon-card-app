@@ -90,6 +90,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 final msg = _parseMessage(frame.body!);
                 setState(() => _messages.add(msg));
                 _scrollToBottom();
+                // Bundle 1.5 (active read gap): 채팅방에 active 상태에서 상대 메시지 수신 시
+                // 즉시 markAsRead REST 호출 → 백엔드 AFTER_COMMIT broadcast → sender 화면 "1" 사라짐.
+                // 내 메시지는 호출 X (영향 없지만 불필요 트래픽 차단).
+                if (msg['senderUserId'] != _myUserId) {
+                  _markAsRead();
+                }
               } catch (_) {}
             },
           );
@@ -135,6 +141,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   Map<String, dynamic> _parseMessage(String body) {
     return jsonDecode(body) as Map<String, dynamic>;
+  }
+
+  /// Bundle 1.5: active 상태 새 메시지 도착 시 즉시 read 처리.
+  /// 실패해도 화면 흐름 영향 X (silent) — 채팅방 재진입 시 markRead가 보장.
+  Future<void> _markAsRead() async {
+    try {
+      await ApiClient.post('/api/chat/rooms/${widget.roomId}/read', {});
+    } catch (_) {}
   }
 
   void _sendMessage() {

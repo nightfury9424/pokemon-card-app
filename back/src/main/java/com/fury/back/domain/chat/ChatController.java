@@ -47,6 +47,16 @@ public class ChatController {
         return ApiResponse.ok(chatService.getMessages(roomId, userId));
     }
 
+    // Bundle 1.5 (active read gap): chat_room active 상태에서 새 메시지 도착 시 즉시 read 처리.
+    // 메시지 리스트 반환 X — lightweight. ChatReadEventListener가 AFTER_COMMIT broadcast.
+    @PostMapping("/rooms/{roomId}/read")
+    public ApiResponse<Void> markAsRead(
+            @PathVariable String roomId,
+            @AuthenticationPrincipal String userId) {
+        chatService.markRoomAsRead(roomId, userId);
+        return ApiResponse.ok();
+    }
+
     // WebSocket - 메시지 전송
     @MessageMapping("/room/{roomId}")
     public void sendMessage(
