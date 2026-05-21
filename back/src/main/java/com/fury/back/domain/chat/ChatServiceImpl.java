@@ -41,14 +41,27 @@ public class ChatServiceImpl implements ChatService {
         TradePost trade = tradePostRepository.findById(saleListingId)
                 .orElseThrow(() -> new IllegalArgumentException("거래글 없음: " + saleListingId));
 
+        // Bundle 2-A.2: (saleListingId, buyerUserId) 1:1 unique 채팅방 정책.
+        // DB UNIQUE 인덱스(uq_chat_rooms_sale_buyer) + race-safe 가드 — 동시 요청 시
+        // 첫 lookup empty 두 번째도 empty라 둘 다 save 시도해도 DB UNIQUE violation으로
+        // 두 번째가 fail → catch 후 다시 findBy* 호출하면 첫 번째 row 반환.
         ChatRoom room = chatRoomRepository
                 .findBySaleListingIdAndBuyerUserId(saleListingId, buyerUserId)
-                .orElseGet(() -> chatRoomRepository.save(ChatRoom.builder()
-                        .chatRoomId(IdGenerator.generate())
-                        .saleListingId(saleListingId)
-                        .sellerUserId(trade.getSellerId())
-                        .buyerUserId(buyerUserId)
-                        .build()));
+                .orElseGet(() -> {
+                    try {
+                        return chatRoomRepository.saveAndFlush(ChatRoom.builder()
+                                .chatRoomId(IdGenerator.generate())
+                                .saleListingId(saleListingId)
+                                .sellerUserId(trade.getSellerId())
+                                .buyerUserId(buyerUserId)
+                                .build());
+                    } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                        // 동시 요청 race — 다른 요청이 먼저 생성. 그 row를 가져옴.
+                        return chatRoomRepository
+                                .findBySaleListingIdAndBuyerUserId(saleListingId, buyerUserId)
+                                .orElseThrow(() -> e);
+                    }
+                });
 
         User other = userRepository.findById(trade.getSellerId()).orElse(null);
         long unread = chatMessageRepository

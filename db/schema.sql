@@ -283,6 +283,10 @@ CREATE INDEX idx_sale_listings_sale_status ON sale_listings(sale_status);
 -- 채팅
 CREATE INDEX idx_chat_rooms_seller_user_id    ON chat_rooms(seller_user_id);
 CREATE INDEX idx_chat_rooms_buyer_user_id     ON chat_rooms(buyer_user_id);
+-- Bundle 2-A.2 (2026-05-22): (sale_listing_id, buyer_user_id) 1:1 unique 정책.
+-- 같은 trade + 같은 buyer는 채팅방 1개만. 동시 요청 race 시 DB level fail-safe.
+-- prod 적용: 기존 중복 0건 확인 후 CREATE UNIQUE INDEX 수동 실행.
+CREATE UNIQUE INDEX uq_chat_rooms_sale_buyer  ON chat_rooms(sale_listing_id, buyer_user_id);
 CREATE INDEX idx_chat_messages_chat_room_id   ON chat_messages(chat_room_id);
 CREATE INDEX idx_chat_messages_created_at     ON chat_messages(created_at DESC);
 
