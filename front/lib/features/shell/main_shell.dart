@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/notifiers/asset_notifier.dart';
+import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/theme/app_colors.dart';
 
 class MainShell extends StatefulWidget {
@@ -116,6 +117,15 @@ class _BottomNavState extends State<_BottomNav> {
   void initState() {
     super.initState();
     _loadUnread();
+    // 채팅방 read 처리(markRead/active markAsRead/dispose) 시 즉시 badge 갱신.
+    // didUpdateWidget만으론 chat tab 안에서 룸 ↔ 목록 왕복 시 currentIndex 동일 → 미감지.
+    ChatUnreadNotifier.instance.addListener(_loadUnread);
+  }
+
+  @override
+  void dispose() {
+    ChatUnreadNotifier.instance.removeListener(_loadUnread);
+    super.dispose();
   }
 
   @override

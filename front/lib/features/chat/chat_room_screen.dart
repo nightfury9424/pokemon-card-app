@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
+import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/card_image.dart';
@@ -69,6 +70,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         _loading = false;
       });
       _scrollToBottom(animated: false);
+      // 채팅방 진입 시 백엔드 getMessages가 자동 markAllAsRead 호출 → bottom nav badge 갱신 신호.
+      ChatUnreadNotifier.instance.notifyChanged();
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -149,6 +152,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Future<void> _markAsRead() async {
     try {
       await ApiClient.post('/api/chat/rooms/${widget.roomId}/read', {});
+      // bottom nav badge 즉시 갱신 (active 상태에서 새 메시지 → read 처리됨).
+      ChatUnreadNotifier.instance.notifyChanged();
     } catch (_) {}
   }
 
