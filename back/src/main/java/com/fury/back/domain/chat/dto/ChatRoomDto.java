@@ -21,7 +21,7 @@ public class ChatRoomDto {
     private long unreadCount;
     private LocalDateTime createdAt;
     // Bundle 2-A: 거래 미니카드용. trade 또는 card 매칭 부재 시 모두 null로 내림 (stale-safe).
-    /** TradePost.status — OPEN / RESERVED / COMPLETED / CANCELED */
+    /** TradePost.status — OPEN / RESERVED / COMPLETED / DELETED (CANCELED는 판매글에 부적합 — 제거됨 2026-05-22) */
     private String tradeStatus;
     /** TradePost.price — 콤마+원 포맷은 프론트에서 처리 */
     private Integer tradePrice;

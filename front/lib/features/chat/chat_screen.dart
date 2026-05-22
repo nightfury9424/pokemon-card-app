@@ -266,17 +266,16 @@ class _ChatScreenState extends State<ChatScreen> {
         'OPEN' => '판매중',
         'RESERVED' => '예약 중',
         'COMPLETED' => '거래 완료',
-        'CANCELED' => '취소',
         'DELETED' => '삭제됨',
         _ => status,
       };
 
   /// 채팅 미니카드와 동일 — 양 빨강/음 파랑 정책 회피.
+  /// CANCELED 제거 (2026-05-22) — 판매글 상태에 부적합.
   Color _statusColor(String status) => switch (status) {
         'OPEN' => AppColors.green,
         'RESERVED' => AppColors.gold,
         'COMPLETED' => AppColors.textMuted,
-        'CANCELED' => AppColors.textMuted,
         'DELETED' => AppColors.textMuted,
         _ => AppColors.textMuted,
       };

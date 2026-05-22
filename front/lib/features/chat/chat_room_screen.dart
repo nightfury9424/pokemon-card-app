@@ -348,13 +348,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   /// Bundle 2-A: 거래 상태 chip. 양 빨강/음 파랑 정책 회피.
-  /// OPEN=green / RESERVED=gold / COMPLETED·CANCELED=textMuted gray.
+  /// 판매글 상태 4종: OPEN=green / RESERVED=gold / COMPLETED·DELETED=textMuted gray.
+  /// CANCELED는 판매글 상태에 부적합 (주문/결제 상태가 아님) → 제거 (2026-05-22).
   Widget _buildTradeStatusChip(String status) {
     final (label, color) = switch (status) {
       'OPEN' => ('판매중', AppColors.green),
       'RESERVED' => ('예약 중', AppColors.gold),
       'COMPLETED' => ('거래 완료', AppColors.textMuted),
-      'CANCELED' => ('취소', AppColors.textMuted),
       'DELETED' => ('삭제됨', AppColors.textMuted),
       _ => (status, AppColors.textMuted),
     };

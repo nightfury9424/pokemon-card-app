@@ -678,7 +678,6 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       'OPEN' => '채팅하기',
       'RESERVED' => '예약 중',
       'COMPLETED' => '거래 완료',
-      'CANCELED' => '거래 취소',
       'DELETED' => '삭제됨',
       _ => '채팅하기',
     };
@@ -720,7 +719,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     // Bundle 2-A.5: 거래 상태별 CTA 게이트.
     // - 기존 채팅방 있으면 status 무관 활성 (이미 대화 중인 buyer는 계속 진행 가능)
     // - 없으면 OPEN일 때만 새 채팅 시작 가능
-    // RESERVED/COMPLETED/CANCELED는 새 buyer 진입 차단.
+    // RESERVED/COMPLETED/DELETED는 새 buyer 진입 차단 (CANCELED 제거 2026-05-22 — 판매글 상태 부적합).
     final hasExistingRoom = _existingChatRoomId != null;
     final canChat = !_chatLoading && (hasExistingRoom || tradeStatus == 'OPEN');
 
@@ -864,10 +863,13 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   void _showStatusSheet() {
     final currentStatus = _trade?['status'] as String? ?? 'OPEN';
+    // 판매글 상태 정책 — OPEN / RESERVED / COMPLETED / DELETED 4개.
+    // 거래 취소는 RESERVED → OPEN 복귀로 처리. 판매 종료는 DELETED (별도 삭제 흐름).
+    // 이전 'CLOSED'는 'COMPLETED'로 통일 (2026-05-22).
     final options = <Map<String, dynamic>>[
       {'label': '판매중', 'status': 'OPEN', 'icon': Icons.sell_rounded},
-      {'label': '예약중', 'status': 'RESERVED', 'icon': Icons.bookmark_rounded},
-      {'label': '거래완료', 'status': 'CLOSED', 'icon': Icons.check_circle_rounded},
+      {'label': '예약 중', 'status': 'RESERVED', 'icon': Icons.bookmark_rounded},
+      {'label': '거래 완료', 'status': 'COMPLETED', 'icon': Icons.check_circle_rounded},
     ];
 
     showModalBottomSheet<void>(
