@@ -4,25 +4,22 @@ import 'core/network/api_client.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/token_storage.dart';
 import 'core/theme/app_colors.dart';
+import 'core/widgets/app_error_toast.dart';
 
-// SnackBar 표시 + 401 시 로그인 화면 이동을 위한 전역 키 (REFACTOR_2026-05-12.md 3차-A)
+// 라우터/토스트 context 진입용 전역 키.
+// 사용자 정책: Material SnackBar 금지 — AppSuccessToast / AppErrorToast 가운데 fade로 통일.
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ApiClient 전역 에러 핸들러 등록 — 401/5xx/네트워크 끊김 시 자동 SnackBar
+  // ApiClient 전역 에러 핸들러 — 401/5xx/네트워크 끊김 시 통일된 AppErrorToast (가운데 ⚠ fade).
+  // 이전: Material SnackBar (빨간 띠) → 사용자 정책 위반(통일 안 됨). AppErrorToast로 교체.
   ApiClient.setErrorHandler((info) {
-    final messenger = rootScaffoldMessengerKey.currentState;
-    if (messenger == null) return;
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(
-      content: Text(info.message),
-      backgroundColor: info.isAuthError
-          ? Colors.deepOrange.shade700
-          : (info.isServerError || info.isNetworkError ? Colors.red.shade700 : Colors.grey.shade700),
-      duration: Duration(seconds: info.isAuthError ? 4 : 3),
-    ));
+    final ctx = rootScaffoldMessengerKey.currentContext;
+    if (ctx != null) {
+      AppErrorToast.show(ctx, info.message);
+    }
     if (info.isAuthError) {
       // 토큰 만료 → 다음 요청 자동 안 보내도록 토큰 폐기 + 라우터 상태 갱신
       TokenStorage.delete();
