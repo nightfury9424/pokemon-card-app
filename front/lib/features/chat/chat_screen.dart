@@ -264,9 +264,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String _statusLabel(String status) => switch (status) {
         'OPEN' => '판매중',
-        'RESERVED' => '예약중',
-        'COMPLETED' => '거래완료',
+        'RESERVED' => '예약 중',
+        'COMPLETED' => '거래 완료',
         'CANCELED' => '취소',
+        'DELETED' => '삭제됨',
         _ => status,
       };
 
@@ -276,6 +277,7 @@ class _ChatScreenState extends State<ChatScreen> {
         'RESERVED' => AppColors.gold,
         'COMPLETED' => AppColors.textMuted,
         'CANCELED' => AppColors.textMuted,
+        'DELETED' => AppColors.textMuted,
         _ => AppColors.textMuted,
       };
 

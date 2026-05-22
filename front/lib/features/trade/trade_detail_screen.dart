@@ -679,6 +679,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       'RESERVED' => '예약 중',
       'COMPLETED' => '거래 완료',
       'CANCELED' => '거래 취소',
+      'DELETED' => '삭제됨',
       _ => '채팅하기',
     };
   }

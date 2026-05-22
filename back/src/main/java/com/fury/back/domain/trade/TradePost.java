@@ -71,6 +71,11 @@ public class TradePost {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    // Bundle 2-A.7 (2026-05-22): soft delete 추적. status='DELETED'와 짝으로 set.
+    // 분쟁/감사용 타임스탬프. NULL = 활성, NOT NULL = 삭제됨.
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -102,5 +107,15 @@ public class TradePost {
 
     public void incrementViewCount() {
         this.viewCount++;
+    }
+
+    /**
+     * Bundle 2-A.7: soft delete — status='DELETED' + deletedAt=now.
+     * 기존 hard delete (tradePostRepository.delete) 대체.
+     * 채팅방은 status 무관 메시지/미니카드 유지 — 분쟁/신고 근거 보존.
+     */
+    public void markDeleted() {
+        this.status = "DELETED";
+        this.deletedAt = LocalDateTime.now();
     }
 }

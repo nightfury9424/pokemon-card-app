@@ -58,6 +58,7 @@ public class ChatServiceImpl implements ChatService {
                             case "RESERVED" -> "예약 중인 거래입니다.";
                             case "COMPLETED" -> "거래가 완료되었습니다.";
                             case "CANCELED" -> "취소된 거래입니다.";
+                            case "DELETED" -> "삭제된 거래입니다.";
                             default -> "현재 거래 상태에서는 채팅을 시작할 수 없습니다.";
                         });
                     }

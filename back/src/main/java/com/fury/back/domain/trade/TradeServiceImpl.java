@@ -316,7 +316,10 @@ public class TradeServiceImpl implements TradeService {
         if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
         if (!post.getSellerId().equals(userId)) return ReturnData.fail("F403", "권한이 없습니다.");
 
-        tradePostRepository.delete(post);
+        // Bundle 2-A.7: hard delete 금지 — soft delete (status='DELETED' + deleted_at=now).
+        // 채팅방 미니카드/메시지 보존 → 분쟁/신고 근거 유지.
+        // 일반 거래 목록/검색은 status='OPEN' 필터로 자동 제외.
+        post.markDeleted();
         return ReturnData.success();
     }
 

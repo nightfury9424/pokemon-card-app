@@ -286,6 +286,11 @@ CREATE INDEX idx_sale_listings_is_public   ON sale_listings(is_public);
 CREATE INDEX idx_sale_listings_sale_status ON sale_listings(sale_status);
 
 -- 채팅
+-- Bundle 2-A.7 (2026-05-22): trade_posts.deleted_at — soft delete 시점 추적.
+-- prod 적용 시 수동 ALTER (ddl-auto=validate):
+--   ALTER TABLE trade_posts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL;
+-- (CREATE TABLE 정의에 deleted_at 컬럼 추가 안 함 — 기존 trade_posts CREATE 구문은 위에 있고,
+--  ALTER로 추가하는 게 prod와 일관)
 CREATE INDEX idx_chat_rooms_seller_user_id    ON chat_rooms(seller_user_id);
 CREATE INDEX idx_chat_rooms_buyer_user_id     ON chat_rooms(buyer_user_id);
 -- Bundle 2-A.2 (2026-05-22): (sale_listing_id, buyer_user_id) 1:1 unique 정책.

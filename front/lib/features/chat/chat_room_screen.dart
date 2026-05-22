@@ -352,9 +352,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Widget _buildTradeStatusChip(String status) {
     final (label, color) = switch (status) {
       'OPEN' => ('판매중', AppColors.green),
-      'RESERVED' => ('예약중', AppColors.gold),
-      'COMPLETED' => ('거래완료', AppColors.textMuted),
+      'RESERVED' => ('예약 중', AppColors.gold),
+      'COMPLETED' => ('거래 완료', AppColors.textMuted),
       'CANCELED' => ('취소', AppColors.textMuted),
+      'DELETED' => ('삭제됨', AppColors.textMuted),
       _ => (status, AppColors.textMuted),
     };
     return Container(
