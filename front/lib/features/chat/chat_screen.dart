@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
+import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/card_image.dart';
 
@@ -19,6 +20,14 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _loadRooms();
+    // Bundle 2-D hotfix: 채팅방에서 상태 변경/메시지 read 시 list 갱신.
+    ChatUnreadNotifier.instance.addListener(_loadRooms);
+  }
+
+  @override
+  void dispose() {
+    ChatUnreadNotifier.instance.removeListener(_loadRooms);
+    super.dispose();
   }
 
   Future<void> _loadRooms() async {
@@ -262,12 +271,14 @@ class _ChatScreenState extends State<ChatScreen> {
     return buf.toString();
   }
 
+  /// fallback은 '판매중' X — 알 수 없는 status를 OPEN처럼 표시하면
+  /// 실제로 삭제/완료/오류인데 거래 가능한 듯 보일 수 있어 위험.
   String _statusLabel(String status) => switch (status) {
         'OPEN' => '판매중',
         'RESERVED' => '예약 중',
         'COMPLETED' => '거래 완료',
         'DELETED' => '삭제됨',
-        _ => status,
+        _ => '상태 확인',
       };
 
   /// 채팅 미니카드와 동일 — 양 빨강/음 파랑 정책 회피.

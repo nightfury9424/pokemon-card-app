@@ -641,7 +641,11 @@ class _TradeListScreenState extends State<TradeListScreen> {
                         color: Colors.black.withValues(alpha: 0.55),
                         child: Center(
                           child: Text(
-                            tradeStatus == 'RESERVED' ? '예약중' : '판매완료',
+                            switch (tradeStatus) {
+                              'RESERVED' => '예약중',
+                              'DELETED' => '삭제됨',
+                              _ => '판매완료',
+                            },
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 11,

@@ -244,7 +244,16 @@ class _NavItem extends StatelessWidget {
     final selected = index == currentIndex;
     return Expanded(
       child: GestureDetector(
-        onTap: () => context.go(route),
+        onTap: () {
+          // 챗 탭 재선택 시 — GoRouter는 same location go를 noop 처리해서
+          // chat_screen이 initState 재호출되지 않음 → 명시적으로 reload 신호.
+          // chat_screen이 ChatUnreadNotifier listener라서 _loadRooms 발동.
+          if (selected && route == '/chat-list') {
+            ChatUnreadNotifier.instance.notifyChanged();
+            return;
+          }
+          context.go(route);
+        },
         behavior: HitTestBehavior.opaque,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

@@ -555,7 +555,11 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                           border: Border.all(color: Colors.white30),
                         ),
                         child: Text(
-                          tradeStatus == 'RESERVED' ? '예약중' : '거래완료',
+                          switch (tradeStatus) {
+                            'RESERVED' => '예약중',
+                            'DELETED' => '삭제됨',
+                            _ => '거래완료',
+                          },
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,

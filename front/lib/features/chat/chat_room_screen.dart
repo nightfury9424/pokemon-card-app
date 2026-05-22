@@ -8,6 +8,9 @@ import '../../core/network/api_client.dart';
 import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
+import '../../core/widgets/app_error_toast.dart';
+import '../../core/widgets/app_success_toast.dart';
 import '../../core/widgets/card_image.dart';
 
 class ChatRoomScreen extends StatefulWidget {
@@ -33,6 +36,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   String? _myUserId;
   bool _loading = true;
   bool _connected = false;
+  // Bundle 2-D hotfix: trade 정보를 chat_room에서 직접 보유 → 미니카드 status 즉시 동기화.
+  // SYSTEM 메시지 수신 시 _refreshTradeStatus 호출하여 갱신.
+  Map<String, dynamic>? _trade;
+
+  bool get _isSeller {
+    final sellerId = (_trade?['seller'] is Map)
+        ? (_trade!['seller'] as Map)['userId']?.toString()
+        : null;
+    return _myUserId != null && sellerId != null && _myUserId == sellerId;
+  }
 
   @override
   void initState() {
@@ -45,6 +58,25 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     if (token != null) _myUserId = _userIdFromToken(token);
     await _loadMessages();
     _connectWebSocket();
+    // Bundle 2-D hotfix: trade 정보 진입 시 1회 fetch — 미니카드 status/판매자 메뉴 갱신용.
+    _refreshTradeStatus();
+  }
+
+  /// trade 정보 fetch — 상단 미니카드 status + _isSeller 판정에 사용.
+  /// SYSTEM 메시지(상태 변경/삭제) 수신 시 + 판매자 메뉴 사용 후에도 호출.
+  Future<void> _refreshTradeStatus() async {
+    final saleListingId = widget.roomInfo['saleListingId'] as String?;
+    if (saleListingId == null) return;
+    try {
+      final res = await ApiClient.get('/api/trades/$saleListingId');
+      if (!mounted) return;
+      final data = res['data'];
+      if (data is Map<String, dynamic>) {
+        setState(() => _trade = data);
+      }
+    } catch (_) {
+      // silent — 기존 widget.roomInfo로 fallback
+    }
   }
 
   String? _userIdFromToken(String token) {
@@ -100,9 +132,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 if (msg['senderUserId'] != _myUserId) {
                   _markAsRead();
                 }
+                // Bundle 2-D hotfix: SYSTEM 메시지 수신 시 trade status 갱신 → 미니카드 즉시 동기화.
+                // ChatUnreadNotifier 추가 — buyer가 방 열어둔 동안 chat_screen list도 sync.
+                if (msg['messageType'] == 'SYSTEM') {
+                  _refreshTradeStatus();
+                  ChatUnreadNotifier.instance.notifyChanged();
+                }
               } catch (_) {}
             },
           );
+          // (Bundle 2-D hotfix는 위 메시지 subscribe 콜백 안에서 SYSTEM 메시지일 때 _refreshTradeStatus 호출)
           // Bundle 1 G1: read 이벤트 수신 → 내가 보낸 미읽음 메시지 isRead=true (카카오톡식 "1" 사라짐).
           // 상대가 채팅방 진입 시 백엔드 ChatReadEvent → AFTER_COMMIT broadcast.
           _stompClient?.subscribe(
@@ -243,6 +282,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             ),
           ],
         ),
+        actions: [
+          // Bundle 2-D hotfix: 판매자만 채팅방에서 상태 변경/삭제 가능. 거래 완료는 별도 (2-B+).
+          if (_isSeller)
+            IconButton(
+              icon: const Icon(Icons.more_vert,
+                  color: AppColors.textSecondary, size: 22),
+              onPressed: _showSellerStatusSheet,
+            ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(height: 1, color: AppColors.divider),
@@ -285,8 +333,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     // 사용자 업로드 trade 사진(AuthImage)은 거래 상세에서만, 미니카드는 카드 master 일관성.
     final tradeTitle = (widget.roomInfo['tradeTitle'] as String?) ?? '';
     final cardImageUrl = widget.roomInfo['cardImageUrl'] as String?;
-    final tradeStatus = widget.roomInfo['tradeStatus'] as String?;
-    final tradePrice = (widget.roomInfo['tradePrice'] as num?)?.toInt();
+    // Bundle 2-D hotfix: _trade 우선 (최신 status) / 없으면 진입 시점 snapshot.
+    final tradeStatus = (_trade?['status'] as String?) ??
+        (widget.roomInfo['tradeStatus'] as String?);
+    final tradePrice = (_trade?['price'] as num?)?.toInt() ??
+        (widget.roomInfo['tradePrice'] as num?)?.toInt();
     final saleListingId = widget.roomInfo['saleListingId'] as String?;
 
     // 거래/카드 정보 모두 없으면 배너 hide (stale-safe).
@@ -356,7 +407,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       'RESERVED' => ('예약 중', AppColors.gold),
       'COMPLETED' => ('거래 완료', AppColors.textMuted),
       'DELETED' => ('삭제됨', AppColors.textMuted),
-      _ => (status, AppColors.textMuted),
+      // fallback: '판매중' X — unknown status를 OPEN처럼 표시하면 거래 위험.
+      _ => ('상태 확인', AppColors.textMuted),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -525,6 +577,111 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ],
       ),
     );
+  }
+
+  /// Bundle 2-D hotfix: 판매자 시점만 — 채팅방에서 바로 상태 변경/삭제.
+  /// 거래 완료는 finalPrice 필요해서 별도 (Bundle 2-B+).
+  void _showSellerStatusSheet() {
+    final tradeId = widget.roomInfo['saleListingId'] as String?;
+    if (tradeId == null) return;
+    final currentStatus = (_trade?['status'] as String?) ??
+        (widget.roomInfo['tradeStatus'] as String?) ?? 'OPEN';
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _sellerStatusTile(ctx, '판매 중', 'OPEN', Icons.sell_rounded, currentStatus),
+            _sellerStatusTile(ctx, '예약 중', 'RESERVED', Icons.bookmark_rounded, currentStatus),
+            const Divider(color: AppColors.divider, height: 1),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded,
+                  color: AppColors.red, size: 22),
+              title: const Text('판매글 삭제',
+                  style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _confirmDeleteTrade(tradeId);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sellerStatusTile(BuildContext ctx, String label, String status,
+      IconData icon, String currentStatus) {
+    final selected = status == currentStatus;
+    return ListTile(
+      leading: Icon(icon,
+          color: selected ? AppColors.blue : AppColors.textSecondary),
+      title: Text(label,
+          style: TextStyle(
+            color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+            fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+          )),
+      trailing: selected
+          ? const Icon(Icons.check_rounded, color: AppColors.blue, size: 20)
+          : null,
+      onTap: selected
+          ? null
+          : () {
+              Navigator.of(ctx).pop();
+              _updateTradeStatus(status);
+            },
+    );
+  }
+
+  Future<void> _updateTradeStatus(String newStatus) async {
+    final tradeId = widget.roomInfo['saleListingId'] as String?;
+    if (tradeId == null) return;
+    try {
+      await ApiClient.patch('/api/trades/$tradeId/status', data: {'status': newStatus});
+      if (!mounted) return;
+      AppSuccessToast.show(context, '상태가 변경되었습니다');
+      await _refreshTradeStatus();
+      // Bundle 2-D hotfix: 채팅 목록 list refresh 신호.
+      ChatUnreadNotifier.instance.notifyChanged();
+    } catch (_) {
+      if (mounted) AppErrorToast.show(context, '상태 변경에 실패했어요');
+    }
+  }
+
+  Future<void> _confirmDeleteTrade(String tradeId) async {
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '판매글 삭제',
+      message: '삭제해도 채팅방 대화는 유지돼요.\n진행하시겠어요?',
+      cancelLabel: '취소',
+      confirmLabel: '삭제',
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ApiClient.delete('/api/trades/$tradeId');
+      if (!mounted) return;
+      AppSuccessToast.show(context, '판매글이 삭제되었어요');
+      await _refreshTradeStatus();
+      ChatUnreadNotifier.instance.notifyChanged();
+    } catch (_) {
+      if (mounted) AppErrorToast.show(context, '삭제에 실패했어요');
+    }
   }
 
   /// Bundle 2-C: SYSTEM 메시지 — 가운데 회색 작은 텍스트 + 약한 박스.
