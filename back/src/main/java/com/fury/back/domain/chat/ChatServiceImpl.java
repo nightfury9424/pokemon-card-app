@@ -50,6 +50,10 @@ public class ChatServiceImpl implements ChatService {
         // Bundle 2-A.6: 신규 채팅방 생성은 OPEN 거래만 허용 (비즈니스 룰).
         // 기존 채팅방은 status 무관 반환 — 이미 대화 중인 buyer는 진행/배송/분쟁 대화 계속 필요.
         // 프론트 CTA disabled와 별개로 백엔드도 가드 (악의 API 직접 호출 차단).
+        //
+        // Bundle 2-D: 신규 room 생성 직후 첫 시스템 메시지로 사기 주의 안내 자동 1회.
+        // race-safe catch 후 기존 room 반환 시는 X (orElseGet save 성공 직후만).
+        final boolean[] newlyCreated = {false};
         ChatRoom room = chatRoomRepository
                 .findBySaleListingIdAndBuyerUserId(saleListingId, buyerUserId)
                 .orElseGet(() -> {
@@ -62,12 +66,14 @@ public class ChatServiceImpl implements ChatService {
                         });
                     }
                     try {
-                        return chatRoomRepository.saveAndFlush(ChatRoom.builder()
+                        ChatRoom saved = chatRoomRepository.saveAndFlush(ChatRoom.builder()
                                 .chatRoomId(IdGenerator.generate())
                                 .saleListingId(saleListingId)
                                 .sellerUserId(trade.getSellerId())
                                 .buyerUserId(buyerUserId)
                                 .build());
+                        newlyCreated[0] = true;
+                        return saved;
                     } catch (org.springframework.dao.DataIntegrityViolationException e) {
                         // 동시 요청 race — 다른 요청이 먼저 생성. 그 row를 가져옴.
                         return chatRoomRepository
@@ -75,6 +81,12 @@ public class ChatServiceImpl implements ChatService {
                                 .orElseThrow(() -> e);
                     }
                 });
+
+        // Bundle 2-D: 신규 생성 시점에만 사기 주의 시스템 메시지 자동 1회.
+        if (newlyCreated[0]) {
+            sendSystemMessage(room.getChatRoomId(),
+                    "⚠ 안전한 거래를 위해 외부 송금이나 개인정보 요구에 주의해주세요.");
+        }
 
         User other = userRepository.findById(trade.getSellerId()).orElse(null);
         long unread = chatMessageRepository
@@ -213,6 +225,28 @@ public class ChatServiceImpl implements ChatService {
         ChatMessageDto dto = ChatMessageDto.from(saved, null, null);
         eventPublisher.publishEvent(new SystemMessageEvent(roomId, dto));
         return dto;
+    }
+
+    /**
+     * Bundle 2-D: trade 상태 변경 시 해당 trade의 모든 chat_room에 시스템 메시지 fan-out.
+     * TradeServiceImpl.updateStatus / completeTrade / deleteTrade에서 호출.
+     * 채팅방 없으면 (아직 buyer 진입 안 함) silent — 사기 주의는 getOrCreateRoom에서 처리.
+     */
+    @Override
+    @Transactional
+    public void broadcastTradeStatusChanged(String saleListingId, String newStatus) {
+        final String content = switch (newStatus) {
+            case "OPEN" -> "거래가 판매 중으로 변경되었습니다.";
+            case "RESERVED" -> "거래가 예약 중으로 변경되었습니다.";
+            case "COMPLETED" -> "거래가 완료되었습니다.";
+            case "DELETED" -> "판매글이 삭제되었습니다.";
+            default -> null;
+        };
+        if (content == null) return;
+        final List<ChatRoom> rooms = chatRoomRepository.findAllBySaleListingId(saleListingId);
+        for (final ChatRoom room : rooms) {
+            sendSystemMessage(room.getChatRoomId(), content);
+        }
     }
 
     @Override

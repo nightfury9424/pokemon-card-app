@@ -23,4 +23,11 @@ public interface ChatService {
      * AFTER_COMMIT 이벤트로 STOMP broadcast — 일반 메시지와 동일 topic에 push.
      */
     ChatMessageDto sendSystemMessage(String roomId, String content);
+
+    /**
+     * Bundle 2-D: trade 상태 변경 시 해당 trade의 모든 chat_room에 시스템 메시지 fan-out.
+     * - 1 trade ↔ N buyer 패턴 (UNIQUE 정책상 same buyer 1방 보장, 다른 buyer 각각)
+     * - sendSystemMessage 동일 인프라 활용 — AFTER_COMMIT broadcast
+     */
+    void broadcastTradeStatusChanged(String saleListingId, String newStatus);
 }

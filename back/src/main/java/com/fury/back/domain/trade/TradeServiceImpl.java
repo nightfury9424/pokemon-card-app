@@ -11,6 +11,7 @@ import com.fury.back.domain.card.CardRepository;
 import com.fury.back.domain.trade.dto.TradePostDto;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
+import com.fury.back.domain.chat.ChatService;
 import com.fury.back.domain.notification.NotificationService;
 import com.fury.back.storage.ImageStorageService;
 import com.fury.back.storage.StorageKeyUrls;
@@ -42,6 +43,8 @@ public class TradeServiceImpl implements TradeService {
     private final AssetImageRepository assetImageRepository;
     private final NotificationService notificationService;
     private final ImageStorageService imageStorageService;
+    // Bundle 2-D: trade 상태 변경/삭제 시 chat_room에 시스템 메시지 fan-out용.
+    private final ChatService chatService;
 
     @Value("${trade.image.dir}")
     private String tradeImageDir;  // Phase 1-7: legacy static handler 호환용 (신규 업로드는 ImageStorageService 사용)
@@ -320,6 +323,8 @@ public class TradeServiceImpl implements TradeService {
         // 채팅방 미니카드/메시지 보존 → 분쟁/신고 근거 유지.
         // 일반 거래 목록/검색은 status='OPEN' 필터로 자동 제외.
         post.markDeleted();
+        // Bundle 2-D: 모든 chat_room에 "판매글이 삭제되었습니다." 시스템 메시지 broadcast.
+        chatService.broadcastTradeStatusChanged(tradeId, "DELETED");
         return ReturnData.success();
     }
 
@@ -336,6 +341,10 @@ public class TradeServiceImpl implements TradeService {
         post.updateStatus(status);
         // 거래 CLOSED 시 자산은 보존 (이전: assetRepository.deleteById → P&L 히스토리 영구 소실).
         // 추후 Asset.status 컬럼 마이그레이션 후 SOLD 상태로 분리 예정. REFACTOR_2026-05-12.md 1차-B 참조.
+
+        // Bundle 2-D: 모든 chat_room에 상태 변경 시스템 메시지 broadcast.
+        // (OPEN/RESERVED/COMPLETED → 카피 분기, 그 외 silent)
+        chatService.broadcastTradeStatusChanged(tradeId, status);
 
         User seller = userRepository.findById(post.getSellerId()).orElse(null);
         Card card = cardRepository.findById(post.getCardId()).orElse(null);

@@ -13,4 +13,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
 
     @Query("SELECT r FROM ChatRoom r WHERE r.sellerUserId = :userId OR r.buyerUserId = :userId ORDER BY COALESCE(r.lastMessageAt, r.createdAt) DESC")
     List<ChatRoom> findMyRooms(@Param("userId") String userId);
+
+    /** Bundle 2-D: 1 trade ↔ N buyer 채팅방 모두 조회 — 상태 변경/삭제 시 시스템 메시지 fan-out용. */
+    List<ChatRoom> findAllBySaleListingId(String saleListingId);
 }
