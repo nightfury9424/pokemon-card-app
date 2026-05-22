@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_success_toast.dart';
 
 class EditNicknameScreen extends StatefulWidget {
   const EditNicknameScreen({super.key});
@@ -97,9 +98,7 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
     try {
       await ApiClient.put('/api/users/nickname', {'nickname': nickname});
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('닉네임이 변경되었습니다')),
-      );
+      AppSuccessToast.show(context, '닉네임이 변경되었습니다');
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;

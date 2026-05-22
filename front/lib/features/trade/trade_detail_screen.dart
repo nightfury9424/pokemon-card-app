@@ -7,6 +7,7 @@ import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/app_success_toast.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/app_error_toast.dart';
 
 class TradeDetailScreen extends StatefulWidget {
   final String tradeId;
@@ -156,20 +157,10 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       if (!mounted) return;
       final liked = res['data']?['isLiked'] as bool? ?? !_isLiked;
       setState(() => _isLiked = liked);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(liked ? '관심 목록에 추가했습니다' : '관심 목록에서 제거했습니다'),
-          duration: const Duration(seconds: 1),
-        ),
-      );
+      AppSuccessToast.show(context, liked ? '관심 목록에 추가했습니다' : '관심 목록에서 제거했습니다');
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('오류가 발생했습니다'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        AppErrorToast.show(context, '오류가 발생했습니다');
       }
     } finally {
       if (mounted) setState(() => _likeLoading = false);
@@ -716,12 +707,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       await context.push('/chat/${room['chatRoomId']}', extra: room);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('채팅방을 열 수 없습니다'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        AppErrorToast.show(context, '채팅방을 열 수 없습니다');
       }
     } finally {
       if (mounted) setState(() => _chatLoading = false);
@@ -954,12 +940,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => trade['status'] = oldStatus);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('상태 변경 실패'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppErrorToast.show(context, '상태 변경 실패');
     } finally {
       if (mounted) setState(() => _statusUpdating = false);
     }
@@ -1135,7 +1116,6 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
   }
 
   Future<void> _submitReport(String reasonCode, String detail) async {
-    final messenger = ScaffoldMessenger.of(context);
     try {
       await ApiClient.post('/api/reports', {
         'data': {
@@ -1152,9 +1132,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       final msg = e.toString().contains('이미 신고하신')
           ? '이미 신고하신 항목입니다.'
           : '신고 접수 실패. 잠시 후 다시 시도해 주세요.';
-      messenger.showSnackBar(
-        SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
-      );
+      AppErrorToast.show(context, msg);
     }
   }
 
@@ -1167,9 +1145,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       context.pop(true);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('삭제 실패'), duration: Duration(seconds: 2)),
-      );
+      AppErrorToast.show(context, '삭제 실패');
     }
   }
 }

@@ -9,6 +9,7 @@ import '../../core/widgets/app_success_toast.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_error_toast.dart';
 
 class GradingResultScreen extends StatefulWidget {
   final List<File> photos;
@@ -403,9 +404,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
               }
             } catch (e) {
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('등록 실패: $e'), backgroundColor: Colors.red),
-                );
+                AppErrorToast.show(context, '등록 실패: $e');
               }
             }
           }

@@ -18,6 +18,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
 import 'hoga/hoga_board.dart';
 import 'hoga/hoga_row_detail_sheet.dart';
+import '../../core/widgets/app_info_toast.dart';
 
 class CardDetailScreen extends StatefulWidget {
   final String cardId;
@@ -4007,12 +4008,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final back = images.where((i) => i['imageType'] == 'BACK').firstOrNull;
 
     if (front == null && back == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('저장된 사진이 없습니다'),
-          backgroundColor: Color(0xFF1E2235),
-        ),
-      );
+      AppInfoToast.show(context, '저장된 사진이 없습니다');
       return;
     }
 

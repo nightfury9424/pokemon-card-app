@@ -14,6 +14,8 @@ import '../../core/widgets/card_image.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pressable.dart';
 import '../../core/widgets/rarity_aura.dart';
+import '../../core/widgets/app_error_toast.dart';
+import '../../core/widgets/app_info_toast.dart';
 
 class AssetScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -208,9 +210,7 @@ class _AssetScreenState extends State<AssetScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('삭제 실패')));
+        AppErrorToast.show(context, '삭제 실패');
       }
     }
   }
@@ -237,9 +237,7 @@ class _AssetScreenState extends State<AssetScreen> {
 
     if (estimatedGrade == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('판매 전 앱 등급 분석이 필요합니다')));
+      AppInfoToast.show(context, '판매 전 앱 등급 분석이 필요합니다');
       final graded = await context.push<bool>(
         '/grading/capture',
         extra: {'assetId': assetId, 'cardId': cardId, 'cardName': cardName},
@@ -294,12 +292,7 @@ class _AssetScreenState extends State<AssetScreen> {
             } catch (_) {
               setModal(() => submitting = false);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('판매 등록 실패'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                AppErrorToast.show(context, '판매 등록 실패');
               }
             }
           }
@@ -439,12 +432,7 @@ class _AssetScreenState extends State<AssetScreen> {
       if (mounted) _loadData();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('판매 내리기 실패'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppErrorToast.show(context, '판매 내리기 실패');
       }
     }
   }
@@ -527,12 +515,7 @@ class _AssetScreenState extends State<AssetScreen> {
               } catch (_) {
                 setModal(() => submitting = false);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('판매 등록 실패'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  AppErrorToast.show(context, '판매 등록 실패');
                 }
               }
             }
@@ -1840,9 +1823,7 @@ class _AssetScreenState extends State<AssetScreen> {
       } catch (_) {
         setModal(() => searching = false);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('등록 실패'), backgroundColor: Colors.red),
-          );
+          AppErrorToast.show(context, '등록 실패');
         }
       }
     }
@@ -2078,9 +2059,7 @@ class _AssetScreenState extends State<AssetScreen> {
             } catch (_) {
               setModal(() => submitting = false);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('등록 실패'), backgroundColor: Colors.red),
-                );
+                AppErrorToast.show(context, '등록 실패');
               }
             }
           }
@@ -2531,13 +2510,7 @@ class _AssetScreenState extends State<AssetScreen> {
     );
     if (asset['isSelling'] == true) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('판매 중인 카드는 삭제할 수 없습니다. 먼저 판매를 내려주세요.'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
+        AppInfoToast.show(context, '판매 중인 카드는 삭제할 수 없습니다. 먼저 판매를 내려주세요.');
       }
       return;
     }

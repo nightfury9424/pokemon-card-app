@@ -15,6 +15,8 @@ import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/app_info_toast.dart';
+import '../../core/widgets/app_error_toast.dart';
 
 class ScannerScreen extends StatefulWidget {
   /// 카드 상세에서 진입 시 전달. 스캔 결과가 이 cardId와 다르면 등록 차단.
@@ -368,9 +370,7 @@ class _ScannerScreenState extends State<ScannerScreen>
             // GRADED 선택 시 회사·등급 필수. PSA·BRG만 지원 (CGC/BGS 미지원)
             if (selectedType == 'GRADED' &&
                 (gradingCompany == null || gradeValue == null)) {
-              ScaffoldMessenger.of(
-                ctx,
-              ).showSnackBar(const SnackBar(content: Text('감정사와 등급을 선택해주세요')));
+              AppInfoToast.show(ctx, '감정사와 등급을 선택해주세요');
               return;
             }
             // submit 중 사용자가 칩 토글해도 영향 없도록 전체 입력값 snapshot — race 방지
@@ -423,12 +423,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               if (!ctx.mounted) return;
               setModal(() => submitting = false);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('등록 실패'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                AppErrorToast.show(context, '등록 실패');
               }
             }
           }

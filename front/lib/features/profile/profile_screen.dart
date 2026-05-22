@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/user_avatar.dart';
 import '../auth/auth_service.dart';
+import '../../core/widgets/app_info_toast.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -301,14 +302,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature 기능은 준비 중입니다.'),
-        backgroundColor: AppColors.surfaceCard,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    AppInfoToast.show(context, '$feature 기능은 준비 중입니다.');
   }
 }
 
