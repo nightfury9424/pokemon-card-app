@@ -137,6 +137,16 @@ class ApiClient {
     return (res['data'] as List?) ?? const [];
   }
 
+  // Phase 1B: 채팅방 나가기 — 본인 hidden_at set. DB 보존, 본인 list 미노출.
+  static Future<Map<String, dynamic>> leaveRoom(String roomId) {
+    return post('/api/chat/rooms/$roomId/leave', {});
+  }
+
+  // Phase 1B: 채팅방 입력창/안내 상태 ({canSendMessage, blockNotice}).
+  static Future<Map<String, dynamic>> getConversationState(String roomId) {
+    return get('/api/chat/rooms/$roomId/conversation-state');
+  }
+
   static Future<Map<String, dynamic>> uploadFile(String path, String filePath, {String field = 'file'}) async {
     final formData = FormData.fromMap({
       field: await MultipartFile.fromFile(filePath),

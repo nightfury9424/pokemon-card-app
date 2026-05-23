@@ -36,6 +36,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   String? _myUserId;
   bool _loading = true;
   bool _connected = false;
+  // Phase 1B: backend conversation-state — 입력창 비활성화 + 안내 banner.
+  // canSendMessage=false 면 send 차단. blockNotice 있으면 sticky banner + placeholder 변경.
+  bool _canSendMessage = true;
+  String? _blockNotice;
   // Bundle 2-D hotfix: trade 정보를 chat_room에서 직접 보유 → 미니카드 status 즉시 동기화.
   // SYSTEM 메시지 수신 시 _refreshTradeStatus 호출하여 갱신.
   Map<String, dynamic>? _trade;
@@ -56,10 +60,28 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Future<void> _init() async {
     final token = await TokenStorage.get();
     if (token != null) _myUserId = _userIdFromToken(token);
-    await _loadMessages();
+    // Phase 1B: 메시지 history + conversation-state 병렬 fetch. 각자 독립 fail-safe.
+    await Future.wait([_loadMessages(), _loadConversationState()]);
     _connectWebSocket();
     // Bundle 2-D hotfix: trade 정보 진입 시 1회 fetch — 미니카드 status/판매자 메뉴 갱신용.
     _refreshTradeStatus();
+  }
+
+  /// Phase 1B: 차단 관계 → 입력창 비활성화 + 안내 banner 상태 fetch.
+  /// 실패 시 silent — canSendMessage 기본 true. 전송 시도 시 backend 가드(403)로 fallback.
+  Future<void> _loadConversationState() async {
+    try {
+      final res = await ApiClient.getConversationState(widget.roomId);
+      if (!mounted) return;
+      final data = res['data'] as Map<String, dynamic>?;
+      if (data == null) return;
+      setState(() {
+        _canSendMessage = (data['canSendMessage'] as bool?) ?? true;
+        _blockNotice = data['blockNotice'] as String?;
+      });
+    } catch (_) {
+      // silent — fail-open. 전송은 backend 가드가 막음.
+    }
   }
 
   /// trade 정보 fetch — 상단 미니카드 status + _isSeller 판정에 사용.
@@ -134,8 +156,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 }
                 // Bundle 2-D hotfix: SYSTEM 메시지 수신 시 trade status 갱신 → 미니카드 즉시 동기화.
                 // ChatUnreadNotifier 추가 — buyer가 방 열어둔 동안 chat_screen list도 sync.
+                // Phase 1B: SYSTEM 메시지 중 차단 안내가 올 수 있으므로 conversation-state 재조회 →
+                // 입력창 즉시 비활성화. 키워드 매칭 대신 항상 재조회 (빈도 낮음).
                 if (msg['messageType'] == 'SYSTEM') {
                   _refreshTradeStatus();
+                  _loadConversationState();
                   ChatUnreadNotifier.instance.notifyChanged();
                 }
               } catch (_) {}
@@ -302,6 +327,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       ),
       body: Column(
         children: [
+          // Phase 1B: 차단 안내 sticky banner (canSendMessage=false 시 표시).
+          if (_blockNotice != null) _buildBlockBanner(_blockNotice!),
           // 거래 상품 배너
           _buildTradeBanner(),
           // 메시지 리스트
@@ -363,9 +390,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             ListTile(
               leading: const Icon(Icons.exit_to_app_rounded, color: AppColors.textSecondary),
               title: const Text('나가기', style: TextStyle(color: AppColors.textPrimary)),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(ctx);
-                Navigator.pop(context);
+                await _leaveRoom();
               },
             ),
             const SizedBox(height: 8),
@@ -392,12 +419,36 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     try {
       await ApiClient.blockUser(otherUserId);
       if (!mounted) return;
+      // Phase 1B: 차단 성공 시 backend notifyBlock으로 hidden_at 자동 set.
+      // chat list refresh — 차단한 사람 방 즉시 사라짐.
+      ChatUnreadNotifier.instance.notifyChanged();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('차단되었습니다')),
       );
       Navigator.pop(context);
     } catch (_) {
       if (mounted) AppErrorToast.show(context, '차단에 실패했습니다');
+    }
+  }
+
+  /// Phase 1B: 채팅방 나가기 — confirm 후 backend leaveRoom 호출.
+  /// 본인 hidden_at set + chat list refresh 신호 + pop.
+  Future<void> _leaveRoom() async {
+    final confirm = await AppConfirmDialog.show(
+      context,
+      title: '채팅방 나가기',
+      message: '나가면 채팅방 목록에서 사라집니다.',
+      confirmLabel: '나가기',
+      destructive: true,
+    );
+    if (confirm != true) return;
+    try {
+      await ApiClient.leaveRoom(widget.roomId);
+      if (!mounted) return;
+      ChatUnreadNotifier.instance.notifyChanged();
+      Navigator.pop(context);
+    } catch (_) {
+      if (mounted) AppErrorToast.show(context, '나가기에 실패했습니다');
     }
   }
 
@@ -933,21 +984,27 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: AppColors.surfaceElevated,
+                // Phase 1B: 차단 관계 시 입력창 색상 비활성 톤.
+                color: _canSendMessage
+                    ? AppColors.surfaceElevated
+                    : AppColors.divider,
                 borderRadius: BorderRadius.circular(22),
               ),
               child: TextField(
                 controller: _inputController,
+                enabled: _canSendMessage,
                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
                 maxLines: 4,
                 minLines: 1,
                 textInputAction: TextInputAction.newline,
-                decoration: const InputDecoration(
-                  hintText: '메시지 보내기...',
-                  hintStyle:
-                      TextStyle(color: AppColors.textMuted, fontSize: 14),
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: InputDecoration(
+                  hintText: _canSendMessage
+                      ? '메시지 보내기...'
+                      : '대화할 수 없습니다',
+                  hintStyle: const TextStyle(
+                      color: AppColors.textMuted, fontSize: 14),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
                   border: InputBorder.none,
                 ),
                 onSubmitted: (_) => _sendMessage(),
@@ -956,16 +1013,41 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: _sendMessage,
+            // Phase 1B: canSendMessage && _connected 둘 다 true일 때만 활성.
+            onTap: (_canSendMessage && _connected) ? _sendMessage : null,
             child: Container(
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: _connected ? AppColors.blue : AppColors.textMuted,
+                color: (_canSendMessage && _connected)
+                    ? AppColors.blue
+                    : AppColors.textMuted,
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.send_rounded,
                   color: Colors.white, size: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Phase 1B: 차단 안내 sticky banner — AppBar 아래, 거래 미니카드 위.
+  /// 문구는 짧게 (입력 placeholder가 보조).
+  Widget _buildBlockBanner(String notice) {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFF332B1A),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: Color(0xFFFDE68A), size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              notice,
+              style: const TextStyle(color: Color(0xFFFDE68A), fontSize: 12),
             ),
           ),
         ],

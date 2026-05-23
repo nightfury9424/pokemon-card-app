@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
@@ -737,10 +738,15 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
         });
       }
       await context.push('/chat/${room['chatRoomId']}', extra: room);
+    } on DioException catch (e) {
+      // Phase 1B: 양방향 차단 시 backend getOrCreateRoom 403 BLOCKED (save 전 가드).
+      // 빈 채팅방 생성 없이 안내만. push 차단.
+      if (!mounted) return;
+      final blocked = e.response?.statusCode == 403;
+      AppErrorToast.show(context,
+          blocked ? '연락할 수 없는 사용자입니다' : '채팅방을 열 수 없습니다');
     } catch (_) {
-      if (mounted) {
-        AppErrorToast.show(context, '채팅방을 열 수 없습니다');
-      }
+      if (mounted) AppErrorToast.show(context, '채팅방을 열 수 없습니다');
     } finally {
       if (mounted) setState(() => _chatLoading = false);
     }
