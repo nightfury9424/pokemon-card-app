@@ -1,5 +1,6 @@
 package com.fury.back.config;
 
+import com.fury.back.auth.AdminAllowlistFilter;
 import com.fury.back.auth.InternalTokenFilter;
 import com.fury.back.auth.JwtAuthFilter;
 import com.fury.back.auth.OnboardingGuardFilter;
@@ -25,9 +26,17 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    /** Admin path patterns — SecurityConfig matcher + AdminAllowlistFilter 단일 진실원. */
+    public static final String[] ADMIN_PATH_PATTERNS = {
+            "/api/admin/**",
+            "/api/prices/admin/**",
+            "/api/price/admin/**"
+    };
+
     private final JwtAuthFilter jwtAuthFilter;
     private final OnboardingGuardFilter onboardingGuardFilter;
     private final InternalTokenFilter internalTokenFilter;
+    private final AdminAllowlistFilter adminAllowlistFilter;
 
     @Value("${app.cors.allowed-origins}")
     private String corsAllowedOrigins;
@@ -74,17 +83,13 @@ public class SecurityConfig {
                     ).permitAll();
 
                     // 2. admin API — ADMIN_AUTH_ENABLED toggle.
-                    //    local default permitAll (편의), prod=true → authenticated().
-                    //    role 기반 ROLE_ADMIN 분기는 Phase 2.
-                    String[] adminPaths = {
-                            "/api/admin/**",
-                            "/api/prices/admin/**",
-                            "/api/price/admin/**"
-                    };
+                    //    local default permitAll (편의), prod=true → authenticated() + AdminAllowlistFilter.
+                    //    추가 보호: AdminAllowlistFilter (D-7 임시 게이트) — JwtAuthFilter 다음에서 userId
+                    //    가 app.admin.user-ids 에 없으면 403. 출시 후 ROLE_ADMIN 정식 전환.
                     if (adminAuthEnabled) {
-                        auth.requestMatchers(adminPaths).authenticated();
+                        auth.requestMatchers(ADMIN_PATH_PATTERNS).authenticated();
                     } else {
-                        auth.requestMatchers(adminPaths).permitAll();
+                        auth.requestMatchers(ADMIN_PATH_PATTERNS).permitAll();
                     }
 
                     // 3. 사용자/거래 API — API_AUTH_ENFORCED toggle.
@@ -116,7 +121,8 @@ public class SecurityConfig {
                 })
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(internalTokenFilter, JwtAuthFilter.class)
-                .addFilterAfter(onboardingGuardFilter, JwtAuthFilter.class);
+                .addFilterAfter(adminAllowlistFilter, JwtAuthFilter.class)
+                .addFilterAfter(onboardingGuardFilter, AdminAllowlistFilter.class);
 
         return http.build();
     }
