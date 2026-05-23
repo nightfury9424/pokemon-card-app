@@ -12,7 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class TradePostDto {
 
     private String tradeId;
@@ -37,6 +37,10 @@ public class TradePostDto {
 
     // 카드 정보 (조회 시 포함)
     private CardSummaryDto card;
+
+    // 거래 list engagement — chat_rooms / post_interests batch count (다른 화면에선 null 가능).
+    private Long chatCount;
+    private Long favoriteCount;
 
     public static TradePostDto from(TradePost post) {
         return TradePostDto.builder()

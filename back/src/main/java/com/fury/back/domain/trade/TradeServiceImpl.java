@@ -11,7 +11,9 @@ import com.fury.back.domain.card.CardRepository;
 import com.fury.back.domain.trade.dto.TradePostDto;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
+import com.fury.back.domain.chat.ChatRoomRepository;
 import com.fury.back.domain.chat.ChatService;
+import com.fury.back.domain.interest.PostInterestRepository;
 import com.fury.back.domain.notification.NotificationService;
 import com.fury.back.storage.ImageStorageService;
 import com.fury.back.storage.StorageKeyUrls;
@@ -45,6 +47,9 @@ public class TradeServiceImpl implements TradeService {
     private final ImageStorageService imageStorageService;
     // Bundle 2-D: trade 상태 변경/삭제 시 chat_room에 시스템 메시지 fan-out용.
     private final ChatService chatService;
+    // 거래 list engagement (chatCount / favoriteCount) batch count용.
+    private final ChatRoomRepository chatRoomRepository;
+    private final PostInterestRepository postInterestRepository;
 
     @Value("${trade.image.dir}")
     private String tradeImageDir;  // Phase 1-7: legacy static handler 호환용 (신규 업로드는 ImageStorageService 사용)
@@ -82,8 +87,25 @@ public class TradeServiceImpl implements TradeService {
         Map<String, Card> cardMap = cardRepository.findAllById(cardIds)
                 .stream().collect(Collectors.toMap(Card::getCardId, Function.identity()));
 
-        Page<TradePostDto> result = posts.map(post ->
-                TradePostDto.fromWithDetails(post, userMap.get(post.getSellerId()), cardMap.get(post.getCardId())));
+        // batch count — N+1 방지. tradeId 기준 chat_rooms / post_interests count 한 query씩.
+        List<String> tradeIds = posts.stream().map(TradePost::getTradeId).distinct().toList();
+        Map<String, Long> chatCountMap = tradeIds.isEmpty()
+                ? Map.of()
+                : chatRoomRepository.countBySaleListingIdIn(tradeIds).stream()
+                        .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
+        Map<String, Long> favoriteCountMap = tradeIds.isEmpty()
+                ? Map.of()
+                : postInterestRepository.countByTradeIdIn(tradeIds).stream()
+                        .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
+
+        Page<TradePostDto> result = posts.map(post -> {
+            TradePostDto dto = TradePostDto.fromWithDetails(
+                    post, userMap.get(post.getSellerId()), cardMap.get(post.getCardId()));
+            return dto.toBuilder()
+                    .chatCount(chatCountMap.getOrDefault(post.getTradeId(), 0L))
+                    .favoriteCount(favoriteCountMap.getOrDefault(post.getTradeId(), 0L))
+                    .build();
+        });
         return ReturnData.success(result);
     }
 

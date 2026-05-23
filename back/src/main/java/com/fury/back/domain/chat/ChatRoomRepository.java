@@ -16,4 +16,8 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
 
     /** Bundle 2-D: 1 trade ↔ N buyer 채팅방 모두 조회 — 상태 변경/삭제 시 시스템 메시지 fan-out용. */
     List<ChatRoom> findAllBySaleListingId(String saleListingId);
+
+    /** 거래 list 카드별 batch count — N+1 방지. 각 row = [saleListingId, count]. */
+    @Query("SELECT cr.saleListingId, COUNT(cr) FROM ChatRoom cr WHERE cr.saleListingId IN :tradeIds GROUP BY cr.saleListingId")
+    List<Object[]> countBySaleListingIdIn(@Param("tradeIds") List<String> tradeIds);
 }

@@ -584,9 +584,18 @@ class _TradeListScreenState extends State<TradeListScreen> {
             : null) ??
         {};
     final rarity = cardData['rarityCode'] as String? ?? '';
-    final rawImageUrl = trade['imageUrl'] as String?;
-    final imageUrl = rawImageUrl != null && rawImageUrl.isNotEmpty
-        ? ApiConstants.tradeImageUrl(rawImageUrl)
+    // trade['imageUrl']은 csv proxy URL ("/api/images/secure/k1,/api/images/secure/k2").
+    // 그대로 baseUrl 앞에 붙이면 잘못된 URL → 카드 master fallback 못 가서 placeholder.
+    // imageUrls(List)에서 첫 사진만 추출. 없으면 cardData fallback.
+    final imageUrls = (trade['imageUrls'] as List?)?.cast<dynamic>() ?? const [];
+    final firstTradeImage = imageUrls
+        .whereType<String>()
+        .where((s) => s.isNotEmpty)
+        .firstOrNull;
+    final imageUrl = (firstTradeImage != null)
+        ? (firstTradeImage.startsWith('http')
+            ? firstTradeImage
+            : ApiConstants.tradeImageUrl(firstTradeImage))
         : resolveCardImageUrl(cardData);
     final sellerData =
         (trade['seller'] is Map
@@ -766,6 +775,29 @@ class _TradeListScreenState extends State<TradeListScreen> {
                               fontSize: 11,
                             ),
                           ),
+                        ],
+                        // 채팅 수 / 관심 수 — 0이면 숨김.
+                        if ((trade['chatCount'] as num? ?? 0) > 0) ...[
+                          const Text(' · ',
+                              style: TextStyle(
+                                  color: AppColors.textMuted, fontSize: 11)),
+                          const Icon(Icons.chat_bubble_outline_rounded,
+                              color: AppColors.textMuted, size: 11),
+                          const SizedBox(width: 2),
+                          Text('${trade['chatCount']}',
+                              style: const TextStyle(
+                                  color: AppColors.textMuted, fontSize: 11)),
+                        ],
+                        if ((trade['favoriteCount'] as num? ?? 0) > 0) ...[
+                          const Text(' · ',
+                              style: TextStyle(
+                                  color: AppColors.textMuted, fontSize: 11)),
+                          const Icon(Icons.favorite_border_rounded,
+                              color: AppColors.textMuted, size: 11),
+                          const SizedBox(width: 2),
+                          Text('${trade['favoriteCount']}',
+                              style: const TextStyle(
+                                  color: AppColors.textMuted, fontSize: 11)),
                         ],
                       ],
                     ),
