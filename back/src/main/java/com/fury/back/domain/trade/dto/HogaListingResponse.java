@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
  * @param assetId      TradePost 의 asset_id (ASK 만). BID 는 null
  * @param tradeId      TradePost id (ASK 만). BID 는 null
  * @param buyOrderId   BuyOrder id (BID 만). ASK 는 null
+ * @param tradeStatus  TradePost.status (ASK 만). RESERVED 표시용. BID 는 null
  */
 public record HogaListingResponse(
         String userId,
@@ -23,4 +24,5 @@ public record HogaListingResponse(
         String assetId,
         String tradeId,
         String buyOrderId,
-        String tradeImageUrl) {}
+        String tradeImageUrl,
+        String tradeStatus) {}

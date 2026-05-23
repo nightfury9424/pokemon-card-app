@@ -282,15 +282,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             ),
           ],
         ),
-        actions: [
-          // Bundle 2-D hotfix: 판매자만 채팅방에서 상태 변경/삭제 가능. 거래 완료는 별도 (2-B+).
-          if (_isSeller)
-            IconButton(
-              icon: const Icon(Icons.more_vert,
-                  color: AppColors.textSecondary, size: 22),
-              onPressed: _showSellerStatusSheet,
-            ),
-        ],
+        // ⋯ 메뉴는 신고/차단/나가기/알림용으로 분리 예정 — 상태 변경은 미니카드 chip 클릭으로 이동.
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(height: 1, color: AppColors.divider),
@@ -410,7 +402,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       // fallback: '판매중' X — unknown status를 OPEN처럼 표시하면 거래 위험.
       _ => ('상태 확인', AppColors.textMuted),
     };
-    return Container(
+    // 판매자 + active(OPEN/RESERVED)일 때만 chip 클릭으로 상태 변경 sheet.
+    final canChange = _isSeller && (status == 'OPEN' || status == 'RESERVED');
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
@@ -426,6 +420,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         ),
       ),
     );
+    if (canChange) {
+      return GestureDetector(
+        onTap: _showSellerStatusSheet,
+        behavior: HitTestBehavior.opaque,
+        child: chip,
+      );
+    }
+    return chip;
   }
 
   /// 콤마 포맷 (반올림 X). Codex 권장: trade.price는 사용자 입력 정수, 원값 그대로 표시.

@@ -62,7 +62,9 @@ public class TradeServiceImpl implements TradeService {
         } else if (hasSeller && hasCard) {
             posts = tradePostRepository.findBySellerIdAndCardIdOrderByCreatedAtDesc(sellerId, cardId, pageable);
         } else if (hasSeller) {
-            posts = tradePostRepository.findBySellerIdOrderByCreatedAtDesc(sellerId, pageable);
+            // 내 판매 항목 default — active(OPEN+RESERVED)만. DELETED/COMPLETED는 별도 화면.
+            posts = tradePostRepository.findBySellerIdAndStatusInOrderByCreatedAtDesc(
+                    sellerId, List.of("OPEN", "RESERVED"), pageable);
         } else if (hasCard) {
             posts = tradePostRepository.findOpenByCardId(cardId, pageable);
         } else {

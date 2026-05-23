@@ -18,6 +18,10 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
 
     Page<TradePost> findBySellerIdOrderByCreatedAtDesc(String sellerId, Pageable pageable);
 
+    /** 내 판매 항목 default — sellerId + active(OPEN+RESERVED)만. DELETED/COMPLETED 숨김. */
+    Page<TradePost> findBySellerIdAndStatusInOrderByCreatedAtDesc(
+            String sellerId, List<String> statuses, Pageable pageable);
+
     /** 카드별 active 거래 — RESERVED도 호가/거래 탭에 보임. */
     @Query("SELECT t FROM TradePost t WHERE t.status IN ('OPEN', 'RESERVED') AND " +
            "(:cardId IS NULL OR t.cardId = :cardId) " +

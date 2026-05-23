@@ -112,7 +112,8 @@ public class HogaServiceImpl implements HogaService {
                             t.getTradeId(),
                             null,
                             // Phase 1-7: storage key → /api/images/secure/{key} proxy URL 변환 (첫 사진만).
-                            StorageKeyUrls.firstProxyUrl(t.getImageUrl())))
+                            StorageKeyUrls.firstProxyUrl(t.getImageUrl()),
+                            t.getStatus()))
                     .toList();
         } else {
             List<BuyOrder> rows =
@@ -129,6 +130,7 @@ public class HogaServiceImpl implements HogaService {
                             null,
                             null,
                             b.getBuyOrderId(),
+                            null,
                             null))
                     .toList();
         }

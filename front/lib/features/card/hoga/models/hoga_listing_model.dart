@@ -11,6 +11,7 @@ class HogaListing {
   final String? tradeId;        // ASK 만
   final String? buyOrderId;     // BID 만
   final String? tradeImageUrl;  // ASK 사용자 업로드 사진 (nullable)
+  final String? tradeStatus;    // ASK 만: OPEN/RESERVED — 예약중 chip 표시용
 
   const HogaListing({
     required this.userId,
@@ -22,6 +23,7 @@ class HogaListing {
     required this.tradeId,
     required this.buyOrderId,
     required this.tradeImageUrl,
+    required this.tradeStatus,
   });
 
   factory HogaListing.fromJson(Map<String, dynamic> json) => HogaListing(
@@ -34,6 +36,7 @@ class HogaListing {
         tradeId: json['tradeId'] as String?,
         buyOrderId: json['buyOrderId'] as String?,
         tradeImageUrl: json['tradeImageUrl'] as String?,
+        tradeStatus: json['tradeStatus'] as String?,
       );
 
   /// 채팅 자동 생성에 필요한 saleListingId (ASK일 때만 유효).
