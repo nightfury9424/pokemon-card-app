@@ -763,7 +763,10 @@ class _TradeListScreenState extends State<TradeListScreen> {
                             fontSize: 11,
                           ),
                         ),
-                        if ((trade['viewCount'] as num? ?? 0) > 0) ...[
+                        // 조회수는 판매자 관리 화면(내 판매 항목)에만 표시.
+                        // 일반 거래 리스트(다른 사용자 글)는 채팅·관심만 표시.
+                        if (widget.filterSellerId != null &&
+                            (trade['viewCount'] as num? ?? 0) > 0) ...[
                           const Text(
                             ' · ',
                             style: TextStyle(
