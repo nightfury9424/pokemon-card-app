@@ -82,6 +82,10 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                     final item = _items[index];
                     final blockedId = item['blockedId']?.toString() ?? '';
                     final blockedAt = item['blockedAt']?.toString() ?? '';
+                    // Phase 1 hotfix: nickname 우선. 없으면 "알 수 없는 사용자". raw user_id 노출 X.
+                    final nickname = item['blockedNickname']?.toString();
+                    final displayName =
+                        (nickname != null && nickname.isNotEmpty) ? nickname : '알 수 없는 사용자';
                     final busy = _unblocking.contains(blockedId);
                     return Container(
                       padding: const EdgeInsets.all(14),
@@ -107,7 +111,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  blockedId,
+                                  displayName,
                                   style: const TextStyle(
                                     color: AppColors.textPrimary,
                                     fontWeight: FontWeight.w700,

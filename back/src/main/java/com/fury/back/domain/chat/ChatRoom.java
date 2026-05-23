@@ -67,4 +67,13 @@ public class ChatRoom {
             this.sellerHiddenAt = LocalDateTime.now();
         }
     }
+
+    /** Phase 1 hotfix: 본인 hidden_at clear — getOrCreateRoom 재진입 시 본인 측 복구. */
+    public void clearHiddenForUser(String userId) {
+        if (userId.equals(this.buyerUserId)) {
+            this.buyerHiddenAt = null;
+        } else if (userId.equals(this.sellerUserId)) {
+            this.sellerHiddenAt = null;
+        }
+    }
 }

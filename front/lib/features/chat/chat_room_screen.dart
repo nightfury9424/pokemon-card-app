@@ -411,7 +411,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     final confirm = await AppConfirmDialog.show(
       context,
       title: '사용자 차단',
-      message: '이 사용자의 거래글과 채팅방이 목록에서 숨겨집니다.',
+      message: '차단하면 더 이상 대화할 수 없어요. (채팅방은 그대로 남아 있어요)',
       confirmLabel: '차단',
       destructive: true,
     );
@@ -419,13 +419,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     try {
       await ApiClient.blockUser(otherUserId);
       if (!mounted) return;
-      // Phase 1B: 차단 성공 시 backend notifyBlock으로 hidden_at 자동 set.
-      // chat list refresh — 차단한 사람 방 즉시 사라짐.
-      ChatUnreadNotifier.instance.notifyChanged();
+      // Phase 1 hotfix: 차단은 hidden_at 자동 set 하지 않음 (정책 분리).
+      // 채팅방 유지 + 입력만 비활성화. pop 금지 — 현재 방에 그대로 + banner 갱신.
+      await _loadConversationState();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('차단되었습니다')),
+        const SnackBar(content: Text('차단되었습니다. 차단을 해제하면 다시 대화할 수 있어요.')),
       );
-      Navigator.pop(context);
     } catch (_) {
       if (mounted) AppErrorToast.show(context, '차단에 실패했습니다');
     }

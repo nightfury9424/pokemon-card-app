@@ -4,6 +4,8 @@ import com.fury.back.common.IdGenerator;
 import com.fury.back.common.ReturnData;
 import com.fury.back.domain.block.dto.BlockedUserDto;
 import com.fury.back.domain.chat.ChatService;
+import com.fury.back.domain.user.User;
+import com.fury.back.domain.user.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.transaction.Transactional;
@@ -25,6 +27,7 @@ public class BlockController {
 
     private final BlockRepository blockRepository;
     private final ChatService chatService;
+    private final UserRepository userRepository;
 
     @Operation(summary = "사용자 차단")
     @PostMapping("/{userId}")
@@ -69,8 +72,13 @@ public class BlockController {
     @GetMapping("/me")
     public ReturnData<List<BlockedUserDto>> getMine(@AuthenticationPrincipal String blockerId) {
         requireAuth(blockerId);
-        return ReturnData.success(blockRepository.findAllByBlockerId(blockerId).stream()
-                .map(BlockedUserDto::from)
+        List<Block> blocks = blockRepository.findAllByBlockerId(blockerId);
+        // Phase 1 hotfix: nickname/profileImageUrl 함께. raw user_id 노출 X.
+        List<String> userIds = blocks.stream().map(Block::getBlockedId).distinct().toList();
+        Map<String, User> userMap = userRepository.findAllById(userIds).stream()
+                .collect(java.util.stream.Collectors.toMap(User::getUserId, u -> u));
+        return ReturnData.success(blocks.stream()
+                .map(b -> BlockedUserDto.from(b, userMap.get(b.getBlockedId())))
                 .toList());
     }
 

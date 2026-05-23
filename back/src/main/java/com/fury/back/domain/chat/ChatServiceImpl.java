@@ -99,6 +99,17 @@ public class ChatServiceImpl implements ChatService {
         if (newlyCreated[0]) {
             sendSystemMessage(room.getChatRoomId(),
                     "⚠ 안전한 거래를 위해 외부 송금이나 개인정보 요구에 주의해주세요.");
+        } else {
+            // Phase 1 hotfix: existing room 재진입 시
+            // - 상대(seller) hidden_at NOT NULL → 재초대 차단 403 (보내는 척 금지)
+            // - 본인(buyer) hidden_at NOT NULL → clear (사용자가 다시 채팅 시작)
+            if (room.getSellerHiddenAt() != null) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "OTHER_LEFT");
+            }
+            if (room.getBuyerHiddenAt() != null) {
+                room.clearHiddenForUser(buyerUserId);
+                chatRoomRepository.save(room);
+            }
         }
 
         User other = userRepository.findById(trade.getSellerId()).orElse(null);
@@ -285,6 +296,8 @@ public class ChatServiceImpl implements ChatService {
                 .orElseThrow(() -> new IllegalArgumentException("채팅방 없음: " + roomId));
         requireParticipant(room, senderUserId);
         requireNotBlocked(senderUserId, otherUserOf(room, senderUserId));
+        // Phase 1 hotfix: 상대가 방을 나간 상태면 전송 차단 — "보내는 척" 금지.
+        requireOtherNotLeft(room, senderUserId);
 
         ChatMessage saved = chatMessageRepository.save(ChatMessage.builder()
                 .chatMessageId(IdGenerator.generate())
@@ -303,8 +316,8 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * Phase 1: 채팅방 나가기 — 본인의 hidden_at set.
-     * DB 보존, list 미노출. 차단/관리자 조회와 동일 모델.
+     * Phase 1 hotfix: 채팅방 나가기 — 본인 hidden_at set + 상대방에게 SYSTEM 메시지.
+     * 상대방은 방 유지 + 안내 + 입력 비활성화. 재초대는 getOrCreateRoom 가드로 차단.
      */
     @Override
     @Transactional
@@ -314,11 +327,13 @@ public class ChatServiceImpl implements ChatService {
         requireParticipant(room, userId);
         room.hideForUser(userId);
         chatRoomRepository.save(room);
+        // 상대방에게 1회 안내. AFTER_COMMIT STOMP broadcast로 즉시 갱신.
+        sendSystemMessage(roomId, "상대방이 채팅방을 나갔습니다.");
     }
 
     /**
-     * Phase 1: 채팅방 입력창/안내 상태 조회. 양방향 차단 관계 산출 → canSendMessage + blockNotice.
-     * 클라가 진입 시 호출. 입력 비활성화 + 안내 banner UX 의 단일 진실원.
+     * Phase 1 hotfix: 입력창/안내 상태. 우선순위 — 차단(내가/상대) → 상대 나감.
+     * canSendMessage=false 조건 = 내가 차단 OR 상대가 차단 OR 상대가 방 나감.
      */
     @Override
     public ConversationStateDto getConversationState(String roomId, String userId) {
@@ -328,30 +343,31 @@ public class ChatServiceImpl implements ChatService {
         String other = otherUserOf(room, userId);
         boolean iBlocked = blockRepository.existsByBlockerIdAndBlockedId(userId, other);
         boolean blockedByOther = blockRepository.existsByBlockerIdAndBlockedId(other, userId);
-        boolean canSend = !iBlocked && !blockedByOther;
-        String notice = null;
-        if (blockedByOther) {
-            notice = "상대방의 설정으로 인해 더 이상 대화할 수 없습니다.";
-        } else if (iBlocked) {
+        boolean otherLeft = isOtherLeft(room, userId);
+        boolean canSend = !iBlocked && !blockedByOther && !otherLeft;
+        String notice;
+        if (iBlocked) {
             notice = "차단한 사용자입니다. 차단을 해제하면 대화할 수 있어요.";
+        } else if (blockedByOther) {
+            notice = "상대방의 설정으로 인해 더 이상 대화할 수 없습니다.";
+        } else if (otherLeft) {
+            notice = "상대방이 채팅방을 나갔습니다.";
+        } else {
+            notice = null;
         }
         return new ConversationStateDto(canSend, notice);
     }
 
     /**
-     * Phase 1: 차단 액션 hook (BlockController 가 차단 저장 후 호출).
-     * - 두 user 사이 모든 방 조회
-     * - 차단한 사람 hidden_at set (차단당한 사람은 그대로 — 정책)
-     * - 각 방에 "상대방의 설정으로 인해 더 이상 대화할 수 없습니다." SYSTEM 메시지 1회
-     *   → AFTER_COMMIT STOMP broadcast 로 차단당한 사람 화면 즉시 갱신
+     * Phase 1 hotfix: 차단 액션 hook — SYSTEM 메시지만 송신, hidden_at 자동 set X.
+     * 차단 ≠ 나가기 (정책 분리). 채팅방은 그대로 유지하고 입력만 비활성화.
+     * 나가기는 사용자가 별도 액션으로 명시할 때만 처리.
      */
     @Override
     @Transactional
     public void notifyBlock(String blockerId, String blockedId) {
         List<ChatRoom> rooms = chatRoomRepository.findAllBetweenUsers(blockerId, blockedId);
         for (ChatRoom room : rooms) {
-            room.hideForUser(blockerId);
-            chatRoomRepository.save(room);
             sendSystemMessage(room.getChatRoomId(),
                     "상대방의 설정으로 인해 더 이상 대화할 수 없습니다.");
         }
@@ -375,6 +391,20 @@ public class ChatServiceImpl implements ChatService {
         if (blockRepository.existsByBlockerIdAndBlockedId(userA, userB)
                 || blockRepository.existsByBlockerIdAndBlockedId(userB, userA)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "BLOCKED");
+        }
+    }
+
+    /** Phase 1 hotfix: 상대가 방을 나간 상태인지. canSendMessage / sendMessage 가드 공통. */
+    private boolean isOtherLeft(ChatRoom room, String userId) {
+        return userId.equals(room.getBuyerUserId())
+                ? room.getSellerHiddenAt() != null
+                : room.getBuyerHiddenAt() != null;
+    }
+
+    /** Phase 1 hotfix: 상대 나간 방에 메시지 전송 차단 — "보내는 척" 금지. */
+    private void requireOtherNotLeft(ChatRoom room, String userId) {
+        if (isOtherLeft(room, userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "OTHER_LEFT");
         }
     }
 }
