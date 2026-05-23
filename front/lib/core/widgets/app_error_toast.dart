@@ -102,16 +102,22 @@ class _ErrorToastBodyState extends State<_ErrorToastBody>
 
   @override
   Widget build(BuildContext context) {
+    // Phase 1 hotfix#2: Overlay 직접 자식이 Material 외부면 DefaultTextStyle 부재 →
+    // Flutter spec상 노란 underline (text decoration default). Material로 감싸야
+    // 깔끔. transparent + elevation 0 = 시각 영향 없음.
     return IgnorePointer(
-      child: SafeArea(
-        child: Center(
-          child: AnimatedBuilder(
-            animation: _ctrl,
-            builder: (_, _) => Opacity(
-              opacity: _fade.value,
-              child: Transform.scale(
-                scale: _scale.value,
-                child: _buildContent(),
+      child: Material(
+        color: Colors.transparent,
+        child: SafeArea(
+          child: Center(
+            child: AnimatedBuilder(
+              animation: _ctrl,
+              builder: (_, _) => Opacity(
+                opacity: _fade.value,
+                child: Transform.scale(
+                  scale: _scale.value,
+                  child: _buildContent(),
+                ),
               ),
             ),
           ),

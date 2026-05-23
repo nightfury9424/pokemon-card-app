@@ -98,16 +98,21 @@ class _InfoToastBodyState extends State<_InfoToastBody>
 
   @override
   Widget build(BuildContext context) {
+    // Phase 1 hotfix#2: Overlay 안에서 Material 없으면 Text가 노란 underline default.
+    // AppSuccessToast 패턴과 일관.
     return IgnorePointer(
-      child: SafeArea(
-        child: Center(
-          child: AnimatedBuilder(
-            animation: _ctrl,
-            builder: (_, _) => Opacity(
-              opacity: _fade.value,
-              child: Transform.scale(
-                scale: _scale.value,
-                child: _buildContent(),
+      child: Material(
+        type: MaterialType.transparency,
+        child: SafeArea(
+          child: Center(
+            child: AnimatedBuilder(
+              animation: _ctrl,
+              builder: (_, _) => Opacity(
+                opacity: _fade.value,
+                child: Transform.scale(
+                  scale: _scale.value,
+                  child: _buildContent(),
+                ),
               ),
             ),
           ),

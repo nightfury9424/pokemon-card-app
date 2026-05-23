@@ -718,11 +718,9 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Future<void> _startChat() async {
     if (_chatLoading) return;
-    // Bundle 2-A.4: 기존 채팅방 있으면 POST 없이 바로 이동 (사용자 인지 — "새 방 만드는 느낌" 차단).
-    if (_existingChatRoomId != null) {
-      await context.push('/chat/$_existingChatRoomId', extra: _existingChatRoom);
-      return;
-    }
+    // Phase 1 hotfix#2: existing 분기 제거 — 차단/상대 나감 backend 가드 우회 막음.
+    // backend getOrCreateRoom 은 unique constraint 로 idempotent — existing 이면 같은 room 반환,
+    // 차단/상대 나감이면 save 전 403 (BLOCKED / OTHER_LEFT). 빈 채팅방 생성 X.
     setState(() => _chatLoading = true);
     try {
       final res = await ApiClient.post('/api/chat/rooms', {
@@ -730,7 +728,6 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       });
       if (!mounted) return;
       final room = res['data'] as Map<String, dynamic>;
-      // 응답 받아서 _existingChatRoomId 즉시 셋 — 같은 화면 머물러서 다시 누를 때 재진입 분기 발동.
       if (mounted) {
         setState(() {
           _existingChatRoomId = room['chatRoomId'] as String?;
@@ -739,8 +736,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       }
       await context.push('/chat/${room['chatRoomId']}', extra: room);
     } on DioException catch (e) {
-      // Phase 1B: 양방향 차단 시 backend getOrCreateRoom 403 BLOCKED (save 전 가드).
-      // 빈 채팅방 생성 없이 안내만. push 차단.
+      // 403 = BLOCKED (양방향 차단) 또는 OTHER_LEFT (상대 나감) — 둘 다 push 차단 + 안내.
       if (!mounted) return;
       final blocked = e.response?.statusCode == 403;
       AppErrorToast.show(context,

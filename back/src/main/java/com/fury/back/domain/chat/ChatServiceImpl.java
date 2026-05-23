@@ -1,7 +1,6 @@
 package com.fury.back.domain.chat;
 
 import com.fury.back.common.IdGenerator;
-import com.fury.back.domain.block.Block;
 import com.fury.back.domain.block.BlockRepository;
 import com.fury.back.domain.card.Card;
 import com.fury.back.domain.card.CardRepository;
@@ -132,17 +131,10 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public List<ChatRoomDto> getMyRooms(String userId) {
-        List<String> blockedUserIds = blockRepository.findAllByBlockerId(userId).stream()
-                .map(Block::getBlockedId)
-                .distinct()
-                .toList();
-        List<ChatRoom> rooms = chatRoomRepository.findMyRooms(userId).stream()
-                .filter(room -> {
-                    String otherUserId = userId.equals(room.getBuyerUserId())
-                            ? room.getSellerUserId() : room.getBuyerUserId();
-                    return !blockedUserIds.contains(otherUserId);
-                })
-                .toList();
+        // Phase 1 hotfix#2: 차단 단방향 hide 제거 (차단 ≠ 나가기 정책).
+        // 채팅방 list 표시는 오직 본인 hidden_at IS NULL 기준 (Repository 쿼리).
+        // 차단 관계는 입력 비활성화 + banner 로만 표현, list 에서 숨기지 않음.
+        List<ChatRoom> rooms = chatRoomRepository.findMyRooms(userId);
 
         // 필요한 userId 수집
         List<String> userIds = rooms.stream()
