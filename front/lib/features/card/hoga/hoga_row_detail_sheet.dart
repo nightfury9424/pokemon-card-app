@@ -382,12 +382,42 @@ class _ListingTile extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 2),
-                Text(
-                  _relative(listing.createdAt),
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 10,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      _relative(listing.createdAt),
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 10,
+                      ),
+                    ),
+                    if (isAsk && listing.chatCount > 0) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.chat_bubble_outline_rounded,
+                          color: AppColors.textMuted, size: 10),
+                      const SizedBox(width: 2),
+                      Text(
+                        '${listing.chatCount}',
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                    if (isAsk && listing.favoriteCount > 0) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.favorite_border_rounded,
+                          color: AppColors.textMuted, size: 10),
+                      const SizedBox(width: 2),
+                      Text(
+                        '${listing.favoriteCount}',
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),

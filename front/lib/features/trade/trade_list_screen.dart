@@ -4,6 +4,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
+import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import 'trade_search_screen.dart';
 
@@ -584,19 +585,20 @@ class _TradeListScreenState extends State<TradeListScreen> {
             : null) ??
         {};
     final rarity = cardData['rarityCode'] as String? ?? '';
-    // trade['imageUrl']은 csv proxy URL ("/api/images/secure/k1,/api/images/secure/k2").
-    // 그대로 baseUrl 앞에 붙이면 잘못된 URL → 카드 master fallback 못 가서 placeholder.
-    // imageUrls(List)에서 첫 사진만 추출. 없으면 cardData fallback.
+    // 사용자 업로드 사진은 /api/images/secure/{key} proxy — JWT 인증 필수라 AuthImage 사용.
+    // CardImage(단순 Image.network)로 호출하면 401 → placeholder. 호가창은 이미 AuthImage 사용.
     final imageUrls = (trade['imageUrls'] as List?)?.cast<dynamic>() ?? const [];
     final firstTradeImage = imageUrls
         .whereType<String>()
         .where((s) => s.isNotEmpty)
         .firstOrNull;
-    final imageUrl = (firstTradeImage != null)
+    final tradeUploadUrl = (firstTradeImage != null)
         ? (firstTradeImage.startsWith('http')
             ? firstTradeImage
             : ApiConstants.tradeImageUrl(firstTradeImage))
-        : resolveCardImageUrl(cardData);
+        : null;
+    final cardFallbackUrl =
+        tradeUploadUrl == null ? resolveCardImageUrl(cardData) : null;
     final sellerData =
         (trade['seller'] is Map
             ? Map<String, dynamic>.from(trade['seller'] as Map)
@@ -636,13 +638,20 @@ class _TradeListScreenState extends State<TradeListScreen> {
                   borderRadius: const BorderRadius.horizontal(
                     left: Radius.circular(14),
                   ),
-                  child: CardImage(
-                    imageUrl: imageUrl,
-                    width: 80,
-                    height: 108,
-                    fit: BoxFit.cover,
-                    borderRadius: BorderRadius.zero,
-                  ),
+                  child: tradeUploadUrl != null
+                      ? AuthImage(
+                          url: tradeUploadUrl,
+                          width: 80,
+                          height: 108,
+                          fit: BoxFit.cover,
+                        )
+                      : CardImage(
+                          imageUrl: cardFallbackUrl,
+                          width: 80,
+                          height: 108,
+                          fit: BoxFit.cover,
+                          borderRadius: BorderRadius.zero,
+                        ),
                 ),
                 if (tradeStatus != 'OPEN')
                   Positioned.fill(

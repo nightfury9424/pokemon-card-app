@@ -6,6 +6,8 @@ import com.fury.back.domain.trade.dto.HogaLevelDto;
 import com.fury.back.domain.trade.dto.HogaLevelResponse;
 import com.fury.back.domain.trade.dto.HogaListingResponse;
 import com.fury.back.domain.trade.dto.HogaListingsResponse;
+import com.fury.back.domain.chat.ChatRoomRepository;
+import com.fury.back.domain.interest.PostInterestRepository;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
 import com.fury.back.storage.StorageKeyUrls;
@@ -29,6 +31,9 @@ public class HogaServiceImpl implements HogaService {
     private final TradePostRepository tradePostRepository;
     private final BuyOrderRepository buyOrderRepository;
     private final UserRepository userRepository;
+    // ASK listing engagement (chatCount / favoriteCount) batch count용.
+    private final ChatRoomRepository chatRoomRepository;
+    private final PostInterestRepository postInterestRepository;
 
     @Override
     public HogaBoardResponse getBoard(String cardId, HogaStatus status, String grade, int limit, String viewerUserId) {
@@ -101,6 +106,16 @@ public class HogaServiceImpl implements HogaService {
                     tradePostRepository.findHogaListings(
                             cardId, cardStatus, gradingCompany, gradeValue, priceI);
             Map<String, String> nicks = nicknames(rows.stream().map(TradePost::getSellerId).collect(Collectors.toSet()));
+            // ASK batch count — chat_rooms / post_interests N+1 방지.
+            List<String> tradeIds = rows.stream().map(TradePost::getTradeId).distinct().toList();
+            Map<String, Long> chatCountMap = tradeIds.isEmpty()
+                    ? Map.of()
+                    : chatRoomRepository.countBySaleListingIdIn(tradeIds).stream()
+                            .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
+            Map<String, Long> favoriteCountMap = tradeIds.isEmpty()
+                    ? Map.of()
+                    : postInterestRepository.countByTradeIdIn(tradeIds).stream()
+                            .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
             listings = rows.stream()
                     .map(t -> new HogaListingResponse(
                             t.getSellerId(),
@@ -113,7 +128,9 @@ public class HogaServiceImpl implements HogaService {
                             null,
                             // Phase 1-7: storage key → /api/images/secure/{key} proxy URL 변환 (첫 사진만).
                             StorageKeyUrls.firstProxyUrl(t.getImageUrl()),
-                            t.getStatus()))
+                            t.getStatus(),
+                            chatCountMap.getOrDefault(t.getTradeId(), 0L),
+                            favoriteCountMap.getOrDefault(t.getTradeId(), 0L)))
                     .toList();
         } else {
             List<BuyOrder> rows =
@@ -130,6 +147,8 @@ public class HogaServiceImpl implements HogaService {
                             null,
                             null,
                             b.getBuyOrderId(),
+                            null,
+                            null,
                             null,
                             null))
                     .toList();
