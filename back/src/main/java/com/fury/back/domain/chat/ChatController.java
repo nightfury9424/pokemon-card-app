@@ -3,6 +3,7 @@ package com.fury.back.domain.chat;
 import com.fury.back.common.ApiResponse;
 import com.fury.back.domain.chat.dto.ChatMessageDto;
 import com.fury.back.domain.chat.dto.ChatRoomDto;
+import com.fury.back.domain.chat.dto.ConversationStateDto;
 import com.fury.back.domain.chat.dto.SendMessageRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -55,6 +56,23 @@ public class ChatController {
             @AuthenticationPrincipal String userId) {
         chatService.markRoomAsRead(roomId, userId);
         return ApiResponse.ok();
+    }
+
+    // Phase 1: 채팅방 나가기 — 본인 hidden_at set. DB 보존, 본인 list 미노출.
+    @PostMapping("/rooms/{roomId}/leave")
+    public ApiResponse<Void> leaveRoom(
+            @PathVariable String roomId,
+            @AuthenticationPrincipal String userId) {
+        chatService.leaveRoom(roomId, userId);
+        return ApiResponse.ok();
+    }
+
+    // Phase 1: 채팅방 입력창/안내 상태 (canSendMessage + blockNotice). 진입 시 호출.
+    @GetMapping("/rooms/{roomId}/conversation-state")
+    public ApiResponse<ConversationStateDto> getConversationState(
+            @PathVariable String roomId,
+            @AuthenticationPrincipal String userId) {
+        return ApiResponse.ok(chatService.getConversationState(roomId, userId));
     }
 
     // WebSocket - 메시지 전송

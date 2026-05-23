@@ -2,6 +2,7 @@ package com.fury.back.domain.chat;
 
 import com.fury.back.domain.chat.dto.ChatMessageDto;
 import com.fury.back.domain.chat.dto.ChatRoomDto;
+import com.fury.back.domain.chat.dto.ConversationStateDto;
 
 import java.util.List;
 
@@ -10,6 +11,25 @@ public interface ChatService {
     List<ChatRoomDto> getMyRooms(String userId);
     List<ChatMessageDto> getMessages(String roomId, String userId);
     ChatMessageDto sendMessage(String roomId, String senderUserId, String message);
+
+    /**
+     * Phase 1: 채팅방 나가기 — 본인의 hidden_at set. DB 보존, 본인 목록에서만 숨김.
+     * 참여자 검증 후 buyer/seller 분기 자동.
+     */
+    void leaveRoom(String roomId, String userId);
+
+    /**
+     * Phase 1: 채팅방 진입 시 입력창/안내 상태 조회.
+     * 차단 관계가 있으면 canSendMessage=false + blockNotice 문구 반환.
+     */
+    ConversationStateDto getConversationState(String roomId, String userId);
+
+    /**
+     * Phase 1: 차단 액션 hook — 두 사용자 사이 모든 방에 차단한 사람 hidden_at set
+     * + 각 방에 "상대방의 설정으로 인해 더 이상 대화할 수 없습니다." SYSTEM 메시지 1회.
+     * BlockController 가 차단 저장 후 호출.
+     */
+    void notifyBlock(String blockerId, String blockedId);
 
     /**
      * Bundle 1.5 (active read gap): 채팅방에 active 상태로 있을 때 새 메시지 도착 시

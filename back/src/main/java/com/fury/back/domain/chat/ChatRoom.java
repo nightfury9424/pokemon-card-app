@@ -41,6 +41,14 @@ public class ChatRoom {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /** 채팅방 나가기 / 차단 시 buyer 측에 set. null 이면 buyer 목록에 노출. */
+    @Column(name = "buyer_hidden_at")
+    private LocalDateTime buyerHiddenAt;
+
+    /** 채팅방 나가기 / 차단 시 seller 측에 set. null 이면 seller 목록에 노출. */
+    @Column(name = "seller_hidden_at")
+    private LocalDateTime sellerHiddenAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -49,5 +57,14 @@ public class ChatRoom {
     public void updateLastMessage(String message) {
         this.lastMessage = message;
         this.lastMessageAt = LocalDateTime.now();
+    }
+
+    /** 호출자가 buyer/seller 어느 쪽이든 본인 hidden_at 만 set. 둘 다 아니면 no-op. */
+    public void hideForUser(String userId) {
+        if (userId.equals(this.buyerUserId)) {
+            this.buyerHiddenAt = LocalDateTime.now();
+        } else if (userId.equals(this.sellerUserId)) {
+            this.sellerHiddenAt = LocalDateTime.now();
+        }
     }
 }

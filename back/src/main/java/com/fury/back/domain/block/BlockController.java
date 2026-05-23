@@ -3,6 +3,7 @@ package com.fury.back.domain.block;
 import com.fury.back.common.IdGenerator;
 import com.fury.back.common.ReturnData;
 import com.fury.back.domain.block.dto.BlockedUserDto;
+import com.fury.back.domain.chat.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.transaction.Transactional;
@@ -23,9 +24,11 @@ import java.util.Map;
 public class BlockController {
 
     private final BlockRepository blockRepository;
+    private final ChatService chatService;
 
     @Operation(summary = "사용자 차단")
     @PostMapping("/{userId}")
+    @Transactional
     public ResponseEntity<ReturnData<Map<String, String>>> block(
             @AuthenticationPrincipal String blockerId,
             @PathVariable String userId) {
@@ -41,6 +44,11 @@ public class BlockController {
                 .blockerId(blockerId)
                 .blockedId(userId)
                 .build()));
+        // Phase 1: 차단한 사람 hidden_at 자동 set + 차단당한 사람 방에 SYSTEM 메시지 1회.
+        // 신규 차단일 때만 수행 (idempotent — 재호출 시 중복 SYSTEM 메시지 방지).
+        if (created) {
+            chatService.notifyBlock(blockerId, userId);
+        }
         HttpStatus status = created ? HttpStatus.CREATED : HttpStatus.OK;
         return ResponseEntity.status(status)
                 .body(ReturnData.success(Map.of("blockId", block.getBlockId())));

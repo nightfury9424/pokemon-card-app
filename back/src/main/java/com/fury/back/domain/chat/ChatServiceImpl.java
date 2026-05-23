@@ -6,6 +6,7 @@ import com.fury.back.domain.block.BlockRepository;
 import com.fury.back.domain.card.Card;
 import com.fury.back.domain.card.CardRepository;
 import com.fury.back.domain.chat.dto.ChatMessageDto;
+import com.fury.back.domain.chat.dto.ConversationStateDto;
 import com.fury.back.domain.chat.dto.ChatRoomDto;
 import com.fury.back.domain.chat.event.ChatReadEvent;
 import com.fury.back.domain.chat.event.SystemMessageEvent;
@@ -182,7 +183,8 @@ public class ChatServiceImpl implements ChatService {
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방 없음: " + roomId));
         requireParticipant(room, userId);
-        requireNotBlocked(userId, otherUserOf(room, userId));
+        // Phase 1: 차단 관계여도 기존 메시지 조회 가능. 입력창 비활성화는 conversation-state 응답으로.
+        // 차단한 사람은 hidden_at 으로 list 미노출. 차단당한 사람은 기존 대화 유지 + canSendMessage=false.
 
         // Bundle 1 G1: 실제 read 갱신된 행이 있을 때만 read 이벤트 발행.
         // 이벤트는 @TransactionalEventListener(AFTER_COMMIT)로 STOMP broadcast → sender 화면 "1" 사라짐.
@@ -298,6 +300,61 @@ public class ChatServiceImpl implements ChatService {
         return ChatMessageDto.from(saved,
                 sender != null ? sender.getNickname() : "",
                 sender != null ? sender.getProfileImageUrl() : "");
+    }
+
+    /**
+     * Phase 1: 채팅방 나가기 — 본인의 hidden_at set.
+     * DB 보존, list 미노출. 차단/관리자 조회와 동일 모델.
+     */
+    @Override
+    @Transactional
+    public void leaveRoom(String roomId, String userId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방 없음: " + roomId));
+        requireParticipant(room, userId);
+        room.hideForUser(userId);
+        chatRoomRepository.save(room);
+    }
+
+    /**
+     * Phase 1: 채팅방 입력창/안내 상태 조회. 양방향 차단 관계 산출 → canSendMessage + blockNotice.
+     * 클라가 진입 시 호출. 입력 비활성화 + 안내 banner UX 의 단일 진실원.
+     */
+    @Override
+    public ConversationStateDto getConversationState(String roomId, String userId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방 없음: " + roomId));
+        requireParticipant(room, userId);
+        String other = otherUserOf(room, userId);
+        boolean iBlocked = blockRepository.existsByBlockerIdAndBlockedId(userId, other);
+        boolean blockedByOther = blockRepository.existsByBlockerIdAndBlockedId(other, userId);
+        boolean canSend = !iBlocked && !blockedByOther;
+        String notice = null;
+        if (blockedByOther) {
+            notice = "상대방의 설정으로 인해 더 이상 대화할 수 없습니다.";
+        } else if (iBlocked) {
+            notice = "차단한 사용자입니다. 차단을 해제하면 대화할 수 있어요.";
+        }
+        return new ConversationStateDto(canSend, notice);
+    }
+
+    /**
+     * Phase 1: 차단 액션 hook (BlockController 가 차단 저장 후 호출).
+     * - 두 user 사이 모든 방 조회
+     * - 차단한 사람 hidden_at set (차단당한 사람은 그대로 — 정책)
+     * - 각 방에 "상대방의 설정으로 인해 더 이상 대화할 수 없습니다." SYSTEM 메시지 1회
+     *   → AFTER_COMMIT STOMP broadcast 로 차단당한 사람 화면 즉시 갱신
+     */
+    @Override
+    @Transactional
+    public void notifyBlock(String blockerId, String blockedId) {
+        List<ChatRoom> rooms = chatRoomRepository.findAllBetweenUsers(blockerId, blockedId);
+        for (ChatRoom room : rooms) {
+            room.hideForUser(blockerId);
+            chatRoomRepository.save(room);
+            sendSystemMessage(room.getChatRoomId(),
+                    "상대방의 설정으로 인해 더 이상 대화할 수 없습니다.");
+        }
     }
 
     /** room 양쪽 user 중 인자 userId 가 아닌 쪽. block check 대상 산출용. */
