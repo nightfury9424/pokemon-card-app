@@ -28,8 +28,9 @@ public class TradeController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String cardId,
             @RequestParam(required = false) String sellerId,
-            @RequestParam(required = false) String status) {
-        return tradeService.getTrades(page, size, cardId, sellerId, status);
+            @RequestParam(required = false) String status,
+            @AuthenticationPrincipal String userId) {
+        return tradeService.getTrades(page, size, cardId, sellerId, status, userId);
     }
 
     @Operation(summary = "카드별 판매 요약", description = "카드 단위로 묶어 판매자 수·평균가·최저가를 반환합니다.")

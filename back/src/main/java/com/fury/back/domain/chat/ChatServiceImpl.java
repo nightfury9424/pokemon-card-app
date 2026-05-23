@@ -1,6 +1,8 @@
 package com.fury.back.domain.chat;
 
 import com.fury.back.common.IdGenerator;
+import com.fury.back.domain.block.Block;
+import com.fury.back.domain.block.BlockRepository;
 import com.fury.back.domain.card.Card;
 import com.fury.back.domain.card.CardRepository;
 import com.fury.back.domain.chat.dto.ChatMessageDto;
@@ -15,8 +17,10 @@ import com.fury.back.storage.CardCdnUrls;
 import com.fury.back.storage.StorageKeyUrls;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -35,6 +39,7 @@ public class ChatServiceImpl implements ChatService {
     // Bundle 2-A: 거래 미니카드용 카드 마스터 이미지 조립 (#62 CardCdnUrls 재활용).
     private final CardRepository cardRepository;
     private final CardCdnUrls cardCdnUrls;
+    private final BlockRepository blockRepository;
 
     @Override
     @Transactional
@@ -47,6 +52,7 @@ public class ChatServiceImpl implements ChatService {
         if (trade.getSellerId().equals(buyerUserId)) {
             throw new IllegalStateException("본인이 등록한 판매글에는 채팅을 시작할 수 없습니다.");
         }
+        requireNotBlocked(buyerUserId, trade.getSellerId());
 
         // Bundle 2-A.2: (saleListingId, buyerUserId) 1:1 unique 채팅방 정책.
         // DB UNIQUE 인덱스(uq_chat_rooms_sale_buyer) + race-safe 가드 — 동시 요청 시
@@ -114,7 +120,17 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public List<ChatRoomDto> getMyRooms(String userId) {
-        List<ChatRoom> rooms = chatRoomRepository.findMyRooms(userId);
+        List<String> blockedUserIds = blockRepository.findAllByBlockerId(userId).stream()
+                .map(Block::getBlockedId)
+                .distinct()
+                .toList();
+        List<ChatRoom> rooms = chatRoomRepository.findMyRooms(userId).stream()
+                .filter(room -> {
+                    String otherUserId = userId.equals(room.getBuyerUserId())
+                            ? room.getSellerUserId() : room.getBuyerUserId();
+                    return !blockedUserIds.contains(otherUserId);
+                })
+                .toList();
 
         // 필요한 userId 수집
         List<String> userIds = rooms.stream()
@@ -163,6 +179,11 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public List<ChatMessageDto> getMessages(String roomId, String userId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방 없음: " + roomId));
+        requireParticipant(room, userId);
+        requireNotBlocked(userId, otherUserOf(room, userId));
+
         // Bundle 1 G1: 실제 read 갱신된 행이 있을 때만 read 이벤트 발행.
         // 이벤트는 @TransactionalEventListener(AFTER_COMMIT)로 STOMP broadcast → sender 화면 "1" 사라짐.
         int updated = chatMessageRepository.markAllAsRead(roomId, userId);
@@ -260,6 +281,8 @@ public class ChatServiceImpl implements ChatService {
     public ChatMessageDto sendMessage(String roomId, String senderUserId, String message) {
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방 없음: " + roomId));
+        requireParticipant(room, senderUserId);
+        requireNotBlocked(senderUserId, otherUserOf(room, senderUserId));
 
         ChatMessage saved = chatMessageRepository.save(ChatMessage.builder()
                 .chatMessageId(IdGenerator.generate())
@@ -275,5 +298,26 @@ public class ChatServiceImpl implements ChatService {
         return ChatMessageDto.from(saved,
                 sender != null ? sender.getNickname() : "",
                 sender != null ? sender.getProfileImageUrl() : "");
+    }
+
+    /** room 양쪽 user 중 인자 userId 가 아닌 쪽. block check 대상 산출용. */
+    private String otherUserOf(ChatRoom room, String userId) {
+        return userId.equals(room.getBuyerUserId())
+                ? room.getSellerUserId() : room.getBuyerUserId();
+    }
+
+    /** room 참여자 검증 — buyer/seller 둘 다 아니면 403. URL/push 직접 진입 차단. */
+    private void requireParticipant(ChatRoom room, String userId) {
+        if (!userId.equals(room.getBuyerUserId()) && !userId.equals(room.getSellerUserId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "NOT_PARTICIPANT");
+        }
+    }
+
+    /** 양방향 차단 검증 — 한쪽이라도 차단 관계면 403. getOrCreateRoom / sendMessage / getMessages 공통. */
+    private void requireNotBlocked(String userA, String userB) {
+        if (blockRepository.existsByBlockerIdAndBlockedId(userA, userB)
+                || blockRepository.existsByBlockerIdAndBlockedId(userB, userA)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "BLOCKED");
+        }
     }
 }

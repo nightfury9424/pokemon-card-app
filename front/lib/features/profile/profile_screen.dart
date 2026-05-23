@@ -161,6 +161,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onTap: () => context.push('/favorites'),
                           ),
                           _MenuItem(
+                            icon: Icons.person_off_rounded,
+                            iconColor: AppColors.textMuted,
+                            label: '차단한 사용자',
+                            onTap: () => context.push('/profile/blocked-users'),
+                          ),
+                          _MenuItem(
                             icon: Icons.qr_code_scanner_rounded,
                             iconColor: const Color(0xFF8B5CF6),
                             label: '카드 스캔',

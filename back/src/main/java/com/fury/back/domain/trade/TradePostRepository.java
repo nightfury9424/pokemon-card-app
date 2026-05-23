@@ -38,6 +38,21 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
     Page<TradePost> findBySellerIdAndCardIdOrderByCreatedAtDesc(
             String sellerId, String cardId, Pageable pageable);
 
+    @Query("""
+            SELECT t FROM TradePost t
+            WHERE (:sellerId IS NULL OR t.sellerId = :sellerId)
+              AND (:cardId IS NULL OR t.cardId = :cardId)
+              AND t.status IN :statuses
+              AND t.sellerId NOT IN :excludedSellerIds
+            ORDER BY t.createdAt DESC
+            """)
+    Page<TradePost> findFilteredExcludingSellers(
+            @Param("sellerId") String sellerId,
+            @Param("cardId") String cardId,
+            @Param("statuses") List<String> statuses,
+            @Param("excludedSellerIds") List<String> excludedSellerIds,
+            Pageable pageable);
+
     /** 호가창 MY badge — 내가 등록한 active ASK 가격 set (OPEN+RESERVED 포함). */
     @Query("""
             SELECT DISTINCT t.price FROM TradePost t

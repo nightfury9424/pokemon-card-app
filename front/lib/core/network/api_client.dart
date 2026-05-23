@@ -124,6 +124,19 @@ class ApiClient {
     return res.data;
   }
 
+  static Future<Map<String, dynamic>> blockUser(String userId) {
+    return post('/api/blocks/$userId', {});
+  }
+
+  static Future<Map<String, dynamic>> unblockUser(String userId) {
+    return delete('/api/blocks/$userId');
+  }
+
+  static Future<List<dynamic>> getBlockedUsers() async {
+    final res = await get('/api/blocks/me');
+    return (res['data'] as List?) ?? const [];
+  }
+
   static Future<Map<String, dynamic>> uploadFile(String path, String filePath, {String field = 'file'}) async {
     final formData = FormData.fromMap({
       field: await MultipartFile.fromFile(filePath),

@@ -6,6 +6,8 @@ import com.fury.back.common.ReturnData;
 import com.fury.back.domain.asset.Asset;
 import com.fury.back.domain.asset.AssetImage;
 import com.fury.back.domain.asset.AssetImageRepository;
+import com.fury.back.domain.block.Block;
+import com.fury.back.domain.block.BlockRepository;
 import com.fury.back.domain.card.Card;
 import com.fury.back.domain.card.CardRepository;
 import com.fury.back.domain.trade.dto.TradePostDto;
@@ -52,17 +54,34 @@ public class TradeServiceImpl implements TradeService {
     private final PostInterestRepository postInterestRepository;
     // 1인 1조회 정책 — viewerUserId != sellerId면 INSERT, UNIQUE 충돌 시 무시.
     private final TradePostViewRepository tradePostViewRepository;
+    private final BlockRepository blockRepository;
 
     @Value("${trade.image.dir}")
     private String tradeImageDir;  // Phase 1-7: legacy static handler 호환용 (신규 업로드는 ImageStorageService 사용)
 
     @Override
-    public ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId, String status) {
+    public ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId, String status, String viewerUserId) {
         PageRequest pageable = PageRequest.of(page, size);
         Page<TradePost> posts;
         final boolean hasSeller = sellerId != null && !sellerId.isBlank();
         final boolean hasCard = cardId != null && !cardId.isBlank();
         final boolean hasStatus = status != null && !status.isBlank();
+        final List<String> blockedSellerIds = viewerUserId == null || viewerUserId.isBlank()
+                ? List.of()
+                : blockRepository.findAllByBlockerId(viewerUserId).stream()
+                        .map(Block::getBlockedId)
+                        .distinct()
+                        .toList();
+        if (!blockedSellerIds.isEmpty()) {
+            List<String> statuses = hasStatus ? List.of(status) : List.of("OPEN", "RESERVED");
+            posts = tradePostRepository.findFilteredExcludingSellers(
+                    hasSeller ? sellerId : null,
+                    hasCard ? cardId : null,
+                    statuses,
+                    blockedSellerIds,
+                    pageable);
+            return ReturnData.success(toTradePostDtoPage(posts));
+        }
         // Phase 1: sellerId + cardId + status 동시 필터 우선 (기존 sellerId/cardId 단독 분기로 인한 cardId 무시 버그 해결).
         if (hasSeller && hasCard && hasStatus) {
             posts = tradePostRepository.findBySellerIdAndCardIdAndStatusOrderByCreatedAtDesc(sellerId, cardId, status, pageable);
@@ -81,6 +100,10 @@ public class TradeServiceImpl implements TradeService {
                     : tradePostRepository.findByStatusInOrderByCreatedAtDesc(List.of("OPEN", "RESERVED"), pageable);
         }
 
+        return ReturnData.success(toTradePostDtoPage(posts));
+    }
+
+    private Page<TradePostDto> toTradePostDtoPage(Page<TradePost> posts) {
         List<String> sellerIds = posts.stream().map(TradePost::getSellerId).distinct().toList();
         List<String> cardIds = posts.stream().map(TradePost::getCardId).distinct().toList();
 
@@ -100,7 +123,7 @@ public class TradeServiceImpl implements TradeService {
                 : postInterestRepository.countByTradeIdIn(tradeIds).stream()
                         .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
 
-        Page<TradePostDto> result = posts.map(post -> {
+        return posts.map(post -> {
             TradePostDto dto = TradePostDto.fromWithDetails(
                     post, userMap.get(post.getSellerId()), cardMap.get(post.getCardId()));
             return dto.toBuilder()
@@ -108,7 +131,6 @@ public class TradeServiceImpl implements TradeService {
                     .favoriteCount(favoriteCountMap.getOrDefault(post.getTradeId(), 0L))
                     .build();
         });
-        return ReturnData.success(result);
     }
 
     @Override

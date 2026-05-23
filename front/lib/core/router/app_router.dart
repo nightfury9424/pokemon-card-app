@@ -17,6 +17,7 @@ import '../../features/packs/packs_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/profile/favorites_screen.dart';
 import '../../features/profile/edit_nickname_screen.dart';
+import '../../features/profile/blocked_users_screen.dart';
 import '../../features/chat/chat_screen.dart';
 import '../../features/chat/chat_room_screen.dart';
 import '../../features/trade/trade_list_screen.dart';
@@ -52,6 +53,7 @@ final appRouter = GoRouter(
     GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
     GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
     GoRoute(path: '/profile/edit-nickname', builder: (_, _) => const EditNicknameScreen()),
+    GoRoute(path: '/profile/blocked-users', builder: (_, _) => const BlockedUsersScreen()),
     GoRoute(
       path: '/scanner',
       builder: (_, state) {

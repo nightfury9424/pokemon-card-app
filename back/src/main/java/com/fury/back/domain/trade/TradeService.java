@@ -11,7 +11,7 @@ public interface TradeService {
      * Phase 1: sellerId+cardId 동시 필터 + status optional 지원.
      * status 미지정(null) 시 기존 동작(전체) 호환.
      */
-    ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId, String status);
+    ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId, String status, String viewerUserId);
 
     /** viewerUserId 받아서 1인 1조회 카운트 + chatCount/favoriteCount 매핑. */
     ReturnData<TradePostDto> getTrade(String tradeId, String viewerUserId);

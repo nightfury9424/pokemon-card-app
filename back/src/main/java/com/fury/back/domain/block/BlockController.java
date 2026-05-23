@@ -1,0 +1,74 @@
+package com.fury.back.domain.block;
+
+import com.fury.back.common.IdGenerator;
+import com.fury.back.common.ReturnData;
+import com.fury.back.domain.block.dto.BlockedUserDto;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+import java.util.Map;
+
+@Tag(name = "Block", description = "사용자 차단")
+@RestController
+@RequestMapping("/api/blocks")
+@RequiredArgsConstructor
+public class BlockController {
+
+    private final BlockRepository blockRepository;
+
+    @Operation(summary = "사용자 차단")
+    @PostMapping("/{userId}")
+    public ResponseEntity<ReturnData<Map<String, String>>> block(
+            @AuthenticationPrincipal String blockerId,
+            @PathVariable String userId) {
+        requireAuth(blockerId);
+        if (blockerId.equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SELF_BLOCK");
+        }
+
+        var existing = blockRepository.findByBlockerIdAndBlockedId(blockerId, userId);
+        boolean created = existing.isEmpty();
+        Block block = existing.orElseGet(() -> blockRepository.save(Block.builder()
+                .blockId(IdGenerator.generate())
+                .blockerId(blockerId)
+                .blockedId(userId)
+                .build()));
+        HttpStatus status = created ? HttpStatus.CREATED : HttpStatus.OK;
+        return ResponseEntity.status(status)
+                .body(ReturnData.success(Map.of("blockId", block.getBlockId())));
+    }
+
+    @Operation(summary = "사용자 차단 해제")
+    @DeleteMapping("/{userId}")
+    @Transactional
+    public ReturnData<Void> unblock(
+            @AuthenticationPrincipal String blockerId,
+            @PathVariable String userId) {
+        requireAuth(blockerId);
+        blockRepository.deleteByBlockerIdAndBlockedId(blockerId, userId);
+        return ReturnData.success();
+    }
+
+    @Operation(summary = "내 차단 목록")
+    @GetMapping("/me")
+    public ReturnData<List<BlockedUserDto>> getMine(@AuthenticationPrincipal String blockerId) {
+        requireAuth(blockerId);
+        return ReturnData.success(blockRepository.findAllByBlockerId(blockerId).stream()
+                .map(BlockedUserDto::from)
+                .toList());
+    }
+
+    private void requireAuth(String userId) {
+        if (userId == null || userId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "AUTH_REQUIRED");
+        }
+    }
+}

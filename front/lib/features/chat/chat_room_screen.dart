@@ -262,27 +262,39 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   : null,
             ),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(otherNickname,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    otherNickname,
                     style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold)),
-                // UI polish: STOMP "연결됨" presence처럼 보이는 라벨 제거.
-                // 실제 상대방 presence 시스템 없는 상태에서 오해 방지.
-                // Bundle 2에서 거래 미니카드로 자연 확장.
-                const Text(
-                  '거래 채팅',
-                  style:
-                      TextStyle(color: AppColors.textMuted, fontSize: 11),
-                ),
-              ],
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  // UI polish: STOMP "연결됨" presence처럼 보이는 라벨 제거.
+                  // 실제 상대방 presence 시스템 없는 상태에서 오해 방지.
+                  // Bundle 2에서 거래 미니카드로 자연 확장.
+                  const Text(
+                    '거래 채팅',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-        // ⋯ 메뉴는 신고/차단/나가기/알림용으로 분리 예정 — 상태 변경은 미니카드 chip 클릭으로 이동.
+        actions: [
+          IconButton(
+            tooltip: '메뉴',
+            icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
+            onPressed: _showRoomMenu,
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(height: 1, color: AppColors.divider),
@@ -318,6 +330,175 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         ],
       ),
     );
+  }
+
+  void _showRoomMenu() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.flag_outlined, color: AppColors.textSecondary),
+              title: const Text('신고', style: TextStyle(color: AppColors.textPrimary)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showReportSheet();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_off_rounded, color: AppColors.red),
+              title: const Text('차단', style: TextStyle(color: AppColors.textPrimary)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _blockOtherUser();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.exit_to_app_rounded, color: AppColors.textSecondary),
+              title: const Text('나가기', style: TextStyle(color: AppColors.textPrimary)),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _blockOtherUser() async {
+    final otherUserId = widget.roomInfo['otherUserId']?.toString();
+    if (otherUserId == null || otherUserId.isEmpty) {
+      AppErrorToast.show(context, '차단할 사용자를 찾을 수 없습니다');
+      return;
+    }
+    final confirm = await AppConfirmDialog.show(
+      context,
+      title: '사용자 차단',
+      message: '이 사용자의 거래글과 채팅방이 목록에서 숨겨집니다.',
+      confirmLabel: '차단',
+      destructive: true,
+    );
+    if (confirm != true) return;
+    try {
+      await ApiClient.blockUser(otherUserId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('차단되었습니다')),
+      );
+      Navigator.pop(context);
+    } catch (_) {
+      if (mounted) AppErrorToast.show(context, '차단에 실패했습니다');
+    }
+  }
+
+  void _showReportSheet() {
+    const reasons = [
+      ('FRAUD', '사기 의심'),
+      ('FAKE', '가품 의심'),
+      ('INSULT', '욕설/비방'),
+      ('SPAM', '스팸'),
+      ('OTHER', '기타'),
+    ];
+    String selected = reasons.first.$1;
+    final detailController = TextEditingController();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) => Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+            ),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '신고 사유 선택',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...reasons.map((reason) => RadioListTile<String>(
+                        value: reason.$1,
+                        groupValue: selected,
+                        onChanged: (value) {
+                          if (value != null) setSheetState(() => selected = value);
+                        },
+                        title: Text(
+                          reason.$2,
+                          style: const TextStyle(color: AppColors.textPrimary),
+                        ),
+                        activeColor: AppColors.blue,
+                        contentPadding: EdgeInsets.zero,
+                      )),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: detailController,
+                    minLines: 3,
+                    maxLines: 5,
+                    style: const TextStyle(color: AppColors.textPrimary),
+                    decoration: const InputDecoration(
+                      hintText: '상세 내용을 입력해주세요',
+                      hintStyle: TextStyle(color: AppColors.textMuted),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await _submitReport(selected, detailController.text.trim());
+                      },
+                      child: const Text('신고 접수'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    ).whenComplete(detailController.dispose);
+  }
+
+  Future<void> _submitReport(String reasonCode, String detail) async {
+    try {
+      await ApiClient.post('/api/reports', {
+        'targetType': 'CHAT',
+        'targetId': widget.roomId,
+        'reason': reasonCode,
+        'detail': detail,
+      });
+      if (mounted) AppSuccessToast.show(context, '신고가 접수되었습니다');
+    } catch (_) {
+      if (mounted) AppErrorToast.show(context, '신고 접수에 실패했습니다');
+    }
   }
 
   Widget _buildTradeBanner() {
