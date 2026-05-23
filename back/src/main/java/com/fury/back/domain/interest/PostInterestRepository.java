@@ -20,4 +20,7 @@ public interface PostInterestRepository extends JpaRepository<PostInterest, Stri
     /** 거래 list 판매글별 batch count — N+1 방지. 각 row = [tradeId, count]. */
     @Query("SELECT pi.tradeId, COUNT(pi) FROM PostInterest pi WHERE pi.tradeId IN :tradeIds GROUP BY pi.tradeId")
     List<Object[]> countByTradeIdIn(@Param("tradeIds") List<String> tradeIds);
+
+    /** 단건 — 거래 상세 favoriteCount용. */
+    long countByTradeId(String tradeId);
 }

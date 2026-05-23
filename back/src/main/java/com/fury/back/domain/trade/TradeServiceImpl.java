@@ -50,6 +50,8 @@ public class TradeServiceImpl implements TradeService {
     // 거래 list engagement (chatCount / favoriteCount) batch count용.
     private final ChatRoomRepository chatRoomRepository;
     private final PostInterestRepository postInterestRepository;
+    // 1인 1조회 정책 — viewerUserId != sellerId면 INSERT, UNIQUE 충돌 시 무시.
+    private final TradePostViewRepository tradePostViewRepository;
 
     @Value("${trade.image.dir}")
     private String tradeImageDir;  // Phase 1-7: legacy static handler 호환용 (신규 업로드는 ImageStorageService 사용)
@@ -110,13 +112,37 @@ public class TradeServiceImpl implements TradeService {
     }
 
     @Override
-    public ReturnData<TradePostDto> getTrade(String tradeId) {
+    @Transactional
+    public ReturnData<TradePostDto> getTrade(String tradeId, String viewerUserId) {
         TradePost post = tradePostRepository.findById(tradeId).orElse(null);
         if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
 
+        // 1인 1조회 — 판매자 본인 조회는 skip. UNIQUE 충돌은 무시 (이미 본 사용자).
+        if (viewerUserId != null
+                && !viewerUserId.isBlank()
+                && !viewerUserId.equals(post.getSellerId())
+                && !tradePostViewRepository.existsByTradeIdAndUserId(tradeId, viewerUserId)) {
+            try {
+                tradePostViewRepository.save(TradePostView.builder()
+                        .viewId(IdGenerator.generate())
+                        .tradeId(tradeId)
+                        .userId(viewerUserId)
+                        .build());
+                post.incrementViewCount();
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                // race-safe: 다른 요청이 먼저 INSERT 성공한 경우 silent.
+            }
+        }
+
         User seller = userRepository.findById(post.getSellerId()).orElse(null);
         Card card = cardRepository.findById(post.getCardId()).orElse(null);
-        return ReturnData.success(TradePostDto.fromWithDetails(post, seller, card));
+        long chatCount = chatRoomRepository.countBySaleListingId(tradeId);
+        long favoriteCount = postInterestRepository.countByTradeId(tradeId);
+        TradePostDto dto = TradePostDto.fromWithDetails(post, seller, card).toBuilder()
+                .chatCount(chatCount)
+                .favoriteCount(favoriteCount)
+                .build();
+        return ReturnData.success(dto);
     }
 
     @Override

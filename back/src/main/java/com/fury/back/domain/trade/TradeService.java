@@ -13,7 +13,8 @@ public interface TradeService {
      */
     ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId, String status);
 
-    ReturnData<TradePostDto> getTrade(String tradeId);
+    /** viewerUserId 받아서 1인 1조회 카운트 + chatCount/favoriteCount 매핑. */
+    ReturnData<TradePostDto> getTrade(String tradeId, String viewerUserId);
 
     ReturnData<TradePostDto> createTrade(String sellerId, ParameterData parameterData);
 

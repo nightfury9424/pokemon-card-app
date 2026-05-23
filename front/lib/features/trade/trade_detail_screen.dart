@@ -242,6 +242,8 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     final createdAt = trade['createdAt'] ?? '';
     final tradeStatus = trade['status'] as String? ?? 'OPEN';
     final viewCount = (trade['viewCount'] as num?)?.toInt() ?? 0;
+    final chatCount = (trade['chatCount'] as num?)?.toInt() ?? 0;
+    final favoriteCount = (trade['favoriteCount'] as num?)?.toInt() ?? 0;
     final rarity = cardData['rarityCode'] ?? '';
     final cardName = cardData['name'] ?? '';
     final cardId = trade['cardId'] ?? '';
@@ -323,6 +325,32 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                                     fontSize: 11,
                                   ),
                                 ),
+                              ],
+                              if (chatCount > 0) ...[
+                                const Text(' · ',
+                                    style: TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11)),
+                                const Icon(Icons.chat_bubble_outline_rounded,
+                                    color: AppColors.textMuted, size: 11),
+                                const SizedBox(width: 2),
+                                Text('채팅 $chatCount',
+                                    style: const TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11)),
+                              ],
+                              if (favoriteCount > 0) ...[
+                                const Text(' · ',
+                                    style: TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11)),
+                                const Icon(Icons.favorite_border_rounded,
+                                    color: AppColors.textMuted, size: 11),
+                                const SizedBox(width: 2),
+                                Text('관심 $favoriteCount',
+                                    style: const TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11)),
                               ],
                             ],
                           ),

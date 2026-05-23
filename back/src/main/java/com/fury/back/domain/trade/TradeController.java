@@ -41,8 +41,10 @@ public class TradeController {
 
     @Operation(summary = "판매글 상세 조회")
     @GetMapping("/{tradeId}")
-    public ReturnData<TradePostDto> getTrade(@PathVariable String tradeId) {
-        return tradeService.getTrade(tradeId);
+    public ReturnData<TradePostDto> getTrade(
+            @PathVariable String tradeId,
+            @AuthenticationPrincipal String viewerUserId) {
+        return tradeService.getTrade(tradeId, viewerUserId);
     }
 
     @Operation(summary = "판매글 등록", description = "JWT 인증 필요. 내 카드를 판매 등록합니다.")

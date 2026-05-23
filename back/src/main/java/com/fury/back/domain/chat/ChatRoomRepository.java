@@ -20,4 +20,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
     /** 거래 list 카드별 batch count — N+1 방지. 각 row = [saleListingId, count]. */
     @Query("SELECT cr.saleListingId, COUNT(cr) FROM ChatRoom cr WHERE cr.saleListingId IN :tradeIds GROUP BY cr.saleListingId")
     List<Object[]> countBySaleListingIdIn(@Param("tradeIds") List<String> tradeIds);
+
+    /** 단건 — 거래 상세 chatCount용. */
+    long countBySaleListingId(String saleListingId);
 }
