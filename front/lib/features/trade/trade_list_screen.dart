@@ -41,8 +41,12 @@ class _TradeListScreenState extends State<TradeListScreen> {
 
   final _scrollController = ScrollController();
 
+  // title이 명시되면 명시적 진입(내 판매 항목 등) — 메인 거래 카드 list로 폴백 X.
+  // 빈 상태면 _buildBody의 empty 화면 ('등록된 판매 카드가 없습니다')으로 표시.
   bool get _isMainTab =>
-      widget.filterCardId == null && widget.filterSellerId == null;
+      widget.filterCardId == null &&
+      widget.filterSellerId == null &&
+      widget.title == null;
 
   @override
   void initState() {

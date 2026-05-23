@@ -411,14 +411,35 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
+      child: canChange
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                // 판매자 + active일 때만 화살표 — 클릭 가능 affordance.
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 14,
+                  color: color,
+                ),
+              ],
+            )
+          : Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
     );
     if (canChange) {
       return GestureDetector(

@@ -148,7 +148,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             iconColor: const Color(0xFF10B981),
                             label: '내 판매 내역',
                             sub: _activeTrades > 0 ? '진행 중 $_activeTrades건' : null,
-                            onTap: () => context.push('/my-trades', extra: {'sellerId': _userId}),
+                            onTap: () {
+                              // _userId null이면 sellerId 누락 → trade_list가 메인 거래 화면으로 잘못 진입.
+                              if (_userId == null) return;
+                              context.push('/my-trades', extra: {'sellerId': _userId});
+                            },
                           ),
                           _MenuItem(
                             icon: Icons.favorite_rounded,

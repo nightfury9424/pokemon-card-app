@@ -315,13 +315,48 @@ class _ListingTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  nick,
-                  style: TextStyle(
-                    color: nameColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        nick,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: nameColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    // ASK status chip — OPEN(판매 중)·RESERVED(예약 중) 둘 다 표시.
+                    // raw status 노출 금지. BID 는 표시하지 않음.
+                    if (isAsk && listing.tradeStatus != null) ...[
+                      const SizedBox(width: 6),
+                      Builder(builder: (_) {
+                        final isReserved = listing.tradeStatus == 'RESERVED';
+                        final chipColor = isReserved
+                            ? AppColors.gold
+                            : AppColors.green;
+                        final chipLabel = isReserved ? '예약 중' : '판매 중';
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: chipColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            chipLabel,
+                            style: TextStyle(
+                              color: chipColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ],
                 ),
                 if (hasMemo) ...[
                   const SizedBox(height: 2),
