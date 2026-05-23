@@ -66,7 +66,10 @@ public class TradeServiceImpl implements TradeService {
         } else if (hasCard) {
             posts = tradePostRepository.findOpenByCardId(cardId, pageable);
         } else {
-            posts = tradePostRepository.findByStatusOrderByCreatedAtDesc(hasStatus ? status : "OPEN", pageable);
+            // status 파라미터 있으면 그대로 / 없으면 OPEN+RESERVED active 상태 (COMPLETED/DELETED 제외)
+            posts = hasStatus
+                    ? tradePostRepository.findByStatusOrderByCreatedAtDesc(status, pageable)
+                    : tradePostRepository.findByStatusInOrderByCreatedAtDesc(List.of("OPEN", "RESERVED"), pageable);
         }
 
         List<String> sellerIds = posts.stream().map(TradePost::getSellerId).distinct().toList();
@@ -135,9 +138,10 @@ public class TradeServiceImpl implements TradeService {
 
         // 동일 assetId OPEN 판매글 중복 차단 (1 자산 = 1 OPEN 판매글).
         if (assetId != null && !assetId.isBlank()) {
-            boolean alreadyOpen = tradePostRepository.findByAssetIdOrderByCreatedAtDesc(assetId)
-                    .stream().anyMatch(p -> "OPEN".equals(p.getStatus()));
-            if (alreadyOpen) {
+            // RESERVED도 active trade — 같은 자산에 active(OPEN+RESERVED) 있으면 중복 차단.
+            boolean alreadyActive = tradePostRepository.findByAssetIdOrderByCreatedAtDesc(assetId)
+                    .stream().anyMatch(p -> "OPEN".equals(p.getStatus()) || "RESERVED".equals(p.getStatus()));
+            if (alreadyActive) {
                 return ReturnData.fail("E409", "이미 판매 중인 판매글이 있어요. 기존 판매글을 수정하거나 취소해주세요.");
             }
         }
@@ -232,23 +236,16 @@ public class TradeServiceImpl implements TradeService {
         Card card = cardRepository.findById(asset.getCardId()).orElse(null);
         if (card == null) return ReturnData.notFound("카드를 찾을 수 없습니다.");
 
+        // RESERVED도 active — OPEN+RESERVED 기존 trade 있으면 그걸 반환.
+        // CLOSED 복구 로직은 제거 (legacy 상태값. 정책상 OPEN/RESERVED/COMPLETED/DELETED만 사용).
         List<TradePost> existingPosts = tradePostRepository.findByAssetIdOrderByCreatedAtDesc(assetId);
-        TradePost openPost = existingPosts.stream()
-                .filter(post -> "OPEN".equals(post.getStatus()))
+        TradePost activePost = existingPosts.stream()
+                .filter(post -> "OPEN".equals(post.getStatus()) || "RESERVED".equals(post.getStatus()))
                 .findFirst()
                 .orElse(null);
-        if (openPost != null) {
+        if (activePost != null) {
             User seller = userRepository.findById(sellerId).orElse(null);
-            return ReturnData.success(TradePostDto.fromWithDetails(openPost, seller, card));
-        }
-        TradePost closedPost = existingPosts.stream()
-                .filter(post -> "CLOSED".equals(post.getStatus()))
-                .findFirst()
-                .orElse(null);
-        if (closedPost != null) {
-            closedPost.updateStatus("OPEN");
-            User seller = userRepository.findById(sellerId).orElse(null);
-            return ReturnData.success(TradePostDto.fromWithDetails(closedPost, seller, card));
+            return ReturnData.success(TradePostDto.fromWithDetails(activePost, seller, card));
         }
 
         String rarity = card.getRarityCode() != null && !card.getRarityCode().isBlank()
@@ -338,9 +335,15 @@ public class TradeServiceImpl implements TradeService {
         if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
         if (!post.getSellerId().equals(userId)) return ReturnData.fail("F403", "권한이 없습니다.");
 
+        // same-status no-op — 현재 status와 동일한 요청이면 DB update + SYSTEM 메시지 생성 X.
+        // 동일 상태 변경 클릭 시 시스템 메시지 중복 방지.
+        if (status.equals(post.getStatus())) {
+            User seller = userRepository.findById(post.getSellerId()).orElse(null);
+            Card card = cardRepository.findById(post.getCardId()).orElse(null);
+            return ReturnData.success(TradePostDto.fromWithDetails(post, seller, card));
+        }
+
         post.updateStatus(status);
-        // 거래 CLOSED 시 자산은 보존 (이전: assetRepository.deleteById → P&L 히스토리 영구 소실).
-        // 추후 Asset.status 컬럼 마이그레이션 후 SOLD 상태로 분리 예정. REFACTOR_2026-05-12.md 1차-B 참조.
 
         // Bundle 2-D: 모든 chat_room에 상태 변경 시스템 메시지 broadcast.
         // (OPEN/RESERVED/COMPLETED → 카피 분기, 그 외 silent)

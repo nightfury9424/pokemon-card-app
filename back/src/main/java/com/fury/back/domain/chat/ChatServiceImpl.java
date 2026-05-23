@@ -42,6 +42,12 @@ public class ChatServiceImpl implements ChatService {
         TradePost trade = tradePostRepository.findById(saleListingId)
                 .orElseThrow(() -> new IllegalArgumentException("거래글 없음: " + saleListingId));
 
+        // self-chat 차단 — 본인 판매글에는 본인이 채팅방을 만들 수 없음.
+        // front도 _isSeller로 채팅하기 버튼 숨기지만, API 직접 호출 차단용 backend 가드.
+        if (trade.getSellerId().equals(buyerUserId)) {
+            throw new IllegalStateException("본인이 등록한 판매글에는 채팅을 시작할 수 없습니다.");
+        }
+
         // Bundle 2-A.2: (saleListingId, buyerUserId) 1:1 unique 채팅방 정책.
         // DB UNIQUE 인덱스(uq_chat_rooms_sale_buyer) + race-safe 가드 — 동시 요청 시
         // 첫 lookup empty 두 번째도 empty라 둘 다 save 시도해도 DB UNIQUE violation으로

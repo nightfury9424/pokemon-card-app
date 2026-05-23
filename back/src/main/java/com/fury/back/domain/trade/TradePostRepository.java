@@ -13,9 +13,13 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
 
     Page<TradePost> findByStatusOrderByCreatedAtDesc(String status, Pageable pageable);
 
+    /** 거래 목록 default — OPEN+RESERVED active 상태만 (COMPLETED/DELETED 제외). */
+    Page<TradePost> findByStatusInOrderByCreatedAtDesc(List<String> statuses, Pageable pageable);
+
     Page<TradePost> findBySellerIdOrderByCreatedAtDesc(String sellerId, Pageable pageable);
 
-    @Query("SELECT t FROM TradePost t WHERE t.status = 'OPEN' AND " +
+    /** 카드별 active 거래 — RESERVED도 호가/거래 탭에 보임. */
+    @Query("SELECT t FROM TradePost t WHERE t.status IN ('OPEN', 'RESERVED') AND " +
            "(:cardId IS NULL OR t.cardId = :cardId) " +
            "ORDER BY t.createdAt DESC")
     Page<TradePost> findOpenByCardId(@Param("cardId") String cardId, Pageable pageable);
@@ -30,12 +34,12 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
     Page<TradePost> findBySellerIdAndCardIdOrderByCreatedAtDesc(
             String sellerId, String cardId, Pageable pageable);
 
-    /** 호가창 MY badge — 내가 등록한 OPEN ASK 가격 set (Phase 4). */
+    /** 호가창 MY badge — 내가 등록한 active ASK 가격 set (OPEN+RESERVED 포함). */
     @Query("""
             SELECT DISTINCT t.price FROM TradePost t
             WHERE t.sellerId = :sellerId
               AND t.cardId = :cardId
-              AND t.status = 'OPEN'
+              AND t.status IN ('OPEN', 'RESERVED')
               AND t.price IS NOT NULL
               AND t.cardStatus = :cardStatus
               AND ((:gradingCompany IS NULL) OR t.gradingCompany = :gradingCompany)
@@ -56,9 +60,9 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
 
     boolean existsByAssetIdAndStatusIn(String assetId, List<String> statuses);
 
-    // 카드별 그룹 요약: cardId, 판매 수, 평균가, 최저가
+    // 카드별 그룹 요약: cardId, 판매 수, 평균가, 최저가 (OPEN+RESERVED 포함 — RESERVED도 active).
     @Query("SELECT t.cardId, COUNT(t), AVG(t.price), MIN(t.price) " +
-           "FROM TradePost t WHERE t.status = 'OPEN' AND t.price IS NOT NULL " +
+           "FROM TradePost t WHERE t.status IN ('OPEN', 'RESERVED') AND t.price IS NOT NULL " +
            "GROUP BY t.cardId ORDER BY COUNT(t) DESC")
     List<Object[]> findCardTradeSummary(Pageable pageable);
 
@@ -74,7 +78,7 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
             SELECT new com.fury.back.domain.trade.dto.HogaLevelDto(t.price, COUNT(t))
             FROM TradePost t
             WHERE t.cardId = :cardId
-              AND t.status = 'OPEN'
+              AND t.status IN ('OPEN', 'RESERVED')
               AND t.price IS NOT NULL
               AND t.cardStatus = :cardStatus
               AND ((:gradingCompany IS NULL) OR t.gradingCompany = :gradingCompany)
@@ -94,7 +98,7 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
     @Query("""
             SELECT t FROM TradePost t
             WHERE t.cardId = :cardId
-              AND t.status = 'OPEN'
+              AND t.status IN ('OPEN', 'RESERVED')
               AND t.cardStatus = :cardStatus
               AND t.price = :price
               AND ((:gradingCompany IS NULL) OR t.gradingCompany = :gradingCompany)
