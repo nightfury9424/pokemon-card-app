@@ -152,12 +152,26 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/chat/:roomId',
-      builder: (context, state) => ChatRoomScreen(
-        roomId: state.pathParameters['roomId']!,
-        roomInfo: state.extra is Map
+      // Phase 1 hotfix#8: iOS default slide transition 폐기 — trade_detail → chat_room
+      // 진입 시 좌측 잔상 (관심 버튼 등) + chat_room 첫 frame 빈 spinner 화면이 같이
+      // 노출되는 문제. fade transition 으로 잔상/공백 모두 자연스럽게 전환.
+      pageBuilder: (context, state) {
+        final roomInfo = state.extra is Map
             ? Map<String, dynamic>.from(state.extra as Map)
-            : {},
-      ),
+            : <String, dynamic>{};
+        return CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: ChatRoomScreen(
+            roomId: state.pathParameters['roomId']!,
+            roomInfo: roomInfo,
+          ),
+          transitionDuration: const Duration(milliseconds: 220),
+          reverseTransitionDuration: const Duration(milliseconds: 180),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        );
+      },
     ),
     GoRoute(path: '/grading', builder: (_, _) => const GradingScreen()),
     GoRoute(
