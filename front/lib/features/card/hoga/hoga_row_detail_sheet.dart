@@ -436,9 +436,13 @@ class _ListingTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
+        onTap: () async {
           final id = tradeId; // clickable 가드로 non-null 보장.
+          // Phase 1 hotfix#6: sheet pop transition (~250ms Material default) 완료 후 push.
+          // addPostFrameCallback 은 다음 frame일 뿐 animation 완료 보장 X → 잔상 발생.
+          // Future.delayed 250ms 로 sheet 닫힘 보장 후 parent 콜백 호출.
           Navigator.of(context).pop();
+          await Future<void>.delayed(const Duration(milliseconds: 250));
           onOpenTradeDetail?.call(id);
         },
         child: tile,

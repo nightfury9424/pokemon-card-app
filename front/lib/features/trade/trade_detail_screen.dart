@@ -736,9 +736,31 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       }
       await context.push('/chat/${room['chatRoomId']}', extra: room);
     } on DioException catch (e) {
-      // 403 = BLOCKED (양방향 차단) 또는 OTHER_LEFT (상대 나감) — 둘 다 push 차단 + 안내.
+      // Phase 1 hotfix#6: status + reason 분기.
+      // - 410 GONE TRADE_DELETED → 안내 + 상세 닫고 hoga refresh
+      // - 409 CONFLICT TRADE_RESERVED/COMPLETED → reason별 안내, 화면 유지
+      // - 403 = BLOCKED/OTHER_LEFT → "연락할 수 없는 사용자입니다", 화면 유지
+      // - 그 외 → 일반 실패
       if (!mounted) return;
-      final blocked = e.response?.statusCode == 403;
+      final status = e.response?.statusCode;
+      final reason = e.response?.data is Map
+          ? (e.response?.data as Map)['message'] as String?
+          : null;
+      if (status == 410) {
+        AppErrorToast.show(context, '삭제된 판매글입니다');
+        context.pop(true); // card_detail _refreshAfterOrderMutation → hoga 갱신
+        return;
+      }
+      if (status == 409) {
+        final msg = switch (reason) {
+          'TRADE_RESERVED' => '예약 중인 거래입니다',
+          'TRADE_COMPLETED' => '거래가 완료되었습니다',
+          _ => '채팅을 시작할 수 없는 상태입니다',
+        };
+        AppErrorToast.show(context, msg);
+        return;
+      }
+      final blocked = status == 403;
       AppErrorToast.show(context,
           blocked ? '연락할 수 없는 사용자입니다' : '채팅방을 열 수 없습니다');
     } catch (_) {

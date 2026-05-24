@@ -70,12 +70,15 @@ public class ChatServiceImpl implements ChatService {
                 .findBySaleListingIdAndBuyerUserId(saleListingId, buyerUserId)
                 .orElseGet(() -> {
                     if (!"OPEN".equals(trade.getStatus())) {
-                        throw new IllegalStateException(switch (trade.getStatus()) {
-                            case "RESERVED" -> "예약 중인 거래입니다.";
-                            case "COMPLETED" -> "거래가 완료되었습니다.";
-                            case "DELETED" -> "삭제된 거래입니다.";
-                            default -> "현재 거래 상태에서는 채팅을 시작할 수 없습니다.";
-                        });
+                        // Phase 1 hotfix#6: status 별 명확한 HTTP code + reason (RFC 9110).
+                        // - 410 GONE = TRADE_DELETED (영구 제거)
+                        // - 409 CONFLICT = TRADE_RESERVED/COMPLETED (상태 충돌, 일시적)
+                        throw switch (trade.getStatus()) {
+                            case "RESERVED" -> new ResponseStatusException(HttpStatus.CONFLICT, "TRADE_RESERVED");
+                            case "COMPLETED" -> new ResponseStatusException(HttpStatus.CONFLICT, "TRADE_COMPLETED");
+                            case "DELETED" -> new ResponseStatusException(HttpStatus.GONE, "TRADE_DELETED");
+                            default -> new ResponseStatusException(HttpStatus.CONFLICT, "TRADE_UNAVAILABLE");
+                        };
                     }
                     try {
                         ChatRoom saved = chatRoomRepository.saveAndFlush(ChatRoom.builder()
