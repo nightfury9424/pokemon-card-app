@@ -1769,9 +1769,14 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   side: side,
                   price: price,
                   // Phase E2: ASK row 탭 시 sheet 닫힌 뒤 parent context 로 push.
-                  onOpenTradeDetail: (tradeId) {
+                  // hotfix#3: trade_detail 에서 status 변경/삭제 시 pop(true) 받아서 hoga 즉시 갱신.
+                  // 누락 시 삭제된 ASK 가 호가 list 에 stale 로 남음 — D-7 검증서 잡힌 회귀.
+                  onOpenTradeDetail: (tradeId) async {
                     if (!context.mounted) return;
-                    context.push('/trades/$tradeId');
+                    final changed = await context.push<bool>('/trades/$tradeId');
+                    if (changed == true && context.mounted) {
+                      await _refreshAfterOrderMutation();
+                    }
                   },
                 );
               },

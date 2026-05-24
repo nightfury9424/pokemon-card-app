@@ -32,6 +32,14 @@ public interface ChatService {
     void notifyBlock(String blockerId, String blockedId);
 
     /**
+     * Phase 1 hotfix#3: 차단 해제 hook — 두 사용자 사이 모든 방에 SYSTEM "차단이 해제되었습니다.
+     * 다시 대화할 수 있어요." 1회. AFTER_COMMIT STOMP broadcast → 양쪽 ChatRoomScreen이
+     * SYSTEM 수신 hook으로 conversation-state 재조회 → 즉시 banner/입력 갱신.
+     * BlockController.unblock 이 실제 row 삭제 시에만 호출 (idempotent 중복 방지).
+     */
+    void notifyUnblock(String blockerId, String unblockedId);
+
+    /**
      * Bundle 1.5 (active read gap): 채팅방에 active 상태로 있을 때 새 메시지 도착 시
      * 즉시 read 처리용 lightweight endpoint. 메시지 리스트 반환 X.
      */

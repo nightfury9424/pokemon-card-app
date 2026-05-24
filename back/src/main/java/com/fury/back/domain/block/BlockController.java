@@ -64,7 +64,12 @@ public class BlockController {
             @AuthenticationPrincipal String blockerId,
             @PathVariable String userId) {
         requireAuth(blockerId);
+        // Phase 1 hotfix#3: 실제 row가 있을 때만 SYSTEM 메시지 (idempotent 중복 방지).
+        boolean existed = blockRepository.existsByBlockerIdAndBlockedId(blockerId, userId);
         blockRepository.deleteByBlockerIdAndBlockedId(blockerId, userId);
+        if (existed) {
+            chatService.notifyUnblock(blockerId, userId);
+        }
         return ReturnData.success();
     }
 

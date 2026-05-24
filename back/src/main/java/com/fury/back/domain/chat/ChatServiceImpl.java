@@ -365,6 +365,22 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
+    /**
+     * Phase 1 hotfix#3: 차단 해제 hook — 두 user 사이 모든 방에 SYSTEM 메시지 1회.
+     * BlockController.unblock 이 실제 row 삭제했을 때만 호출.
+     * SYSTEM 도착 → 양쪽 ChatRoomScreen STOMP listener → _loadConversationState()
+     * 자동 재조회 → banner/입력 즉시 갱신 (Phase 1B frontend hook 재사용).
+     */
+    @Override
+    @Transactional
+    public void notifyUnblock(String blockerId, String unblockedId) {
+        List<ChatRoom> rooms = chatRoomRepository.findAllBetweenUsers(blockerId, unblockedId);
+        for (ChatRoom room : rooms) {
+            sendSystemMessage(room.getChatRoomId(),
+                    "차단이 해제되었습니다. 다시 대화할 수 있어요.");
+        }
+    }
+
     /** room 양쪽 user 중 인자 userId 가 아닌 쪽. block check 대상 산출용. */
     private String otherUserOf(ChatRoom room, String userId) {
         return userId.equals(room.getBuyerUserId())
