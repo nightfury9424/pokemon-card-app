@@ -361,12 +361,18 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           child: Container(height: 1, color: AppColors.divider),
         ),
       ),
-      body: Column(
-        children: [
-          // Phase 1B: 차단 안내 sticky banner (canSendMessage=false 시 표시).
-          if (_blockNotice != null) _buildBlockBanner(_blockNotice!),
-          // 거래 상품 배너
-          _buildTradeBanner(),
+      // Phase 1 hotfix#10: 첫 frame opaque 보강. Scaffold bg 외에 body 자체에도
+      // SizedBox.expand + Container(AppColors.bg) 명시. NoTransitionPage 와 함께
+      // 진입 즉시 화면 전체 덮음 → 이전 trade_detail 잔상 (좌측 관심 버튼 등) 차단.
+      body: SizedBox.expand(
+        child: Container(
+          color: AppColors.bg,
+          child: Column(
+            children: [
+              // Phase 1B: 차단 안내 sticky banner (canSendMessage=false 시 표시).
+              if (_blockNotice != null) _buildBlockBanner(_blockNotice!),
+              // 거래 상품 배너
+              _buildTradeBanner(),
           // 메시지 리스트
           Expanded(
             child: _loading
@@ -388,9 +394,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         },
                       ),
           ),
-          // 입력창
-          _buildInputBar(),
-        ],
+              // 입력창
+              _buildInputBar(),
+            ],
+          ),
+        ),
       ),
     );
   }
