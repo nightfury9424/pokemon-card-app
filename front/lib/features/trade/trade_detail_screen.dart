@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'trade_partner_select_sheet.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
@@ -946,9 +947,10 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     // 판매글 상태 정책 — OPEN / RESERVED / COMPLETED / DELETED 4개.
     // 거래 취소는 RESERVED → OPEN 복귀로 처리. 판매 종료는 DELETED (별도 삭제 흐름).
     // 이전 'CLOSED'는 'COMPLETED'로 통일 (2026-05-22).
+    // 거래중 모델: "예약 중" → "거래 중" UI label. DB enum 은 RESERVED 유지.
     final options = <Map<String, dynamic>>[
       {'label': '판매중', 'status': 'OPEN', 'icon': Icons.sell_rounded},
-      {'label': '예약 중', 'status': 'RESERVED', 'icon': Icons.bookmark_rounded},
+      {'label': '거래 중', 'status': 'RESERVED', 'icon': Icons.bookmark_rounded},
       {'label': '거래 완료', 'status': 'COMPLETED', 'icon': Icons.check_circle_rounded},
     ];
 
@@ -986,9 +988,21 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                   trailing: selected
                       ? const Icon(Icons.check_rounded, color: AppColors.blue)
                       : null,
-                  onTap: () {
+                  onTap: () async {
                     Navigator.of(context).pop();
-                    _updateStatus(status);
+                    // 거래중 모델: RESERVED 선택 시 거래 상대 선택 sheet 먼저.
+                    // 선택된 chatRoomId 와 함께 status 변경. 다른 status 는 그대로.
+                    if (status == 'RESERVED' && !mounted) return;
+                    if (status == 'RESERVED') {
+                      final chatRoomId = await TradePartnerSelectSheet.show(
+                        context,
+                        tradeId: _currentTradeId,
+                      );
+                      if (chatRoomId == null || !mounted) return;
+                      await _updateStatus(status, chatRoomId: chatRoomId);
+                    } else {
+                      await _updateStatus(status);
+                    }
                   },
                 );
               }).toList(),
@@ -999,7 +1013,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     );
   }
 
-  Future<void> _updateStatus(String newStatus) async {
+  Future<void> _updateStatus(String newStatus, {String? chatRoomId}) async {
     if (_statusUpdating) return;
     final trade = _trade;
     if (trade == null) return;
@@ -1013,12 +1027,8 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     });
 
     try {
-      await ApiClient.patch(
-        '/api/trades/$_currentTradeId/status',
-        data: {
-          'data': {'status': newStatus},
-        },
-      );
+      // 거래중 모델: RESERVED 변경 시 chatRoomId 함께 전달.
+      await ApiClient.updateTradeStatus(_currentTradeId, newStatus, chatRoomId: chatRoomId);
       _modified = true;
     } catch (_) {
       if (!mounted) return;

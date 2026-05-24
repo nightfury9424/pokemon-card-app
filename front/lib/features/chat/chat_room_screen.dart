@@ -942,9 +942,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             ),
             const SizedBox(height: 12),
             _sellerStatusTile(ctx, '판매 중', 'OPEN', Icons.sell_rounded, currentStatus),
-            _sellerStatusTile(ctx, '예약 중', 'RESERVED', Icons.bookmark_rounded, currentStatus),
-            // Phase 1 hotfix#7: 거래완료 옵션 추가 — 기존 trade_detail._showStatusSheet 와 동일 정책.
-            // APP_TRADE/finalPrice 는 이번 범위 외 (TradePost.status=COMPLETED 만).
+            // 거래중 모델: chat_room 에서 거래중 변경 시 현재 chat room 이 자동으로 활성 상대.
+            // 별도 partner select sheet 없이 widget.roomId 가 active_chat_room_id 가 됨.
+            _sellerStatusTile(ctx, '거래 중', 'RESERVED', Icons.bookmark_rounded, currentStatus),
             _sellerStatusTile(ctx, '거래 완료', 'COMPLETED', Icons.check_circle_rounded, currentStatus),
             const Divider(color: AppColors.divider, height: 1),
             ListTile(
@@ -991,10 +991,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     final tradeId = widget.roomInfo['saleListingId'] as String?;
     if (tradeId == null) return;
     try {
-      await ApiClient.patch('/api/trades/$tradeId/status', data: {'status': newStatus});
+      // 거래중 모델: RESERVED 변경 시 현재 chat room 을 자동 active_chat_room_id 로.
+      // chat_room 안에서 거래중 변경 = 이 buyer 와 거래중 의미가 자명. 별도 상대 선택 X.
+      final chatRoomId = newStatus == 'RESERVED' ? widget.roomId : null;
+      await ApiClient.updateTradeStatus(tradeId, newStatus, chatRoomId: chatRoomId);
       if (!mounted) return;
       AppSuccessToast.show(context, '상태가 변경되었습니다');
       await _refreshTradeStatus();
+      await _loadConversationState();
       // Bundle 2-D hotfix: 채팅 목록 list refresh 신호.
       ChatUnreadNotifier.instance.notifyChanged();
     } catch (_) {

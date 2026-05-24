@@ -142,9 +142,26 @@ class ApiClient {
     return post('/api/chat/rooms/$roomId/leave', {});
   }
 
-  // Phase 1B: 채팅방 입력창/안내 상태 ({canSendMessage, blockNotice}).
+  // Phase 1B: 채팅방 입력창/안내 상태 ({canSendMessage, blockNotice, blockedByMe,
+  // blockedByOther, otherLeft, isExcludedFromActiveTrade}).
   static Future<Map<String, dynamic>> getConversationState(String roomId) {
     return get('/api/chat/rooms/$roomId/conversation-state');
+  }
+
+  // 거래중 모델: 판매글에 연결된 채팅 상대 후보 (판매자만, 차단 user 제외).
+  static Future<List<dynamic>> getChatPartners(String tradeId) async {
+    final res = await get('/api/trades/$tradeId/chat-partners');
+    return (res['data'] as List?) ?? const [];
+  }
+
+  // 거래중 모델: status 변경 + (RESERVED 시) chatRoomId 지정.
+  static Future<Map<String, dynamic>> updateTradeStatus(
+      String tradeId, String status, {String? chatRoomId}) {
+    final body = <String, dynamic>{'status': status};
+    if (chatRoomId != null && chatRoomId.isNotEmpty) {
+      body['chatRoomId'] = chatRoomId;
+    }
+    return patch('/api/trades/$tradeId/status', data: body);
   }
 
   static Future<Map<String, dynamic>> uploadFile(String path, String filePath, {String field = 'file'}) async {
