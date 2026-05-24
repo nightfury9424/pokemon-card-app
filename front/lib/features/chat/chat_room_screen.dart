@@ -10,6 +10,7 @@ import '../../core/storage/token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/app_error_toast.dart';
+import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/app_success_toast.dart';
 import '../../core/widgets/card_image.dart';
 
@@ -118,13 +119,31 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
   }
 
+  /// Phase 1 hotfix#5: 차단/차단해제 관련 legacy SYSTEM 메시지 hide.
+  /// 이전 정책에서 visible SYSTEM 으로 저장된 메시지는 현재 상태와 충돌하므로 렌더링 X.
+  /// 현재 차단 상태 안내는 ConversationStateDto 기준 상단 banner 가 단일 진실원.
+  static const _legacyBlockStateMessages = <String>{
+    '상대방의 설정으로 인해 더 이상 대화할 수 없습니다.',
+    '차단한 사용자입니다. 차단을 해제하면 대화할 수 있어요.',
+    '차단이 해제되었습니다. 다시 대화할 수 있어요.',
+  };
+
+  bool _isLegacyBlockState(Map<String, dynamic> msg) {
+    if (msg['messageType'] != 'SYSTEM') return false;
+    final body = (msg['message'] as String?) ?? '';
+    return _legacyBlockStateMessages.contains(body);
+  }
+
   Future<void> _loadMessages() async {
     try {
       final res = await ApiClient.get('/api/chat/rooms/${widget.roomId}/messages');
       if (!mounted) return;
       final list = (res['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      // hotfix#5: legacy block/unblock SYSTEM 메시지는 channel 에서 제외 (이미 DB 에
+      // 저장된 과거 메시지). 신규는 backend 가 더 이상 안 보냄 (silent state event).
+      final visible = list.where((m) => !_isLegacyBlockState(m)).toList();
       setState(() {
-        _messages.addAll(list);
+        _messages.addAll(visible);
         _loading = false;
       });
       _scrollToBottom(animated: false);
@@ -155,6 +174,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 if (msg['messageType'] == 'STATE_CHANGED') {
                   _loadConversationState();
                   ChatUnreadNotifier.instance.notifyChanged();
+                  return;
+                }
+                // hotfix#5: legacy block/unblock SYSTEM 메시지가 혹시 STOMP 로 와도 hide.
+                // 신규는 backend 가 안 보내지만 안전 차원 동일 filter.
+                if (_isLegacyBlockState(msg)) {
+                  _loadConversationState();
                   return;
                 }
                 setState(() => _messages.add(msg));
@@ -471,9 +496,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       // 채팅방 유지 + 입력만 비활성화. pop 금지 — 현재 방에 그대로 + banner 갱신.
       await _loadConversationState();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('차단되었습니다. 차단을 해제하면 다시 대화할 수 있어요.')),
-      );
+      // hotfix#5: 흰색 기본 SnackBar 제거 — 앱 다크 톤 AppInfoToast 로 통일.
+      AppInfoToast.show(context, '차단되었습니다');
     } catch (_) {
       if (mounted) AppErrorToast.show(context, '차단에 실패했습니다');
     }

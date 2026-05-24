@@ -351,17 +351,19 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * Phase 1 hotfix: 차단 액션 hook — SYSTEM 메시지만 송신, hidden_at 자동 set X.
-     * 차단 ≠ 나가기 (정책 분리). 채팅방은 그대로 유지하고 입력만 비활성화.
-     * 나가기는 사용자가 별도 액션으로 명시할 때만 처리.
+     * Phase 1 hotfix#5: 차단 액션 hook — silent state event (visible 메시지 X).
+     * 이유: 차단 상태는 채팅 메시지가 아니라 conversation-state. visible SYSTEM 으로
+     *       남기면 (1) DB 메시지로 영구 저장되어 현재 상태(unblock 후)와 충돌
+     *       (2) 양쪽 banner 가 이미 동일 상태 안내. 중복 누적 + 거짓 안내 위험.
+     * 처리: publishStateChangedEvent 만 호출 → 양쪽 클라가 conversation-state 재조회.
+     * notifyUnblock 과 통일된 silent pattern.
      */
     @Override
     @Transactional
     public void notifyBlock(String blockerId, String blockedId) {
         List<ChatRoom> rooms = chatRoomRepository.findAllBetweenUsers(blockerId, blockedId);
         for (ChatRoom room : rooms) {
-            sendSystemMessage(room.getChatRoomId(),
-                    "상대방의 설정으로 인해 더 이상 대화할 수 없습니다.");
+            publishStateChangedEvent(room.getChatRoomId());
         }
     }
 
