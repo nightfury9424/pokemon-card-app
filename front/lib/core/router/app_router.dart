@@ -152,24 +152,21 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/chat/:roomId',
-      // Phase 1 hotfix#8: iOS default slide transition 폐기 — trade_detail → chat_room
-      // 진입 시 좌측 잔상 (관심 버튼 등) + chat_room 첫 frame 빈 spinner 화면이 같이
-      // 노출되는 문제. fade transition 으로 잔상/공백 모두 자연스럽게 전환.
+      // Phase 1 hotfix#9: hotfix#8 FadeTransition 도 animation 진행 중 이전 trade_detail
+      // 이 sub-stack에 visible 한 문제. fade 부드러움 < 잔상 즉시 제거 우선 → NoTransitionPage
+      // (transition 0ms). 클릭 즉시 chat_room 전체 표시, 좌측 trade_detail 관심 버튼 잔상
+      // 완전 제거. 빈 spinner 첫 frame은 그대로지만 fade 중에도 동일 — 이전 화면 노출이
+      // 더 큰 회귀라 transition 자체 폐기가 안전.
       pageBuilder: (context, state) {
         final roomInfo = state.extra is Map
             ? Map<String, dynamic>.from(state.extra as Map)
             : <String, dynamic>{};
-        return CustomTransitionPage<void>(
+        return NoTransitionPage<void>(
           key: state.pageKey,
           child: ChatRoomScreen(
             roomId: state.pathParameters['roomId']!,
             roomInfo: roomInfo,
           ),
-          transitionDuration: const Duration(milliseconds: 220),
-          reverseTransitionDuration: const Duration(milliseconds: 180),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
         );
       },
     ),
