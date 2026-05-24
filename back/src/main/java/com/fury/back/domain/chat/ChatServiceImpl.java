@@ -347,7 +347,7 @@ public class ChatServiceImpl implements ChatService {
         } else {
             notice = null;
         }
-        return new ConversationStateDto(canSend, notice);
+        return new ConversationStateDto(canSend, notice, iBlocked, blockedByOther, otherLeft);
     }
 
     /**
@@ -366,19 +366,37 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * Phase 1 hotfix#3: 차단 해제 hook — 두 user 사이 모든 방에 SYSTEM 메시지 1회.
-     * BlockController.unblock 이 실제 row 삭제했을 때만 호출.
-     * SYSTEM 도착 → 양쪽 ChatRoomScreen STOMP listener → _loadConversationState()
-     * 자동 재조회 → banner/입력 즉시 갱신 (Phase 1B frontend hook 재사용).
+     * Phase 1 hotfix#4: 차단 해제 hook — silent state event (visible 메시지 X).
+     * 이유: mutual block 상태에서 한쪽만 해제해도 "다시 대화할 수 있어요" 거짓 안내
+     *       위험 + 채팅에 mutation 말풍선 누적되는 UX 어색.
+     * 처리: ChatMessageDto with messageType="STATE_CHANGED" (DB 저장 X) → SystemMessageEvent
+     *       publish → AFTER_COMMIT STOMP broadcast → 클라가 messageType 분기해서
+     *       list 추가 안 하고 _loadConversationState()만 재호출.
+     * 결과: 양쪽 banner / 입력 / 메뉴 label 모두 ConversationStateDto 단일 진실원으로 갱신.
      */
     @Override
     @Transactional
     public void notifyUnblock(String blockerId, String unblockedId) {
         List<ChatRoom> rooms = chatRoomRepository.findAllBetweenUsers(blockerId, unblockedId);
         for (ChatRoom room : rooms) {
-            sendSystemMessage(room.getChatRoomId(),
-                    "차단이 해제되었습니다. 다시 대화할 수 있어요.");
+            publishStateChangedEvent(room.getChatRoomId());
         }
+    }
+
+    /**
+     * Phase 1 hotfix#4: state-only event — DB 저장 없이 STOMP broadcast 만.
+     * messageType="STATE_CHANGED" 페이로드. 클라 분기로 채팅 list 비추가.
+     * SystemMessageEvent listener (AFTER_COMMIT)가 동일 topic 으로 broadcast.
+     */
+    private void publishStateChangedEvent(String roomId) {
+        ChatMessageDto payload = ChatMessageDto.builder()
+                .chatMessageId(IdGenerator.generate())
+                .chatRoomId(roomId)
+                .senderUserId("SYSTEM")
+                .message("")
+                .messageType("STATE_CHANGED")
+                .build();
+        eventPublisher.publishEvent(new SystemMessageEvent(roomId, payload));
     }
 
     /** room 양쪽 user 중 인자 userId 가 아닌 쪽. block check 대상 산출용. */

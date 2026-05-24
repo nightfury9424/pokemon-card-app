@@ -40,6 +40,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   // canSendMessage=false 면 send 차단. blockNotice 있으면 sticky banner + placeholder 변경.
   bool _canSendMessage = true;
   String? _blockNotice;
+  // Phase 1 hotfix#4: 메뉴 label (차단/차단해제) 분기용. blockedByMe 단일 기준.
+  // mutual block 시 한쪽만 해제해도 canSendMessage 는 false 유지 (blockedByOther 가 별도 통제).
+  bool _blockedByMe = false;
   // Bundle 2-D hotfix: trade 정보를 chat_room에서 직접 보유 → 미니카드 status 즉시 동기화.
   // SYSTEM 메시지 수신 시 _refreshTradeStatus 호출하여 갱신.
   Map<String, dynamic>? _trade;
@@ -78,6 +81,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       setState(() {
         _canSendMessage = (data['canSendMessage'] as bool?) ?? true;
         _blockNotice = data['blockNotice'] as String?;
+        _blockedByMe = (data['blockedByMe'] as bool?) ?? false;
       });
     } catch (_) {
       // silent — fail-open. 전송은 backend 가드가 막음.
@@ -146,6 +150,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               if (!mounted || frame.body == null) return;
               try {
                 final msg = _parseMessage(frame.body!);
+                // Phase 1 hotfix#4: STATE_CHANGED 는 silent state event — visible 메시지 아님.
+                // backend notifyUnblock 등에서 발행. list 추가 X, conversation-state 재조회만.
+                if (msg['messageType'] == 'STATE_CHANGED') {
+                  _loadConversationState();
+                  ChatUnreadNotifier.instance.notifyChanged();
+                  return;
+                }
                 setState(() => _messages.add(msg));
                 _scrollToBottom();
                 // Bundle 1.5 (active read gap): 채팅방에 active 상태에서 상대 메시지 수신 시
@@ -380,11 +391,21 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.person_off_rounded, color: AppColors.red),
-              title: const Text('차단', style: TextStyle(color: AppColors.textPrimary)),
+              leading: Icon(
+                _blockedByMe ? Icons.person_add_rounded : Icons.person_off_rounded,
+                color: _blockedByMe ? AppColors.blue : AppColors.red,
+              ),
+              title: Text(
+                _blockedByMe ? '차단 해제' : '차단',
+                style: const TextStyle(color: AppColors.textPrimary),
+              ),
               onTap: () {
                 Navigator.pop(ctx);
-                _blockOtherUser();
+                if (_blockedByMe) {
+                  _unblockOtherUser();
+                } else {
+                  _blockOtherUser();
+                }
               },
             ),
             ListTile(
@@ -400,6 +421,33 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         ),
       ),
     );
+  }
+
+  /// Phase 1 hotfix#4: 차단 해제 — 점점점 메뉴 "차단 해제" 트리거.
+  /// confirm dialog 후 unblock API → backend notifyUnblock STATE_CHANGED broadcast →
+  /// 양쪽 _loadConversationState() 자동 재조회. 본인 화면도 즉시 await refresh.
+  /// mutual block 시 상대가 아직 차단 중이면 canSendMessage=false 유지 (banner 그대로).
+  Future<void> _unblockOtherUser() async {
+    final otherUserId = widget.roomInfo['otherUserId']?.toString();
+    if (otherUserId == null || otherUserId.isEmpty) {
+      AppErrorToast.show(context, '사용자를 찾을 수 없습니다');
+      return;
+    }
+    final confirm = await AppConfirmDialog.show(
+      context,
+      title: '차단 해제',
+      message: '차단을 해제할까요? 상대도 나를 차단했다면 대화는 계속 제한될 수 있어요.',
+      confirmLabel: '차단 해제',
+    );
+    if (confirm != true) return;
+    try {
+      await ApiClient.unblockUser(otherUserId);
+      if (!mounted) return;
+      await _loadConversationState();
+      ChatUnreadNotifier.instance.notifyChanged();
+    } catch (_) {
+      if (mounted) AppErrorToast.show(context, '차단 해제에 실패했습니다');
+    }
   }
 
   Future<void> _blockOtherUser() async {
