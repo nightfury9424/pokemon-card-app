@@ -38,8 +38,11 @@ class HogaRowDetailSheet extends StatefulWidget {
     this.scrollController,
   });
 
-  /// 편의 호출자 — `showModalBottomSheet`로 띄움.
-  static Future<void> show(
+  /// Phase 1 hotfix#7: sheet 는 선택된 tradeId 만 반환. parent 가 sheet 닫힘 후
+  /// 단일 push 수행 → route stack 정합성 보장 (이전 delay 패턴 폐기).
+  /// 호출자: `final tradeId = await HogaRowDetailSheet.show(...); if (tradeId != null) push`
+  /// `onOpenTradeDetail` 콜백 인자는 호환성 위해 유지하되 더 이상 사용 안 함 (deprecation 후속).
+  static Future<String?> show(
     BuildContext context, {
     required String cardId,
     required HogaStatus status,
@@ -48,7 +51,7 @@ class HogaRowDetailSheet extends StatefulWidget {
     required int price,
     void Function(String tradeId)? onOpenTradeDetail,
   }) {
-    return showModalBottomSheet<void>(
+    return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -436,14 +439,11 @@ class _ListingTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () async {
+        onTap: () {
           final id = tradeId; // clickable 가드로 non-null 보장.
-          // Phase 1 hotfix#6: sheet pop transition (~250ms Material default) 완료 후 push.
-          // addPostFrameCallback 은 다음 frame일 뿐 animation 완료 보장 X → 잔상 발생.
-          // Future.delayed 250ms 로 sheet 닫힘 보장 후 parent 콜백 호출.
-          Navigator.of(context).pop();
-          await Future<void>.delayed(const Duration(milliseconds: 250));
-          onOpenTradeDetail?.call(id);
+          // Phase 1 hotfix#7: sheet 는 tradeId 만 반환. parent 가 await 결과 받아서
+          // 단일 push (route stack 정합성). 콜백 + delay 우회 패턴 폐기.
+          Navigator.of(context).pop(id);
         },
         child: tile,
       ),

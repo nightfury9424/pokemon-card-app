@@ -1760,25 +1760,23 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   });
                 }
               },
-              onRowTap: (price, side, status, grade) {
-                HogaRowDetailSheet.show(
+              onRowTap: (price, side, status, grade) async {
+                // Phase 1 hotfix#7: sheet 가 tradeId 반환 → sheet 닫힘 보장 후 parent 가
+                // 단일 push. delay/콜백 우회 패턴 폐기 — route stack 정합성 보장.
+                // trade_detail 에서 status 변경/삭제 시 pop(true) 받아서 hoga 즉시 갱신.
+                final tradeId = await HogaRowDetailSheet.show(
                   context,
                   cardId: widget.cardId,
                   status: status,
                   grade: grade,
                   side: side,
                   price: price,
-                  // Phase E2: ASK row 탭 시 sheet 닫힌 뒤 parent context 로 push.
-                  // hotfix#3: trade_detail 에서 status 변경/삭제 시 pop(true) 받아서 hoga 즉시 갱신.
-                  // 누락 시 삭제된 ASK 가 호가 list 에 stale 로 남음 — D-7 검증서 잡힌 회귀.
-                  onOpenTradeDetail: (tradeId) async {
-                    if (!context.mounted) return;
-                    final changed = await context.push<bool>('/trades/$tradeId');
-                    if (changed == true && context.mounted) {
-                      await _refreshAfterOrderMutation();
-                    }
-                  },
                 );
+                if (tradeId == null || !context.mounted) return;
+                final changed = await context.push<bool>('/trades/$tradeId');
+                if (changed == true && context.mounted) {
+                  await _refreshAfterOrderMutation();
+                }
               },
               // 등록 CTA 는 CardDetailScreen 하단 sticky footer [판매하기][구매하기] 담당
               // — HogaBoard 내부 버튼 두지 않음 (feedback_hoga_design_invariants.md).

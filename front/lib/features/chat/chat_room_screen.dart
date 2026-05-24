@@ -935,6 +935,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             const SizedBox(height: 12),
             _sellerStatusTile(ctx, '판매 중', 'OPEN', Icons.sell_rounded, currentStatus),
             _sellerStatusTile(ctx, '예약 중', 'RESERVED', Icons.bookmark_rounded, currentStatus),
+            // Phase 1 hotfix#7: 거래완료 옵션 추가 — 기존 trade_detail._showStatusSheet 와 동일 정책.
+            // APP_TRADE/finalPrice 는 이번 범위 외 (TradePost.status=COMPLETED 만).
+            _sellerStatusTile(ctx, '거래 완료', 'COMPLETED', Icons.check_circle_rounded, currentStatus),
             const Divider(color: AppColors.divider, height: 1),
             ListTile(
               leading: const Icon(Icons.delete_outline_rounded,
