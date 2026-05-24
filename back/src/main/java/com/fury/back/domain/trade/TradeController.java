@@ -89,14 +89,34 @@ public class TradeController {
             @RequestParam(required = false) String status,
             @RequestBody(required = false) Map<String, Object> body) {
         String nextStatus = status;
-        if ((nextStatus == null || nextStatus.isBlank()) && body != null) {
-            Object rawStatus = body.get("status");
-            if (rawStatus == null && body.get("data") instanceof Map<?, ?> data) {
-                rawStatus = data.get("status");
+        String chatRoomId = null;
+        if (body != null) {
+            // body 가 {data:{...}} wrap 또는 평면 둘 다 지원
+            final Map<String, Object> source;
+            if (body.get("data") instanceof Map<?, ?> data) {
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> casted = (Map<String, Object>) data;
+                source = casted;
+            } else {
+                source = body;
             }
-            nextStatus = rawStatus != null ? String.valueOf(rawStatus) : null;
+            if (nextStatus == null || nextStatus.isBlank()) {
+                final Object rawStatus = source.get("status");
+                nextStatus = rawStatus != null ? String.valueOf(rawStatus) : null;
+            }
+            // 거래중 모델: RESERVED 변경 시 chatRoomId 전달 (선택된 거래 상대).
+            final Object rawChatRoomId = source.get("chatRoomId");
+            chatRoomId = rawChatRoomId != null ? String.valueOf(rawChatRoomId) : null;
         }
-        return tradeService.updateStatus(tradeId, userId, nextStatus);
+        return tradeService.updateStatus(tradeId, userId, nextStatus, chatRoomId);
+    }
+
+    @Operation(summary = "거래 상대 후보 목록", description = "판매자만 호출. 거래중 변경 시 상대 선택용.")
+    @GetMapping("/{tradeId}/chat-partners")
+    public ReturnData<java.util.List<com.fury.back.domain.trade.dto.ChatPartnerDto>> getChatPartners(
+            @PathVariable String tradeId,
+            @AuthenticationPrincipal String userId) {
+        return tradeService.getChatPartners(tradeId, userId);
     }
 
     @Operation(summary = "판매글 이미지 업로드", description = "JWT 인증 필요. 판매글에 카드 실물 사진을 업로드합니다.")

@@ -399,7 +399,7 @@ public class TradeServiceImpl implements TradeService {
 
     @Override
     @Transactional
-    public ReturnData<TradePostDto> updateStatus(String tradeId, String userId, String status) {
+    public ReturnData<TradePostDto> updateStatus(String tradeId, String userId, String status, String chatRoomId) {
         if (status == null || status.isBlank()) {
             return ReturnData.badRequest("status는 필수입니다.");
         }
@@ -417,6 +417,17 @@ public class TradeServiceImpl implements TradeService {
 
         post.updateStatus(status);
 
+        // 거래중 모델 — active_chat_room_id 처리:
+        // - RESERVED + chatRoomId NOT NULL → 거래 상대 지정 (선택된 chat 만 입력 가능)
+        // - RESERVED + chatRoomId NULL → 기존 호환 (active 변경 X)
+        // - OPEN 복귀 → clear (모든 buyer 다시 채팅 가능)
+        // - COMPLETED / DELETED → 그대로 (선택 상대 후속 대화 정책)
+        if ("RESERVED".equals(status) && chatRoomId != null && !chatRoomId.isBlank()) {
+            post.setActiveChatRoom(chatRoomId);
+        } else if ("OPEN".equals(status)) {
+            post.clearActiveChatRoom();
+        }
+
         // Bundle 2-D: 모든 chat_room에 상태 변경 시스템 메시지 broadcast.
         // (OPEN/RESERVED/COMPLETED → 카피 분기, 그 외 silent)
         chatService.broadcastTradeStatusChanged(tradeId, status);
@@ -424,6 +435,53 @@ public class TradeServiceImpl implements TradeService {
         User seller = userRepository.findById(post.getSellerId()).orElse(null);
         Card card = cardRepository.findById(post.getCardId()).orElse(null);
         return ReturnData.success(TradePostDto.fromWithDetails(post, seller, card));
+    }
+
+    /**
+     * 거래중 모델: 판매자만 호출. 판매글에 연결된 채팅방 list → 거래 상대 선택 sheet 용.
+     * 차단된 user 는 제외. lastMessage / lastMessageAt 으로 정렬 (최근 활성 채팅 먼저).
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ReturnData<java.util.List<com.fury.back.domain.trade.dto.ChatPartnerDto>> getChatPartners(
+            String tradeId, String userId) {
+        TradePost post = tradePostRepository.findById(tradeId).orElse(null);
+        if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
+        if (!post.getSellerId().equals(userId)) return ReturnData.fail("F403", "권한이 없습니다.");
+
+        java.util.List<com.fury.back.domain.chat.ChatRoom> rooms =
+                chatRoomRepository.findAllBySaleListingId(tradeId);
+        java.util.Set<String> blockedByMe = blockRepository.findAllByBlockerId(userId).stream()
+                .map(com.fury.back.domain.block.Block::getBlockedId)
+                .collect(java.util.stream.Collectors.toSet());
+        java.util.List<String> buyerIds = rooms.stream()
+                .map(com.fury.back.domain.chat.ChatRoom::getBuyerUserId)
+                .filter(id -> !blockedByMe.contains(id))
+                .distinct()
+                .toList();
+        java.util.Map<String, User> userMap = userRepository.findAllById(buyerIds).stream()
+                .collect(java.util.stream.Collectors.toMap(User::getUserId, u -> u));
+
+        java.util.List<com.fury.back.domain.trade.dto.ChatPartnerDto> partners = rooms.stream()
+                .filter(r -> !blockedByMe.contains(r.getBuyerUserId()))
+                .map(r -> {
+                    User buyer = userMap.get(r.getBuyerUserId());
+                    return new com.fury.back.domain.trade.dto.ChatPartnerDto(
+                            r.getChatRoomId(),
+                            r.getBuyerUserId(),
+                            buyer != null ? buyer.getNickname() : null,
+                            buyer != null ? buyer.getProfileImageUrl() : null,
+                            r.getLastMessage(),
+                            r.getLastMessageAt());
+                })
+                .sorted((a, b) -> {
+                    if (a.lastMessageAt() == null && b.lastMessageAt() == null) return 0;
+                    if (a.lastMessageAt() == null) return 1;
+                    if (b.lastMessageAt() == null) return -1;
+                    return b.lastMessageAt().compareTo(a.lastMessageAt());
+                })
+                .toList();
+        return ReturnData.success(partners);
     }
 
     @Override

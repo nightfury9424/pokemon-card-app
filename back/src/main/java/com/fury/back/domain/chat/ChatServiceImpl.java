@@ -293,6 +293,8 @@ public class ChatServiceImpl implements ChatService {
         requireNotBlocked(senderUserId, otherUserOf(room, senderUserId));
         // Phase 1 hotfix: 상대가 방을 나간 상태면 전송 차단 — "보내는 척" 금지.
         requireOtherNotLeft(room, senderUserId);
+        // 거래중 모델: 비선택 buyer 메시지 전송 차단. 판매자/선택 상대만 통과.
+        requireNotExcludedFromActiveTrade(room);
 
         ChatMessage saved = chatMessageRepository.save(ChatMessage.builder()
                 .chatMessageId(IdGenerator.generate())
@@ -339,7 +341,10 @@ public class ChatServiceImpl implements ChatService {
         boolean iBlocked = blockRepository.existsByBlockerIdAndBlockedId(userId, other);
         boolean blockedByOther = blockRepository.existsByBlockerIdAndBlockedId(other, userId);
         boolean otherLeft = isOtherLeft(room, userId);
-        boolean canSend = !iBlocked && !blockedByOther && !otherLeft;
+        // 거래중 모델: TradePost.activeChatRoomId 가 NOT NULL 이고 현재 room 이 아니면
+        // 비선택 buyer → 입력 비활성 + 안내. 판매자/선택된 buyer 는 그대로 채팅 가능.
+        boolean isExcludedFromActiveTrade = isExcludedFromActiveTrade(room);
+        boolean canSend = !iBlocked && !blockedByOther && !otherLeft && !isExcludedFromActiveTrade;
         String notice;
         if (iBlocked) {
             notice = "차단한 사용자입니다. 차단을 해제하면 대화할 수 있어요.";
@@ -347,10 +352,12 @@ public class ChatServiceImpl implements ChatService {
             notice = "상대방의 설정으로 인해 더 이상 대화할 수 없습니다.";
         } else if (otherLeft) {
             notice = "상대방이 채팅방을 나갔습니다.";
+        } else if (isExcludedFromActiveTrade) {
+            notice = "다른 사용자와 거래가 진행 중입니다.";
         } else {
             notice = null;
         }
-        return new ConversationStateDto(canSend, notice, iBlocked, blockedByOther, otherLeft);
+        return new ConversationStateDto(canSend, notice, iBlocked, blockedByOther, otherLeft, isExcludedFromActiveTrade);
     }
 
     /**
@@ -436,6 +443,26 @@ public class ChatServiceImpl implements ChatService {
     private void requireOtherNotLeft(ChatRoom room, String userId) {
         if (isOtherLeft(room, userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "OTHER_LEFT");
+        }
+    }
+
+    /**
+     * 거래중 모델: room 의 TradePost.activeChatRoomId 가 NOT NULL 이고 현재 room 이
+     * 아닌 경우 비선택 buyer. trade 못 찾으면 (race) 안전 차원 false (안 막음).
+     */
+    private boolean isExcludedFromActiveTrade(ChatRoom room) {
+        return tradePostRepository.findById(room.getSaleListingId())
+                .map(trade -> {
+                    String active = trade.getActiveChatRoomId();
+                    return active != null && !active.equals(room.getChatRoomId());
+                })
+                .orElse(false);
+    }
+
+    /** 거래중 모델: 비선택 buyer 가 메시지 전송 시 403. 판매자/선택 상대만 통과. */
+    private void requireNotExcludedFromActiveTrade(ChatRoom room) {
+        if (isExcludedFromActiveTrade(room)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "EXCLUDED_FROM_ACTIVE_TRADE");
         }
     }
 }
