@@ -176,46 +176,63 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
         if (didPop || !mounted) return;
         _popWithResult();
       },
-      child: Scaffold(
-        backgroundColor: AppColors.bg,
-        appBar: AppBar(
-          backgroundColor: AppColors.bg,
-          elevation: 0,
-          foregroundColor: AppColors.textPrimary,
-          title: const Text(
-            '판매글',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          actions: [
-            if (_trade != null && _myUserId != null && !_isSeller)
-              IconButton(
-                tooltip: '신고하기',
-                icon: const Icon(
-                  Icons.flag_outlined,
-                  color: AppColors.textSecondary,
+      child: Stack(
+        children: [
+          Scaffold(
+            backgroundColor: AppColors.bg,
+            appBar: AppBar(
+              backgroundColor: AppColors.bg,
+              elevation: 0,
+              foregroundColor: AppColors.textPrimary,
+              title: const Text(
+                '판매글',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
                 ),
-                onPressed: _showReportSheet,
               ),
-          ],
-        ),
-        body: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.blue),
-              )
-            : _trade == null
-            ? const Center(
-                child: Text(
-                  '판매글을 찾을 수 없습니다',
-                  style: TextStyle(color: AppColors.textSecondary),
+              actions: [
+                if (_trade != null && _myUserId != null && !_isSeller)
+                  IconButton(
+                    tooltip: '신고하기',
+                    icon: const Icon(
+                      Icons.flag_outlined,
+                      color: AppColors.textSecondary,
+                    ),
+                    onPressed: _showReportSheet,
+                  ),
+              ],
+            ),
+            body: _loading
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppColors.blue),
+                  )
+                : _trade == null
+                ? const Center(
+                    child: Text(
+                      '판매글을 찾을 수 없습니다',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  )
+                : _buildBody(),
+            bottomNavigationBar: _trade != null && !_loading
+                ? _buildBottomBar()
+                : null,
+          ),
+          // hotfix#11: 채팅방 진입 직전 화면 전체를 완전 불투명으로 덮음.
+          // 이전 trade_detail UI (관심 버튼/이미지/하단 버튼) 잔상 차단.
+          // _startChat 이 setState(_chatLoading=true) → endOfFrame 대기 → API → push.
+          // cover 가 그려진 후에만 navigation 시작 → 1프레임도 잔상 X.
+          if (_chatLoading)
+            const Positioned.fill(
+              child: Material(
+                color: AppColors.bg,
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.blue),
                 ),
-              )
-            : _buildBody(),
-        bottomNavigationBar: _trade != null && !_loading
-            ? _buildBottomBar()
-            : null,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -722,6 +739,13 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     // backend getOrCreateRoom 은 unique constraint 로 idempotent — existing 이면 같은 room 반환,
     // 차단/상대 나감이면 save 전 403 (BLOCKED / OTHER_LEFT). 빈 채팅방 생성 X.
     setState(() => _chatLoading = true);
+    // hotfix#11: opaque cover 가 실제 frame 으로 그려진 다음 navigation 시작.
+    // 잔상(좌측 trade_detail UI) 완전 차단 — Scaffold body Stack 의 cover 가 화면을 덮은
+    // 다음에 chat route push.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) {
+      return;
+    }
     try {
       final res = await ApiClient.post('/api/chat/rooms', {
         'saleListingId': widget.tradeId,
