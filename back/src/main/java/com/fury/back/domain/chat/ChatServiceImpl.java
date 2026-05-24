@@ -131,9 +131,9 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public List<ChatRoomDto> getMyRooms(String userId) {
-        // Phase 1 hotfix#2: 차단 단방향 hide 제거 (차단 ≠ 나가기 정책).
-        // 채팅방 list 표시는 오직 본인 hidden_at IS NULL 기준 (Repository 쿼리).
-        // 차단 관계는 입력 비활성화 + banner 로만 표현, list 에서 숨기지 않음.
+        // Phase 1 hotfix #2: 차단 자바 단 필터 제거. 차단 ≠ list hide (정책).
+        // list 노출 통제는 오직 hidden_at (findMyRooms JPQL이 본인 hidden_at IS NULL 분기).
+        // 차단 user 방도 list 그대로 노출. 입력 비활성화는 conversation-state 응답에서.
         List<ChatRoom> rooms = chatRoomRepository.findMyRooms(userId);
 
         // 필요한 userId 수집
