@@ -40,6 +40,13 @@ public interface TradeService {
      */
     ReturnData<java.util.List<ChatPartnerDto>> getChatPartners(String tradeId, String userId);
 
+    /**
+     * MY > 내 판매 내역 — 본인의 OPEN/RESERVED/COMPLETED 판매글 이력.
+     * DELETED 숨김. 공개 거래 목록/호가/MY 상단 카운트와 분리된 별도 history view.
+     * IDOR 방지 — sellerId 는 JWT 인증 principal 기준, request param 으로 받지 않음.
+     */
+    ReturnData<Page<TradePostDto>> getMyHistory(String sellerId, int page, int size);
+
     ReturnData<String> uploadImage(String tradeId, String userId, org.springframework.web.multipart.MultipartFile file);
 
     ReturnData<java.util.List<java.util.Map<String, Object>>> getCardTradeSummaries(int size);

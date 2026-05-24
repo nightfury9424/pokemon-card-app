@@ -154,6 +154,12 @@ class ApiClient {
     return (res['data'] as List?) ?? const [];
   }
 
+  // MY > 내 판매 내역 — JWT principal 기반 본인 이력 (OPEN/RESERVED/COMPLETED, DELETED 숨김).
+  // sellerId 인자 받지 X — IDOR 방지. backend 가 @AuthenticationPrincipal 에서 결정.
+  static Future<Map<String, dynamic>> getMyHistory({int page = 0, int size = 20}) {
+    return get('/api/trades/me/history', params: {'page': page, 'size': size});
+  }
+
   // 거래중 모델: status 변경 + (RESERVED 시) chatRoomId 지정.
   static Future<Map<String, dynamic>> updateTradeStatus(
       String tradeId, String status, {String? chatRoomId}) {

@@ -23,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -482,6 +483,23 @@ public class TradeServiceImpl implements TradeService {
                 })
                 .toList();
         return ReturnData.success(partners);
+    }
+
+    /**
+     * MY > 내 판매 내역 — sellerId 본인의 OPEN/RESERVED/COMPLETED 이력.
+     * DELETED 숨김. 기존 active list method (OPEN+RESERVED) 와 분리된 별도 history view.
+     * sellerId 는 controller 의 @AuthenticationPrincipal 기준 — IDOR 방지.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ReturnData<Page<TradePostDto>> getMyHistory(String sellerId, int page, int size) {
+        if (sellerId == null || sellerId.isBlank()) {
+            return ReturnData.fail("F403", "인증이 필요합니다.");
+        }
+        Pageable pageable = PageRequest.of(page, size);
+        Page<TradePost> posts = tradePostRepository.findBySellerIdAndStatusInOrderByCreatedAtDesc(
+                sellerId, List.of("OPEN", "RESERVED", "COMPLETED"), pageable);
+        return ReturnData.success(toTradePostDtoPage(posts));
     }
 
     @Override

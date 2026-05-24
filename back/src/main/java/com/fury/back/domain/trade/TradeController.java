@@ -119,6 +119,15 @@ public class TradeController {
         return tradeService.getChatPartners(tradeId, userId);
     }
 
+    @Operation(summary = "내 판매 이력 조회", description = "JWT 인증된 본인의 판매 이력 (OPEN/RESERVED/COMPLETED). sellerId 는 principal 기준, request param 받지 않음.")
+    @GetMapping("/me/history")
+    public ReturnData<Page<TradePostDto>> getMyHistory(
+            @AuthenticationPrincipal String userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return tradeService.getMyHistory(userId, page, size);
+    }
+
     @Operation(summary = "판매글 이미지 업로드", description = "JWT 인증 필요. 판매글에 카드 실물 사진을 업로드합니다.")
     @PostMapping(value = "/{tradeId}/image", consumes = "multipart/form-data")
     public ReturnData<String> uploadImage(

@@ -727,7 +727,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     if (_existingChatRoomId != null) return '대화 이어가기';
     return switch (tradeStatus) {
       'OPEN' => '채팅하기',
-      'RESERVED' => '예약 중',
+      'RESERVED' => '거래 중',
       'COMPLETED' => '거래 완료',
       'DELETED' => '삭제됨',
       _ => '채팅하기',

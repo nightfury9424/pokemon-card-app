@@ -272,7 +272,7 @@ public class ChatServiceImpl implements ChatService {
     public void broadcastTradeStatusChanged(String saleListingId, String newStatus) {
         final String content = switch (newStatus) {
             case "OPEN" -> "거래가 판매 중으로 변경되었습니다.";
-            case "RESERVED" -> "거래가 예약 중으로 변경되었습니다.";
+            case "RESERVED" -> "거래가 거래중으로 변경되었습니다.";
             case "COMPLETED" -> "거래가 완료되었습니다.";
             case "DELETED" -> "판매글이 삭제되었습니다.";
             default -> null;
@@ -343,7 +343,12 @@ public class ChatServiceImpl implements ChatService {
         boolean otherLeft = isOtherLeft(room, userId);
         // 거래중 모델: TradePost.activeChatRoomId 가 NOT NULL 이고 현재 room 이 아니면
         // 비선택 buyer → 입력 비활성 + 안내. 판매자/선택된 buyer 는 그대로 채팅 가능.
-        boolean isExcludedFromActiveTrade = isExcludedFromActiveTrade(room);
+        // TradePost 한 번 조회 — activeChatRoomId 체크 + COMPLETED 분기 (완료 후 안내 문구 별도).
+        TradePost trade = tradePostRepository.findById(room.getSaleListingId()).orElse(null);
+        String activeChatRoomId = trade != null ? trade.getActiveChatRoomId() : null;
+        boolean isExcludedFromActiveTrade = activeChatRoomId != null
+                && !activeChatRoomId.equals(room.getChatRoomId());
+        boolean tradeCompleted = trade != null && "COMPLETED".equals(trade.getStatus());
         boolean canSend = !iBlocked && !blockedByOther && !otherLeft && !isExcludedFromActiveTrade;
         String notice;
         if (iBlocked) {
@@ -353,7 +358,9 @@ public class ChatServiceImpl implements ChatService {
         } else if (otherLeft) {
             notice = "상대방이 채팅방을 나갔습니다.";
         } else if (isExcludedFromActiveTrade) {
-            notice = "다른 사용자와 거래가 진행 중입니다.";
+            notice = tradeCompleted
+                    ? "거래가 완료된 판매글입니다."
+                    : "다른 사용자와 거래가 진행 중입니다.";
         } else {
             notice = null;
         }

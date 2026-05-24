@@ -164,12 +164,16 @@ class _TradeListScreenState extends State<TradeListScreen> {
   Future<void> _loadTrades() async {
     setState(() => _loading = true);
     try {
-      final params = <String, dynamic>{'page': 0, 'size': 20};
-      if (widget.filterCardId != null) params['cardId'] = widget.filterCardId;
+      // MY > 내 판매 내역 모드 — JWT principal 기반 history endpoint (OPEN/RESERVED/COMPLETED 포함).
+      // sellerId 는 backend 가 인증 토큰에서 결정 — frontend extra sellerId 는 API 호출에 사용 X.
+      final Map<String, dynamic> res;
       if (widget.filterSellerId != null) {
-        params['sellerId'] = widget.filterSellerId;
+        res = await ApiClient.getMyHistory(page: 0, size: 20);
+      } else {
+        final params = <String, dynamic>{'page': 0, 'size': 20};
+        if (widget.filterCardId != null) params['cardId'] = widget.filterCardId;
+        res = await ApiClient.get('/api/trades', params: params);
       }
-      final res = await ApiClient.get('/api/trades', params: params);
       final data = res['data'] as Map<String, dynamic>?;
       if (!mounted) return;
       setState(() {
@@ -187,12 +191,14 @@ class _TradeListScreenState extends State<TradeListScreen> {
     if (!_hasMore || _loadingMore) return;
     setState(() => _loadingMore = true);
     try {
-      final params = <String, dynamic>{'page': _page + 1, 'size': 20};
-      if (widget.filterCardId != null) params['cardId'] = widget.filterCardId;
+      final Map<String, dynamic> res;
       if (widget.filterSellerId != null) {
-        params['sellerId'] = widget.filterSellerId;
+        res = await ApiClient.getMyHistory(page: _page + 1, size: 20);
+      } else {
+        final params = <String, dynamic>{'page': _page + 1, 'size': 20};
+        if (widget.filterCardId != null) params['cardId'] = widget.filterCardId;
+        res = await ApiClient.get('/api/trades', params: params);
       }
-      final res = await ApiClient.get('/api/trades', params: params);
       final data = res['data'] as Map<String, dynamic>?;
       if (!mounted) return;
       setState(() {
@@ -664,7 +670,8 @@ class _TradeListScreenState extends State<TradeListScreen> {
                         child: Center(
                           child: Text(
                             switch (tradeStatus) {
-                              'RESERVED' => '예약중',
+                              'RESERVED' => '거래중',
+                              'COMPLETED' => '거래 완료',
                               'DELETED' => '삭제됨',
                               _ => '판매완료',
                             },
