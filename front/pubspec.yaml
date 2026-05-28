@@ -50,6 +50,10 @@ dependencies:
   # mailto 등 외부 URL launcher (고객지원 화면)
   url_launcher: ^6.3.0
 
+  # 고객지원 문의 — 카테고리별 폼 + 사진 첨부 후 네이티브 메일 composer 호출.
+  # mailto 자체는 첨부 미지원이라 iOS MFMailComposeViewController / Android Intent 래퍼 필요.
+  flutter_email_sender: ^6.0.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
