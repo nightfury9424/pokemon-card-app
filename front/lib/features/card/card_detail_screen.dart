@@ -1794,6 +1794,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   /// 호가창 상단 — 현재가 + 매도/매수 카운트 한 줄
   Widget _buildOrderBookHeader() {
     final koMid = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
+    final isOverseasRef =
+        (_priceSummary?['ko']?['koPriceLabelType'] as String?) == 'OVERSEAS_REF';
     // 호가창 chip 기준 카운트 우선. HogaBoard에서 setState로 받음.
     final sellCount = _hogaAskCount ?? _listings.length;
     final buyCount = _hogaBidCount ?? _buyOrders.length;
@@ -1810,7 +1812,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('대표 시세', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
+                Row(
+                  children: [
+                    const Text('대표 시세', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
+                    if (isOverseasRef && koMid != null) ...[
+                      const SizedBox(width: 6),
+                      _priceLabelChip('해외 참고가'),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 4),
                 Text(
                   koMid != null ? _formatPrice(koMid) : '시세 없음',
@@ -2326,6 +2336,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final hasJpRef = _hasScrydexRef(data?['jpScrydexRef']);
     final hasEnRef = _hasScrydexRef(data?['enScrydexRef']);
     final koBasis = _priceSummary?['ko']?['basis'] as String?;
+    final isOverseasRef =
+        (_priceSummary?['ko']?['koPriceLabelType'] as String?) == 'OVERSEAS_REF';
     final koLabel = isPromo
         ? (koBasis == 'RAW_FROM_PSA10'
               ? 'JP 추정 RAW (PSA10 × 비율)'
@@ -2489,6 +2501,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   }
                   return Row(
                     children: [
+                      if (isOverseasRef) ...[
+                        _priceLabelChip('해외 참고가'),
+                        const SizedBox(width: 6),
+                      ],
                       Flexible(
                         child: Text(
                           '$koLabel  ·  대표가 ${_formatPrice(koMid)}',
@@ -2586,6 +2602,29 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     return Text(
       parts.join(' × '),
       style: const TextStyle(color: Colors.white24, fontSize: 10),
+    );
+  }
+
+  // 가격 출처/신뢰도 표시 칩 (display-layer). 색 등락(빨강/파랑)·CTA 초록과 충돌 방지 위해
+  // hue 없는 회색 중립 pill — solid/outline+단어로만 구분 (feedback_color_policy / 신뢰도 칩 정책).
+  // 현재는 OVERSEAS_REF('해외 참고가')만 노출. 나머지 tier는 후속 신뢰도 칩 작업(#2)에서 점등.
+  Widget _priceLabelChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+        ),
+      ),
     );
   }
 

@@ -2,6 +2,7 @@ package com.fury.back.domain.card.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fury.back.domain.card.Card;
+import com.fury.back.domain.price.PriceLabelType;
 import com.fury.back.domain.price.PriceSnapshot;
 import lombok.Builder;
 import lombok.Getter;
@@ -44,6 +45,9 @@ public class CardDto {
     @JsonProperty("isPromoExclusive")
     private boolean isPromoExclusive;
     private String promoType;
+    // 표시 라벨 (PriceLabelType): DOMESTIC_REAL / DOMESTIC_FEW / ESTIMATED / OVERSEAS_REF.
+    // 가격값과 무관한 display-layer 필드. 화면에 보이는 KO 가격 분기(isPromoExclusive)와 일치.
+    private String koPriceLabelType;
 
     public static CardDto from(Card card) {
         return CardDto.builder()
@@ -62,6 +66,7 @@ public class CardDto {
                 .jpScrydexRef(card.getJpScrydexRef())
                 .isPromoExclusive(card.isPromoExclusive())
                 .promoType(card.getPromoType() != null ? card.getPromoType().name() : null)
+                .koPriceLabelType(PriceLabelType.resolve(card.isPromoExclusive(), null).name())
                 .build();
     }
 
@@ -84,6 +89,7 @@ public class CardDto {
                     .enScrydexRef(dto.enScrydexRef).jpScrydexRef(dto.jpScrydexRef)
                     .isPromoExclusive(dto.isPromoExclusive)
                     .promoType(dto.promoType)
+                    .koPriceLabelType(dto.koPriceLabelType)
                     .productName(product.getName())
                     .seriesName(product.getSeriesName())
                     .productType(product.getProductType())

@@ -1713,7 +1713,8 @@ public class GlobalPriceService {
                 cardId,
                 new CardPriceSummaryDto.KoPrice(
                         koMid, koLow, koHigh, koBasis, confidence,
-                        koDomesticCount, LocalDate.now().toString()),
+                        koDomesticCount, LocalDate.now().toString(),
+                        PriceLabelType.resolve(promoExclusive, koDomesticCount).name()),
                 new CardPriceSummaryDto.Charts(
                         koChart,
                         buildLineChart(enLine, enPsa10Line, enPsa9Line),
