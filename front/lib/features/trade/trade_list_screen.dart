@@ -32,7 +32,8 @@ class _TradeListScreenState extends State<TradeListScreen> {
   // 4차-Round4-4 Phase 3 (재설계): 거래 탭 메인 = 카드 list (종목 list 패턴)
   List<Map<String, dynamic>> _marketCards = [];
   int _sortTab = 0; // 0=시세 1=인기 2=급상승 3=급하락
-  // 시세 탭(_sortTab == 0) 한정 등급별 필터 — null = 전체.
+  // 시세 탭(_sortTab == 0) 한정 레어도 필터 — null = 전체.
+  // ("등급"은 PSA grading 의미로 쓰이므로 카드 레어도 필터에는 '레어도'로 표기.)
   // 다른 탭으로 이동해도 값은 유지 (시세 복귀 시 자동 재적용); chip 자체는 시세에서만 노출.
   String? _selectedRarity;
   bool _loadingMarket = false;
@@ -80,7 +81,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
         final list = await ApiClient.getList('/api/cards/market/top-losers', params: {'size': 50});
         result = list.whereType<Map>().map((c) => Map<String, dynamic>.from(c)).toList();
       } else {
-        // _sortTab == 0 (시세): 가격순 paginated + 등급별 필터 (단일 선택)
+        // _sortTab == 0 (시세): 가격순 paginated + 레어도 필터 (단일 선택)
         // _selectedRarity == null 이면 전체 rarity (현행 default 그대로 유지).
         final rarities = _selectedRarity ??
             'SSR,SAR,CSR,SR,UR,CHR,RR,RRR,HR,AR,BWR,MA,MUR,PR';
@@ -275,7 +276,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
     );
   }
 
-  // 정렬 sub-tab (시세/인기/급상승/급하락) + 시세 탭에서만 등급별 dropdown chip
+  // 정렬 sub-tab (시세/인기/급상승/급하락) + 시세 탭에서만 레어도 dropdown chip
   Widget _buildSortTabs() {
     final tabs = ['시세', '인기', '급상승', '급하락'];
     return Container(
@@ -322,11 +323,11 @@ class _TradeListScreenState extends State<TradeListScreen> {
     );
   }
 
-  /// 등급별 dropdown chip — 시세 탭에서만 노출.
-  /// 선택 상태(`_selectedRarity != null`)면 chip이 파란색 active + label에 등급 코드 표시.
+  /// 레어도 dropdown chip — 시세 탭에서만 노출.
+  /// 선택 상태(`_selectedRarity != null`)면 chip이 파란색 active + label에 레어도 코드 표시.
   Widget _buildRarityChip() {
     final selected = _selectedRarity != null;
-    final label = _selectedRarity ?? '등급별';
+    final label = _selectedRarity ?? '레어도';
     return GestureDetector(
       onTap: _showRarityPicker,
       child: AnimatedContainer(
@@ -360,10 +361,26 @@ class _TradeListScreenState extends State<TradeListScreen> {
     );
   }
 
-  /// 등급별 picker bottom sheet — 단일 선택, '전체' 항목으로 reset.
-  /// 옵션은 DB rarity 분포 + 사용자 합의 list (C/U/R 삭제됨 → 고레어만).
+  /// 레어도 picker bottom sheet — 단일 선택, '전체' 항목으로 reset.
+  /// 옵션 순서 (사용자 합의): PR을 먼저 노출 (마리오 피카츄 등 상위권 PR 카드가 탐색 빈도 ↑),
+  /// 이후 일반 레어도 높은 순. PR은 프로모 분류라 일반 레어도 체계와 별도이므로 시트 하단 안내문.
   void _showRarityPicker() {
-    const rarityOptions = ['SAR', 'SSR', 'SR', 'CHR', 'CSR', 'UR', 'HR', 'AR', 'MA', 'PR'];
+    const rarityOptions = [
+      'PR',
+      'BWR',
+      'MUR',
+      'SAR',
+      'UR',
+      'HR',
+      'SSR',
+      'CSR',
+      'SR',
+      'AR',
+      'CHR',
+      'ACE',
+      'RRR',
+      'RR',
+    ];
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surfaceCard,
@@ -390,7 +407,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '등급별 필터',
+                  '레어도 필터',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 16,
@@ -399,9 +416,35 @@ class _TradeListScreenState extends State<TradeListScreen> {
                 ),
               ),
             ),
-            _rarityPickerTile(sheetCtx, label: '전체', value: null),
-            ...rarityOptions.map(
-              (r) => _rarityPickerTile(sheetCtx, label: r, value: r),
+            // 스크롤 가능한 옵션 영역 — 안내문이 항상 보이게 시트 하단에 고정.
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _rarityPickerTile(sheetCtx, label: '전체', value: null),
+                    ...rarityOptions.map(
+                      (r) => _rarityPickerTile(sheetCtx, label: r, value: r),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // PR 별도 분류 안내 — 시트 항상 하단.
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: AppColors.dividerSoft)),
+              ),
+              child: const Text(
+                'PR은 프로모 카드로, 일반 레어도 순서와 별도 분류입니다.',
+                style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 11,
+                  height: 1.4,
+                ),
+              ),
             ),
             const SizedBox(height: 8),
           ],
@@ -410,7 +453,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
     );
   }
 
-  /// 등급 항목 1개 — 선택 중이면 체크 아이콘.
+  /// 레어도 항목 1개 — 선택 중이면 체크 아이콘.
   Widget _rarityPickerTile(BuildContext sheetCtx, {required String label, required String? value}) {
     final isSelected = _selectedRarity == value;
     return InkWell(
@@ -469,14 +512,14 @@ class _TradeListScreenState extends State<TradeListScreen> {
   }
 
   /// 빈 상태 — 마켓 비어있음일 때만 (검색은 풀스크린 분리됨).
-  /// 시세 탭에서 등급별 필터가 켜진 채 결과 0개면 안내 문구를 다르게 표시.
+  /// 시세 탭에서 레어도 필터가 켜진 채 결과 0개면 안내 문구를 다르게 표시.
   Widget _buildEmptyMarketState() {
     final isRarityFiltered = _sortTab == 0 && _selectedRarity != null;
     final title = isRarityFiltered
-        ? '"${_selectedRarity!}" 등급 카드가 없습니다'
+        ? '"${_selectedRarity!}" 레어도 카드가 없습니다'
         : '카드가 없습니다';
     final subtitle = isRarityFiltered
-        ? '등급별 필터를 해제하거나 다른 등급을 선택해 보세요'
+        ? '레어도 필터를 해제하거나 다른 레어도를 선택해 보세요'
         : '우상단 돋보기를 눌러 카드를 검색해 보세요';
     return Center(
       child: Padding(
