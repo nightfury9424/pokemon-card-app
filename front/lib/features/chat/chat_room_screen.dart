@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:dio/dio.dart' show DioException;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
@@ -12,6 +15,7 @@ import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/app_success_toast.dart';
+import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 
 class ChatRoomScreen extends StatefulWidget {
@@ -37,6 +41,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   String? _myUserId;
   bool _loading = true;
   bool _connected = false;
+  // 2026-05-28 이미지 메시지 — 업로드 중 + 버튼 spinner + 중복 전송 차단.
+  bool _uploadingImage = false;
+  // 10MB 제한 (백엔드 MAX_IMAGE_BYTES 동일).
+  static const int _kMaxImageBytes = 10 * 1024 * 1024;
   // Phase 1B: backend conversation-state — 입력창 비활성화 + 안내 banner.
   // canSendMessage=false 면 send 차단. blockNotice 있으면 sticky banner + placeholder 변경.
   bool _canSendMessage = true;
@@ -266,6 +274,145 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       body: '{"message":"${text.replaceAll('"', '\\"')}","senderUserId":"${_myUserId ?? ''}"}',
     );
     _inputController.clear();
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 2026-05-28: 채팅 이미지 메시지 (Task 8 MVP)
+  // 정책: 1회 1장 / 프론트 압축 (maxWidth 1600, q80) / 10MB / REST upload / AuthImage render.
+  // 백엔드: POST /api/chat/rooms/{roomId}/upload-image — multipart field 'file'.
+  //   413 IMAGE_TOO_LARGE / 400 UNSUPPORTED_IMAGE_TYPE 등 분기 토스트.
+  // ─────────────────────────────────────────────────────────────────
+
+  /// + 버튼 클릭 시 — 카톡/당근식 액션 시트 (앨범/카메라).
+  /// useRootNavigator: true (이전 cycle FAB-sheet 가림 fix 동일 패턴).
+  Future<void> _showImagePickerSheet() async {
+    FocusScope.of(context).unfocus(); // 키보드 내림
+    await showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '무엇을 보낼까요?',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+            _ImagePickerOption(
+              icon: Icons.photo_library_outlined,
+              title: '사진 앨범에서 선택',
+              subtitle: '카드 앞/뒤, 하자 부위 사진을 보낼 수 있어요.',
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _pickAndUploadImage(ImageSource.gallery);
+              },
+            ),
+            _ImagePickerOption(
+              icon: Icons.camera_alt_outlined,
+              title: '카메라로 촬영',
+              subtitle: '실물 인증 사진을 바로 촬영해 보낼 수 있어요.',
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _pickAndUploadImage(ImageSource.camera);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// image_picker로 압축 + 10MB 검증 + multipart upload + 실패 분기 토스트.
+  Future<void> _pickAndUploadImage(ImageSource source) async {
+    if (_uploadingImage) return;
+    try {
+      final picker = ImagePicker();
+      // maxWidth: 1600 + imageQuality: 80 — image_picker 가 디코드/리사이즈/재인코드 자동.
+      // iOS HEIC 입력은 일반적으로 JPEG 출력으로 변환되나 100% 보장 X (사용자 catch).
+      // 백엔드 UNSUPPORTED_IMAGE_TYPE 응답 시 사용자에게 명확 안내로 fallback.
+      final XFile? picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 80,
+      );
+      if (picked == null || !mounted) return;
+
+      final file = File(picked.path);
+      final length = await file.length();
+      if (length > _kMaxImageBytes) {
+        if (!mounted) return;
+        AppErrorToast.show(context, '이미지 용량이 너무 커요. 다른 사진을 선택해주세요.');
+        return;
+      }
+
+      setState(() => _uploadingImage = true);
+      try {
+        await ApiClient.uploadFile(
+          '/api/chat/rooms/${widget.roomId}/upload-image',
+          picked.path,
+          field: 'file',
+        );
+        // STOMP echo 가 자동 도착 → _messages list에 IMAGE 메시지 추가 + bubble 렌더.
+        // 별도 list 갱신 불필요.
+        if (mounted) AppSuccessToast.show(context, '사진을 보냈어요');
+      } on DioException catch (e) {
+        if (!mounted) return;
+        final status = e.response?.statusCode;
+        final reason = e.response?.statusMessage ?? '';
+        final body = e.response?.data;
+        // 백엔드 reason 추출 (Spring ResponseStatusException 의 reason).
+        final reasonText = (body is Map && body['message'] is String)
+            ? body['message'] as String
+            : reason;
+        if (status == 413 || reasonText.contains('IMAGE_TOO_LARGE')) {
+          AppErrorToast.show(context, '이미지 용량이 너무 커요. 다른 사진을 선택해주세요.');
+        } else if (reasonText.contains('UNSUPPORTED_IMAGE_TYPE') ||
+            reasonText.contains('FILE_READ_ERROR') ||
+            reasonText.contains('FILE_TOO_SMALL')) {
+          AppErrorToast.show(context, '지원하지 않는 이미지 형식입니다. 다른 사진을 선택해주세요.');
+        } else if (status == 403) {
+          AppErrorToast.show(context, '이 채팅방에 사진을 보낼 권한이 없어요.');
+        } else {
+          AppErrorToast.show(context, '이미지 전송에 실패했어요. 다시 시도해주세요.');
+        }
+      } catch (_) {
+        if (mounted) AppErrorToast.show(context, '이미지 전송에 실패했어요. 다시 시도해주세요.');
+      } finally {
+        if (mounted) setState(() => _uploadingImage = false);
+      }
+    } catch (_) {
+      // image_picker 자체 오류 (권한 거부 / 카메라 미사용 가능 등)
+      if (!mounted) return;
+      AppErrorToast.show(context, source == ImageSource.camera
+          ? '카메라를 열 수 없어요. 권한을 확인해주세요.'
+          : '사진을 가져올 수 없어요. 권한을 확인해주세요.');
+    }
   }
 
   void _scrollToBottom({bool animated = true}) {
@@ -861,6 +1008,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     if (msg['messageType'] == 'SYSTEM') {
       return _buildSystemMessage(msg['message'] as String? ?? '');
     }
+    // 2026-05-28: 이미지 메시지 — AuthImage (JWT) 로 proxy URL fetch + 탭 → 전체화면.
+    if (msg['messageType'] == 'IMAGE') {
+      return _buildImageBubble(msg, prev);
+    }
     final isMe = msg['senderUserId'] == _myUserId;
     final text = msg['message'] ?? '';
     final time = _formatTime(msg['createdAt']);
@@ -1148,6 +1299,33 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       ),
       child: Row(
         children: [
+          // 2026-05-28 이미지 메시지 — 좌측 + 버튼. canSend && _connected && !uploading.
+          GestureDetector(
+            onTap: (_canSendMessage && _connected && !_uploadingImage)
+                ? _showImagePickerSheet
+                : null,
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: (_canSendMessage && _connected && !_uploadingImage)
+                    ? AppColors.surfaceElevated
+                    : AppColors.divider,
+                shape: BoxShape.circle,
+              ),
+              child: _uploadingImage
+                  ? const Padding(
+                      padding: EdgeInsets.all(9),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.textSecondary,
+                      ),
+                    )
+                  : const Icon(Icons.add_rounded,
+                      color: AppColors.textSecondary, size: 22),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Container(
               decoration: BoxDecoration(
@@ -1230,5 +1408,242 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     } catch (_) {
       return '';
     }
+  }
+
+  /// 2026-05-28: IMAGE 메시지 버블 — AuthImage(JWT) 로 proxy URL fetch.
+  /// 가로 화면 60% / Hero 애니메이션 + 탭 시 InteractiveViewer 전체화면.
+  /// SALE chat 의 텍스트 bubble 양쪽 layout (읽음/시간) 동일 패턴.
+  Widget _buildImageBubble(Map<String, dynamic> msg, Map<String, dynamic>? prev) {
+    final isMe = msg['senderUserId'] == _myUserId;
+    final url = msg['message'] as String? ?? '';
+    final time = _formatTime(msg['createdAt']);
+    final senderNick = msg['senderNickname'] ?? '';
+    final profileUrl = msg['senderProfileImageUrl'] as String?;
+    final sameSenderAsPrev =
+        prev != null && prev['senderUserId'] == msg['senderUserId'];
+
+    final width = MediaQuery.of(context).size.width * 0.6;
+    final heroTag = 'chat-image-${msg['chatMessageId']}';
+
+    final imageBubble = GestureDetector(
+      onTap: () => _openFullscreenImage(url, heroTag),
+      child: Hero(
+        tag: heroTag,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: AuthImage(
+            url: url,
+            width: width,
+            height: width,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+    );
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: 2, top: sameSenderAsPrev ? 4 : 10),
+      child: Row(
+        mainAxisAlignment:
+            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: isMe
+            ? [
+                Padding(
+                  padding: const EdgeInsets.only(right: 4, bottom: 2),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        msg['isRead'] == true ? '읽음' : '안읽음',
+                        style: TextStyle(
+                          color: msg['isRead'] == true
+                              ? AppColors.textMuted
+                              : AppColors.blue.withValues(alpha: 0.7),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(time,
+                          style: const TextStyle(
+                              color: AppColors.textMuted, fontSize: 10)),
+                    ],
+                  ),
+                ),
+                imageBubble,
+              ]
+            : [
+                if (!sameSenderAsPrev)
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: AppColors.surfaceElevated,
+                    backgroundImage:
+                        profileUrl != null ? NetworkImage(profileUrl) : null,
+                    child: profileUrl == null
+                        ? const Icon(Icons.person,
+                            color: AppColors.textMuted, size: 14)
+                        : null,
+                  )
+                else
+                  const SizedBox(width: 32),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!sameSenderAsPrev)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4, left: 2),
+                        child: Text(senderNick,
+                            style: const TextStyle(
+                                color: AppColors.textMuted, fontSize: 11)),
+                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        imageBubble,
+                        const SizedBox(width: 4),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Text(time,
+                              style: const TextStyle(
+                                  color: AppColors.textMuted, fontSize: 10)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+      ),
+    );
+  }
+
+  /// 2026-05-28: 이미지 전체화면 viewer — PageRouteBuilder + Hero + InteractiveViewer.
+  /// HolographicCardViewer 재사용 X — 카드 전용 tilt/holographic 효과가 사진에 부적합 (Codex J).
+  void _openFullscreenImage(String url, String heroTag) {
+    Navigator.of(context, rootNavigator: true).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierDismissible: true,
+        barrierColor: Colors.black,
+        transitionDuration: const Duration(milliseconds: 200),
+        pageBuilder: (_, __, ___) => _FullscreenImageViewer(
+          url: url,
+          heroTag: heroTag,
+        ),
+      ),
+    );
+  }
+}
+
+/// 2026-05-28: 액션 시트 옵션 row (앨범/카메라).
+class _ImagePickerOption extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ImagePickerOption({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: AppColors.blueLight, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11.5,
+                          height: 1.45)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textMuted, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 2026-05-28: 채팅 이미지 전체화면 — Hero + InteractiveViewer + 탭/swipe-down 닫기.
+class _FullscreenImageViewer extends StatelessWidget {
+  final String url;
+  final String heroTag;
+  const _FullscreenImageViewer({required this.url, required this.heroTag});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // 본체 — pinch/double-tap zoom + 탭 닫기.
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: InteractiveViewer(
+                  maxScale: 4.0,
+                  child: Center(
+                    child: Hero(
+                      tag: heroTag,
+                      child: AuthImage(
+                        url: url,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // 상단 닫기 X.
+            Positioned(
+              top: 12,
+              right: 12,
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close, color: Colors.white, size: 26),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black.withValues(alpha: 0.4),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
