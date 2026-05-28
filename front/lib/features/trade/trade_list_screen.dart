@@ -4,6 +4,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
+import '../../core/utils/price_label.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import 'trade_search_screen.dart';
@@ -447,6 +448,10 @@ class _TradeListScreenState extends State<TradeListScreen> {
                 final sell = (card['activeSellCount'] as num?)?.toInt() ?? 0;
                 final buy = (card['activeBuyCount'] as num?)?.toInt() ?? 0;
                 final interest = (card['interestCount'] as num?)?.toInt() ?? 0;
+                final priceLabelText = PriceLabel.resolve(
+                  labelType: card['koPriceLabelType'] as String?,
+                  price: price,
+                );
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -483,6 +488,16 @@ class _TradeListScreenState extends State<TradeListScreen> {
                                 : AppColors.textMuted,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // 가격 옆 inline 라벨 — 국내 예상가 / 해외 참고가 / 시세 준비중.
+                        Text(
+                          priceLabelText,
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                         const SizedBox(width: 8),

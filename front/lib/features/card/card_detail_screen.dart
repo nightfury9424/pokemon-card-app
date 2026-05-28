@@ -16,6 +16,7 @@ import '../../core/widgets/holographic_card_viewer.dart';
 import '../../core/widgets/rarity_aura.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
+import '../../core/utils/price_label.dart';
 import 'hoga/hoga_board.dart';
 import 'hoga/hoga_row_detail_sheet.dart';
 import '../../core/widgets/app_info_toast.dart';
@@ -1794,8 +1795,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   /// 호가창 상단 — 현재가 + 매도/매수 카운트 한 줄
   Widget _buildOrderBookHeader() {
     final koMid = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
-    final isOverseasRef =
-        (_priceSummary?['ko']?['koPriceLabelType'] as String?) == 'OVERSEAS_REF';
+    final labelType = _priceSummary?['ko']?['koPriceLabelType'] as String?;
+    // 라벨 통일 (2026-05-28): OVERSEAS_REF → "해외 참고가" / ESTIMATED 등 → "국내 예상가" / 가격 없음 → "시세 준비중".
+    final priceLabel = PriceLabel.resolve(labelType: labelType, price: koMid);
     // 호가창 chip 기준 카운트 우선. HogaBoard에서 setState로 받음.
     final sellCount = _hogaAskCount ?? _listings.length;
     final buyCount = _hogaBidCount ?? _buyOrders.length;
@@ -1815,10 +1817,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 Row(
                   children: [
                     const Text('대표 시세', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
-                    if (isOverseasRef && koMid != null) ...[
-                      const SizedBox(width: 6),
-                      _priceLabelChip('해외 참고가'),
-                    ],
+                    const SizedBox(width: 6),
+                    _priceLabelChip(priceLabel),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -2347,8 +2347,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final hasJpRef = _hasScrydexRef(data?['jpScrydexRef']);
     final hasEnRef = _hasScrydexRef(data?['enScrydexRef']);
     final koBasis = _priceSummary?['ko']?['basis'] as String?;
-    final isOverseasRef =
-        (_priceSummary?['ko']?['koPriceLabelType'] as String?) == 'OVERSEAS_REF';
+    final labelType = _priceSummary?['ko']?['koPriceLabelType'] as String?;
+    final koMidForLabel = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
+    // 라벨 통일 (2026-05-28): OVERSEAS_REF → "해외 참고가" / ESTIMATED → "국내 예상가" / 가격 X → "시세 준비중".
+    final priceLabelText = PriceLabel.resolve(labelType: labelType, price: koMidForLabel);
     final koLabel = isPromo
         ? (koBasis == 'RAW_FROM_PSA10'
               ? 'JP 추정 RAW (PSA10 × 비율)'
@@ -2512,10 +2514,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   }
                   return Row(
                     children: [
-                      if (isOverseasRef) ...[
-                        _priceLabelChip('해외 참고가'),
-                        const SizedBox(width: 6),
-                      ],
+                      _priceLabelChip(priceLabelText),
+                      const SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           '$koLabel  ·  대표가 ${_formatPrice(koMid)}',
