@@ -102,6 +102,9 @@ class _ChatScreenState extends State<ChatScreen> {
     final cardImageUrl = room['cardImageUrl'] as String?;
     final tradePrice = (room['tradePrice'] as num?)?.toInt();
     final tradeStatus = room['tradeStatus'] as String?;
+    // 2026-05-28 BUY chat — contextType ('SALE'/'BUY') 분기 라벨 + 상태 매핑.
+    final contextType = (room['contextType'] as String?) ?? 'SALE';
+    final isBuy = contextType == 'BUY';
     final showTradeRow = cardImageUrl != null && tradeTitle.isNotEmpty;
 
     return InkWell(
@@ -151,7 +154,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
-                  // Bundle 2-A.3: trade summary 한 줄 (카드명·가격·상태) — 좌측 카드 썸네일이 대표 이미지 역할.
+                  // Bundle 2-A.3: trade summary 한 줄 (카드명·가격·상태) — 좌측 카드 썸네일 보조.
+                  // 2026-05-28: 맨 앞에 [판매]/[구매] 라벨 WidgetSpan + isBuy 시 가격 prefix "희망가".
                   if (showTradeRow) ...[
                     const SizedBox(height: 4),
                     RichText(
@@ -163,15 +167,27 @@ class _ChatScreenState extends State<ChatScreen> {
                           fontSize: 11,
                         ),
                         children: [
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: _buildContextLabelInline(isBuy: isBuy),
+                          ),
+                          const TextSpan(text: ' '),
                           TextSpan(text: tradeTitle),
                           if (tradePrice != null)
-                            TextSpan(text: ' · ${_formatPrice(tradePrice)}원'),
+                            TextSpan(
+                                text: isBuy
+                                    ? ' · 희망가 ${_formatPrice(tradePrice)}원'
+                                    : ' · ${_formatPrice(tradePrice)}원'),
                           if (tradeStatus != null) ...[
                             const TextSpan(text: ' · '),
                             TextSpan(
-                              text: _statusLabel(tradeStatus),
+                              text: isBuy
+                                  ? _buyOrderStatusLabel(tradeStatus)
+                                  : _statusLabel(tradeStatus),
                               style: TextStyle(
-                                color: _statusColor(tradeStatus),
+                                color: isBuy
+                                    ? _buyOrderStatusColor(tradeStatus)
+                                    : _statusColor(tradeStatus),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -290,6 +306,47 @@ class _ChatScreenState extends State<ChatScreen> {
         'DELETED' => AppColors.textMuted,
         _ => AppColors.textMuted,
       };
+
+  /// 2026-05-28: BuyOrder 상태(OPEN/MATCHED/CANCELED) 라벨 — _statusLabel 의 BUY 버전.
+  String _buyOrderStatusLabel(String status) => switch (status) {
+        'OPEN' => '구매중',
+        'MATCHED' => '매칭 완료',
+        'CANCELED' => '취소됨',
+        _ => '상태 확인',
+      };
+
+  /// 2026-05-28: BuyOrder 상태별 색.
+  Color _buyOrderStatusColor(String status) => switch (status) {
+        'OPEN' => AppColors.green,
+        'MATCHED' => AppColors.textMuted,
+        'CANCELED' => AppColors.textMuted,
+        _ => AppColors.textMuted,
+      };
+
+  /// 2026-05-28: 채팅 list inline 라벨 chip — [판매]/[구매].
+  /// 호가 색 정책 (feedback_color_policy + feedback_hoga_design_invariants):
+  ///   ASK(판매) = 파랑 / BID(구매) = 빨강. 옅은 톤.
+  Widget _buildContextLabelInline({required bool isBuy}) {
+    final color = isBuy ? AppColors.red : AppColors.blue;
+    final label = isBuy ? '구매' : '판매';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
 
   String _timeAgo(dynamic ts) {
     if (ts == null) return '';

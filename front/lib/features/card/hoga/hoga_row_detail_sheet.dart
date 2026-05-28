@@ -27,6 +27,9 @@ class HogaRowDetailSheet extends StatefulWidget {
   /// DraggableScrollableSheet 의 scroll controller. ListView 와 sheet drag 를 연결.
   final ScrollController? scrollController;
 
+  /// 2026-05-28 BUY chat — 본인 BuyOrder 식별용. null 이면 self-chat 차단 UI 미적용 (가입 전 진입).
+  final String? myUserId;
+
   const HogaRowDetailSheet({
     super.key,
     required this.cardId,
@@ -36,11 +39,13 @@ class HogaRowDetailSheet extends StatefulWidget {
     required this.price,
     this.onOpenTradeDetail,
     this.scrollController,
+    this.myUserId,
   });
 
-  /// Phase 1 hotfix#7: sheet 는 선택된 tradeId 만 반환. parent 가 sheet 닫힘 후
+  /// Phase 1 hotfix#7: sheet 는 선택된 listingId 만 반환. parent 가 sheet 닫힘 후
   /// 단일 push 수행 → route stack 정합성 보장 (이전 delay 패턴 폐기).
-  /// 호출자: `final tradeId = await HogaRowDetailSheet.show(...); if (tradeId != null) push`
+  /// ASK 호출 시 반환 = tradeId, BID 호출 시 반환 = buyOrderId (호출자가 side 로 분기).
+  /// 호출자: `final id = await HogaRowDetailSheet.show(...); if (id != null) push`
   /// `onOpenTradeDetail` 콜백 인자는 호환성 위해 유지하되 더 이상 사용 안 함 (deprecation 후속).
   static Future<String?> show(
     BuildContext context, {
@@ -49,6 +54,7 @@ class HogaRowDetailSheet extends StatefulWidget {
     required HogaGrade? grade,
     required HogaSide side,
     required int price,
+    String? myUserId,
     void Function(String tradeId)? onOpenTradeDetail,
   }) {
     return showModalBottomSheet<String>(
@@ -68,6 +74,7 @@ class HogaRowDetailSheet extends StatefulWidget {
           price: price,
           onOpenTradeDetail: onOpenTradeDetail,
           scrollController: scroll,
+          myUserId: myUserId,
         ),
       ),
     );
@@ -226,6 +233,7 @@ class _HogaRowDetailSheetState extends State<HogaRowDetailSheet> {
                     side: widget.side,
                     color: color,
                     onOpenTradeDetail: widget.onOpenTradeDetail,
+                    myUserId: widget.myUserId,
                   ),
                 );
               },
@@ -243,6 +251,8 @@ class _ListingTile extends StatelessWidget {
   final HogaSide side;
   final Color color;
   final void Function(String tradeId)? onOpenTradeDetail;
+  /// 2026-05-28 BUY chat — self-chat 차단 UI 가드용 본인 user_id.
+  final String? myUserId;
 
   const _ListingTile({
     required this.listing,
@@ -250,6 +260,7 @@ class _ListingTile extends StatelessWidget {
     required this.side,
     required this.color,
     required this.onOpenTradeDetail,
+    required this.myUserId,
   });
 
   String _relative(DateTime dt) {
@@ -270,14 +281,29 @@ class _ListingTile extends StatelessWidget {
 
     final bool isAsk = side == HogaSide.ask;
     final String? tradeId = listing.tradeId;
-    final bool clickable = isAsk && tradeId != null && tradeId.isNotEmpty;
+    final String? buyOrderId = listing.buyOrderId;
+    // 2026-05-28: BID 도 채팅 진입 가능. listing.userId == myUserId 면 자기 호가 → self-chat 차단.
+    final bool isOwnBuyOrder = !isAsk &&
+        myUserId != null &&
+        myUserId == listing.userId;
+    final bool clickable = isAsk
+        ? (tradeId != null && tradeId.isNotEmpty)
+        : (buyOrderId != null && buyOrderId.isNotEmpty && !isOwnBuyOrder);
 
     // 정책 (feedback_hoga_design_invariants.md):
-    // - BID → 1차 disabled + inline "준비 중" 안내.
-    // - ASK 인데 tradeId 결손 → disabled + inline 결함 안내. 백엔드 모니터링 대상.
-    final String? helperText = !isAsk
-        ? '매수 호가 상세는 준비 중입니다'
-        : (clickable ? null : '판매글 정보를 불러올 수 없습니다');
+    // - ASK → tradeId 결손 시 disabled + inline 결함 안내.
+    // - BID → 본인 호가는 disabled + "본인 구매 호가에는 채팅을 시작할 수 없어요" 안내.
+    //          buyOrderId 결손 시 결함 안내. clickable 일 땐 helperText null.
+    final String? helperText;
+    if (isAsk) {
+      helperText = clickable ? null : '판매글 정보를 불러올 수 없습니다';
+    } else if (isOwnBuyOrder) {
+      helperText = '본인 구매 호가에는 채팅을 시작할 수 없어요';
+    } else if (buyOrderId == null || buyOrderId.isEmpty) {
+      helperText = '구매 호가 정보를 불러올 수 없습니다';
+    } else {
+      helperText = null;
+    }
 
     final Color nameColor = clickable ? AppColors.textPrimary : AppColors.textMuted;
     final Color memoColor = clickable ? AppColors.textSecondary : AppColors.textMuted;
@@ -440,9 +466,10 @@ class _ListingTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
-          final id = tradeId; // clickable 가드로 non-null 보장.
-          // Phase 1 hotfix#7: sheet 는 tradeId 만 반환. parent 가 await 결과 받아서
-          // 단일 push (route stack 정합성). 콜백 + delay 우회 패턴 폐기.
+          // ASK = tradeId / BID = buyOrderId. clickable 가드로 non-null 보장.
+          // Phase 1 hotfix#7: sheet 는 listingId 만 반환 (단일 push 정합성).
+          // 호출자가 side 로 분기 (ASK→/trades/:id, BID→/api/chat/rooms/from-buy-order).
+          final id = isAsk ? tradeId : buyOrderId;
           Navigator.of(context).pop(id);
         },
         child: tile,

@@ -19,6 +19,7 @@ import '../../core/utils/price_display_policy.dart';
 import '../../core/utils/price_label.dart';
 import 'hoga/hoga_board.dart';
 import 'hoga/hoga_row_detail_sheet.dart';
+import 'hoga/models/hoga_board_model.dart' show HogaSide;
 import '../../core/widgets/app_info_toast.dart';
 
 class CardDetailScreen extends StatefulWidget {
@@ -68,6 +69,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   bool _pendingOrdersLoading = false;
   String _selectedMarket = 'KO';
   String _selectedGlobalGrade = 'RAW';
+  // 2026-05-28 BUY chat — hoga BID 클릭 시 본인 호가 self-chat 차단 UX 가드.
+  // initState 직후 fetch. 실패 시 null 유지 → 백엔드 IllegalState 가 최종 안전망.
+  String? _myUserId;
 
   static const _tutorialKey = 'tutorial_card_detail_seen';
   static const _storage = FlutterSecureStorage();
@@ -96,7 +100,20 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       initialIndex: 0,
     );
     _loadData();
+    _loadMyUserId();
     _maybeShowCoachMark();
+  }
+
+  /// 2026-05-28 BUY chat — hoga BID row 클릭 시 self-chat 차단 UI 가드용. 실패 silent.
+  Future<void> _loadMyUserId() async {
+    try {
+      final res = await ApiClient.get('/api/users/me');
+      final id = (res['data'] as Map?)?['userId'] as String?;
+      if (!mounted) return;
+      setState(() => _myUserId = id);
+    } catch (_) {
+      // silent — 백엔드 IllegalState 가 최종 안전망.
+    }
   }
 
   @override
@@ -1771,21 +1788,46 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 }
               },
               onRowTap: (price, side, status, grade) async {
-                // Phase 1 hotfix#7: sheet 가 tradeId 반환 → sheet 닫힘 보장 후 parent 가
-                // 단일 push. delay/콜백 우회 패턴 폐기 — route stack 정합성 보장.
-                // trade_detail 에서 status 변경/삭제 시 pop(true) 받아서 hoga 즉시 갱신.
-                final tradeId = await HogaRowDetailSheet.show(
+                // sheet 가 ASK→tradeId / BID→buyOrderId 반환 → 호출자 분기.
+                // Phase 1 hotfix#7: sheet 닫힘 보장 후 parent 가 단일 push (route stack 정합성).
+                final listingId = await HogaRowDetailSheet.show(
                   context,
                   cardId: widget.cardId,
                   status: status,
                   grade: grade,
                   side: side,
                   price: price,
+                  myUserId: _myUserId,
                 );
-                if (tradeId == null || !context.mounted) return;
-                final changed = await context.push<bool>('/trades/$tradeId');
-                if (changed == true && context.mounted) {
-                  await _refreshAfterOrderMutation();
+                if (listingId == null || !context.mounted) return;
+
+                if (side == HogaSide.ask) {
+                  // 기존 ASK 경로 — trade_detail 진입. status 변경/삭제 시 pop(true)로 hoga 갱신.
+                  final changed = await context.push<bool>('/trades/$listingId');
+                  if (changed == true && context.mounted) {
+                    await _refreshAfterOrderMutation();
+                  }
+                } else {
+                  // 2026-05-28: BID 경로 — BuyOrder 양방향 채팅 신규 진입.
+                  // self-chat 가드는 sheet UI + 백엔드 양쪽. 호출 실패 시 toast.
+                  try {
+                    final res = await ApiClient.post(
+                      '/api/chat/rooms/from-buy-order',
+                      {'buyOrderId': listingId},
+                    );
+                    final room = (res['data'] as Map?)?.cast<String, dynamic>();
+                    if (room == null || !context.mounted) return;
+                    await context.push('/chat/${room['chatRoomId']}', extra: room);
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('채팅을 시작할 수 없어요: ${e.toString()}'),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  }
                 }
               },
               // 등록 CTA 는 CardDetailScreen 하단 sticky footer [판매하기][구매하기] 담당

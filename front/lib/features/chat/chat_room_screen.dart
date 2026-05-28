@@ -635,13 +635,23 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Widget _buildTradeBanner() {
     // Bundle 2-A: 거래 미니카드 — 카드 master 이미지 + 카드명/가격 + 상태 chip + 탭→거래 상세.
     // 사용자 업로드 trade 사진(AuthImage)은 거래 상세에서만, 미니카드는 카드 master 일관성.
+    // 2026-05-28 BUY chat: contextType ('SALE'/'BUY') 으로 라벨 chip + 상태 매핑 분기.
+    final contextType =
+        (widget.roomInfo['contextType'] as String?) ?? 'SALE';
+    final isBuy = contextType == 'BUY';
+
     final tradeTitle = (widget.roomInfo['tradeTitle'] as String?) ?? '';
     final cardImageUrl = widget.roomInfo['cardImageUrl'] as String?;
     // Bundle 2-D hotfix: _trade 우선 (최신 status) / 없으면 진입 시점 snapshot.
-    final tradeStatus = (_trade?['status'] as String?) ??
-        (widget.roomInfo['tradeStatus'] as String?);
-    final tradePrice = (_trade?['price'] as num?)?.toInt() ??
-        (widget.roomInfo['tradePrice'] as num?)?.toInt();
+    // BUY chat 은 _trade fetch X (sale_listing_id null) — roomInfo snapshot 만 신뢰.
+    final tradeStatus = isBuy
+        ? (widget.roomInfo['tradeStatus'] as String?)
+        : ((_trade?['status'] as String?) ??
+            (widget.roomInfo['tradeStatus'] as String?));
+    final tradePrice = isBuy
+        ? (widget.roomInfo['tradePrice'] as num?)?.toInt()
+        : ((_trade?['price'] as num?)?.toInt() ??
+            (widget.roomInfo['tradePrice'] as num?)?.toInt());
     final saleListingId = widget.roomInfo['saleListingId'] as String?;
 
     // 거래/카드 정보 모두 없으면 배너 hide (stale-safe).
@@ -650,7 +660,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
 
     return InkWell(
-      onTap: saleListingId == null
+      // SALE: 거래글 상세 진입. BUY: 현재는 BuyOrder 상세 화면 없음 → 비활성 (Codex K, 다음 cycle).
+      onTap: (isBuy || saleListingId == null)
           ? null
           : () => context.push('/trades/$saleListingId'),
       child: Container(
@@ -670,20 +681,34 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    tradeTitle.isEmpty ? '거래 정보' : tradeTitle,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  // 라벨 chip [판매]/[구매] — 호가 색 정책 (ASK=파랑, BID=빨강).
+                  // 글 타입 기준 (사용자 명시) — "내 입장" 아님.
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildContextLabelChip(isBuy: isBuy),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          tradeTitle.isEmpty ? '거래 정보' : tradeTitle,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                   if (tradePrice != null) ...[
                     const SizedBox(height: 4),
                     Text(
-                      '${_formatPrice(tradePrice)}원',
+                      // BUY 면 "희망가", SALE 면 "판매가" — 문맥 명확화.
+                      isBuy
+                          ? '희망가 ${_formatPrice(tradePrice)}원'
+                          : '${_formatPrice(tradePrice)}원',
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
@@ -695,8 +720,63 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            if (tradeStatus != null) _buildTradeStatusChip(tradeStatus),
+            if (tradeStatus != null)
+              isBuy
+                  ? _buildBuyOrderStatusChip(tradeStatus)
+                  : _buildTradeStatusChip(tradeStatus),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// 2026-05-28: 채팅방 라벨 chip — 글 타입 기준 [판매]/[구매].
+  /// 호가 색 정책 (feedback_color_policy + feedback_hoga_design_invariants):
+  ///  - ASK(판매) = 파랑 / BID(구매) = 빨강. 옅은 톤으로 chip background.
+  Widget _buildContextLabelChip({required bool isBuy}) {
+    final color = isBuy ? AppColors.red : AppColors.blue;
+    final label = isBuy ? '구매' : '판매';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+
+  /// 2026-05-28: BuyOrder 상태 chip — OPEN/MATCHED/CANCELED 매핑.
+  /// _buildTradeStatusChip 의 BuyOrder 버전 (TradePost 와 도메인 다름).
+  Widget _buildBuyOrderStatusChip(String status) {
+    final (label, color) = switch (status) {
+      'OPEN' => ('구매중', AppColors.green),
+      'MATCHED' => ('매칭 완료', AppColors.textMuted),
+      'CANCELED' => ('취소됨', AppColors.textMuted),
+      _ => ('상태 확인', AppColors.textMuted),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
