@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface TradePostRepository extends JpaRepository<TradePost, String> {
@@ -32,6 +33,16 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
 
     /** 계정 탈퇴 시 OPEN/RESERVED 일괄 처리용 (paged X). */
     List<TradePost> findBySellerIdAndStatusIn(String sellerId, List<String> statuses);
+
+    /**
+     * 거래 리스트 row engagement 카운트 (Phase 1) — 카드별 활성(OPEN/RESERVED) 매도 호가 수 batch.
+     * 결과: List<Object[]> = (cardId, count). 빈 카드는 결과에 없음(0으로 처리).
+     * COMPLETED/DELETED는 제외 — TradeServiceImpl 활성 집합 정책과 일치.
+     */
+    @Query("SELECT t.cardId, COUNT(t) FROM TradePost t " +
+            "WHERE t.cardId IN :cardIds AND t.status IN ('OPEN', 'RESERVED') " +
+            "GROUP BY t.cardId")
+    List<Object[]> countActiveByCardIds(@Param("cardIds") Collection<String> cardIds);
 
     /** 카드 상세 "대기 중인 주문" — 내 판매글을 카드별 필터 (Phase 1). */
     Page<TradePost> findBySellerIdAndCardIdAndStatusOrderByCreatedAtDesc(

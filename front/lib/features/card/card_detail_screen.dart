@@ -3926,12 +3926,23 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   }
 
   void _onBuyTap() {
-    // 거래 탭 이동 + 매수 호가 등록 sheet 자동 오픈.
-    if (_tabController.index != 1) {
+    // P0-B 진입 UX 분기 (기존 컴포넌트 재활용, 새 화면 X):
+    // - 매도 호가 ≥ 1 AND 시세/자산 탭에 있음 → 거래 탭으로 자동 전환 + 안내 banner.
+    //   사용자가 호가창 ASK 둘러보고 마음에 들면 row tap → trade detail.
+    //   없으면 다시 [구매하기] 누르면(이때는 거래 탭에 이미 있음) 등록 sheet 직접 띄움.
+    // - 매도 호가 0 OR 이미 거래 탭에 있음 → 기존 흐름: 거래 탭 + 등록 sheet 직접.
+    final ask = _hogaAskCount ?? _listings.length;
+    final isOnTradeTab = _tabController.index == 1;
+
+    if (ask >= 1 && !isOnTradeTab) {
+      _tabController.animateTo(1);
+      _showSuccessBanner('현재 판매글 $ask건 — 마음에 들면 호가를 탭하세요. 원하는 가격이 없으면 [구매하기]를 다시 눌러 매수 호가 등록');
+      return;
+    }
+    // 매물 0건 또는 사용자가 두 번째 클릭 (거래 탭 이미 본 상태) → 등록 sheet 진입.
+    if (!isOnTradeTab) {
       _tabController.animateTo(1);
     }
-    // 탭 전환 직후 시트는 mount/컨텍스트 타이밍이 애매 → 프레임 이후 열기 (Codex 권장).
-    // refreshKey 증분은 _showBuyOrderRegisterSheet 내부 result == true 분기에서 처리.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _showBuyOrderRegisterSheet();

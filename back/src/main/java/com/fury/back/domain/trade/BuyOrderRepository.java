@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,6 +16,15 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
     /** 카드별 OPEN 매수 호가 — bid 높은 순 (호가창용) */
     @Query("SELECT bo FROM BuyOrder bo WHERE bo.cardId = :cardId AND bo.status = 'OPEN' ORDER BY bo.bidPrice DESC, bo.createdAt ASC")
     List<BuyOrder> findOpenByCardIdOrderByBidPriceDesc(@Param("cardId") String cardId);
+
+    /**
+     * 거래 리스트 row engagement 카운트 (Phase 1) — 카드별 OPEN 매수 호가 수 batch.
+     * 결과: List<Object[]> = (cardId, count).
+     */
+    @Query("SELECT bo.cardId, COUNT(bo) FROM BuyOrder bo " +
+            "WHERE bo.cardId IN :cardIds AND bo.status = 'OPEN' " +
+            "GROUP BY bo.cardId")
+    List<Object[]> countOpenByCardIds(@Param("cardIds") Collection<String> cardIds);
 
     /**
      * 호가창 매수 group-by. 같은 cardStatus + grading 필터 + 동일 가격끼리 묶어 count.

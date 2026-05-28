@@ -49,6 +49,14 @@ public class CardDto {
     // 가격값과 무관한 display-layer 필드. 화면에 보이는 KO 가격 분기(isPromoExclusive)와 일치.
     private String koPriceLabelType;
 
+    // 거래 리스트 row 표시용 engagement 카운트 (Phase 1). null 가능 — list/ranking 응답에서만 enrich.
+    // activeSellCount = TradePost WHERE status IN (OPEN, RESERVED) — 거래 가능 매도 호가 수.
+    // activeBuyCount = BuyOrder WHERE status = OPEN — 활성 매수 호가 수.
+    // interestCount = CardInterest count — 관심(찜) 표시 수.
+    private Integer activeSellCount;
+    private Integer activeBuyCount;
+    private Integer interestCount;
+
     public static CardDto from(Card card) {
         return CardDto.builder()
                 .cardId(card.getCardId())

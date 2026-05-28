@@ -439,49 +439,92 @@ class _TradeListScreenState extends State<TradeListScreen> {
               ),
             ),
             const SizedBox(width: 14),
-            // 카드명(위) + 가격·변동률(아래) 토스 종목 row 패턴
+            // 카드명+rarity(위) → 가격·변동률(중간) → 거래 시그널(아래) 3행 패턴.
+            // Phase 1: rarity badge + 매도/매수/관심 카운트. count는 null-safe(0).
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(
-                        price != null ? AppColors.formatPrice(price) : '시세 없음',
-                        style: TextStyle(
-                          color: price != null
-                              ? AppColors.textSecondary
-                              : AppColors.textMuted,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+              child: Builder(builder: (_) {
+                final rarityCode = (card['rarityCode'] as String?) ?? '';
+                final sell = (card['activeSellCount'] as num?)?.toInt() ?? 0;
+                final buy = (card['activeBuyCount'] as num?)?.toInt() ?? 0;
+                final interest = (card['interestCount'] as num?)?.toInt() ?? 0;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        pctLabel,
-                        style: TextStyle(
-                          color: pctColor,
-                          fontSize: 13,
+                        if (rarityCode.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          _rarityPill(rarityCode),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          price != null ? AppColors.formatPrice(price) : '시세 없음',
+                          style: TextStyle(
+                            color: price != null
+                                ? AppColors.textSecondary
+                                : AppColors.textMuted,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          pctLabel,
+                          style: TextStyle(
+                            color: pctColor,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    // 거래 시그널 — 색 정책: 매도=blue(호가창 ASK 컨벤션), 매수=red(BID), 관심=neutral.
+                    Text.rich(
+                      TextSpan(
+                        style: const TextStyle(
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
+                        children: [
+                          TextSpan(
+                            text: '매도 $sell',
+                            style: const TextStyle(color: AppColors.blue),
+                          ),
+                          const TextSpan(text: '  ·  ', style: TextStyle(color: AppColors.textMuted)),
+                          TextSpan(
+                            text: '매수 $buy',
+                            style: const TextStyle(color: AppColors.red),
+                          ),
+                          const TextSpan(text: '  ·  ', style: TextStyle(color: AppColors.textMuted)),
+                          TextSpan(
+                            text: '관심 $interest',
+                            style: const TextStyle(color: AppColors.textSecondary),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                );
+              }),
             ),
             // 하트 — 카드 단위 찜 토글
             GestureDetector(
@@ -501,6 +544,25 @@ class _TradeListScreenState extends State<TradeListScreen> {
       ),
     );
   }
+
+  /// rarity 작은 회색 pill — name 옆 짧은 badge (과하지 않게).
+  Widget _rarityPill(String code) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: AppColors.divider, width: 0.5),
+        ),
+        child: Text(
+          code,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
+          ),
+        ),
+      );
 
   /// 풀스크린 검색 모달 push — 화면 전환 애니메이션이 iOS 키보드 cold-start lag을 가려줌.
   void _openSearch() {
