@@ -2800,9 +2800,56 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     );
   }
 
+  // 차트 탭이 보여줄 실제 데이터 보유 여부 (보수적 — backend가 NONE 명시 또는 모든 line
+  // 비었을 때만 false). flat-line 자체로 판정하지 않음 — 실제 저거래 카드가 우연히 평탄해도
+  // 가짜로 오판하면 안 되기 때문 (사용자 지시).
+  bool _hasAnyChartData(Map<String, dynamic>? chart) {
+    if (chart == null) return false;
+    if (chart['chartType'] == 'NONE') return false;
+    bool any(String key) {
+      final list = chart[key] as List?;
+      return list != null && list.isNotEmpty;
+    }
+    return any('line') ||
+        any('points') ||
+        any('psa10Line') ||
+        any('psa9Line');
+  }
+
+  // 노출할 마켓 탭 목록.
+  // - KO: koPriceLabelType == OVERSEAS_REF면 hide (해외 참고가 칩과 정합성 — 합성 flat line으로
+  //   "KO 흐름이 있는 것처럼" 보이는 오해 차단). 그 외 카드는 항상 KO 유지.
+  // - JP/EN: 진짜 데이터 없으면 hide (chartType=NONE 또는 모든 line 비어있음).
+  // - 모두 빈 케이스 fallback = KO 유지 (차트 영역에 빈 상태라도 표시 위해).
+  List<String> _availableMarkets() {
+    final charts = _priceSummary?['charts'] as Map<String, dynamic>?;
+    final isOverseasRef =
+        (_priceSummary?['ko']?['koPriceLabelType'] as String?) ==
+            'OVERSEAS_REF';
+
+    final list = <String>[];
+    if (!isOverseasRef) list.add('KO');
+    if (_hasAnyChartData(charts?['jp'] as Map<String, dynamic>?)) list.add('JP');
+    if (_hasAnyChartData(charts?['en'] as Map<String, dynamic>?)) list.add('EN');
+    if (list.isEmpty) list.add('KO');
+    return list;
+  }
+
   Widget _buildMarketTabs() {
+    final available = _availableMarkets();
+    // _selectedMarket이 available에 없으면 다음 frame에 자동 전환.
+    // OVERSEAS_REF 카드는 초기 'KO' → 'JP'(또는 'EN')로 1프레임 내 보정.
+    if (!available.contains(_selectedMarket)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final latest = _availableMarkets();
+        if (!latest.contains(_selectedMarket)) {
+          setState(() => _selectedMarket = latest.first);
+        }
+      });
+    }
     return Row(
-      children: ['KO', 'JP', 'EN'].map((market) {
+      children: available.map((market) {
         final selected = _selectedMarket == market;
         return GestureDetector(
           onTap: () {
