@@ -79,6 +79,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     _localAsset = widget.myAsset != null
         ? Map<String, dynamic>.from(widget.myAsset!)
         : null;
+    // 자산에서 카드 상세 진입 시 — 사용자가 보유한 발매판(asset.language)을 default 시세 탭으로 보정.
+    // JP/EN 카드를 한국판 KO 시세부터 보여주면 "한국판 예상가" chip이 먼저 보여 혼동
+    // (사용자는 자신이 보유한 발매판 가격을 기대). 거래 탭/검색에서 진입한 일반 카드 상세는
+    // widget.myAsset가 null이라 기존 KO default 유지.
+    final assetLang =
+        (widget.myAsset?['language'] as String?)?.toUpperCase();
+    if (assetLang == 'JP' || assetLang == 'EN') {
+      _selectedMarket = assetLang!;
+    }
     // 탭 순서 = [시세, 거래, 내 자산]. 기본 진입 = 시세 (index 0).
     // 사용자 흐름: "얼마야 → 사고팔 수 있어 → 내 거/주문은" (feedback_hoga_design_invariants.md 가드레일 8).
     _tabController = TabController(
@@ -2540,6 +2549,21 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     ],
                   );
                 }),
+                // 한국판 예상가 안내문 — ESTIMATED 라벨일 때만 표시.
+                // OVERSEAS_REF / 시세 준비중은 chip 자체로 명확해 안내문 미표시.
+                // 자산 JP/EN 보유자가 진입한 경우 default tab을 JP/EN으로 보정(initState)하지만,
+                // 사용자가 KO 탭으로 직접 전환했을 때 발매판/이미지 fallback 모호성을 해소.
+                if (priceLabelText == '한국판 예상가') ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    PriceLabel.estimatedDisclaimer,
+                    style: TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 11,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 _buildKoBasisRow(ko),
                 const SizedBox(height: 12),

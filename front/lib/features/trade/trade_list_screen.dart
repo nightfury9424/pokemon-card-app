@@ -387,7 +387,8 @@ class _TradeListScreenState extends State<TradeListScreen> {
       // 시트 하단(PR 안내문/마지막 옵션)을 가리는 문제 방지 — root navigator로 push.
       useRootNavigator: true,
       backgroundColor: AppColors.surfaceCard,
-      isScrollControlled: false,
+      // default 50% height 제한 풀어서 14개 옵션 + PR 안내문이 한 화면에 다 보이게.
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
