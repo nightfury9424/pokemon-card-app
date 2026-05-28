@@ -32,6 +32,9 @@ class _TradeListScreenState extends State<TradeListScreen> {
   // 4차-Round4-4 Phase 3 (재설계): 거래 탭 메인 = 카드 list (종목 list 패턴)
   List<Map<String, dynamic>> _marketCards = [];
   int _sortTab = 0; // 0=시세 1=인기 2=급상승 3=급하락
+  // 시세 탭(_sortTab == 0) 한정 등급별 필터 — null = 전체.
+  // 다른 탭으로 이동해도 값은 유지 (시세 복귀 시 자동 재적용); chip 자체는 시세에서만 노출.
+  String? _selectedRarity;
   bool _loadingMarket = false;
   bool _loading = true;
   int _page = 0;
@@ -77,9 +80,12 @@ class _TradeListScreenState extends State<TradeListScreen> {
         final list = await ApiClient.getList('/api/cards/market/top-losers', params: {'size': 50});
         result = list.whereType<Map>().map((c) => Map<String, dynamic>.from(c)).toList();
       } else {
-        // _sortTab == 0 (시세): 가격순 paginated
+        // _sortTab == 0 (시세): 가격순 paginated + 등급별 필터 (단일 선택)
+        // _selectedRarity == null 이면 전체 rarity (현행 default 그대로 유지).
+        final rarities = _selectedRarity ??
+            'SSR,SAR,CSR,SR,UR,CHR,RR,RRR,HR,AR,BWR,MA,MUR,PR';
         final res = await ApiClient.get('/api/cards/market', params: {
-          'rarities': 'SSR,SAR,CSR,SR,UR,CHR,RR,RRR,HR,AR,BWR,MA,MUR,PR',
+          'rarities': rarities,
           'sortBy': 'price',
           'sortDir': 'desc',
           'page': 0,
@@ -269,7 +275,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
     );
   }
 
-  // 정렬 sub-tab (시세/인기/급상승/급하락)
+  // 정렬 sub-tab (시세/인기/급상승/급하락) + 시세 탭에서만 등급별 dropdown chip
   Widget _buildSortTabs() {
     final tabs = ['시세', '인기', '급상승', '급하락'];
     return Container(
@@ -277,35 +283,161 @@ class _TradeListScreenState extends State<TradeListScreen> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
-          children: List.generate(tabs.length, (i) {
-            final sel = _sortTab == i;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: () {
-                  setState(() => _sortTab = i);
-                  _loadMarketCards();
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: sel ? AppColors.blue : AppColors.surface,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
-                  ),
-                  child: Text(
-                    tabs[i],
-                    style: TextStyle(
-                      color: sel ? Colors.white : AppColors.textSecondary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+          children: [
+            ...List.generate(tabs.length, (i) {
+              final sel = _sortTab == i;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _sortTab = i);
+                    _loadMarketCards();
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: sel ? AppColors.blue : AppColors.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
+                    ),
+                    child: Text(
+                      tabs[i],
+                      style: TextStyle(
+                        color: sel ? Colors.white : AppColors.textSecondary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
+              );
+            }),
+            // 시세 탭 한정 — 가격 정렬(_sortTab==0)일 때만 노출.
+            // 인기/급상승/급하락은 endpoint 자체가 rarities param 미지원 → A안 (시세 전용).
+            if (_sortTab == 0) _buildRarityChip(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 등급별 dropdown chip — 시세 탭에서만 노출.
+  /// 선택 상태(`_selectedRarity != null`)면 chip이 파란색 active + label에 등급 코드 표시.
+  Widget _buildRarityChip() {
+    final selected = _selectedRarity != null;
+    final label = _selectedRarity ?? '등급별';
+    return GestureDetector(
+      onTap: _showRarityPicker,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.fromLTRB(14, 7, 10, 7),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.blue : AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? AppColors.blue : AppColors.divider),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : AppColors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
               ),
-            );
-          }),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              Icons.expand_more_rounded,
+              size: 16,
+              color: selected ? Colors.white : AppColors.textSecondary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 등급별 picker bottom sheet — 단일 선택, '전체' 항목으로 reset.
+  /// 옵션은 DB rarity 분포 + 사용자 합의 list (C/U/R 삭제됨 → 고레어만).
+  void _showRarityPicker() {
+    const rarityOptions = ['SAR', 'SSR', 'SR', 'CHR', 'CSR', 'UR', 'HR', 'AR', 'MA', 'PR'];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      isScrollControlled: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // grab handle
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '등급별 필터',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+            _rarityPickerTile(sheetCtx, label: '전체', value: null),
+            ...rarityOptions.map(
+              (r) => _rarityPickerTile(sheetCtx, label: r, value: r),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 등급 항목 1개 — 선택 중이면 체크 아이콘.
+  Widget _rarityPickerTile(BuildContext sheetCtx, {required String label, required String? value}) {
+    final isSelected = _selectedRarity == value;
+    return InkWell(
+      onTap: () {
+        Navigator.pop(sheetCtx);
+        if (_selectedRarity != value) {
+          setState(() => _selectedRarity = value);
+          _loadMarketCards();
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? AppColors.blueLight : AppColors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.check_rounded, color: AppColors.blueLight, size: 20),
+          ],
         ),
       ),
     );
@@ -337,7 +469,15 @@ class _TradeListScreenState extends State<TradeListScreen> {
   }
 
   /// 빈 상태 — 마켓 비어있음일 때만 (검색은 풀스크린 분리됨).
+  /// 시세 탭에서 등급별 필터가 켜진 채 결과 0개면 안내 문구를 다르게 표시.
   Widget _buildEmptyMarketState() {
+    final isRarityFiltered = _sortTab == 0 && _selectedRarity != null;
+    final title = isRarityFiltered
+        ? '"${_selectedRarity!}" 등급 카드가 없습니다'
+        : '카드가 없습니다';
+    final subtitle = isRarityFiltered
+        ? '등급별 필터를 해제하거나 다른 등급을 선택해 보세요'
+        : '우상단 돋보기를 눌러 카드를 검색해 보세요';
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -350,24 +490,41 @@ class _TradeListScreenState extends State<TradeListScreen> {
               size: 48,
             ),
             const SizedBox(height: 14),
-            const Text(
-              '카드가 없습니다',
-              style: TextStyle(
+            Text(
+              title,
+              style: const TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              '우상단 돋보기를 눌러 카드를 검색해 보세요',
+            Text(
+              subtitle,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.textMuted,
                 fontSize: 12,
                 height: 1.5,
               ),
             ),
+            if (isRarityFiltered) ...[
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  setState(() => _selectedRarity = null);
+                  _loadMarketCards();
+                },
+                child: const Text(
+                  '전체로 보기',
+                  style: TextStyle(
+                    color: AppColors.blueLight,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
