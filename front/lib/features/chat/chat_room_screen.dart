@@ -63,6 +63,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     return _myUserId != null && sellerId != null && _myUserId == sellerId;
   }
 
+  /// 2026-05-29: BUY chat 에서 BuyOrder 작성자 본인 여부 — chip 클릭으로 상태 변경 가능한 권한 분기.
+  /// ChatRoomDto.buyerUserId (BUY chat 에선 BuyOrder.buyerId) == _myUserId.
+  bool get _isBuyOrderOwner {
+    final contextType = widget.roomInfo['contextType'] as String?;
+    if (contextType != 'BUY') return false;
+    final buyerId = widget.roomInfo['buyerUserId'] as String?;
+    return _myUserId != null && buyerId != null && _myUserId == buyerId;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -209,7 +218,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 // Phase 1B: SYSTEM 메시지 중 차단 안내가 올 수 있으므로 conversation-state 재조회 →
                 // 입력창 즉시 비활성화. 키워드 매칭 대신 항상 재조회 (빈도 낮음).
                 if (msg['messageType'] == 'SYSTEM') {
+                  // SALE chat 은 _refreshTradeStatus (saleListingId null 가드로 silent skip).
+                  // BUY chat 은 _refreshBuyOrderStatus — chip status 갱신 (Codex E).
                   _refreshTradeStatus();
+                  if (widget.roomInfo['contextType'] == 'BUY') {
+                    _refreshBuyOrderStatus();
+                  }
                   _loadConversationState();
                   ChatUnreadNotifier.instance.notifyChanged();
                 }
@@ -909,7 +923,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   /// 2026-05-28: BuyOrder 상태 chip — OPEN/MATCHED/CANCELED 매핑.
-  /// _buildTradeStatusChip 의 BuyOrder 버전 (TradePost 와 도메인 다름).
+  /// 2026-05-29: BuyOrder 작성자 본인 + OPEN 일 때만 chevron + 클릭 → 상태 변경 sheet.
+  ///   _buildTradeStatusChip (SALE) pattern mirror. BuyOrder 도메인은 종결 비가역 (Codex G).
   Widget _buildBuyOrderStatusChip(String status) {
     final (label, color) = switch (status) {
       'OPEN' => ('구매중', AppColors.green),
@@ -917,22 +932,199 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       'CANCELED' => ('취소됨', AppColors.textMuted),
       _ => ('상태 확인', AppColors.textMuted),
     };
-    return Container(
+    // BuyOrder 작성자 본인 + OPEN 일 때만 변경 가능 (MATCHED/CANCELED 종결 비가역).
+    final canChange = _isBuyOrderOwner && status == 'OPEN';
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
+      child: canChange
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 14,
+                  color: color,
+                ),
+              ],
+            )
+          : Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+    );
+    if (canChange) {
+      return GestureDetector(
+        onTap: _showBuyOrderStatusSheet,
+        behavior: HitTestBehavior.opaque,
+        child: chip,
+      );
+    }
+    return chip;
+  }
+
+  /// 2026-05-29: BuyOrder 상태 변경 sheet — 작성자 본인이 OPEN 일 때만 호출.
+  /// 옵션 2개: 취소(CANCELED) / 매칭 완료(MATCHED). 둘 다 비가역 — confirm dialog 필수 (Codex G).
+  Future<void> _showBuyOrderStatusSheet() async {
+    final buyOrderId = widget.roomInfo['buyOrderId'] as String?;
+    if (buyOrderId == null || buyOrderId.isEmpty) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '구매 호가 상태 변경',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text(
+                '한 번 변경하면 되돌릴 수 없어요.',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.check_circle_outline,
+                  color: AppColors.green),
+              title: const Text('매칭 완료',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700)),
+              subtitle: const Text('이 채팅 상대와 거래가 성사됐어요.',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+              onTap: () => Navigator.pop(sheetCtx, 'MATCHED'),
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.cancel_outlined, color: AppColors.red),
+              title: const Text('구매 호가 취소',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700)),
+              subtitle: const Text('호가창에서 내 구매 호가를 내릴게요.',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+              onTap: () => Navigator.pop(sheetCtx, 'CANCELED'),
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );
+    if (action == null || !mounted) return;
+    // 비가역 confirm — AppConfirmDialog 패턴 일관.
+    final label = action == 'MATCHED' ? '매칭 완료' : '구매 호가 취소';
+    final confirmed = await AppConfirmDialog.show(
+      context,
+      title: '$label 처리할까요?',
+      message: '한 번 처리하면 되돌릴 수 없어요.',
+      confirmLabel: '$label 처리',
+      destructive: action == 'CANCELED',
+    );
+    if (confirmed != true || !mounted) return;
+    await _updateBuyOrderStatus(action, buyOrderId);
+  }
+
+  /// 2026-05-29: BuyOrder 상태 변경 API 호출 + 토스트.
+  /// MATCHED: POST /api/buy-orders/{id}/match (tradeId optional, MVP는 body 빈 객체).
+  /// CANCELED: DELETE /api/buy-orders/{id}.
+  /// 백엔드 broadcastBuyOrderStatusChanged 가 STOMP SYSTEM fan-out — chip 자동 갱신 (Codex E).
+  Future<void> _updateBuyOrderStatus(String newStatus, String buyOrderId) async {
+    try {
+      if (newStatus == 'MATCHED') {
+        await ApiClient.post('/api/buy-orders/$buyOrderId/match', {});
+      } else if (newStatus == 'CANCELED') {
+        await ApiClient.delete('/api/buy-orders/$buyOrderId');
+      }
+      if (!mounted) return;
+      AppSuccessToast.show(
+          context,
+          newStatus == 'MATCHED'
+              ? '매칭 완료로 처리됐어요'
+              : '구매 호가가 취소됐어요');
+      // 즉시 chip 갱신 — SYSTEM broadcast 도착 전에도 UI 반영.
+      await _refreshBuyOrderStatus(newStatus);
+    } catch (e) {
+      if (!mounted) return;
+      AppErrorToast.show(context, '상태 변경에 실패했어요. 다시 시도해주세요.');
+    }
+  }
+
+  /// 2026-05-29: BUY chat 의 chip status 갱신.
+  /// _refreshTradeStatus 의 BuyOrder 버전 — saleListingId null 가드로 SALE 패턴이
+  /// silent return 하므로 BUY 는 별도 메서드. SYSTEM 수신 시 + 본인 변경 직후 호출.
+  Future<void> _refreshBuyOrderStatus([String? optimisticStatus]) async {
+    if (!mounted) return;
+    // optimistic = 본인 변경 직후 STOMP echo 대기 X. roomInfo 직접 patch + setState.
+    if (optimisticStatus != null) {
+      setState(() {
+        widget.roomInfo['tradeStatus'] = optimisticStatus;
+      });
+      return;
+    }
+    // STOMP SYSTEM 수신 시 — 백엔드 fetch 로 truth 동기화. /api/chat/rooms 에서 내 방 찾아 merge.
+    try {
+      final res = await ApiClient.get('/api/chat/rooms');
+      final list = (res['data'] as List?) ?? const [];
+      final me = list
+          .whereType<Map>()
+          .firstWhere(
+              (r) => r['chatRoomId'] == widget.roomId,
+              orElse: () => const {})
+          .cast<String, dynamic>();
+      final newStatus = me['tradeStatus'] as String?;
+      if (newStatus != null && newStatus != widget.roomInfo['tradeStatus']) {
+        if (!mounted) return;
+        setState(() {
+          widget.roomInfo['tradeStatus'] = newStatus;
+        });
+      }
+    } catch (_) {
+      // silent — chip 갱신 실패는 critical 아님.
+    }
   }
 
   /// Bundle 2-A: 거래 상태 chip. 양 빨강/음 파랑 정책 회피.

@@ -40,6 +40,17 @@ public class ChatRoomDto {
     private String otherUserId;
     private String otherUserNickname;
     private String otherUserProfileImageUrl;
+
+    /**
+     * 2026-05-29: 프론트에서 BUY chat 의 BuyOrder owner 판정용.
+     * SALE: TradePost.sellerId. BUY: 채팅 시작자(잠재 판매자).
+     */
+    private String sellerUserId;
+    /**
+     * 2026-05-29: 프론트에서 SALE chat 의 buyer 판정용 (이전엔 _trade fetch 후 sellerId 비교만).
+     * SALE: 채팅 시작자(구매 의향). BUY: BuyOrder.buyerId(작성자) — status 변경 권한자.
+     */
+    private String buyerUserId;
     private String lastMessage;
     private LocalDateTime lastMessageAt;
     private long unreadCount;
@@ -80,6 +91,8 @@ public class ChatRoomDto {
                 .otherUserId(otherUserId)
                 .otherUserNickname(otherNickname)
                 .otherUserProfileImageUrl(otherProfileUrl)
+                .sellerUserId(room.getSellerUserId())
+                .buyerUserId(room.getBuyerUserId())
                 .lastMessage(room.getLastMessage())
                 .lastMessageAt(room.getLastMessageAt())
                 .unreadCount(unreadCount)
@@ -115,6 +128,8 @@ public class ChatRoomDto {
                 .otherUserId(otherUserId)
                 .otherUserNickname(otherNickname)
                 .otherUserProfileImageUrl(otherProfileUrl)
+                .sellerUserId(room.getSellerUserId())
+                .buyerUserId(room.getBuyerUserId())
                 .lastMessage(room.getLastMessage())
                 .lastMessageAt(room.getLastMessageAt())
                 .unreadCount(unreadCount)
