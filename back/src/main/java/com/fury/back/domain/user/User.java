@@ -41,6 +41,13 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    /**
+     * 계정 탈퇴 시각 (soft delete). null = 활성. App Review 5.1.1 대응.
+     * deletedAt != null 인 계정은 DeletedUserGuardFilter에서 401 차단.
+     */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -50,5 +57,17 @@ public class User {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 탈퇴 처리: PII(nickname/email/profileImageUrl) 마스킹 + deletedAt 설정.
+     * googleId는 유지 — 같은 Google 계정으로 재로그인 시 "탈퇴한 계정" 감지 위함.
+     * 거래/채팅/신고/차단 데이터는 FK 무결성 + 분쟁 증거 보존 위해 별도 보존 (UserService에서 처리).
+     */
+    public void markDeletedAndMask(String maskedNickname) {
+        this.nickname = maskedNickname;
+        this.email = null;
+        this.profileImageUrl = null;
+        this.deletedAt = LocalDateTime.now();
     }
 }

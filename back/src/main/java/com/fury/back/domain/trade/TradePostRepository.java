@@ -30,6 +30,9 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
 
     List<TradePost> findBySellerIdAndStatus(String sellerId, String status);
 
+    /** 계정 탈퇴 시 OPEN/RESERVED 일괄 처리용 (paged X). */
+    List<TradePost> findBySellerIdAndStatusIn(String sellerId, List<String> statuses);
+
     /** 카드 상세 "대기 중인 주문" — 내 판매글을 카드별 필터 (Phase 1). */
     Page<TradePost> findBySellerIdAndCardIdAndStatusOrderByCreatedAtDesc(
             String sellerId, String cardId, String status, Pageable pageable);

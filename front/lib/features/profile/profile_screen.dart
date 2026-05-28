@@ -93,6 +93,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// 계정 탈퇴. App Review 5.1.1 대응. docs/DELETION_POLICY.md 참조.
+  /// 흐름: confirm → DELETE /api/users/me → AuthService.logout → /login redirect.
+  /// 백엔드는 PII 마스킹 + OPEN 매수/매도 자동 취소. 거래/채팅/신고/차단 기록은 보존.
+  Future<void> _deleteAccount() async {
+    final confirm = await AppConfirmDialog.show(
+      context,
+      title: '정말 탈퇴하시겠어요?',
+      message:
+          '거래/채팅 기록은 분쟁 대응을 위해 보존되며 다른 사용자에게는 "탈퇴한 사용자"로 표시됩니다. '
+          '진행 중인 매수/매도 호가는 자동 취소되고, 계정은 복구할 수 없어요.',
+      confirmLabel: '탈퇴하기',
+      destructive: true,
+    );
+    if (confirm != true || !mounted) return;
+    try {
+      final res = await ApiClient.delete('/api/users/me');
+      // 백엔드 envelope 체크 (HTTP 200 + {status:'fail'} 패턴 대응)
+      if (res['status'] != 'success') {
+        if (!mounted) return;
+        AppInfoToast.show(context, res['message']?.toString() ?? '탈퇴 처리에 실패했어요. 잠시 후 다시 시도해주세요.');
+        return;
+      }
+      await AuthService.logout();
+      if (!mounted) return;
+      context.go('/login');
+    } catch (e) {
+      if (!mounted) return;
+      AppInfoToast.show(context, '탈퇴 처리에 실패했어요. 잠시 후 다시 시도해주세요.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -187,7 +218,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             icon: Icons.chat_bubble_outline_rounded,
                             iconColor: AppColors.blueLight,
                             label: '문의하기',
-                            onTap: () => _showComingSoon('문의하기'),
+                            onTap: () => context.push('/support'),
+                          ),
+                          _MenuItem(
+                            icon: Icons.description_outlined,
+                            iconColor: AppColors.textSecondary,
+                            label: '이용약관',
+                            onTap: () => context.push('/legal/terms'),
+                          ),
+                          _MenuItem(
+                            icon: Icons.privacy_tip_outlined,
+                            iconColor: AppColors.textSecondary,
+                            label: '개인정보처리방침',
+                            onTap: () => context.push('/legal/privacy'),
                           ),
                           _MenuItem(
                             icon: Icons.info_outline_rounded,
@@ -205,6 +248,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             label: '로그아웃',
                             labelColor: AppColors.red,
                             onTap: _logout,
+                          ),
+                          _MenuItem(
+                            icon: Icons.delete_forever_outlined,
+                            iconColor: AppColors.red,
+                            label: '계정 삭제',
+                            labelColor: AppColors.red,
+                            onTap: _deleteAccount,
                           ),
                         ]),
                       ],

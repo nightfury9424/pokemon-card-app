@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
@@ -110,7 +111,16 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
     }
   }
 
+  /// 백엔드 envelope의 specific 사유 노출. NicknameValidator의 "닉네임은 2~15자여야 합니다"/
+  /// "사용할 수 없는 닉네임입니다" 등을 사용자에게 그대로 노출. DioException 정공법 + toString fallback.
   String _extractMessage(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map && data['message'] is String) {
+        final msg = (data['message'] as String).trim();
+        if (msg.isNotEmpty) return msg;
+      }
+    }
     final s = e.toString();
     final idx = s.indexOf('"message"');
     if (idx >= 0) {

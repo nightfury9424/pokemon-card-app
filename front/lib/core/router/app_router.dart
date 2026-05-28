@@ -20,6 +20,9 @@ import '../../features/profile/edit_nickname_screen.dart';
 import '../../features/profile/blocked_users_screen.dart';
 import '../../features/chat/chat_screen.dart';
 import '../../features/chat/chat_room_screen.dart';
+import '../../features/legal/terms_of_service_screen.dart';
+import '../../features/legal/privacy_policy_screen.dart';
+import '../../features/legal/customer_support_screen.dart';
 import '../../features/trade/trade_list_screen.dart';
 import '../../features/trade/trade_detail_screen.dart';
 import '../../features/trade/trade_create_screen.dart';
@@ -54,6 +57,9 @@ final appRouter = GoRouter(
     GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
     GoRoute(path: '/profile/edit-nickname', builder: (_, _) => const EditNicknameScreen()),
     GoRoute(path: '/profile/blocked-users', builder: (_, _) => const BlockedUsersScreen()),
+    GoRoute(path: '/legal/terms', builder: (_, _) => const TermsOfServiceScreen()),
+    GoRoute(path: '/legal/privacy', builder: (_, _) => const PrivacyPolicyScreen()),
+    GoRoute(path: '/support', builder: (_, _) => const CustomerSupportScreen()),
     GoRoute(
       path: '/scanner',
       builder: (_, state) {

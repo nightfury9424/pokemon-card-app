@@ -1,7 +1,7 @@
 name: front
 description: "포켓몬 카드 자산관리 앱"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.11.1
@@ -46,6 +46,9 @@ dependencies:
 
   # 카드 이미지 캐싱 — S3 immutable 마스터 이미지 디스크 캐시
   cached_network_image: ^3.4.1
+
+  # mailto 등 외부 URL launcher (고객지원 화면)
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:

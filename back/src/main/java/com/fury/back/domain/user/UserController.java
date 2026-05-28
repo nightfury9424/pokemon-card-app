@@ -25,6 +25,16 @@ public class UserController {
 
     private final UserRepository userRepository;
     private final NicknameValidator nicknameValidator;
+    private final UserService userService;
+
+    @Operation(summary = "계정 탈퇴 (App Review 5.1.1)",
+            description = "현재 로그인한 사용자만 자기 계정 삭제 가능 — userId는 JWT subject에서만 추출, " +
+                    "request param/body로 받지 않음. PII(nickname/email/profileImageUrl) 마스킹 + " +
+                    "deletedAt 설정 + OPEN 매수/매도 자동 취소. 거래/채팅/신고/차단 기록은 보존 (분쟁·운영 증거).")
+    @DeleteMapping("/me")
+    public ReturnData<Map<String, Object>> deleteMyAccount(@AuthenticationPrincipal String userId) {
+        return userService.deleteAccount(userId);
+    }
 
     @Operation(summary = "내 정보 조회")
     @GetMapping("/me")

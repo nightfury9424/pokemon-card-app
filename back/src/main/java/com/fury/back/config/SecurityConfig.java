@@ -1,6 +1,7 @@
 package com.fury.back.config;
 
 import com.fury.back.auth.AdminAllowlistFilter;
+import com.fury.back.auth.DeletedUserGuardFilter;
 import com.fury.back.auth.InternalTokenFilter;
 import com.fury.back.auth.JwtAuthFilter;
 import com.fury.back.auth.OnboardingGuardFilter;
@@ -37,6 +38,7 @@ public class SecurityConfig {
     private final OnboardingGuardFilter onboardingGuardFilter;
     private final InternalTokenFilter internalTokenFilter;
     private final AdminAllowlistFilter adminAllowlistFilter;
+    private final DeletedUserGuardFilter deletedUserGuardFilter;
 
     @Value("${app.cors.allowed-origins}")
     private String corsAllowedOrigins;
@@ -122,7 +124,10 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(internalTokenFilter, JwtAuthFilter.class)
                 .addFilterAfter(adminAllowlistFilter, JwtAuthFilter.class)
-                .addFilterAfter(onboardingGuardFilter, AdminAllowlistFilter.class);
+                // DeletedUserGuardFilter: 탈퇴(deletedAt!=null) 계정은 즉시 401. App Review 5.1.1 대응.
+                // OnboardingGuardFilter 앞에 둠 — 탈퇴 계정은 onboarding 체크조차 도달 X.
+                .addFilterAfter(deletedUserGuardFilter, AdminAllowlistFilter.class)
+                .addFilterAfter(onboardingGuardFilter, DeletedUserGuardFilter.class);
 
         return http.build();
     }
