@@ -8,6 +8,14 @@ import java.util.List;
 
 public interface ChatService {
     ChatRoomDto getOrCreateRoom(String saleListingId, String buyerUserId);
+
+    /**
+     * 2026-05-28 BuyOrder 양방향 채팅 — 잠재 판매자(sellerUserId)가 BuyOrder 작성자에게 채팅 시작.
+     * 자기 BuyOrder에는 채팅 불가 (self-chat 차단). DB UNIQUE(buy_order_id, seller_user_id) 보장.
+     * 신규 방 생성 시 SYSTEM 환영/사기 주의 메시지 1회.
+     */
+    ChatRoomDto getOrCreateRoomFromBuyOrder(String buyOrderId, String sellerUserId);
+
     List<ChatRoomDto> getMyRooms(String userId);
     List<ChatMessageDto> getMessages(String roomId, String userId);
     ChatMessageDto sendMessage(String roomId, String senderUserId, String message);
@@ -58,4 +66,11 @@ public interface ChatService {
      * - sendSystemMessage 동일 인프라 활용 — AFTER_COMMIT broadcast
      */
     void broadcastTradeStatusChanged(String saleListingId, String newStatus);
+
+    /**
+     * 2026-05-28 BUY chat 용 — BuyOrder 상태 변경(CANCELED/MATCHED) 시 해당 BuyOrder의 모든 chat_room
+     * 에 SYSTEM fan-out. broadcastTradeStatusChanged 와 의미는 같지만 BuyOrder.status 도메인이
+     * OPEN/MATCHED/CANCELED 라 텍스트 분기가 다르므로 별도 메서드 (Codex G).
+     */
+    void broadcastBuyOrderStatusChanged(String buyOrderId, String newStatus);
 }

@@ -44,6 +44,8 @@ public class BuyOrderServiceImpl implements BuyOrderService {
     private final AssetRepository assetRepository;
     private final NotificationService notificationService;
     private final CardCdnUrls cardCdnUrls;
+    // 2026-05-28 BUY chat — 상태 변경 시 해당 BuyOrder의 모든 chat_room에 SYSTEM fan-out.
+    private final com.fury.back.domain.chat.ChatService chatService;
 
     @Override
     public ReturnData<List<BuyOrderDto>> getByCard(String cardId) {
@@ -197,6 +199,8 @@ public class BuyOrderServiceImpl implements BuyOrderService {
             return ReturnData.badRequest("OPEN 상태에서만 취소 가능합니다.");
         }
         order.updateStatus("CANCELED");
+        // 2026-05-28: BUY chat fan-out — 채팅 중인 잠재 판매자에게 SYSTEM 알림.
+        chatService.broadcastBuyOrderStatusChanged(buyOrderId, "CANCELED");
         return ReturnData.success();
     }
 
@@ -211,6 +215,8 @@ public class BuyOrderServiceImpl implements BuyOrderService {
         }
         order.updateStatus("MATCHED");
         if (tradeId != null && !tradeId.isBlank()) order.updateMatchedTradeId(tradeId);
+        // 2026-05-28: BUY chat fan-out — 채팅 중인 잠재 판매자들에게 매칭 알림.
+        chatService.broadcastBuyOrderStatusChanged(buyOrderId, "MATCHED");
         return ReturnData.success(enrichWithDetails(List.of(order)).get(0));
     }
 

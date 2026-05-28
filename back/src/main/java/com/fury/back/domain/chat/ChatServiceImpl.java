@@ -9,6 +9,8 @@ import com.fury.back.domain.chat.dto.ConversationStateDto;
 import com.fury.back.domain.chat.dto.ChatRoomDto;
 import com.fury.back.domain.chat.event.ChatReadEvent;
 import com.fury.back.domain.chat.event.SystemMessageEvent;
+import com.fury.back.domain.trade.BuyOrder;
+import com.fury.back.domain.trade.BuyOrderRepository;
 import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.trade.TradePostRepository;
 import com.fury.back.domain.user.User;
@@ -34,6 +36,8 @@ public class ChatServiceImpl implements ChatService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final TradePostRepository tradePostRepository;
+    // 2026-05-28 BUY chat — BuyOrder context 조회 (가격/상태/cardId) + getOrCreateRoomFromBuyOrder.
+    private final BuyOrderRepository buyOrderRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     // Bundle 2-A: 거래 미니카드용 카드 마스터 이미지 조립 (#62 CardCdnUrls 재활용).
@@ -123,13 +127,100 @@ public class ChatServiceImpl implements ChatService {
                 ? cardRepository.findById(trade.getCardId()).orElse(null)
                 : null;
         String cardImageUrl = card != null ? cardCdnUrls.forCard(card) : null;
+        String cardName = card != null ? card.getName() : null;
 
-        return ChatRoomDto.from(room, buyerUserId,
+        return ChatRoomDto.fromSale(room, buyerUserId,
                 trade.getTitle(), StorageKeyUrls.firstProxyUrl(trade.getImageUrl()),
                 other != null ? other.getNickname() : "",
                 other != null ? other.getProfileImageUrl() : "",
                 unread,
-                trade.getStatus(), trade.getPrice(), cardImageUrl);
+                trade.getStatus(), trade.getPrice(), cardImageUrl, cardName);
+    }
+
+    /**
+     * 2026-05-28 BuyOrder 양방향 채팅 — 잠재 판매자가 BuyOrder 작성자에게 채팅 시작.
+     *
+     * <p>패턴은 {@link #getOrCreateRoom} (SALE) 과 동일:
+     * <ul>
+     *   <li>self-chat 차단 — BuyOrder.buyerId == sellerUserId 이면 IllegalState
+     *   <li>양방향 차단 검증 — requireNotBlocked
+     *   <li>race-safe save + DataIntegrityViolationException catch
+     *   <li>신규 방 생성 시 사기 주의 SYSTEM 메시지 1회
+     *   <li>existing 방 재진입 시 본인 hidden_at clear / 상대(buyer=BuyOrder 작성자) hidden_at → 403 OTHER_LEFT
+     * </ul>
+     *
+     * <p>BUY chat의 buyer_user_id = BuyOrder.buyerId (카드 사려는 사람, 채팅 받는 사람),
+     * seller_user_id = sellerUserId (카드 팔려는 사람, 채팅 시작자). 명명 일관 (Codex A).
+     */
+    @Override
+    @Transactional
+    public ChatRoomDto getOrCreateRoomFromBuyOrder(String buyOrderId, String sellerUserId) {
+        BuyOrder buyOrder = buyOrderRepository.findById(buyOrderId)
+                .orElseThrow(() -> new IllegalArgumentException("구매 호가 없음: " + buyOrderId));
+
+        if (buyOrder.getBuyerId().equals(sellerUserId)) {
+            throw new IllegalStateException("본인이 등록한 구매 호가에는 채팅을 시작할 수 없습니다.");
+        }
+        requireNotBlocked(sellerUserId, buyOrder.getBuyerId());
+
+        final boolean[] newlyCreated = {false};
+        ChatRoom room = chatRoomRepository
+                .findByBuyOrderIdAndSellerUserId(buyOrderId, sellerUserId)
+                .orElseGet(() -> {
+                    // BuyOrder.status = OPEN/MATCHED/CANCELED. 신규 방은 OPEN 한정.
+                    if (!"OPEN".equals(buyOrder.getStatus())) {
+                        throw switch (buyOrder.getStatus()) {
+                            case "MATCHED" -> new ResponseStatusException(HttpStatus.CONFLICT, "BUY_ORDER_MATCHED");
+                            case "CANCELED" -> new ResponseStatusException(HttpStatus.GONE, "BUY_ORDER_CANCELED");
+                            default -> new ResponseStatusException(HttpStatus.CONFLICT, "BUY_ORDER_UNAVAILABLE");
+                        };
+                    }
+                    try {
+                        ChatRoom saved = chatRoomRepository.saveAndFlush(ChatRoom.builder()
+                                .chatRoomId(IdGenerator.generate())
+                                .saleListingId(null)
+                                .buyOrderId(buyOrderId)
+                                .sellerUserId(sellerUserId)
+                                .buyerUserId(buyOrder.getBuyerId())
+                                .build());
+                        newlyCreated[0] = true;
+                        return saved;
+                    } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                        return chatRoomRepository
+                                .findByBuyOrderIdAndSellerUserId(buyOrderId, sellerUserId)
+                                .orElseThrow(() -> e);
+                    }
+                });
+
+        if (newlyCreated[0]) {
+            sendSystemMessage(room.getChatRoomId(),
+                    "⚠ 안전한 거래를 위해 외부 송금이나 개인정보 요구에 주의해주세요.");
+        } else {
+            // 기존 room 재진입 — 상대(buyer=BuyOrder 작성자) hidden_at NOT NULL → 재초대 차단.
+            if (room.getBuyerHiddenAt() != null) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "OTHER_LEFT");
+            }
+            if (room.getSellerHiddenAt() != null) {
+                room.clearHiddenForUser(sellerUserId);
+                chatRoomRepository.save(room);
+            }
+        }
+
+        User other = userRepository.findById(buyOrder.getBuyerId()).orElse(null);
+        long unread = chatMessageRepository
+                .countByChatRoomIdAndIsReadFalseAndSenderUserIdNot(room.getChatRoomId(), sellerUserId);
+        Card card = buyOrder.getCardId() != null
+                ? cardRepository.findById(buyOrder.getCardId()).orElse(null)
+                : null;
+        String cardImageUrl = card != null ? cardCdnUrls.forCard(card) : null;
+        String cardName = card != null ? card.getName() : null;
+
+        return ChatRoomDto.fromBuy(room, sellerUserId,
+                cardName != null ? cardName : "",
+                other != null ? other.getNickname() : "",
+                other != null ? other.getProfileImageUrl() : "",
+                unread,
+                buyOrder.getStatus(), buyOrder.getBidPrice(), cardImageUrl);
     }
 
     @Override
@@ -146,15 +237,32 @@ public class ChatServiceImpl implements ChatService {
         Map<String, User> userMap = userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(User::getUserId, u -> u));
 
-        List<String> tradeIds = rooms.stream().map(ChatRoom::getSaleListingId).distinct().toList();
-        Map<String, TradePost> tradeMap = tradePostRepository.findAllById(tradeIds).stream()
-                .collect(Collectors.toMap(TradePost::getTradeId, t -> t));
-
-        // Bundle 2-A: 카드 마스터 이미지 batch 조회 (N+1 차단). null cardId/empty skip.
-        List<String> cardIds = tradeMap.values().stream()
-                .map(TradePost::getCardId)
+        // 2026-05-28: SALE chat 방은 sale_listing_id NOT NULL, BUY chat 방은 buy_order_id NOT NULL.
+        // 두 그룹 분리 후 각각 batch fetch (N+1 차단 + tradePostRepository.findAllById null 차단 — Codex B).
+        List<String> tradeIds = rooms.stream()
+                .map(ChatRoom::getSaleListingId)
                 .filter(id -> id != null && !id.isBlank())
                 .distinct().toList();
+        Map<String, TradePost> tradeMap = tradeIds.isEmpty()
+                ? Map.of()
+                : tradePostRepository.findAllById(tradeIds).stream()
+                        .collect(Collectors.toMap(TradePost::getTradeId, t -> t));
+
+        List<String> buyOrderIds = rooms.stream()
+                .map(ChatRoom::getBuyOrderId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct().toList();
+        Map<String, BuyOrder> buyOrderMap = buyOrderIds.isEmpty()
+                ? Map.of()
+                : buyOrderRepository.findAllById(buyOrderIds).stream()
+                        .collect(Collectors.toMap(BuyOrder::getBuyOrderId, b -> b));
+
+        // Bundle 2-A: 카드 마스터 이미지 batch 조회 (N+1 차단). null cardId/empty skip.
+        // SALE 카드 + BUY 카드 cardId 합집합으로 한 번에.
+        List<String> cardIds = java.util.stream.Stream.concat(
+                tradeMap.values().stream().map(TradePost::getCardId),
+                buyOrderMap.values().stream().map(BuyOrder::getCardId)
+        ).filter(id -> id != null && !id.isBlank()).distinct().toList();
         Map<String, Card> cardMap = cardIds.isEmpty()
                 ? Map.of()
                 : cardRepository.findAllById(cardIds).stream()
@@ -164,22 +272,42 @@ public class ChatServiceImpl implements ChatService {
             String otherUserId = userId.equals(room.getBuyerUserId())
                     ? room.getSellerUserId() : room.getBuyerUserId();
             User other = userMap.get(otherUserId);
-            TradePost trade = tradeMap.get(room.getSaleListingId());
-            Card card = (trade != null && trade.getCardId() != null)
-                    ? cardMap.get(trade.getCardId())
-                    : null;
-            String cardImageUrl = card != null ? cardCdnUrls.forCard(card) : null;
             long unread = chatMessageRepository
                     .countByChatRoomIdAndIsReadFalseAndSenderUserIdNot(room.getChatRoomId(), userId);
-            return ChatRoomDto.from(room, userId,
-                    trade != null ? trade.getTitle() : "",
-                    trade != null ? StorageKeyUrls.firstProxyUrl(trade.getImageUrl()) : null,
-                    other != null ? other.getNickname() : "",
-                    other != null ? other.getProfileImageUrl() : "",
-                    unread,
-                    trade != null ? trade.getStatus() : null,
-                    trade != null ? trade.getPrice() : null,
-                    cardImageUrl);
+
+            // SALE/BUY 분기 — sale_listing_id NOT NULL 이면 SALE, 아니면 BUY.
+            if (room.getSaleListingId() != null) {
+                TradePost trade = tradeMap.get(room.getSaleListingId());
+                Card card = (trade != null && trade.getCardId() != null)
+                        ? cardMap.get(trade.getCardId())
+                        : null;
+                String cardImageUrl = card != null ? cardCdnUrls.forCard(card) : null;
+                String cardName = card != null ? card.getName() : null;
+                return ChatRoomDto.fromSale(room, userId,
+                        trade != null ? trade.getTitle() : "",
+                        trade != null ? StorageKeyUrls.firstProxyUrl(trade.getImageUrl()) : null,
+                        other != null ? other.getNickname() : "",
+                        other != null ? other.getProfileImageUrl() : "",
+                        unread,
+                        trade != null ? trade.getStatus() : null,
+                        trade != null ? trade.getPrice() : null,
+                        cardImageUrl, cardName);
+            } else {
+                BuyOrder buyOrder = buyOrderMap.get(room.getBuyOrderId());
+                Card card = (buyOrder != null && buyOrder.getCardId() != null)
+                        ? cardMap.get(buyOrder.getCardId())
+                        : null;
+                String cardImageUrl = card != null ? cardCdnUrls.forCard(card) : null;
+                String cardName = card != null ? card.getName() : null;
+                return ChatRoomDto.fromBuy(room, userId,
+                        cardName != null ? cardName : "",
+                        other != null ? other.getNickname() : "",
+                        other != null ? other.getProfileImageUrl() : "",
+                        unread,
+                        buyOrder != null ? buyOrder.getStatus() : null,
+                        buyOrder != null ? buyOrder.getBidPrice() : null,
+                        cardImageUrl);
+            }
         }).toList();
     }
 
@@ -284,6 +412,26 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
+    /**
+     * 2026-05-28 BUY chat 용 — BuyOrder 상태 변경 시 해당 BuyOrder의 모든 chat_room에 SYSTEM fan-out.
+     * BuyOrderServiceImpl.cancel/markMatched 에서 호출 (Codex G).
+     */
+    @Override
+    @Transactional
+    public void broadcastBuyOrderStatusChanged(String buyOrderId, String newStatus) {
+        final String content = switch (newStatus) {
+            case "OPEN" -> "구매 호가가 다시 활성화되었습니다.";
+            case "MATCHED" -> "구매 호가가 매칭되었습니다.";
+            case "CANCELED" -> "구매 호가가 취소되었습니다.";
+            default -> null;
+        };
+        if (content == null) return;
+        final List<ChatRoom> rooms = chatRoomRepository.findAllByBuyOrderId(buyOrderId);
+        for (final ChatRoom room : rooms) {
+            sendSystemMessage(room.getChatRoomId(), content);
+        }
+    }
+
     @Override
     @Transactional
     public ChatMessageDto sendMessage(String roomId, String senderUserId, String message) {
@@ -344,7 +492,10 @@ public class ChatServiceImpl implements ChatService {
         // 거래중 모델: TradePost.activeChatRoomId 가 NOT NULL 이고 현재 room 이 아니면
         // 비선택 buyer → 입력 비활성 + 안내. 판매자/선택된 buyer 는 그대로 채팅 가능.
         // TradePost 한 번 조회 — activeChatRoomId 체크 + COMPLETED 분기 (완료 후 안내 문구 별도).
-        TradePost trade = tradePostRepository.findById(room.getSaleListingId()).orElse(null);
+        // 2026-05-28: BUY chat (sale_listing_id == null) 은 active trade 모델 적용 X (Codex L).
+        TradePost trade = room.getSaleListingId() != null
+                ? tradePostRepository.findById(room.getSaleListingId()).orElse(null)
+                : null;
         String activeChatRoomId = trade != null ? trade.getActiveChatRoomId() : null;
         boolean isExcludedFromActiveTrade = activeChatRoomId != null
                 && !activeChatRoomId.equals(room.getChatRoomId());
@@ -456,8 +607,15 @@ public class ChatServiceImpl implements ChatService {
     /**
      * 거래중 모델: room 의 TradePost.activeChatRoomId 가 NOT NULL 이고 현재 room 이
      * 아닌 경우 비선택 buyer. trade 못 찾으면 (race) 안전 차원 false (안 막음).
+     *
+     * <p>2026-05-28: BUY chat (sale_listing_id == null) 은 active trade 모델 적용 X — short-circuit
+     * false. BuyOrder 도메인은 1:1 매칭 단일 채팅 가정이 없음 (Codex L 지적). TradePost lookup 시도 시
+     * IllegalArgumentException 방지.</p>
      */
     private boolean isExcludedFromActiveTrade(ChatRoom room) {
+        if (room.getSaleListingId() == null) {
+            return false;
+        }
         return tradePostRepository.findById(room.getSaleListingId())
                 .map(trade -> {
                     String active = trade.getActiveChatRoomId();

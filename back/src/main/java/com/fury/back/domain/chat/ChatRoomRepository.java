@@ -11,6 +11,9 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
 
     Optional<ChatRoom> findBySaleListingIdAndBuyerUserId(String saleListingId, String buyerUserId);
 
+    /** 2026-05-28 BUY chat — 한 BuyOrder당 한 명의 잠재 판매자(seller_user_id) = 한 방. */
+    Optional<ChatRoom> findByBuyOrderIdAndSellerUserId(String buyOrderId, String sellerUserId);
+
     /**
      * Phase 1: 본인의 hidden_at 이 null 인 방만 노출.
      * 나가기 / 차단 시 hidden_at set 되면 본인 목록에서 사라짐. DB 보존 — 관리자 조회 가능.
@@ -25,6 +28,9 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
 
     /** Bundle 2-D: 1 trade ↔ N buyer 채팅방 모두 조회 — 상태 변경/삭제 시 시스템 메시지 fan-out용. */
     List<ChatRoom> findAllBySaleListingId(String saleListingId);
+
+    /** 2026-05-28 BUY chat 한 BuyOrder ↔ N seller 채팅방 모두 조회 — BuyOrder status (CANCELED/MATCHED) fan-out 용. */
+    List<ChatRoom> findAllByBuyOrderId(String buyOrderId);
 
     /**
      * Phase 1: 두 사용자 사이 모든 채팅방 (buyer/seller 어느 쪽이든).

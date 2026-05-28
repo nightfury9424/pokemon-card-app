@@ -6,13 +6,10 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-        name = "chat_rooms",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uq_chat_rooms_sale_buyer",
-                columnNames = {"sale_listing_id", "buyer_user_id"}
-        )
-)
+@Table(name = "chat_rooms")
+// 2026-05-28: BuyOrder 양방향 채팅 추가. uniqueConstraints는 partial index로 SQL 마이그레이션 관리
+// (buy_order_chat_room_migration.sql). sale_listing_id NOT NULL row vs buy_order_id NOT NULL row를
+// 분리해 각각 unique. JPA 어노테이션 unique는 partial 표현 불가라 SQL에서 직접 정의.
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -23,12 +20,19 @@ public class ChatRoom {
     @Column(name = "chat_room_id", length = 50)
     private String chatRoomId;
 
-    @Column(name = "sale_listing_id", nullable = false, length = 50)
+    /** SALE chat: TradePost.id 참조. BUY chat: NULL. (buy_order_id 와 XOR — DB CHECK 강제) */
+    @Column(name = "sale_listing_id", length = 50)
     private String saleListingId;
 
+    /** BUY chat: BuyOrder.id 참조. SALE chat: NULL. */
+    @Column(name = "buy_order_id", length = 50)
+    private String buyOrderId;
+
+    /** 카드 팔려는 사람 user_id. SALE: TradePost.sellerId. BUY: 채팅 시작자(잠재 판매자). */
     @Column(name = "seller_user_id", nullable = false, length = 50)
     private String sellerUserId;
 
+    /** 카드 사려는 사람 user_id. SALE: 채팅 시작자(구매 의향). BUY: BuyOrder.buyerId(작성자). */
     @Column(name = "buyer_user_id", nullable = false, length = 50)
     private String buyerUserId;
 
@@ -52,6 +56,15 @@ public class ChatRoom {
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+        // 2026-05-28: sale_listing_id ⊕ buy_order_id 는 정확히 하나만 NOT NULL.
+        // DB CHECK chk_chat_rooms_listing_xor 가 최종 안전망이지만 빠른 fail + 명확한 메시지를 위해
+        // entity 단에서 먼저 가드. 빌더가 둘 다 set 또는 둘 다 null 상태로 saveAndFlush 호출 시 차단.
+        final boolean hasSale = saleListingId != null && !saleListingId.isBlank();
+        final boolean hasBuy = buyOrderId != null && !buyOrderId.isBlank();
+        if (hasSale == hasBuy) {
+            throw new IllegalStateException(
+                    "ChatRoom requires exactly one of saleListingId or buyOrderId — got sale=" + hasSale + ", buy=" + hasBuy);
+        }
     }
 
     public void updateLastMessage(String message) {

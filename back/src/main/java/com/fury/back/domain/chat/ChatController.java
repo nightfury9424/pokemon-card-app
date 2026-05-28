@@ -25,13 +25,23 @@ public class ChatController {
     private final ChatService chatService;
     private final SimpMessagingTemplate messagingTemplate;
 
-    // 채팅방 입장 (없으면 생성)
+    // 채팅방 입장 (없으면 생성) — SALE chat (TradePost 기반)
     @PostMapping("/rooms")
     public ApiResponse<ChatRoomDto> enterRoom(
             @RequestBody Map<String, String> body,
             @AuthenticationPrincipal String userId) {
         String saleListingId = body.get("saleListingId");
         return ApiResponse.ok(chatService.getOrCreateRoom(saleListingId, userId));
+    }
+
+    // 2026-05-28: BUY chat 입장 (없으면 생성) — BuyOrder 기반. 잠재 판매자 → BuyOrder 작성자에게 채팅 시작.
+    // 별도 endpoint 로 분리 — validation 명확화 + swagger 분리 (Codex E).
+    @PostMapping("/rooms/from-buy-order")
+    public ApiResponse<ChatRoomDto> enterRoomFromBuyOrder(
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal String userId) {
+        String buyOrderId = body.get("buyOrderId");
+        return ApiResponse.ok(chatService.getOrCreateRoomFromBuyOrder(buyOrderId, userId));
     }
 
     // 내 채팅방 목록
