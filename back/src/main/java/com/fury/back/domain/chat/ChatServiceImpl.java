@@ -16,8 +16,10 @@ import com.fury.back.domain.trade.TradePostRepository;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
 import com.fury.back.storage.CardCdnUrls;
+import com.fury.back.storage.ImageStorageService;
 import com.fury.back.storage.StorageKeyUrls;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ChatServiceImpl implements ChatService {
@@ -44,6 +47,8 @@ public class ChatServiceImpl implements ChatService {
     private final CardRepository cardRepository;
     private final CardCdnUrls cardCdnUrls;
     private final BlockRepository blockRepository;
+    // 2026-05-28 이미지 메시지 — S3 store + magic 검증 + DB save.
+    private final ImageStorageService imageStorageService;
 
     @Override
     @Transactional
@@ -430,6 +435,112 @@ public class ChatServiceImpl implements ChatService {
         for (final ChatRoom room : rooms) {
             sendSystemMessage(room.getChatRoomId(), content);
         }
+    }
+
+    // 2026-05-28 이미지 메시지 정책 상수 (Codex D — chat endpoint 한정 enforce).
+    private static final long MAX_IMAGE_BYTES = 10L * 1024L * 1024L; // 10MB
+
+    @Override
+    @Transactional
+    public ChatMessageDto sendImageMessage(String roomId, String senderUserId,
+                                           org.springframework.web.multipart.MultipartFile file) {
+        // 1. 가드 (sendMessage 동일 4종 + 파일 validation)
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방 없음: " + roomId));
+        requireParticipant(room, senderUserId);
+        requireNotBlocked(senderUserId, otherUserOf(room, senderUserId));
+        requireOtherNotLeft(room, senderUserId);
+        requireNotExcludedFromActiveTrade(room);
+
+        // 2. 파일 size 검증 (10MB) — Codex D
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "EMPTY_FILE");
+        }
+        if (file.getSize() > MAX_IMAGE_BYTES) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "IMAGE_TOO_LARGE");
+        }
+
+        // 3. magic number 검증 — Codex C (getBytes 메모리 로딩 회피)
+        final String ext;
+        try {
+            ext = detectImageExt(file);
+        } catch (java.io.IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "FILE_READ_ERROR");
+        }
+
+        // 4. S3 store — chat/{roomId}/{uuid}{ext} (Codex A — uuid 추천, messageId 의존성 회피)
+        final String storageKey;
+        try {
+            storageKey = imageStorageService.store(
+                    "chat/" + roomId,
+                    "image" + ext,
+                    file);
+        } catch (java.io.IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "S3_UPLOAD_FAILED");
+        }
+
+        // 5. DB save — message_type='IMAGE' + message=storage key
+        // Codex P: S3 store 가 성공한 후에만 DB save 시도 — orphan risk 는 DB rollback 시 S3 key 남음.
+        // best-effort: DB save 실패 시 S3 delete (catch 안에서). 단 트랜잭션 외부 호출이라 가능.
+        ChatMessage saved;
+        try {
+            saved = chatMessageRepository.save(ChatMessage.builder()
+                    .chatMessageId(IdGenerator.generate())
+                    .chatRoomId(roomId)
+                    .senderUserId(senderUserId)
+                    .message(storageKey)
+                    .messageType("IMAGE")
+                    .build());
+        } catch (RuntimeException e) {
+            // best-effort cleanup
+            try {
+                imageStorageService.delete(storageKey);
+            } catch (Exception ignored) {
+                log.warn("[ChatImage] DB save 실패 후 S3 cleanup 도 실패 — orphan key={}", storageKey);
+            }
+            throw e;
+        }
+
+        // 6. last_message — IMAGE placeholder (정책: 채팅 list 에서 "사진" 표기)
+        room.updateLastMessage("[사진]");
+        chatRoomRepository.save(room);
+
+        // 7. DTO 빌드 — ChatMessageDto.from 의 IMAGE 분기에서 key → proxy URL 변환 (Codex B)
+        User sender = userRepository.findById(senderUserId).orElse(null);
+        return ChatMessageDto.from(saved,
+                sender != null ? sender.getNickname() : "",
+                sender != null ? sender.getProfileImageUrl() : "");
+    }
+
+    /**
+     * 2026-05-28 magic number sniffer — getBytes() 메모리 로딩 회피.
+     * JPEG/PNG/WebP 만 허용 (Codex C). InputStream try-with 로 명시 close.
+     */
+    private String detectImageExt(org.springframework.web.multipart.MultipartFile file)
+            throws java.io.IOException {
+        byte[] h;
+        try (java.io.InputStream in = file.getInputStream()) {
+            h = in.readNBytes(12);
+        }
+        if (h.length < 4) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "FILE_TOO_SMALL");
+        }
+        if ((h[0] & 0xff) == 0xff && (h[1] & 0xff) == 0xd8 && (h[2] & 0xff) == 0xff) return ".jpg";
+        if ((h[0] & 0xff) == 0x89 && h[1] == 0x50 && h[2] == 0x4e && h[3] == 0x47) return ".png";
+        if (h.length >= 12 && h[0] == 'R' && h[1] == 'I' && h[2] == 'F' && h[3] == 'F'
+                && h[8] == 'W' && h[9] == 'E' && h[10] == 'B' && h[11] == 'P') return ".webp";
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "UNSUPPORTED_IMAGE_TYPE");
+    }
+
+    /**
+     * 2026-05-28 ImageProxyController가 chat/{roomId}/... key 요청 받았을 때 participant 검증용.
+     * read-only — service-level guard 가 아닌 조회.
+     */
+    @Override
+    public boolean isRoomParticipant(String roomId, String userId) {
+        return chatRoomRepository.findById(roomId)
+                .map(room -> userId.equals(room.getBuyerUserId()) || userId.equals(room.getSellerUserId()))
+                .orElse(false);
     }
 
     @Override

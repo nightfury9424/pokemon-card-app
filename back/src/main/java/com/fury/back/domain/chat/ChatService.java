@@ -21,6 +21,24 @@ public interface ChatService {
     ChatMessageDto sendMessage(String roomId, String senderUserId, String message);
 
     /**
+     * 2026-05-28: 채팅 이미지 메시지 전송 — REST 업로드 + AFTER_COMMIT STOMP broadcast.
+     * S3 store는 트랜잭션 밖에서 먼저 수행하고, DB save 실패 시 best-effort S3 delete (Codex P).
+     *
+     * @param roomId         채팅방 ID
+     * @param senderUserId   업로더 user_id (room participant 여야 함)
+     * @param file           MultipartFile — magic number 검증 + 10MB 제한 + MIME 화이트리스트
+     * @return 저장된 IMAGE 메시지 DTO (message = proxy URL)
+     */
+    ChatMessageDto sendImageMessage(String roomId, String senderUserId,
+                                    org.springframework.web.multipart.MultipartFile file);
+
+    /**
+     * 2026-05-28: 채팅 이미지 proxy 접근 시 participant 검증 — ImageProxyController 가 chat/{roomId}/...
+     * key 요청 받았을 때 호출. participant 아니면 403.
+     */
+    boolean isRoomParticipant(String roomId, String userId);
+
+    /**
      * Phase 1: 채팅방 나가기 — 본인의 hidden_at set. DB 보존, 본인 목록에서만 숨김.
      * 참여자 검증 후 buyer/seller 분기 자동.
      */

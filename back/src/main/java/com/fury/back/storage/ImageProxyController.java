@@ -1,5 +1,6 @@
 package com.fury.back.storage;
 
+import com.fury.back.domain.chat.ChatService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -7,6 +8,8 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,7 +50,14 @@ public class ImageProxyController {
             "uploads/scan/"
     );
 
+    /**
+     * 2026-05-28: 채팅 이미지는 별도 검증 — prefix 통과만으로는 부족 (Codex O).
+     * `chat/{roomId}/...` 패턴 + 요청자가 해당 room 의 참여자(buyer_user_id OR seller_user_id)일 때만 통과.
+     */
+    private static final String CHAT_PREFIX = "chat/";
+
     private final ImageStorageService imageStorageService;
+    private final ChatService chatService;
 
     @GetMapping("/**")
     public ResponseEntity<StreamingResponseBody> get(HttpServletRequest request) {
@@ -69,11 +79,32 @@ public class ImageProxyController {
             log.warn("[ImageProxy] suspicious key blocked: {}", key);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        // prefix allow-list
-        boolean allowed = ALLOWED_PREFIXES.stream().anyMatch(key::startsWith);
-        if (!allowed) {
-            log.warn("[ImageProxy] disallowed key prefix: {}", key);
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        // 2026-05-28: chat/{roomId}/... 는 별도 participant 검증 (Codex O — 단순 allow-list 추가는 leak).
+        if (key.startsWith(CHAT_PREFIX)) {
+            String afterPrefix = key.substring(CHAT_PREFIX.length());
+            int slash = afterPrefix.indexOf('/');
+            if (slash <= 0) {
+                log.warn("[ImageProxy] chat key malformed: {}", key);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+            String roomId = afterPrefix.substring(0, slash);
+            String userId = currentUserId();
+            if (userId == null) {
+                log.warn("[ImageProxy] chat unauthenticated key={}", key);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            if (!chatService.isRoomParticipant(roomId, userId)) {
+                log.warn("[ImageProxy] chat non-participant userId={} roomId={}", userId, roomId);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+            // 참여자 통과 — load로 진행.
+        } else {
+            // 기존 uploads/* prefix allow-list (변경 없음).
+            boolean allowed = ALLOWED_PREFIXES.stream().anyMatch(key::startsWith);
+            if (!allowed) {
+                log.warn("[ImageProxy] disallowed key prefix: {}", key);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
         }
 
         // exists() 체크 제거 (IAM s3:HeadObject 누락 우회).
@@ -114,5 +145,13 @@ public class ImageProxyController {
                 .contentLength(bytes.length)
                 .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePrivate())
                 .body(body);
+    }
+
+    /** SecurityContext 에서 현재 userId (JwtAuthFilter 가 principal 로 String userId set). */
+    private String currentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return null;
+        Object principal = auth.getPrincipal();
+        return principal instanceof String s ? s : null;
     }
 }

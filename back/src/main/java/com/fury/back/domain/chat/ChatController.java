@@ -95,4 +95,20 @@ public class ChatController {
         ChatMessageDto msg = chatService.sendMessage(roomId, senderUserId, request.getMessage());
         messagingTemplate.convertAndSend("/topic/room/" + roomId, msg);
     }
+
+    // 2026-05-28 채팅 이미지 메시지 — REST 업로드. service가 10MB/MIME/4-guard 검증 후
+    // S3 store + DB save. controller 가 트랜잭션 commit 후 STOMP broadcast (Codex G).
+    @org.springframework.web.bind.annotation.PostMapping(
+            value = "/rooms/{roomId}/upload-image",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<ChatMessageDto> uploadImage(
+            @org.springframework.web.bind.annotation.PathVariable String roomId,
+            @org.springframework.web.bind.annotation.RequestPart("file")
+                    org.springframework.web.multipart.MultipartFile file,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal String userId) {
+        ChatMessageDto msg = chatService.sendImageMessage(roomId, userId, file);
+        // 트랜잭션 commit 후 broadcast — message visible 보장.
+        messagingTemplate.convertAndSend("/topic/room/" + roomId, msg);
+        return ApiResponse.ok(msg);
+    }
 }
