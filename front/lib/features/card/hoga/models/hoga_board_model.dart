@@ -35,7 +35,7 @@ enum HogaGrade {
   String get label => wire;
 }
 
-/// ASK = 매도(파랑) / BID = 매수(초록).
+/// ASK = 매도(파랑) / BID = 매수(빨강). (2026-05-28 정정 — 한국 증권 호가창 표준)
 enum HogaSide {
   ask('ASK'),
   bid('BID');

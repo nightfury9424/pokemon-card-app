@@ -94,8 +94,8 @@ class _HogaRowDetailSheetState extends State<HogaRowDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // 색상 정책 (feedback_color_policy.md): 매도=빨강, 매수=파랑.
-    final color = widget.side == HogaSide.ask ? AppColors.red : AppColors.blue;
+    // 색상 정책 (feedback_color_policy.md, 2026-05-28 정정): 매도=파랑, 매수=빨강.
+    final color = widget.side == HogaSide.ask ? AppColors.blue : AppColors.red;
     final sideLabel = widget.side == HogaSide.ask ? '판매 호가' : '매수 호가';
     final statusLabel = widget.grade == null
         ? widget.status.label
@@ -161,12 +161,12 @@ class _HogaRowDetailSheetState extends State<HogaRowDetailSheet> {
             ),
           ),
           const Divider(color: AppColors.divider, height: 1),
-          // BID 시트는 1차 전체 disabled 상태 — 헤더 색(파랑)이 "매수 가능"으로 오인되지 않게 상단 안내 1줄.
+          // BID 시트는 1차 전체 disabled 상태 — 헤더 색(빨강)이 "매수 가능"으로 오인되지 않게 상단 안내 1줄.
           if (widget.side == HogaSide.bid)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-              color: AppColors.blue.withValues(alpha: 0.06),
+              color: AppColors.red.withValues(alpha: 0.06),
               child: const Text(
                 '매수 호가 상세는 준비 중입니다. 곧 판매 제안/채팅으로 연결돼요.',
                 style: TextStyle(

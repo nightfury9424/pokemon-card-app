@@ -1839,21 +1839,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // 색상 정책 (feedback_color_policy.md): 매도=빨강, 매수=파랑.
-              Row(
-                children: [
-                  Container(
-                    width: 6, height: 6,
-                    decoration: const BoxDecoration(color: AppColors.red, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    '매도 $sellCount',
-                    style: const TextStyle(color: AppColors.red, fontSize: 12, fontWeight: FontWeight.w800),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 5),
+              // 호가 row 색 = KREAM/한국 거래앱 컨벤션: 매도(ASK)=파랑, 매수(BID)=빨강.
+              // 가격 변동 색(+빨강/-파랑)·CTA 버튼 색(판매하기=파랑/구매하기=빨강)과 의도적으로 분리.
               Row(
                 children: [
                   Container(
@@ -1862,8 +1849,22 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   ),
                   const SizedBox(width: 5),
                   Text(
-                    '매수 $buyCount',
+                    '매도 $sellCount',
                     style: const TextStyle(color: AppColors.blue, fontSize: 12, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Row(
+                children: [
+                  Container(
+                    width: 6, height: 6,
+                    decoration: const BoxDecoration(color: AppColors.red, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '매수 $buyCount',
+                    style: const TextStyle(color: AppColors.red, fontSize: 12, fontWeight: FontWeight.w800),
                   ),
                 ],
               ),
@@ -1965,7 +1966,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: ['10', '9', '8'].map((v) {
+                      children: ['10', '9'].map((v) {
                         final sel = gradeValue == v;
                         return GestureDetector(
                           onTap: () => setSheet(() => gradeValue = v),
@@ -2082,7 +2083,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                                   submitError = null;
                                 });
                                 try {
-                                  await ApiClient.post('/api/buy-orders', {
+                                  final res = await ApiClient.post('/api/buy-orders', {
                                     'data': {
                                       'cardId': widget.cardId,
                                       'bidPrice': priceVal,
@@ -2093,14 +2094,24 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                                       if (memoCtrl.text.trim().isNotEmpty) 'memo': memoCtrl.text.trim(),
                                     },
                                   });
+                                  // 백엔드는 HTTP 200 + envelope(`{status:'fail', message:...}`) 패턴이라
+                                  // ApiClient.post는 throw 안 함. status 명시 체크 필수 (E.g. "이미 같은 카드에 매수 호가 등록").
+                                  if (res['status'] != 'success') {
+                                    throw Exception(res['message'] ?? '매수 호가 등록에 실패했어요.');
+                                  }
                                   if (sheetCtx.mounted) Navigator.pop(sheetCtx, true);
                                 } catch (e) {
-                                  // 등록 실패 — sheet 내부 inline error 표시 (SnackBar 금지).
+                                  // 등록 실패 — 백엔드 envelope 메시지 보존해서 inline error 표시 (SnackBar 금지).
                                   debugPrint('BuyOrder create error: $e');
+                                  String msg = '등록에 실패했어요. 잠시 후 다시 시도해주세요.';
+                                  if (e is Exception) {
+                                    final match = RegExp(r'^Exception:\s*(.+)$').firstMatch(e.toString());
+                                    if (match != null) msg = match.group(1)!.trim();
+                                  }
                                   if (sheetCtx.mounted) {
                                     setSheet(() {
                                       submitting = false;
-                                      submitError = '등록에 실패했어요. 잠시 후 다시 시도해주세요.';
+                                      submitError = msg;
                                     });
                                   }
                                 }
@@ -3665,7 +3676,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   // ─────────────────────────────────────────────
   // 하단 sticky CTA — [판매하기] [구매하기]
   // 모든 탭/자산 보유 무관 항상 표시 (feedback_hoga_design_invariants.md 가드레일 2).
-  // 색상: 판매하기=파랑 / 구매하기=빨강 (토스증권 액션 컨벤션, 호가창 row 색과 반대).
+  // 색상: 판매하기=파랑 / 구매하기=빨강 (토스증권 액션 컨벤션 = 호가창 row 색과 동일 방향, 2026-05-28 정정).
   // ─────────────────────────────────────────────
 
   /// 등록 완료 성공 toast — 2026-05-20 Phase B: 상단 banner → AppSuccessToast (가운데 ✓ fade).

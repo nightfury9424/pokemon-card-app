@@ -180,8 +180,8 @@ class _HogaBoardState extends State<HogaBoard> {
     final highestBid = board.highestBid;
     final rows = <Widget>[];
 
-    // 매도 라벨 (색상 정책: 매도=빨강). count는 실제 askCount만, empty slot 제외.
-    rows.add(_sectionLabel('매도', AppColors.red, board.askCount));
+    // 매도 라벨 (색상 정책 2026-05-28 정정: 매도=파랑). count는 실제 askCount만, empty slot 제외.
+    rows.add(_sectionLabel('매도', AppColors.blue, board.askCount));
 
     // 매도 — 부족분은 위쪽 empty (큰 가격대 멀리), 실제 lowestAsk가 중간가 바로 위에 붙음.
     final asks = board.asks.take(_kMaxLevels).toList();
@@ -202,8 +202,8 @@ class _HogaBoardState extends State<HogaBoard> {
 
     rows.add(HogaPivotRow(marketPrice: board.marketPrice, tickUnit: board.tickUnit));
 
-    // 매수 라벨 (색상 정책: 매수=파랑)
-    rows.add(_sectionLabel('매수', AppColors.blue, board.bidCount));
+    // 매수 라벨 (색상 정책 2026-05-28 정정: 매수=빨강)
+    rows.add(_sectionLabel('매수', AppColors.red, board.bidCount));
 
     // 매수 — 부족분은 아래쪽 empty (작은 가격대 멀리), 실제 highestBid가 중간가 바로 아래.
     final bids = board.bids.take(_kMaxLevels).toList();
