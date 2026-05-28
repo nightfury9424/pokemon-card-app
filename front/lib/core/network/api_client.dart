@@ -170,11 +170,23 @@ class ApiClient {
     return patch('/api/trades/$tradeId/status', data: body);
   }
 
-  static Future<Map<String, dynamic>> uploadFile(String path, String filePath, {String field = 'file'}) async {
+  static Future<Map<String, dynamic>> uploadFile(
+    String path,
+    String filePath, {
+    String field = 'file',
+    Duration sendTimeout = const Duration(seconds: 60),
+    Duration receiveTimeout = const Duration(seconds: 30),
+  }) async {
+    // 2026-05-28 Codex 사후 리뷰: 10MB 업로드를 100KB/s 회선에서 send 가 무한 hang 가능.
+    // 기본 60s sendTimeout (10MB ÷ 170KB/s ≈ 60s 마진), 30s receiveTimeout.
     final formData = FormData.fromMap({
       field: await MultipartFile.fromFile(filePath),
     });
-    final res = await _dio.post(path, data: formData);
+    final options = Options(
+      sendTimeout: sendTimeout,
+      receiveTimeout: receiveTimeout,
+    );
+    final res = await _dio.post(path, data: formData, options: options);
     return res.data;
   }
 

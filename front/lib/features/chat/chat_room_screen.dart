@@ -190,6 +190,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   _loadConversationState();
                   return;
                 }
+                // 2026-05-28 Codex 사후 리뷰: STOMP 중복 수신(네트워크 재전송) 시 같은 chatMessageId
+                // 가 두 번 append 되어 IMAGE bubble Hero tag 충돌 발생. id 기반 de-dupe.
+                final mid = msg['chatMessageId'];
+                if (mid != null && _messages.any((m) => m['chatMessageId'] == mid)) {
+                  return;
+                }
                 setState(() => _messages.add(msg));
                 _scrollToBottom();
                 // Bundle 1.5 (active read gap): 채팅방에 active 상태에서 상대 메시지 수신 시

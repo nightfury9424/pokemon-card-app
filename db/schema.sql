@@ -145,25 +145,35 @@ CREATE TABLE sale_listings (
 );
 
 -- 채팅방
+-- 2026-05-28: sale_listing_id NULL 허용 + buy_order_id 컬럼 신규 (BuyOrder 양방향 채팅).
+--   sale_listing_id XOR buy_order_id (chk_chat_rooms_listing_xor) — 정확히 하나만 NOT NULL.
+--   기존 uq_chat_rooms_sale_buyer 전체-unique 는 uq_chat_rooms_sale_buyer_v2 partial 로 교체.
+--   migration: back/sql/buy_order_chat_room_migration.sql (CONCURRENTLY low-lock 패턴).
 CREATE TABLE chat_rooms (
     chat_room_id          VARCHAR(50) PRIMARY KEY,
-    sale_listing_id       VARCHAR(50) NOT NULL,
+    sale_listing_id       VARCHAR(50),                                 -- 2026-05-28 NULL 허용
+    buy_order_id          VARCHAR(50),                                 -- 2026-05-28 신규 (BUY chat 한정)
     seller_user_id        VARCHAR(50) NOT NULL,
     buyer_user_id         VARCHAR(50) NOT NULL,
-    created_at            TIMESTAMP NOT NULL DEFAULT NOW()
+    created_at            TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_chat_rooms_listing_xor CHECK (
+        (sale_listing_id IS NOT NULL AND buy_order_id IS NULL)
+        OR (sale_listing_id IS NULL AND buy_order_id IS NOT NULL)
+    )
 );
 
 -- 채팅 메시지
 -- Bundle 2-C (2026-05-22): message_type 컬럼 추가 — 'USER' (기본) / 'SYSTEM' (자동 메시지).
+-- 2026-05-28: message_type='IMAGE' 추가 — message 컬럼에 storage key 저장, DTO 변환 시 proxy URL.
 -- prod 적용 시 ALTER TABLE 수동 (ddl-auto=validate):
 --   ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(20) NOT NULL DEFAULT 'USER';
 CREATE TABLE chat_messages (
     chat_message_id       VARCHAR(50) PRIMARY KEY,
     chat_room_id          VARCHAR(50) NOT NULL,
     sender_user_id        VARCHAR(50) NOT NULL,                       -- 'SYSTEM' 특수값 허용 (Bundle 2-C)
-    message               TEXT        NOT NULL,
+    message               TEXT        NOT NULL,                       -- IMAGE 시 storage key (chat/{roomId}/{uuid}.{ext})
     is_read               BOOLEAN     NOT NULL DEFAULT false,         -- Bundle 1 G1 읽음 표시
-    message_type          VARCHAR(20) NOT NULL DEFAULT 'USER',        -- USER / SYSTEM (Bundle 2-C)
+    message_type          VARCHAR(20) NOT NULL DEFAULT 'USER',        -- USER / SYSTEM / IMAGE / STATE_CHANGED
     created_at            TIMESTAMP   NOT NULL DEFAULT NOW()
 );
 
@@ -296,7 +306,11 @@ CREATE INDEX idx_chat_rooms_buyer_user_id     ON chat_rooms(buyer_user_id);
 -- Bundle 2-A.2 (2026-05-22): (sale_listing_id, buyer_user_id) 1:1 unique 정책.
 -- 같은 trade + 같은 buyer는 채팅방 1개만. 동시 요청 race 시 DB level fail-safe.
 -- prod 적용: 기존 중복 0건 확인 후 CREATE UNIQUE INDEX 수동 실행.
-CREATE UNIQUE INDEX uq_chat_rooms_sale_buyer  ON chat_rooms(sale_listing_id, buyer_user_id);
+-- 2026-05-28: 전체-unique 가 partial unique 2개로 분리 (BuyOrder 양방향 채팅).
+-- 신규 이름 _v2 — buy_order_chat_room_migration.sql 가 CONCURRENTLY 로 교체.
+CREATE UNIQUE INDEX uq_chat_rooms_sale_buyer_v2 ON chat_rooms(sale_listing_id, buyer_user_id) WHERE sale_listing_id IS NOT NULL;
+CREATE UNIQUE INDEX uq_chat_rooms_buy_seller    ON chat_rooms(buy_order_id, seller_user_id)   WHERE buy_order_id IS NOT NULL;
+CREATE INDEX        idx_chat_rooms_buy_order    ON chat_rooms(buy_order_id)                   WHERE buy_order_id IS NOT NULL;
 CREATE INDEX idx_chat_messages_chat_room_id   ON chat_messages(chat_room_id);
 CREATE INDEX idx_chat_messages_created_at     ON chat_messages(created_at DESC);
 

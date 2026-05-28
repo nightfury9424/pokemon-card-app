@@ -535,11 +535,30 @@ public class ChatServiceImpl implements ChatService {
     /**
      * 2026-05-28 ImageProxyController가 chat/{roomId}/... key 요청 받았을 때 participant 검증용.
      * read-only — service-level guard 가 아닌 조회.
+     *
+     * <p>정책 (2026-05-28 Codex 사후 리뷰 반영):
+     * <ul>
+     *   <li>참여자 검증 — buyer_user_id OR seller_user_id 매칭 필수.
+     *   <li>양방향 차단(block) 검증 — 한쪽이라도 차단 관계면 access 차단 ({@code requireNotBlocked} 동일 패턴).
+     *   <li>{@code hidden_at} (방 나가기)은 그대로 access 허용 — 분쟁 evidence 보존 정책 (HANDOFF 5.5).
+     *       방을 나가도 본인이 등록한/받은 메시지 history 는 본인 측에서 볼 권리 유지.
+     * </ul>
      */
     @Override
     public boolean isRoomParticipant(String roomId, String userId) {
         return chatRoomRepository.findById(roomId)
-                .map(room -> userId.equals(room.getBuyerUserId()) || userId.equals(room.getSellerUserId()))
+                .map(room -> {
+                    boolean isParticipant = userId.equals(room.getBuyerUserId())
+                            || userId.equals(room.getSellerUserId());
+                    if (!isParticipant) return false;
+                    String other = otherUserOf(room, userId);
+                    // 양방향 차단 — requireNotBlocked 패턴 일관 (한쪽이라도 차단 시 차단).
+                    if (blockRepository.existsByBlockerIdAndBlockedId(userId, other)
+                            || blockRepository.existsByBlockerIdAndBlockedId(other, userId)) {
+                        return false;
+                    }
+                    return true;
+                })
                 .orElse(false);
     }
 

@@ -1,63 +1,74 @@
 -- Buy Order 양방향 채팅 마이그레이션 (2026-05-28)
--- 목적: BuyOrder(구매 호가) row에서도 채팅 시작 가능. 잠재 판매자가 구매 희망 작성자에게 채팅.
+-- 목적: BuyOrder(구매 호가) row에서도 채팅 시작 가능.
 --
--- 설계 원칙:
---  - 가산형 변경: 기존 SALE chat 데이터/흐름 0 영향.
---  - 컬럼 명명 의미 일관: buyer_user_id = 카드 사려는 사람, seller_user_id = 카드 팔려는 사람.
---    SALE chat: buyer = 채팅 시작자, seller = TradePost.sellerId.
---    BUY chat:  buyer = BuyOrder.buyerId (작성자), seller = 채팅 시작자 (잠재 판매자).
---  - sale_listing_id 와 buy_order_id 는 정확히 하나만 NOT NULL (CHECK).
+-- ⚠ 2026-05-28 Codex 사후 리뷰 결정적 수정:
+--   원본은 단일 트랜잭션 + non-concurrent CREATE/DROP INDEX 로 live table에 exclusive lock.
+--   prod 적용 시 chat_rooms 모든 write 가 인덱스 빌드 시간만큼 차단.
+--   해결: 각 step 을 분리 + CONCURRENTLY + NOT VALID/VALIDATE 패턴.
 --
--- 적용 순서: 백엔드 코드 배포 전 prod psql 직접 실행.
+-- 적용 순서: psql 에서 step 별 실행 (CONCURRENTLY는 한 트랜잭션 안에서 동작 X).
+--   psql -d pokemon_card_db -f buy_order_chat_room_migration.sql 한 번에 실행 X.
+--   아래 step 코멘트 따라 한 줄/한 블록씩 실행.
 
-BEGIN;
+-- ─────────────────────────────────────────────────────────────────────────
+-- STEP 1. 컬럼 변경 (짧은 ACCESS EXCLUSIVE — sub-second).
+-- ─────────────────────────────────────────────────────────────────────────
 
--- 1) sale_listing_id NULL 허용 (BUY chat에서는 NULL)
 ALTER TABLE chat_rooms
     ALTER COLUMN sale_listing_id DROP NOT NULL;
 
--- 2) buy_order_id 컬럼 추가
 ALTER TABLE chat_rooms
     ADD COLUMN IF NOT EXISTS buy_order_id VARCHAR(50);
 
--- 3) 기존 (sale_listing_id, buyer_user_id) unique 제거 (partial index로 교체).
---    JPA @UniqueConstraint 가 PostgreSQL 에선 CREATE UNIQUE INDEX 로 생성되므로
---    DROP CONSTRAINT 가 아니라 DROP INDEX 로 제거해야 함 (Codex 사전 리뷰 catch).
-DROP INDEX IF EXISTS uq_chat_rooms_sale_buyer;
--- 안전망 — 환경에 따라 CONSTRAINT 로 생성됐을 가능성 대비 (no-op if not exists).
-ALTER TABLE chat_rooms
-    DROP CONSTRAINT IF EXISTS uq_chat_rooms_sale_buyer;
+-- ─────────────────────────────────────────────────────────────────────────
+-- STEP 2. 새 partial unique index CONCURRENTLY 생성 (write 차단 X).
+--          이름 충돌 회피 — 기존 'uq_chat_rooms_sale_buyer'(전체 unique) 와
+--          새 partial(sale_listing_id NOT NULL 한정)은 의미가 다르므로 _v2 suffix.
+-- ─────────────────────────────────────────────────────────────────────────
 
--- 4) SALE chat 용 partial unique — sale_listing_id NOT NULL row만
-CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_rooms_sale_buyer
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uq_chat_rooms_sale_buyer_v2
     ON chat_rooms (sale_listing_id, buyer_user_id)
     WHERE sale_listing_id IS NOT NULL;
 
--- 5) BUY chat 용 partial unique — buy_order_id NOT NULL row만
---    한 BuyOrder당 한 명의 잠재 판매자 = 한 방.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_rooms_buy_seller
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uq_chat_rooms_buy_seller
     ON chat_rooms (buy_order_id, seller_user_id)
     WHERE buy_order_id IS NOT NULL;
 
--- 6) buy_order_id 조회용 일반 index (getMyRooms 등 lookup)
-CREATE INDEX IF NOT EXISTS idx_chat_rooms_buy_order
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_chat_rooms_buy_order
     ON chat_rooms (buy_order_id)
     WHERE buy_order_id IS NOT NULL;
 
--- 7) XOR CHECK — sale_listing_id 와 buy_order_id 중 정확히 하나만 NOT NULL.
---    기존 SALE row는 sale_listing_id NOT NULL + buy_order_id NULL → 통과.
+-- ─────────────────────────────────────────────────────────────────────────
+-- STEP 3. (uq_chat_rooms_sale_buyer_v2 검증 후) 기존 전체-unique CONCURRENTLY drop.
+--          v2 가 SALE 데이터에 대해 동등한 uniqueness 보장 (sale_listing_id NOT NULL row).
+--          기존 데이터는 모두 sale_listing_id NOT NULL 이므로 transition gap 없음.
+-- ─────────────────────────────────────────────────────────────────────────
+
+DROP INDEX CONCURRENTLY IF EXISTS uq_chat_rooms_sale_buyer;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- STEP 4. XOR CHECK 추가 — NOT VALID 로 짧게 메타데이터만 박은 뒤 별도 VALIDATE.
+--          NOT VALID 단계는 ACCESS EXCLUSIVE 가 짧고 기존 row 검증 skip.
+--          VALIDATE 단계는 row 검증하지만 write 차단 X (SHARE UPDATE EXCLUSIVE).
+-- ─────────────────────────────────────────────────────────────────────────
+
 ALTER TABLE chat_rooms
     DROP CONSTRAINT IF EXISTS chk_chat_rooms_listing_xor;
+
 ALTER TABLE chat_rooms
     ADD CONSTRAINT chk_chat_rooms_listing_xor
     CHECK (
         (sale_listing_id IS NOT NULL AND buy_order_id IS NULL)
         OR (sale_listing_id IS NULL AND buy_order_id IS NOT NULL)
-    );
+    ) NOT VALID;
 
-COMMIT;
+ALTER TABLE chat_rooms
+    VALIDATE CONSTRAINT chk_chat_rooms_listing_xor;
 
--- 검증 쿼리 (적용 후 실행):
---   \d chat_rooms                                       -- buy_order_id 컬럼 + 새 인덱스 확인
---   SELECT COUNT(*) FROM chat_rooms WHERE sale_listing_id IS NULL;  -- 0이어야 (기존 데이터)
---   SELECT COUNT(*) FROM chat_rooms WHERE buy_order_id IS NOT NULL; -- 0이어야 (마이그레이션 직후)
+-- ─────────────────────────────────────────────────────────────────────────
+-- 검증 쿼리 (모든 step 후):
+--   \d chat_rooms                                                    -- buy_order_id + 새 인덱스 확인
+--   SELECT COUNT(*) FROM chat_rooms WHERE sale_listing_id IS NULL;   -- 0이어야 (기존 데이터)
+--   SELECT COUNT(*) FROM chat_rooms WHERE buy_order_id IS NOT NULL;  -- 0이어야 (마이그레이션 직후)
+--   SELECT indexname FROM pg_indexes WHERE tablename='chat_rooms';   -- 새 인덱스 3개 확인
+-- ─────────────────────────────────────────────────────────────────────────
