@@ -383,6 +383,9 @@ class _TradeListScreenState extends State<TradeListScreen> {
     ];
     showModalBottomSheet(
       context: context,
+      // MainShell의 centerDocked 스캐너 FAB가 nested Navigator 안 sheet 위에 그려져
+      // 시트 하단(PR 안내문/마지막 옵션)을 가리는 문제 방지 — root navigator로 push.
+      useRootNavigator: true,
       backgroundColor: AppColors.surfaceCard,
       isScrollControlled: false,
       shape: const RoundedRectangleBorder(

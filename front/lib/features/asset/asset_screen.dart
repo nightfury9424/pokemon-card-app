@@ -263,6 +263,8 @@ class _AssetScreenState extends State<AssetScreen> {
 
     await showModalBottomSheet(
       context: context,
+      // ShellRoute child(/assets) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
@@ -455,6 +457,8 @@ class _AssetScreenState extends State<AssetScreen> {
     try {
       await showModalBottomSheet(
         context: context,
+        // ShellRoute child(/assets) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+        useRootNavigator: true,
         isScrollControlled: true,
         backgroundColor: AppColors.surfaceCard,
         shape: const RoundedRectangleBorder(
@@ -1088,6 +1092,8 @@ class _AssetScreenState extends State<AssetScreen> {
   Future<void> _showSortSheet() async {
     await showModalBottomSheet<void>(
       context: context,
+      // ShellRoute child(/assets) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+      useRootNavigator: true,
       backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -1719,6 +1725,8 @@ class _AssetScreenState extends State<AssetScreen> {
   void _showAddOptions() {
     showModalBottomSheet(
       context: context,
+      // ShellRoute child(/assets) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+      useRootNavigator: true,
       backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -1830,6 +1838,8 @@ class _AssetScreenState extends State<AssetScreen> {
 
     await showModalBottomSheet(
       context: context,
+      // ShellRoute child(/assets) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
@@ -2005,6 +2015,8 @@ class _AssetScreenState extends State<AssetScreen> {
 
     await showModalBottomSheet(
       context: context,
+      // ShellRoute child(/assets) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(

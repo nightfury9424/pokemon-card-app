@@ -1092,6 +1092,8 @@ class _NotificationBellState extends State<_NotificationBell> {
   Future<void> _showNotifications() async {
     await showModalBottomSheet(
       context: context,
+      // ShellRoute child(/home) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+      useRootNavigator: true,
       backgroundColor: AppColors.surfaceCard,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
