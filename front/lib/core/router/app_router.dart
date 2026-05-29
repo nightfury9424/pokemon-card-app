@@ -12,6 +12,7 @@ import '../../features/scanner/scanner_screen.dart';
 import '../../features/card/card_detail_screen.dart';
 import '../../features/card/product_cards_screen.dart';
 import '../../features/asset/asset_screen.dart';
+import '../../features/asset/dex/dex_detail_screen.dart';
 import '../../features/price/price_screen.dart';
 import '../../features/packs/packs_screen.dart';
 import '../../features/profile/profile_screen.dart';
@@ -77,6 +78,13 @@ final appRouter = GoRouter(
         final expected = state.uri.queryParameters['expectedCardId'];
         return ScannerScreen(expectedCardId: expected);
       },
+    ),
+    // 2026-05-29 Phase B — 도감 시리즈 상세.
+    GoRoute(
+      path: '/dex/:productId',
+      builder: (_, state) => DexDetailScreen(
+        productId: state.pathParameters['productId']!,
+      ),
     ),
     GoRoute(
       path: '/card/:cardId',

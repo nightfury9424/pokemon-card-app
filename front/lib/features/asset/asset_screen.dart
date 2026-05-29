@@ -16,6 +16,7 @@ import '../../core/widgets/pressable.dart';
 import '../../core/widgets/rarity_aura.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_info_toast.dart';
+import 'dex/dex_view.dart';
 
 class AssetScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -36,7 +37,7 @@ class _AssetScreenState extends State<AssetScreen> {
   List<Map<String, dynamic>> _myBuyOrders = [];
   bool _loading = true;
   String? _userId;
-  late int _tabIndex = widget.initialTabIndex; // 0=전체 1=판매중 2=내 매수
+  late int _tabIndex = widget.initialTabIndex; // 0=전체 1=판매중 2=내 매수 3=도감 (2026-05-29 Phase B)
 
   _SortMode _sortMode = _SortMode.rarity;
   bool _sortAscending = true;
@@ -778,7 +779,17 @@ class _AssetScreenState extends State<AssetScreen> {
           ? const Center(
               child: CircularProgressIndicator(color: Colors.white30),
             )
-          : RefreshIndicator(
+          : _tabIndex == 3
+              // 2026-05-29 Phase B: 도감 탭 — 자체 RefreshIndicator + CustomScrollView 사용.
+              //   외부 nested scroll 충돌 회피 위해 별도 Column 구조.
+              ? Column(
+                  children: [
+                    _buildPortfolioSummary(),
+                    _buildTabAndSortRow(),
+                    Expanded(child: DexView(onParentRefresh: _loadData)),
+                  ],
+                )
+              : RefreshIndicator(
               onRefresh: _loadData,
               child: CustomScrollView(
                 slivers: [
@@ -992,8 +1003,11 @@ class _AssetScreenState extends State<AssetScreen> {
           _tabText('판매중', 1),
           const SizedBox(width: 18),
           _tabText('내 매수', 2),
+          const SizedBox(width: 18),
+          _tabText('도감', 3),
           const Spacer(),
-          _sortDropdown(),
+          // 2026-05-29 Phase B: 도감 탭은 정렬 기준이 다르므로 sort dropdown 숨김.
+          if (_tabIndex != 3) _sortDropdown(),
         ],
       ),
     );
