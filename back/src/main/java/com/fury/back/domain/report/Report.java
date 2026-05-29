@@ -44,9 +44,36 @@ public class Report {
     @Column(name = "reviewed_at")
     private LocalDateTime reviewedAt;
 
+    // 2026-05-29 Stage 0 (Codex B) — admin 처리 메타 4 컬럼.
+    @Column(name = "admin_memo", columnDefinition = "TEXT")
+    private String adminMemo;
+
+    @Column(name = "handled_by", length = 50)
+    private String handledBy;
+
+    @Column(name = "handled_at")
+    private LocalDateTime handledAt;
+
+    /** SUSPEND_USER / DELETE_TRADE / DELETE_CHAT / DISMISS / NONE. */
+    @Column(name = "resolution_action", length = 40)
+    private String resolutionAction;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();
         if (status == null) status = "PENDING";
+    }
+
+    /** 2026-05-29: admin 처리 — status 변경 + 메타 기록. AdminActionService 에서 호출. */
+    public void markHandled(String newStatus, String adminUserId, String memo, String resolutionAction) {
+        this.status = newStatus;
+        this.handledBy = adminUserId;
+        this.handledAt = LocalDateTime.now();
+        this.adminMemo = memo;
+        this.resolutionAction = resolutionAction;
+        // 기존 reviewed_at 도 set (backward compat — legacy 코드 호환).
+        if ("REVIEWED".equals(newStatus) || "RESOLVED".equals(newStatus) || "DISMISSED".equals(newStatus)) {
+            this.reviewedAt = LocalDateTime.now();
+        }
     }
 }

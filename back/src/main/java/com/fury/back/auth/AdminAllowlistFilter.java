@@ -44,6 +44,19 @@ public class AdminAllowlistFilter extends OncePerRequestFilter {
     private final Set<String> allowedUserIds;
     private final boolean enforced;
 
+    /**
+     * 2026-05-29 admin Stage 0 — AdminStage0Service.whoami 가 외부에서 allowlist 검증할 때 호출.
+     * Stage 0 의 /api/admin/whoami endpoint + DeletedUserGuardFilter (정지 면제 판정) 사용.
+     */
+    public boolean isAllowed(String userId) {
+        return userId != null && allowedUserIds.contains(userId);
+    }
+
+    /** 2026-05-29 admin Stage 0 — StartupValidator non-empty 가드용 (Codex F). */
+    public int allowedCount() {
+        return allowedUserIds.size();
+    }
+
     public AdminAllowlistFilter(
             @Value("${app.admin.user-ids:}") String allowlist,
             @Value("${app.admin.auth-enabled:false}") boolean adminAuthEnabled) {

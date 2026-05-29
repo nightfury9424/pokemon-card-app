@@ -48,10 +48,49 @@ public class User {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    // ─────────────────────────────────────────────────────────────────────
+    // 2026-05-29 admin Stage 0 (Codex C) — 사용자 정지/복구.
+    //   suspended_at NOT NULL = 정지 중 → DeletedUserGuardFilter 가 USER_SUSPENDED 별도 코드로 차단.
+    //   복구 시 suspended_at NULL + unsuspended_at = now (감사 trail).
+    //   PII 마스킹 X (deleted_at 와 다름) — 복구 시 정보 그대로.
+    // ─────────────────────────────────────────────────────────────────────
+
+    @Column(name = "suspended_at")
+    private LocalDateTime suspendedAt;
+
+    @Column(name = "suspension_reason", columnDefinition = "TEXT")
+    private String suspensionReason;
+
+    @Column(name = "suspended_by", length = 50)
+    private String suspendedBy;
+
+    @Column(name = "unsuspended_at")
+    private LocalDateTime unsuspendedAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
+    }
+
+    /** 2026-05-29: 정지 처리. AdminUserService 에서 호출. */
+    public void suspend(String reason, String adminUserId) {
+        this.suspendedAt = LocalDateTime.now();
+        this.suspensionReason = reason;
+        this.suspendedBy = adminUserId;
+        this.unsuspendedAt = null;
+    }
+
+    /** 2026-05-29: 정지 해제. PII 마스킹 안 풀음 (정지 != 탈퇴). */
+    public void unsuspend() {
+        this.suspendedAt = null;
+        this.unsuspendedAt = LocalDateTime.now();
+        // suspensionReason / suspendedBy 는 audit 용 유지.
+    }
+
+    /** 정지 상태 여부. */
+    public boolean isSuspended() {
+        return this.suspendedAt != null;
     }
 
     @PreUpdate

@@ -50,6 +50,10 @@ public class StartupValidator {
     @Value("${app.auth.dev-login-enabled:true}")
     private boolean devLoginEnabled;
 
+    // 2026-05-29 admin Stage 0 (Codex F) — admin allowlist non-empty 검증.
+    @Value("${app.admin.user-ids:}")
+    private String adminUserIds;
+
     @PostConstruct
     public void validate() {
         String[] activeProfiles = environment.getActiveProfiles();
@@ -90,11 +94,18 @@ public class StartupValidator {
             errors.append("  - DEV_LOGIN_ENABLED=false must be set in prod-like profile (/api/auth/dev/** must be denied).\n");
         }
 
+        // 2026-05-29 admin Stage 0 (Codex F) — allowlist non-empty.
+        //   adminAuthEnabled=true 인데 user-ids 비어있으면 모든 admin endpoint 403 → admin 도구 마비.
+        if (adminAuthEnabled && (adminUserIds == null || adminUserIds.isBlank())) {
+            errors.append("  - ADMIN_USER_IDS must be non-empty when ADMIN_AUTH_ENABLED=true "
+                    + "(comma-separated allowlist of admin user_id values).\n");
+        }
+
         if (!errors.isEmpty()) {
             String msg = "Production startup validation failed (profiles=" + Arrays.toString(activeProfiles) + "):\n"
                     + errors
                     + "Required env vars: JWT_SECRET, DB_PASSWORD, ADMIN_AUTH_ENABLED=true, "
-                    + "API_AUTH_ENFORCED=true, DEV_LOGIN_ENABLED=false.";
+                    + "ADMIN_USER_IDS=<csv>, API_AUTH_ENFORCED=true, DEV_LOGIN_ENABLED=false.";
             log.error("[StartupValidator] {}", msg);
             throw new IllegalStateException(msg);
         }
