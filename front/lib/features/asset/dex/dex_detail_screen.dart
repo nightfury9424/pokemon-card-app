@@ -11,6 +11,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/notifiers/asset_notifier.dart';
 import '../../../core/theme/app_colors.dart';
 import 'dex_api.dart';
 import 'dex_models.dart';
@@ -31,7 +32,19 @@ class _DexDetailScreenState extends State<DexDetailScreen> {
   @override
   void initState() {
     super.initState();
+    AssetNotifier.instance.addListener(_onAssetChange);
     _load();
+  }
+
+  @override
+  void dispose() {
+    AssetNotifier.instance.removeListener(_onAssetChange);
+    super.dispose();
+  }
+
+  void _onAssetChange() {
+    // 2026-05-30 stale fix — 카드 상세에서 자산 추가/수정/삭제 후 도감 상세도 즉시 반영.
+    if (mounted) _load();
   }
 
   Future<void> _load() async {

@@ -1028,6 +1028,8 @@ class _AssetScreenState extends State<AssetScreen> {
       onTap: () {
         setState(() => _tabIndex = index);
         if (index == 2 && _myBuyOrders.isEmpty) _loadMyBuyOrders();
+        // 2026-05-30 stale fix — 도감 탭 진입 시 reload (자산 변경이 외부에서 일어났을 수 있음).
+        if (index == 3) _dexKey.currentState?.reload();
       },
       behavior: HitTestBehavior.opaque,
       child: SizedBox(

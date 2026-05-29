@@ -4,8 +4,8 @@ import '../../../core/network/api_client.dart';
 import 'dex_models.dart';
 
 class DexApi {
-  /// 도감 메인 — default limit 20 (max 50 backend-side 클램프).
-  static Future<DexMain> getDexMain({int limit = 20}) async {
+  /// 도감 메인 — default 40, max 60 backend-side 클램프 (2026-05-30 사용자 명시).
+  static Future<DexMain> getDexMain({int limit = 40}) async {
     final res = await ApiClient.get('/api/assets/dex', params: {'limit': limit});
     final data = res['data'] as Map<String, dynamic>;
     return DexMain.fromJson(data);

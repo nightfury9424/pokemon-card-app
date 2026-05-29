@@ -26,13 +26,14 @@ public class DexController {
     private final DexService service;
 
     /** 도감 메인 — product 그리드 + 보유율 + hero card cover.
-     *  2026-05-29 Codex MVP — default 20, max 50. 정확한 "최근 발매" 아닌 "최신 세대 우선" 정렬.
-     *  release_date 컬럼 추가 시 DexService 의 ORDER BY 한 줄만 교체. */
+     *  2026-05-29 Codex MVP — default 20, max 50. "최신 세대 우선" 정렬.
+     *  2026-05-30 사용자 명시 — default 40, max 60 (테라스탈/SV 시리즈 더 노출).
+     *  release_date 컬럼 추가 시 DexService 의 generationPriority 한 메서드만 교체. */
     @GetMapping
     public ReturnData<DexDto.DexMain> getDex(
             @AuthenticationPrincipal String userId,
-            @RequestParam(defaultValue = "20") int limit) {
-        int safeLimit = Math.min(Math.max(limit, 1), 50);
+            @RequestParam(defaultValue = "40") int limit) {
+        int safeLimit = Math.min(Math.max(limit, 1), 60);
         return ReturnData.success(service.getDexMain(userId, safeLimit));
     }
 

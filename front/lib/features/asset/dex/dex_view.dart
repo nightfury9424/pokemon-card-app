@@ -13,6 +13,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/notifiers/asset_notifier.dart';
 import '../../../core/theme/app_colors.dart';
 import 'dex_api.dart';
 import 'dex_models.dart';
@@ -35,6 +36,12 @@ class DexViewState extends State<DexView> {
   /// 외부 (asset_screen) RefreshIndicator 가 GlobalKey 로 호출 — portfolio 와 도감 동기.
   Future<void> reload() => _load();
 
+  void _onAssetChange() {
+    // 2026-05-30 stale fix — 자산 변경 broadcast 받으면 도감 자동 reload.
+    //   카드 상세 / 스캐너 / 자산 화면에서 추가/수정/삭제 후 도감 즉시 반영.
+    if (mounted) _load();
+  }
+
   DexMain? _data;
   bool _loading = true;
   String? _error;
@@ -42,16 +49,24 @@ class DexViewState extends State<DexView> {
   @override
   void initState() {
     super.initState();
+    AssetNotifier.instance.addListener(_onAssetChange);
     _load();
+  }
+
+  @override
+  void dispose() {
+    AssetNotifier.instance.removeListener(_onAssetChange);
+    super.dispose();
   }
 
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
       // Codex 사후 Q1 — 부모 (asset_screen) reload + 도감 fetch 병렬.
+      // 2026-05-30 limit 40 (사용자 명시 — 테라스탈/SV 더 노출).
       await Future.wait([
         if (widget.onParentRefresh != null) widget.onParentRefresh!(),
-        DexApi.getDexMain(limit: 20).then((d) => _data = d),
+        DexApi.getDexMain(limit: 40).then((d) => _data = d),
       ]);
       if (mounted) setState(() { _loading = false; });
     } catch (e) {
