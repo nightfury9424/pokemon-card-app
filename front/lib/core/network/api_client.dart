@@ -47,8 +47,9 @@ class ApiClient {
         // 항상 로그 — release에서도 진단 가능 (debugPrint는 release에서 일부 무시)
         debugPrint('[ApiClient] ${err.requestOptions.method} $path → ${info.statusCode} ${info.message}');
         // 이미지 proxy(/api/images/secure/**) fail은 SnackBar 표시 X (AuthImage가 자체 errorBuilder 처리).
-        // 그 외엔 main.dart의 setErrorHandler 콜백 발화 (SnackBar).
-        if (!path.startsWith('/api/images/secure')) {
+        // 2026-05-29 admin Stage 0: silentErrors extra 플래그 (probe whoami 등 fire-and-forget) 도 SnackBar X.
+        final silentExtra = err.requestOptions.extra['silentErrors'] == true;
+        if (!path.startsWith('/api/images/secure') && !silentExtra) {
           _onError?.call(info);
         }
         handler.next(err);
@@ -98,8 +99,15 @@ class ApiClient {
     return res.data;
   }
 
-  static Future<Map<String, dynamic>> get(String path, {Map<String, dynamic>? params}) async {
-    final res = await _dio.get(path, queryParameters: params);
+  /// 2026-05-29 admin Stage 0 (Codex Critical 2): silent 옵션 — interceptor SnackBar 우회.
+  /// fire-and-forget probe (예: /api/admin/whoami) 시 403/네트워크 오류로 사용자 SnackBar 발화 차단.
+  static Future<Map<String, dynamic>> get(String path,
+      {Map<String, dynamic>? params, bool silent = false}) async {
+    final res = await _dio.get(
+      path,
+      queryParameters: params,
+      options: silent ? Options(extra: {'silentErrors': true}) : null,
+    );
     return res.data;
   }
 

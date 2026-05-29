@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart' show DioException;
 import '../../core/auth/auth_state.dart';
 import '../../core/network/api_client.dart';
 
@@ -10,21 +9,16 @@ import '../../core/network/api_client.dart';
 ///   - AdminAllowlistFilter (백엔드) 가 비-admin 요청 403 → 클라는 메뉴 숨김.
 class AdminApi {
   /// 앱 bootstrap / 로그인 직후 호출. 결과 AuthState.markAdminProbe 로 캐시.
-  /// 네트워크 오류 등 다른 케이스도 모두 silent — 보수적으로 false 처리.
+  /// silent: true — global SnackBar interceptor 우회 (Codex Critical 2 — fire-and-forget probe).
+  /// 네트워크 오류 등 모든 실패 케이스 false 보수적 처리.
   static Future<void> probeIsAdmin() async {
     try {
-      final res = await ApiClient.get('/api/admin/whoami');
+      final res = await ApiClient.get('/api/admin/whoami', silent: true);
       final data = (res['data'] as Map?)?.cast<String, dynamic>();
       final isAdmin = (data?['isAdmin'] as bool?) ?? false;
       AuthState.instance.markAdminProbe(isAdmin: isAdmin);
-    } on DioException catch (e) {
-      // 403 = 비-admin (silent). 그 외 (401/네트워크) 도 false 보수적 처리.
-      if (e.response?.statusCode == 403) {
-        AuthState.instance.markAdminProbe(isAdmin: false);
-      } else {
-        AuthState.instance.markAdminProbe(isAdmin: false);
-      }
     } catch (_) {
+      // 403 / 401 / 네트워크 / 기타 — silent 처리, false 캐시.
       AuthState.instance.markAdminProbe(isAdmin: false);
     }
   }

@@ -55,9 +55,12 @@ public class AdminStage0Service {
     public Page<AdminStage0Dto.ReportRow> listReports(String status, String targetType,
                                                        LocalDateTime createdFrom, LocalDateTime createdTo,
                                                        int page, int size) {
+        // 2026-05-29 Codex 사후 Critical 3 — page<0 IllegalArgumentException 가드.
+        final int safePage = Math.max(0, page);
+        final int safeSize = Math.max(1, Math.min(size, 100));
         Page<Report> reports = reportRepository.findAdminList(
                 status, targetType, createdFrom, createdTo,
-                PageRequest.of(page, Math.min(size, 100)));
+                PageRequest.of(safePage, safeSize));
 
         // batch lookup — reporter 닉네임 + target 정보 (N+1 차단).
         List<String> reporterIds = reports.stream().map(Report::getReporterId).distinct().toList();

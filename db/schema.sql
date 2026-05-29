@@ -10,6 +10,8 @@
 -- =============================================================
 
 -- 사용자
+-- 2026-05-29 admin Stage 0 (Codex C): suspended_* 4 컬럼 추가 — deleted_at 재사용 X.
+--   migration: back/sql/admin_stage0_migration.sql
 CREATE TABLE users (
     user_id              VARCHAR(50)  PRIMARY KEY,
     google_id            VARCHAR(100) NOT NULL UNIQUE,
@@ -19,8 +21,16 @@ CREATE TABLE users (
     onboarded            BOOLEAN      NOT NULL DEFAULT FALSE,
     nickname_changed_at  TIMESTAMP,
     created_at           TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at           TIMESTAMP    NOT NULL DEFAULT NOW()
+    updated_at           TIMESTAMP    NOT NULL DEFAULT NOW(),
+    deleted_at           TIMESTAMP,                                -- soft delete (App Review 5.1.1)
+    -- 2026-05-29 정지/복구 (정지 != 탈퇴, PII 마스킹 X)
+    suspended_at         TIMESTAMP,
+    suspension_reason    TEXT,
+    suspended_by         VARCHAR(50),
+    unsuspended_at       TIMESTAMP
 );
+-- 정지 사용자 list partial index.
+CREATE INDEX idx_users_suspended ON users (suspended_at) WHERE suspended_at IS NOT NULL;
 
 -- 닉네임 lowercase unique (NULL은 중복 허용 — 온보딩 전 사용자)
 CREATE UNIQUE INDEX users_nickname_lower_idx
@@ -227,6 +237,8 @@ CREATE INDEX idx_notifications_user_unread
 
 -- =============================================================
 -- 신고 (4차-Round4-5 거래/사용자/매수호가 신고)
+-- 2026-05-29 admin Stage 0 (Codex B): admin 처리 메타 4 컬럼 추가.
+--   migration: back/sql/admin_stage0_migration.sql
 -- =============================================================
 CREATE TABLE reports (
     report_id           VARCHAR(50) PRIMARY KEY,
@@ -237,12 +249,38 @@ CREATE TABLE reports (
     detail              TEXT,
     status              VARCHAR(20) NOT NULL DEFAULT 'PENDING',  -- PENDING / REVIEWED / RESOLVED / DISMISSED
     created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
-    reviewed_at         TIMESTAMP
+    reviewed_at         TIMESTAMP,
+    -- 2026-05-29 admin Stage 0 처리 메타.
+    admin_memo          TEXT,
+    handled_by          VARCHAR(50),
+    handled_at          TIMESTAMP,
+    resolution_action   VARCHAR(40)                     -- SUSPEND_USER / DELETE_TRADE / DELETE_CHAT / DISMISS / NONE
 );
 
 CREATE INDEX idx_reports_target ON reports(target_type, target_id);
 CREATE INDEX idx_reports_reporter ON reports(reporter_id);
-CREATE INDEX idx_reports_status ON reports(status, created_at DESC);
+CREATE INDEX idx_reports_status_created ON reports(status, created_at DESC);
+
+-- =============================================================
+-- 2026-05-29 admin Stage 0 (Codex I): admin_actions audit log.
+--   immutable INSERT only. App Review 5.1.5 moderation evidence 의무.
+-- =============================================================
+CREATE TABLE admin_actions (
+    action_id        VARCHAR(50) PRIMARY KEY,
+    admin_user_id    VARCHAR(50) NOT NULL,
+    action_type      VARCHAR(40) NOT NULL,             -- SUSPEND / UNSUSPEND / DELETE_TRADE / REVIEW_REPORT 등
+    target_type      VARCHAR(20) NOT NULL,             -- USER / TRADE / REPORT / CHAT_MESSAGE
+    target_id        VARCHAR(50) NOT NULL,
+    report_id        VARCHAR(50),                       -- 신고 기반 처리 시 link (nullable)
+    memo             TEXT,
+    previous_state   VARCHAR(40),
+    new_state        VARCHAR(40),
+    metadata_json    TEXT,
+    created_at       TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_admin_actions_admin_created ON admin_actions(admin_user_id, created_at DESC);
+CREATE INDEX idx_admin_actions_target ON admin_actions(target_type, target_id);
 
 -- =============================================================
 -- 유니크 제약
