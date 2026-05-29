@@ -55,38 +55,34 @@ public class DexService {
         END
         """;
 
-    /**
-     * 2026-05-29 Codex MVP — "최신 세대 우선" 정렬. 정확한 "최근 발매" 아님 (release_date 없음).
-     * 향후 products.release_date 컬럼 추가 시 이 정렬 deprecated, ORDER BY 한 줄만 교체.
-     *
-     * 2026-05-29 hotfix — PostgreSQL "could not determine data type of parameter $5"
-     * (SQLState 42P18) — inline LIKE 패턴 ('%스칼렛&바이올렛%' 의 `&` 등) 이 Hibernate
-     * native query 에서 prepared statement placeholder 로 잘못 변환되는 문제.
-     * 해결: 모든 LIKE 패턴을 named param 으로 외부화 (binding 명확).
-     * 메모리 feedback_hibernate_native_param_types 참조 — admin chart 와 동일 패턴.
-     */
-    private static final String PRODUCT_GENERATION_SQL = """
-        CASE
-          WHEN p.name LIKE CAST(:genMega AS TEXT) THEN 1
-          WHEN p.name LIKE CAST(:genSv   AS TEXT) THEN 2
-          WHEN p.name LIKE CAST(:genSwsh AS TEXT) THEN 3
-          WHEN p.name LIKE CAST(:genSm   AS TEXT) THEN 4
-          WHEN p.name LIKE CAST(:genXy   AS TEXT) THEN 5
-          WHEN p.name LIKE CAST(:genBw   AS TEXT) THEN 6
-          WHEN p.name LIKE CAST(:genDp   AS TEXT) THEN 7
-          ELSE 99
-        END
-        """;
+    // 2026-05-29 hotfix 3 — PRODUCT_GENERATION_SQL (CASE WHEN LIKE) 제거.
+    // 한국어 + & 포함 LIKE 패턴이 Hibernate 6 native query 에서 prepared statement
+    // 타입 추론 실패 (42P18) 재발. named param 외부화 + CAST AS TEXT 둘 다 안 됨.
+    // → generationPriority(String name) Java 메서드 로 이전 (parsing 부담 무시 가능).
 
-    private static final String GEN_MEGA = "MEGA%";
-    private static final String GEN_SV   = "%스칼렛&바이올렛%";
-    private static final String GEN_SWSH = "%소드&실드%";
-    private static final String GEN_SM   = "%썬&문%";
-    private static final String GEN_XY   = "XY%";
-    private static final String GEN_BW   = "BW%";
-    private static final String GEN_DP   = "DP%";
-    private static final String EX_PROMO = "%프로모%";
-    private static final String EX_TRAINER_BOX = "%트레이너 박스%";
+
+    /** 2026-05-29 hotfix 3 — Java side prefix priority (SQL LIKE 우회).
+     *  prefix 매칭 — DB 실측:
+     *    MEGA*               → 1
+     *    *스칼렛&바이올렛*    → 2  (포켓몬 카드 게임 ~, 강화/하이클래스/확장팩 포함)
+     *    *소드&실드*          → 3
+     *    *썬&문*              → 4
+     *    XY*                 → 5  (XY BREAK 도 포함)
+     *    BW*                 → 6
+     *    DP*                 → 7
+     *    기타                → 99
+     */
+    private static int generationPriority(String name) {
+        if (name == null) return 99;
+        if (name.startsWith("MEGA"))           return 1;
+        if (name.contains("스칼렛&바이올렛")) return 2;
+        if (name.contains("소드&실드"))        return 3;
+        if (name.contains("썬&문"))            return 4;
+        if (name.startsWith("XY"))             return 5;
+        if (name.startsWith("BW"))             return 6;
+        if (name.startsWith("DP"))             return 7;
+        return 99;
+    }
 
     // ──────────────────────────────────────────────────────────────────
     // GET /api/assets/dex
@@ -99,30 +95,16 @@ public class DexService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "USER_REQUIRED");
         }
 
-        // 0. 전체 도감 표시 대상 product 수 — totalProducts + hasMore 계산용.
-        //   2026-05-29 사용자 명시 필터 (도감 의미 보호):
-        //     - ko_visible >= 5  (1~4장짜리 부속/프로모 묶음 제거)
-        //     - name NOT LIKE '%프로모%'        (코리안리그 프로모, 프로모 카드 팩 등)
-        //     - name NOT LIKE '%트레이너 박스%' (프리미엄 트레이너 박스 등)
-        //   메인 query 와 같은 필터 적용 → hasMore 정합성 보장.
-        long totalAll = ((Number) em.createNativeQuery(
-            "SELECT COUNT(*) FROM (" +
-            "  SELECT c.product_id FROM cards c " +
-            "  WHERE c.is_visible = TRUE AND c.language = 'KO' " +
-            "  GROUP BY c.product_id " +
-            "  HAVING COUNT(*) >= 5" +
-            ") sub " +
-            "JOIN products p ON p.product_id = sub.product_id " +
-            "WHERE p.name NOT LIKE CAST(:exPromo AS TEXT) " +
-            "  AND p.name NOT LIKE CAST(:exTrainerBox AS TEXT)"
-        )
-        .setParameter("exPromo", EX_PROMO)
-        .setParameter("exTrainerBox", EX_TRAINER_BOX)
-        .getSingleResult()).longValue();
+        // 2026-05-29 hotfix 3 — SQL LIKE/NOT LIKE 모두 제거, 정렬/필터 Java side 로 이전.
+        //   원인: Hibernate native query 가 '%소드&실드%' 같은 한국어+& 포함 LIKE 패턴을
+        //         PostgreSQL prepared statement 로 binding 시 타입 추론 실패 (SQLState 42P18).
+        //         named param 외부화 + CAST AS TEXT 명시해도 동일 에러 — Hibernate 6 native
+        //         query 에서 CASE WHEN LIKE 안 named param 처리 가능한 버그 추정.
+        //   해결: SQL 은 단순 SELECT + count + ORDER BY latest_card_at + 모든 product 반환.
+        //         Java 측에서 prefix priority 정렬 + name contains filter + sublist.
+        //         124개 in-memory 처리 → 부하 무시 가능.
 
-        // 1. 각 product 별 hero card (rarity priority + collection_number asc) + visible 카드 카운트 + 최신 카드 시각.
-        //    Card @SQLRestriction("is_visible=true") 는 JPQL 만 적용. native query 는 직접 WHERE 필요.
-        //    2026-05-29 Codex MVP — generation priority + limit 적용.
+        // 1. 모든 product (KO visible >= 5) — Java 측에서 정렬/필터.
         @SuppressWarnings("unchecked")
         List<Object[]> rows = em.createNativeQuery("""
             WITH visible AS (
@@ -156,25 +138,35 @@ public class DexService {
             FROM products p
             JOIN counted c ON c.product_id = p.product_id
             LEFT JOIN heroed h ON h.product_id = p.product_id AND h.rn = 1
-            WHERE p.name NOT LIKE CAST(:exPromo AS TEXT)
-              AND p.name NOT LIKE CAST(:exTrainerBox AS TEXT)
-            ORDER BY
-              """ + PRODUCT_GENERATION_SQL + """
-              ASC,
-              c.latest_card_at DESC NULLS LAST
-            LIMIT :limit
-            """)
-            .setParameter("genMega", GEN_MEGA)
-            .setParameter("genSv",   GEN_SV)
-            .setParameter("genSwsh", GEN_SWSH)
-            .setParameter("genSm",   GEN_SM)
-            .setParameter("genXy",   GEN_XY)
-            .setParameter("genBw",   GEN_BW)
-            .setParameter("genDp",   GEN_DP)
-            .setParameter("exPromo", EX_PROMO)
-            .setParameter("exTrainerBox", EX_TRAINER_BOX)
-            .setParameter("limit",   limit)
-            .getResultList();
+            ORDER BY c.latest_card_at DESC NULLS LAST
+            """).getResultList();
+
+        // 2. Java side filter — name contains 프로모 / 트레이너 박스 제거.
+        rows = rows.stream()
+                .filter(r -> {
+                    String name = (String) r[1];
+                    if (name == null) return false;
+                    if (name.contains("프로모")) return false;
+                    if (name.contains("트레이너 박스")) return false;
+                    return true;
+                })
+                .toList();
+
+        long totalAll = rows.size();
+
+        // 3. Java side sort — generation priority ASC, latest_card_at DESC (이미 SQL 정렬됨 유지).
+        rows = rows.stream()
+                .sorted((a, b) -> {
+                    int ga = generationPriority((String) a[1]);
+                    int gb = generationPriority((String) b[1]);
+                    return Integer.compare(ga, gb);  // stable sort → latest_card_at DESC 유지
+                })
+                .toList();
+
+        // 4. limit 적용.
+        if (rows.size() > limit) {
+            rows = rows.subList(0, limit);
+        }
 
         // 2. 사용자 보유 종 수 (per product). assets join — distinct card_id 기준.
         @SuppressWarnings("unchecked")
@@ -197,7 +189,10 @@ public class DexService {
             String productId = (String) r[0];
             String productName = (String) r[1];
             int totalKo = ((Number) r[2]).intValue();
-            Timestamp latestCardAt = (Timestamp) r[3];
+            // 2026-05-29 hotfix 3 (Codex Q2): JDBC driver 가 timestamp 컬럼을 LocalDateTime
+            // 또는 java.sql.Timestamp 로 반환 — driver 버전에 따라 다름. 두 케이스 모두 처리.
+            String latestCardAt = r[3] == null ? null :
+                (r[3] instanceof Timestamp ts ? ts.toLocalDateTime().toString() : r[3].toString());
             String heroId = (String) r[4];
             String heroName = (String) r[5];
             String heroRarity = (String) r[6];
@@ -229,7 +224,7 @@ public class DexService {
                     .heroCardName(heroName)
                     .heroCardRarity(heroRarity)
                     .heroCardImageUrl(heroImageUrl)
-                    .latestCardAt(latestCardAt != null ? latestCardAt.toLocalDateTime().toString() : null)
+                    .latestCardAt(latestCardAt)
                     .build());
         }
 
