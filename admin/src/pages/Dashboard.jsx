@@ -33,13 +33,17 @@ function ChartTooltip({ active, payload, label, unit = '' }) {
   )
 }
 
-/* ── 스탯 카드 ── */
+/* ── 스탯 카드 ──
+   2026-05-29 P-1: delta 는 명시 prop 일 때만 노출. 0% / NaN / 분모0 이면 무조건 chip 숨김.
+   "누적 유저" 같은 누적 카드에는 delta prop 자체 안 넘긴다 (의미 mismatch 방지). */
 function StatCard({ icon: Icon, label, value, sub, delta, color }) {
   const palette = {
     indigo: '#6366f1', cyan: '#06b6d4', emerald: '#10b981', amber: '#f59e0b',
   }
   const c = palette[color] ?? palette.indigo
-  const isUp = delta >= 0
+  // 가드: null / undefined / NaN / 0 모두 chip 미표시. "변화 없음 / 데이터 없음" 을 0%↑ 로 잘못 보여주는 것 방지.
+  const showDelta = typeof delta === 'number' && Number.isFinite(delta) && delta !== 0
+  const isUp = delta > 0
 
   return (
     <div style={{ ...S.card, padding: '20px 22px' }}>
@@ -47,7 +51,7 @@ function StatCard({ icon: Icon, label, value, sub, delta, color }) {
         <div style={{ width: 38, height: 38, borderRadius: 10, background: c + '18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={17} color={c} strokeWidth={2} />
         </div>
-        {delta !== undefined && (
+        {showDelta && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 3,
             fontSize: 11, fontWeight: 700, padding: '3px 7px', borderRadius: 99,
@@ -145,6 +149,7 @@ export default function Dashboard() {
         todayScans:   sc.value?.data?.data?.today  ?? 0,
         activeTrades: tr.value?.data?.data?.active ?? 0,
         totalCards:   ca.value?.data?.data?.total  ?? 0,
+        hiddenCards:  ca.value?.data?.data?.hidden ?? 0,   // P-1: @SQLRestriction 으로 가려진 row 수.
         weeklyUserDelta: u.value?.data?.data?.weeklyDelta ?? null,
         weeklyScanDelta: sc.value?.data?.data?.weeklyDelta ?? null,
       })
@@ -277,19 +282,24 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── 스탯 카드 4개 ── */}
+      {/* ── 스탯 카드 4개 ──
+         2026-05-29 P-1:
+           - 누적 유저: weeklyDelta(주간 신규 증감)는 "누적"과 의미 mismatch → chip 제거. sub로 표현.
+           - 등록 카드: KO 가시 카드(@SQLRestriction). 가려진 row 수도 같이 알려줌.
+           - 누적 스캔: scan_logs 미구현 → 0회 고정. "데이터 미연동" 명시, chip 제거.
+           - 진행중 거래: 그대로. */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 16 }}>
         <StatCard icon={Users}          label="누적 유저"   color="indigo"
           value={stats?.totalUsers?.toLocaleString()}
-          sub={`오늘 +${stats?.todayUsers ?? 0}명 신규`}
-          delta={stats?.weeklyUserDelta} />
+          sub={`오늘 +${stats?.todayUsers ?? 0}명 신규`} />
         <StatCard icon={CreditCard}     label="등록 카드"   color="cyan"
           value={stats?.totalCards?.toLocaleString()}
-          sub="KO 기준 전체" />
+          sub={stats?.hiddenCards > 0
+            ? `KO 노출 카드 · 감춤 ${stats.hiddenCards.toLocaleString()}장`
+            : 'KO 노출 카드'} />
         <StatCard icon={ScanLine}       label="누적 스캔"   color="emerald"
           value={stats?.totalScans?.toLocaleString()}
-          sub={`오늘 ${stats?.todayScans ?? 0}회`}
-          delta={stats?.weeklyScanDelta} />
+          sub={stats?.totalScans > 0 ? `오늘 ${stats?.todayScans ?? 0}회` : '데이터 미연동'} />
         <StatCard icon={ArrowLeftRight} label="진행중 거래" color="amber"
           value={stats?.activeTrades?.toLocaleString()}
           sub="활성 거래글" />

@@ -109,11 +109,14 @@ export default function Trades() {
       </div>
 
       <div style={S.card}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        {/* 2026-05-29 P-1: 9개 컬럼 + 사이드바 폭 합치면 자주 좁아져서 글자 세로 쪼개짐 ("유 형", "진 행 중").
+            wrapper overflow-x:auto + table min-width 로 가로 스크롤 허용. */}
+        <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', minWidth: 1100, borderCollapse: 'collapse', tableLayout: 'auto' }}>
           <thead>
             <tr>
               {['ID', '제목', '작성자', '유형', '희망 카드', '제안 카드', '등록일', '상태', '액션'].map(h => (
-                <th key={h} style={S.th}>{h}</th>
+                <th key={h} style={{ ...S.th, whiteSpace: 'nowrap' }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -135,12 +138,12 @@ export default function Trades() {
                   <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title ?? '-'}</span>
                 </td>
                 <td style={S.td}>{t.authorNickname ?? '-'}</td>
-                <td style={S.td}>{t.tradeType === 'EXCHANGE' ? '교환' : t.tradeType === 'SELL' ? '판매' : '-'}</td>
-                <td style={{ ...S.td, fontSize: 12 }}>{t.wantCardName ?? '-'}</td>
-                <td style={{ ...S.td, fontSize: 12 }}>{t.offerCardName ?? '-'}</td>
-                <td style={{ ...S.td, fontSize: 12 }}>{t.createdAt ? t.createdAt.slice(0, 10) : '-'}</td>
-                <td style={S.td}><StatusBadge status={t.status} /></td>
-                <td style={S.td}>
+                <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{t.tradeType === 'EXCHANGE' ? '교환' : t.tradeType === 'SELL' ? '판매' : '-'}</td>
+                <td style={{ ...S.td, fontSize: 12, whiteSpace: 'nowrap' }}>{t.wantCardName ?? '-'}</td>
+                <td style={{ ...S.td, fontSize: 12, whiteSpace: 'nowrap' }}>{t.offerCardName ?? '-'}</td>
+                <td style={{ ...S.td, fontSize: 12, whiteSpace: 'nowrap' }}>{t.createdAt ? t.createdAt.slice(0, 10) : '-'}</td>
+                <td style={{ ...S.td, whiteSpace: 'nowrap' }}><StatusBadge status={t.status} /></td>
+                <td style={{ ...S.td, whiteSpace: 'nowrap' }}>
                   {isDeleted ? (
                     <span style={{ color: '#cbd5e1', fontSize: 11 }}>삭제됨</span>
                   ) : (
@@ -163,6 +166,7 @@ export default function Trades() {
             })}
           </tbody>
         </table>
+        </div>
 
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, padding: '12px 16px', borderTop: '1px solid #f1f5f9' }}>

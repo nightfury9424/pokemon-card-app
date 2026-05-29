@@ -10,8 +10,12 @@ import lombok.RequiredArgsConstructor;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestClient;
 
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -28,6 +32,13 @@ public class AdminController {
 
     private final RawPsa10RatioCalculator rawPsa10RatioCalculator;
     private final RawPsa10RatioRepository rawPsa10RatioRepository;
+
+    /** 2026-05-29 P-1: 스캐너 stats proxy. brower → backend → scanner (docker network). */
+    @Value("${scanner.base-url:http://localhost:8082}")
+    private String scannerBaseUrl;
+
+    /** RestClient with short timeout — scanner 다운 시 dashboard 응답 지연 막기. */
+    private RestClient scannerClient;
 
     /* ── 공통 헬퍼 ── */
     private long count(String jpql) {
@@ -69,8 +80,18 @@ public class AdminController {
 
     @GetMapping("/stats/cards")
     public ReturnData<?> statsCards() {
-        long total = count("SELECT COUNT(c) FROM Card c WHERE c.language = 'KO'");
-        return ReturnData.success(Map.of("total", total));
+        // 2026-05-29 P-1: JPQL은 Card @SQLRestriction("is_visible=true") 자동 적용 → 가시 카드만.
+        // 사용자가 봤던 "3,425"는 KO 가시 카드 카운트가 맞음. 운영자에게 가려진 row도 알려주자.
+        // hidden = native count (visible+hidden) − visible.
+        long visibleKo = count("SELECT COUNT(c) FROM Card c WHERE c.language = 'KO'");
+        long totalKoNative = ((Number) em.createNativeQuery(
+            "SELECT COUNT(*) FROM cards WHERE language = 'KO'"
+        ).getSingleResult()).longValue();
+        long hiddenKo = Math.max(0, totalKoNative - visibleKo);
+        return ReturnData.success(Map.of(
+            "total",  visibleKo,
+            "hidden", hiddenKo
+        ));
     }
 
     @GetMapping("/stats/trades")
@@ -82,8 +103,96 @@ public class AdminController {
 
     @GetMapping("/stats/scans")
     public ReturnData<?> statsScans() {
-        // scan_logs 테이블 없음 — 추후 연동
+        // scan_logs 테이블 없음 — 추후 연동. P-1: 분모 0 가드는 프론트에서 처리.
         return ReturnData.success(Map.of("total", 0, "today", 0, "weeklyDelta", 0));
+    }
+
+    /* ════════════════════════════════
+       2026-05-29 P-1: 운영 현황 (사이드바 박스 교체)
+       — 사이드바 하드코딩 "서비스 정상 운영 중" 문구 대신 실제 cron 실행 시각.
+       price_snapshots 최대 traded_at + admin_actions 최대 created_at 한 번에 반환.
+       ════════════════════════════════ */
+    @GetMapping("/ops-status")
+    public ReturnData<?> opsStatus() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("lastKoBatch",  maxTradedAt("KO_ESTIMATED"));
+        // SCRYDEX_EN + SCRYDEX_JP 합산 최대 — native query 의 IN(:list) parameter expansion 은
+        // Hibernate 6 도 driver-dependent (Codex 리뷰 Q3). 리터럴 IN 으로 binding 우회.
+        result.put("lastScrydex",  toIso(safeMax(
+            "SELECT MAX(traded_at) FROM price_snapshots WHERE source IN ('SCRYDEX_EN', 'SCRYDEX_JP')")));
+        result.put("lastKream",    maxTradedAt("KREAM"));
+        result.put("lastNaver",    maxTradedAt("NAVER_CAFE"));
+        // admin_actions 테이블 — 마지막 운영 액션 시각 (관리자가 마지막으로 뭔가 했는지 확인용).
+        try {
+            result.put("lastAdminAction", toIso(em.createNativeQuery(
+                "SELECT MAX(created_at) FROM admin_actions"
+            ).getSingleResult()));
+        } catch (Exception e) {
+            result.put("lastAdminAction", null);
+        }
+        return ReturnData.success(result);
+    }
+
+    /** native query 가 java.sql.Timestamp 를 돌려주는데 Jackson 기본 직렬화는 epoch millis 라
+        프론트 new Date() 파싱이 안 됨 → ISO-8601 string 으로 변환.
+        instanceof pattern (Java 16+) 사용 — Timestamp 아니면 .toString() fallback (LocalDateTime/Instant 도 ISO 형식).
+        Codex 리뷰 Q2: 직접 cast 아니므로 ClassCastException 없음. */
+    private String toIso(Object raw) {
+        if (raw == null) return null;
+        if (raw instanceof Timestamp ts) return ts.toLocalDateTime().toString();
+        return raw.toString();
+    }
+
+    private Object safeMax(String literalSql) {
+        try { return em.createNativeQuery(literalSql).getSingleResult(); }
+        catch (Exception e) { return null; }
+    }
+
+    private String maxTradedAt(String source) {
+        try {
+            return toIso(em.createNativeQuery(
+                "SELECT MAX(traded_at) FROM price_snapshots WHERE source = :s"
+            ).setParameter("s", source).getSingleResult());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /* ════════════════════════════════
+       2026-05-29 P-1: 스캐너 stats proxy
+       — Scanner.jsx 가 브라우저에서 직접 http://localhost:8082/info 호출 → prod 에선 닿지 않음.
+       backend 가 docker network 안 scanner:8082/health 를 호출 ({"status":"ok","vectors":N}).
+       /info, /rebuild 등 미구현 endpoint 는 connected=false 로 표시.
+       ════════════════════════════════ */
+    @GetMapping("/scanner/stats")
+    public ReturnData<?> scannerStats() {
+        if (scannerClient == null) {
+            scannerClient = RestClient.builder()
+                    .baseUrl(scannerBaseUrl)
+                    .build();
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        try {
+            // /health 가 {"status":"ok","vectors":N} 반환 (prod 확인).
+            Map<String, Object> health = scannerClient.get()
+                    .uri("/health")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            if (health != null) {
+                result.put("connected", true);
+                result.put("status",      health.get("status"));
+                result.put("totalVectors", health.get("vectors"));
+                result.put("dim",         1536); // DINOv2 ViT-L/14 고정.
+                result.put("baseUrl",     scannerBaseUrl);
+            } else {
+                result.put("connected", false);
+                result.put("error", "empty response");
+            }
+        } catch (Exception e) {
+            result.put("connected", false);
+            result.put("error", e.getClass().getSimpleName());
+        }
+        return ReturnData.success(result);
     }
 
     /* ════════════════════════════════

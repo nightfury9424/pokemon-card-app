@@ -12,12 +12,16 @@ import java.time.LocalDateTime;
  */
 public class AdminStage0Dto {
 
-    /** GET /api/admin/whoami — 단순 boolean. */
+    /** GET /api/admin/whoami — 단순 boolean + 사이드바 footer 표시용 닉네임. */
     @Getter
     @Builder
     public static class WhoAmI {
         private boolean isAdmin;
         private String userId;
+        // 2026-05-29 P-1: 사이드바 footer "관리자/admin" 하드코딩 제거용. 비-admin 케이스는 filter 단에서 403이라
+        // 도달 자체를 안 함 → null 걱정 없음 (단 신규 가입 직후 nickname 미설정 가능 → null 그레이스).
+        private String nickname;
+        private String email;
     }
 
     /** GET /api/admin/reports — 신고 list row. reporter/target 정보 join projection (Codex G). */

@@ -34,10 +34,13 @@ export default function Scanner() {
   const [testResult, setTestResult] = useState(null)
   const [testing, setTesting]   = useState(false)
 
+  // 2026-05-29 P-1: localhost:8082 직접 호출 → backend proxy 사용 (브라우저에서 prod scanner 미도달 문제 해결).
+  //   - /admin/scanner/stats : backend 가 docker network 안 scanner:8082/health → vectors 카운트 반환.
+  //   - /rebuild, /scan 은 scanner 측 미구현 (404) → 버튼 disable + 안내 메시지.
   function loadInfo() {
-    api.get('http://localhost:8082/info')
-      .then(r => setInfo(r.data))
-      .catch(() => setInfo(null))
+    api.get('/admin/scanner/stats')
+      .then(r => setInfo(r.data?.data ?? null))
+      .catch(() => setInfo({ connected: false }))
   }
 
   function loadScans() {
@@ -49,22 +52,13 @@ export default function Scanner() {
   useEffect(() => { loadInfo(); loadScans() }, [])
 
   function rebuild() {
-    if (!confirm('인덱스를 재빌드합니다. 시간이 걸릴 수 있습니다.')) return
-    setRebuilding(true)
-    api.post('http://localhost:8082/rebuild')
-      .then(() => { alert('재빌드 완료'); loadInfo() })
-      .catch(() => alert('재빌드 실패 - 스캐너 서버를 확인하세요'))
-      .finally(() => setRebuilding(false))
+    alert('FAISS 재빌드는 현재 운영 스캐너에 미구현 — 별도 작업으로 분리됨')
   }
 
   function testScan() {
     if (!testImg.trim()) return
-    setTesting(true)
-    setTestResult(null)
-    api.post('http://localhost:8082/scan', { image_url: testImg })
-      .then(r => setTestResult({ ok: true, data: r.data }))
-      .catch(e => setTestResult({ ok: false, msg: e?.response?.data?.detail ?? '스캔 실패' }))
-      .finally(() => setTesting(false))
+    alert('스캔 테스트는 현재 운영 스캐너에 /scan endpoint 미연동 — 별도 작업으로 분리됨')
+    setTestResult({ ok: false, msg: '운영 스캐너 /scan endpoint 미연동' })
   }
 
   return (
@@ -83,11 +77,15 @@ export default function Scanner() {
       </div>
       <div style={S.sub}>DINOv2 + FAISS 스캐너 현황</div>
 
-      {/* 스탯 카드 3개 */}
+      {/* 스탯 카드 3개 — 2026-05-29 P-1: backend proxy 응답 필드 (connected/totalVectors/dim/...) 사용.
+          미연동 시 "—" 대신 "연동 안 됨" 명시. */}
       <div style={S.grid3}>
-        <InfoCard icon={Database} label="인덱스 벡터 수"    color="#6366f1" value={info?.total_vectors?.toLocaleString()} />
-        <InfoCard icon={Cpu}      label="임베딩 차원"       color="#06b6d4" value={info?.dim ?? '1536'} />
-        <InfoCard icon={Clock}    label="마지막 업데이트"   color="#f59e0b" value={info?.last_updated ? info.last_updated.slice(0, 10) : '—'} />
+        <InfoCard icon={Database} label="인덱스 벡터 수"    color="#6366f1"
+          value={info?.connected ? Number(info.totalVectors ?? 0).toLocaleString() : '연동 안 됨'} />
+        <InfoCard icon={Cpu}      label="임베딩 차원"       color="#06b6d4"
+          value={info?.connected ? (info.dim ?? 1536) : '연동 안 됨'} />
+        <InfoCard icon={Clock}    label="마지막 업데이트"   color="#f59e0b"
+          value={info?.connected ? (info.lastUpdated ? String(info.lastUpdated).slice(0, 10) : 'N/A') : '연동 안 됨'} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

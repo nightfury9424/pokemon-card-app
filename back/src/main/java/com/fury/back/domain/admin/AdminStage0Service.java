@@ -42,9 +42,14 @@ public class AdminStage0Service {
     // ─────────────────────────────────────────────────────────────────────
 
     public AdminStage0Dto.WhoAmI whoami(String userId) {
+        // 2026-05-29 P-1: nickname/email lookup — 사이드바 footer 하드코딩 "관리자/admin" 제거용.
+        // 본 endpoint는 filter 통과한 admin 만 도달 → 본인 user row 1건 조회 부담 미미.
+        User user = userRepository.findById(userId).orElse(null);
         return AdminStage0Dto.WhoAmI.builder()
                 .userId(userId)
                 .isAdmin(adminAllowlistFilter.isAllowed(userId))
+                .nickname(user != null ? user.getNickname() : null)
+                .email(user != null ? user.getEmail() : null)
                 .build();
     }
 
