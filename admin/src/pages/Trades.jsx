@@ -1,6 +1,22 @@
 import { useEffect, useState } from 'react'
-import { Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import api from '../api'
+
+// 2026-05-29 admin Stage 0 — admin 거래글 삭제 inline action.
+async function adminDeleteTrade(tradeId) {
+  const reason = prompt(`거래글 ${tradeId} 삭제 사유 (audit log):`)
+  if (!reason || !reason.trim()) return false
+  if (!confirm(`${tradeId} soft delete + 양쪽 채팅방 SYSTEM 알림 진행할까요?`)) return false
+  try {
+    await api.delete(`/admin/trade-posts/${tradeId}`, { data: { reason: reason.trim() } })
+    return true
+  } catch (e) {
+    const msg = e.response?.data?.message ?? '삭제 처리 실패'
+    if (msg.includes('TRADE_NOT_FOUND')) alert('거래글을 찾을 수 없어요')
+    else alert(msg)
+    return false
+  }
+}
 
 const S = {
   page:   { padding: '32px 36px', minHeight: '100%', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
@@ -96,22 +112,25 @@ export default function Trades() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              {['ID', '제목', '작성자', '유형', '희망 카드', '제안 카드', '등록일', '상태'].map(h => (
+              {['ID', '제목', '작성자', '유형', '희망 카드', '제안 카드', '등록일', '상태', '액션'].map(h => (
                 <th key={h} style={S.th}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>불러오는 중...</td></tr>
+              <tr><td colSpan={9} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>불러오는 중...</td></tr>
             ) : trades.length === 0 ? (
-              <tr><td colSpan={8} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>거래글이 없습니다</td></tr>
-            ) : trades.map(t => (
-              <tr key={t.id}
+              <tr><td colSpan={9} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>거래글이 없습니다</td></tr>
+            ) : trades.map(t => {
+              const tradeId = t.id || t.tradeId
+              const isDeleted = t.status === 'DELETED' || t.status === 'CANCELLED'
+              return (
+              <tr key={tradeId}
                 onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
-                <td style={{ ...S.td, color: '#94a3b8', fontSize: 12 }}>{t.id}</td>
+                <td style={{ ...S.td, color: '#94a3b8', fontSize: 12 }}>{tradeId}</td>
                 <td style={{ ...S.td, fontWeight: 600, color: '#1e293b', maxWidth: 180 }}>
                   <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title ?? '-'}</span>
                 </td>
@@ -121,8 +140,27 @@ export default function Trades() {
                 <td style={{ ...S.td, fontSize: 12 }}>{t.offerCardName ?? '-'}</td>
                 <td style={{ ...S.td, fontSize: 12 }}>{t.createdAt ? t.createdAt.slice(0, 10) : '-'}</td>
                 <td style={S.td}><StatusBadge status={t.status} /></td>
+                <td style={S.td}>
+                  {isDeleted ? (
+                    <span style={{ color: '#cbd5e1', fontSize: 11 }}>삭제됨</span>
+                  ) : (
+                    <button onClick={async () => {
+                      const ok = await adminDeleteTrade(tradeId)
+                      if (ok) {
+                        api.get('/admin/trades', { params: { page, size, status: TAB_STATUS[tab], search: search || undefined } })
+                          .then(r => { setTrades(r.data?.data?.content ?? []); setTotal(r.data?.data?.totalElements ?? 0) })
+                      }
+                    }} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '4px 10px', borderRadius: 6,
+                      background: '#fff', border: '1px solid #dc2626',
+                      color: '#dc2626', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    }}><Trash2 size={12} /> admin 삭제</button>
+                  )}
+                </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
 

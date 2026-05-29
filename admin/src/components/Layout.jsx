@@ -2,15 +2,16 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import {
   LayoutDashboard, CreditCard, Users, ArrowLeftRight,
-  TrendingUp, ScanLine, LogOut, AlertTriangle
+  TrendingUp, ScanLine, LogOut, AlertTriangle, Flag
 } from 'lucide-react'
 import api from '../api'
 
 const nav = [
   { to: '/dashboard', icon: LayoutDashboard, label: '대시보드' },
-  { to: '/cards',     icon: CreditCard,      label: '카드 관리' },
+  { to: '/reports',   icon: Flag,            label: '신고 처리', reportBadge: true },
   { to: '/users',     icon: Users,           label: '유저 관리' },
   { to: '/trades',    icon: ArrowLeftRight,  label: '거래 관리' },
+  { to: '/cards',     icon: CreditCard,      label: '카드 관리' },
   { to: '/price',     icon: TrendingUp,      label: '시세 관리' },
   { to: '/scanner',   icon: ScanLine,        label: '스캐너' },
   { to: '/alerts',    icon: AlertTriangle,   label: '가격 이상', alertBadge: true },
@@ -20,10 +21,15 @@ export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [alertCount, setAlertCount] = useState(0)
+  const [reportCount, setReportCount] = useState(0)
 
   useEffect(() => {
     api.get('/admin/price-anomalies', { params: { resolved: false, page: 0, size: 1 } })
       .then(r => setAlertCount(r.data?.data?.totalElements ?? 0))
+      .catch(() => {})
+    // 2026-05-29 admin Stage 0 — 신고 PENDING count sidebar badge.
+    api.get('/admin/reports', { params: { status: 'PENDING', page: 0, size: 1 } })
+      .then(r => setReportCount(r.data?.data?.pendingCount ?? 0))
       .catch(() => {})
   }, [location.pathname])
 
@@ -60,9 +66,10 @@ export default function Layout() {
 
         {/* 메뉴 */}
         <nav style={{ flex: 1, padding: '8px 12px', overflowY: 'auto' }}>
-          {nav.map(({ to, icon: Icon, label, alertBadge }) => {
+          {nav.map(({ to, icon: Icon, label, alertBadge, reportBadge }) => {
             const active = location.pathname === to
-            const showBadge = alertBadge && alertCount > 0
+            const badgeCount = alertBadge ? alertCount : reportBadge ? reportCount : 0
+            const showBadge = badgeCount > 0
             return (
               <NavLink
                 key={to}
@@ -86,7 +93,7 @@ export default function Layout() {
                     fontSize: 10, fontWeight: 800, padding: '2px 6px',
                     borderRadius: 99, background: '#dc2626', color: '#fff',
                     minWidth: 18, textAlign: 'center',
-                  }}>{alertCount > 99 ? '99+' : alertCount}</span>
+                  }}>{badgeCount > 99 ? '99+' : badgeCount}</span>
                 )}
               </NavLink>
             )

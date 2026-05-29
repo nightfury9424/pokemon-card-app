@@ -11,14 +11,10 @@ class AuthState extends ChangeNotifier {
   bool _loggedIn = false;
   bool _onboarded = false;
   bool _ready = false;
-  // 2026-05-29 admin Stage 0 — bootstrap/로그인 직후 /api/admin/whoami probe 결과 캐시.
-  // 403 = 비-admin (silent). 200 + isAdmin=true 시에만 true. 로그아웃 시 reset.
-  bool _isAdmin = false;
 
   bool get loggedIn => _loggedIn;
   bool get onboarded => _onboarded;
   bool get ready => _ready;
-  bool get isAdmin => _isAdmin;
 
   /// 앱 시작 시 1회 호출. SecureStorage에서 한 번 읽어서 메모리에 캐시.
   Future<void> bootstrap() async {
@@ -44,15 +40,6 @@ class AuthState extends ChangeNotifier {
   void markLoggedOut() {
     _loggedIn = false;
     _onboarded = false;
-    _isAdmin = false;
     notifyListeners();
-  }
-
-  /// 2026-05-29: /api/admin/whoami probe 결과 set. 비-admin (403) 도 false 명시.
-  void markAdminProbe({required bool isAdmin}) {
-    if (_isAdmin != isAdmin) {
-      _isAdmin = isAdmin;
-      notifyListeners();
-    }
   }
 }

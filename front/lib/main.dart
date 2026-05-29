@@ -5,7 +5,6 @@ import 'core/router/app_router.dart';
 import 'core/storage/token_storage.dart';
 import 'core/theme/app_colors.dart';
 import 'core/widgets/app_error_toast.dart';
-import 'features/admin/admin_api.dart';
 
 // 라우터/토스트 context 진입용 전역 키.
 // 사용자 정책: Material SnackBar 금지 — AppSuccessToast / AppErrorToast 가운데 fade로 통일.
@@ -29,12 +28,6 @@ Future<void> main() async {
   });
 
   await AuthState.instance.bootstrap();
-  // 2026-05-29 admin Stage 0 — 로그인 사용자 한정 /api/admin/whoami probe (403 silent).
-  // 비-로그인은 호출 자체 skip — JwtAuthFilter 가 401 returning, 메뉴 어차피 안 보임.
-  if (AuthState.instance.loggedIn) {
-    // unawaited — bootstrap 차단 X, 결과는 AuthState 통해 ProfileScreen rebuild.
-    AdminApi.probeIsAdmin();
-  }
   runApp(const PokemonCardApp());
 }
 

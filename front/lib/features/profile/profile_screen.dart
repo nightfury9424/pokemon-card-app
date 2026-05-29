@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/auth/auth_state.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
@@ -241,28 +240,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onTap: () {},
                           ),
                         ]),
-                        // 2026-05-29 admin Stage 0 — AuthState.isAdmin true 시에만 노출.
-                        // ListenableBuilder 로 probe 결과 갱신 시 rebuild.
-                        ListenableBuilder(
-                          listenable: AuthState.instance,
-                          builder: (_, _) {
-                            if (!AuthState.instance.isAdmin) return const SizedBox.shrink();
-                            return Column(
-                              children: [
-                                const SizedBox(height: 20),
-                                _buildMenuGroup([
-                                  _MenuItem(
-                                    icon: Icons.admin_panel_settings_rounded,
-                                    iconColor: AppColors.blueLight,
-                                    label: '관리자',
-                                    sub: '신고 / 사용자 / 거래글',
-                                    onTap: () => context.push('/admin'),
-                                  ),
-                                ]),
-                              ],
-                            );
-                          },
-                        ),
                         const SizedBox(height: 20),
                         _buildMenuGroup([
                           _MenuItem(
