@@ -25,6 +25,10 @@ import '../../features/legal/privacy_policy_screen.dart';
 import '../../features/legal/customer_support_screen.dart';
 import '../../features/legal/inquiry_category.dart';
 import '../../features/legal/inquiry_compose_screen.dart';
+import '../../features/admin/admin_home_screen.dart';
+import '../../features/admin/admin_report_list_screen.dart';
+import '../../features/admin/admin_trade_post_manage_screen.dart';
+import '../../features/admin/admin_user_search_screen.dart';
 import '../../features/trade/trade_list_screen.dart';
 import '../../features/trade/trade_detail_screen.dart';
 import '../../features/trade/trade_create_screen.dart';
@@ -62,6 +66,18 @@ final appRouter = GoRouter(
     GoRoute(path: '/legal/terms', builder: (_, _) => const TermsOfServiceScreen()),
     GoRoute(path: '/legal/privacy', builder: (_, _) => const PrivacyPolicyScreen()),
     GoRoute(path: '/support', builder: (_, _) => const CustomerSupportScreen()),
+    // 2026-05-29 admin Stage 0 — MainShell 밖 root route. AdminAllowlistFilter (백엔드) 가 진짜 게이트.
+    // 프론트 AuthState.isAdmin 으로 ProfileScreen 메뉴 노출 분기 + 화면 진입 시 보조 가드.
+    GoRoute(path: '/admin', builder: (_, _) => const AdminHomeScreen()),
+    GoRoute(
+        path: '/admin/reports',
+        builder: (_, _) => const AdminReportListScreen()),
+    GoRoute(
+        path: '/admin/users',
+        builder: (_, _) => const AdminUserSearchScreen()),
+    GoRoute(
+        path: '/admin/trade-posts',
+        builder: (_, _) => const AdminTradePostManageScreen()),
     // 카테고리별 문의 작성 — 잘못된 key면 카테고리 list로 폴백.
     GoRoute(
       path: '/support/inquiry/:category',
