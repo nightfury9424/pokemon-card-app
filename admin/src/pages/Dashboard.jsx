@@ -72,40 +72,43 @@ function StatCard({ icon: Icon, label, value, sub, delta, color }) {
   )
 }
 
-/* ── 서비스 상태 ── */
+/* ── 서비스 상태 ──
+   2026-05-29 P0 #2: 브라우저 직접 호출 제거. 백엔드 /admin/services-status 1회 호출.
+   상태 분류 (Codex 사전 Q2):
+     RUNNING        — 초록   (enabled=true + reachable)
+     DOWN           — 빨강   (enabled=true + unreachable, 진짜 장애)
+     DISABLED       — 노랑   (enabled=false, 일부러 꺼둠)
+     NOT_CONFIGURED — 회색   (url 설정 자체 없음) */
+const SVC_LOOK = {
+  RUNNING:        { dot: '#22c55e', label: 'Running',         text: '#16a34a' },
+  DOWN:           { dot: '#ef4444', label: 'Down',            text: '#dc2626' },
+  DISABLED:       { dot: '#f59e0b', label: 'Disabled',        text: '#d97706' },
+  NOT_CONFIGURED: { dot: '#94a3b8', label: 'Not configured',  text: '#64748b' },
+  CHECKING:       { dot: '#cbd5e1', label: 'Checking',        text: '#94a3b8' },
+}
 function ServiceDot({ status }) {
-  const color = status === 'ok' ? '#22c55e' : status === 'error' ? '#ef4444' : '#f59e0b'
-  const glow  = status === 'ok' ? 'rgba(34,197,94,0.5)' : status === 'error' ? 'rgba(239,68,68,0.5)' : 'rgba(245,158,11,0.5)'
+  const c = SVC_LOOK[status]?.dot ?? SVC_LOOK.CHECKING.dot
   return (
     <span style={{
-      width: 8, height: 8, borderRadius: '50%', background: color,
-      boxShadow: `0 0 6px ${glow}`,
+      width: 8, height: 8, borderRadius: '50%', background: c,
+      boxShadow: `0 0 6px ${c}80`,
       display: 'inline-block',
-      animation: status === 'checking' ? 'pulse 1.5s infinite' : 'none',
     }} />
   )
 }
-
-function ServiceRow({ name, url }) {
-  const [st, setSt] = useState('checking')
-  const [ms, setMs] = useState(null)
-  useEffect(() => {
-    const t = Date.now()
-    api.get(url)
-      .then(() => { setSt('ok'); setMs(Date.now() - t) })
-      .catch(() => setSt('error'))
-  }, [url])
+function ServiceRow({ svc }) {
+  const s = SVC_LOOK[svc.status] ?? SVC_LOOK.CHECKING
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0', borderBottom: '1px solid #f8fafc' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <ServiceDot status={st} />
-        <span style={{ fontSize: 13, color: '#475569', fontWeight: 500 }}>{name}</span>
+        <ServiceDot status={svc.status} />
+        <span style={{ fontSize: 13, color: '#475569', fontWeight: 500 }}>{svc.name}</span>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: st === 'ok' ? '#16a34a' : st === 'error' ? '#dc2626' : '#d97706' }}>
-          {st === 'ok' ? 'Running' : st === 'error' ? 'Down' : 'Checking'}
-        </span>
-        {ms && <span style={{ fontSize: 11, color: '#cbd5e1' }}>{ms}ms</span>}
+        <span style={{ fontSize: 12, fontWeight: 600, color: s.text }}>{s.label}</span>
+        {typeof svc.responseMs === 'number' && svc.status === 'RUNNING' && (
+          <span style={{ fontSize: 11, color: '#cbd5e1' }}>{svc.responseMs}ms</span>
+        )}
       </div>
     </div>
   )
@@ -126,6 +129,8 @@ export default function Dashboard() {
   const [scanChart, setScanChart] = useState([])
   const [spinning,  setSpinning]  = useState(false)
   const [alerts,    setAlerts]    = useState([])   // 미처리 이상 알림
+  const [chartDays, setChartDays] = useState(30)   // P0 #1: 7d/30d 토글 default 30d.
+  const [services,  setServices]  = useState([])   // P0 #2: backend services-status 응답.
 
   const load = useCallback(() => {
     setSpinning(true)
@@ -155,26 +160,29 @@ export default function Dashboard() {
       })
     })
 
-    /* 유저 추이 차트 (최근 7일) */
-    api.get('/admin/stats/users/chart')
+    /* 유저 추이 차트 — P0 #1: 누적 + 신규 분리. days param. */
+    api.get('/admin/stats/users/chart', { params: { days: chartDays } })
       .then(r => setChartData(r.data?.data ?? []))
-      .catch(() => {
-        /* 백엔드 없을 때 더미 (0으로) */
-        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-        setChartData(days.map(d => ({ day: d, 신규유저: 0, 누적: 0 })))
-      })
+      .catch(() => setChartData([]))
 
-    /* 스캔 추이 차트 (최근 7일) */
+    /* 스캔 추이 차트 (scan_logs 미연동) */
     api.get('/admin/stats/scans/chart')
       .then(r => setScanChart(r.data?.data ?? []))
-      .catch(() => {
-        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-        setScanChart(days.map(d => ({ day: d, 스캔수: 0 })))
-      })
+      .catch(() => setScanChart([]))
       .finally(() => setSpinning(false))
-  }, [])
+  }, [chartDays])
 
   useEffect(() => { load() }, [load])
+
+  /* 2026-05-29 Codex 사후 Q6: services-status 는 chartDays 토글과 무관해야 함.
+     mount 1회 + 새로고침 버튼 클릭 시만 재호출. backend 가 3개 health probe 병렬 호출하므로
+     필요 이상 빈번한 호출은 ForkJoin/scanner 부담. */
+  const loadServices = useCallback(() => {
+    api.get('/admin/services-status')
+      .then(r => setServices(r.data?.data?.services ?? []))
+      .catch(() => setServices([]))
+  }, [])
+  useEffect(() => { loadServices() }, [loadServices])
 
   return (
     <div style={S.page}>
@@ -186,7 +194,7 @@ export default function Dashboard() {
           <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 3 }}>포켓폴리오 운영 현황 · 실시간</div>
         </div>
         <button
-          onClick={load}
+          onClick={() => { load(); loadServices() }}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '8px 16px', borderRadius: 10, border: '1px solid #e2e8f0',
@@ -308,23 +316,45 @@ export default function Dashboard() {
       {/* ── 차트 2열 ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
 
-        {/* 유저 추이 (Area) */}
+        {/* 유저 추이 — 2026-05-29 P0 #1: 누적 + 일별 신규 분리. 7d/30d 토글. */}
         <div style={{ ...S.card, padding: '22px 24px' }}>
-          <div style={S.h2}>유저 가입 추이 · 최근 7일</div>
-          <ResponsiveContainer width="100%" height={180}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={S.h2}>유저 가입 추이 · 최근 {chartDays}일</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[7, 30].map(d => (
+                <button key={d} onClick={() => setChartDays(d)} style={{
+                  padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6,
+                  border: '1px solid', cursor: 'pointer', fontFamily: 'inherit',
+                  background: chartDays === d ? '#6366f1' : '#fff',
+                  color: chartDays === d ? '#fff' : '#64748b',
+                  borderColor: chartDays === d ? '#6366f1' : '#e2e8f0',
+                }}>{d}d</button>
+              ))}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="gUser" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#6366f1" stopOpacity={0.2} />
+                  <stop offset="5%"  stopColor="#6366f1" stopOpacity={0.25} />
                   <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gCum" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor="#10b981" stopOpacity={0.18} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+                interval={chartDays === 30 ? 4 : 0} />
+              <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#10b981' }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip unit="명" />} />
-              <Area type="monotone" dataKey="신규유저" stroke="#6366f1" strokeWidth={2.5}
-                fill="url(#gUser)" dot={{ r: 3, fill: '#6366f1', strokeWidth: 0 }} activeDot={{ r: 5 }} />
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="circle" />
+              <Area yAxisId="left" type="monotone" dataKey="신규유저" name="일별 신규" stroke="#6366f1" strokeWidth={2.5}
+                fill="url(#gUser)" dot={{ r: 2, fill: '#6366f1', strokeWidth: 0 }} activeDot={{ r: 5 }} />
+              <Area yAxisId="right" type="monotone" dataKey="누적" name="누적 유저" stroke="#10b981" strokeWidth={2}
+                fill="url(#gCum)" dot={false} activeDot={{ r: 4 }} strokeDasharray="3 3" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -347,7 +377,7 @@ export default function Dashboard() {
       {/* ── 하단 ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
 
-        {/* 서비스 상태 */}
+        {/* 서비스 상태 — 2026-05-29 P0 #2: backend /admin/services-status 1회 호출. */}
         <div style={{ ...S.card, padding: '20px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
             <div style={S.h2}>서비스 상태</div>
@@ -355,20 +385,25 @@ export default function Dashboard() {
               Live
             </span>
           </div>
-          <ServiceRow name="Spring Boot API"  url="/health" />
-          <ServiceRow name="FastAPI Scanner"  url="http://localhost:8082/health" />
-          <ServiceRow name="FastAPI Grading"  url="http://localhost:8081/health" />
+          {services.length === 0 ? (
+            <div style={{ fontSize: 12, color: '#94a3b8', padding: '20px 0', textAlign: 'center' }}>점검 중…</div>
+          ) : services.map(svc => (
+            <ServiceRow key={svc.name} svc={svc} />
+          ))}
+          <div style={{ fontSize: 10, color: '#cbd5e1', marginTop: 6 }}>
+            Disabled = 운영 정책상 꺼둠 · Down = 켜져 있어야 하는데 응답 없음 · Not configured = URL 미설정
+          </div>
         </div>
 
-        {/* 빠른 작업 */}
+        {/* 빠른 작업 — 2026-05-29 P0 #4: 실제 운영 메뉴 4개로 교체. */}
         <div style={{ ...S.card, padding: '20px 24px' }}>
           <div style={S.h2}>빠른 작업</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[
-              { href: '/cards',   label: '카드 추가하기',    sub: '새 카드 DB 등록',          dot: '#6366f1' },
-              { href: '/users',   label: '유저 목록 보기',   sub: '전체 유저 조회·관리',       dot: '#06b6d4' },
-              { href: '/price',   label: '시세 설정 확인',   sub: '환율·계수 현황',           dot: '#8b5cf6' },
-              { href: '/scanner', label: '스캐너 확인',      sub: 'DINOv2 FAISS 인덱스 상태', dot: '#f59e0b' },
+              { href: '/reports', label: '신고 처리',       sub: '대기 중인 신고 확인·처리',    dot: '#dc2626' },
+              { href: '/users',   label: '유저 검색',       sub: '닉네임/이메일 조회·정지',     dot: '#06b6d4' },
+              { href: '/trades',  label: '거래 검색',       sub: '거래글 목록·admin 삭제',     dot: '#8b5cf6' },
+              { href: '/alerts',  label: '가격 이상 확인', sub: '미처리 알림 검토·무시',       dot: '#f59e0b' },
             ].map(({ href, label, sub, dot }) => (
               <a key={href} href={href} style={{
                 display: 'flex', alignItems: 'center', gap: 12,

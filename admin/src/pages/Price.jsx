@@ -277,18 +277,30 @@ export default function Price() {
               const todayN = snapshotStats.today?.[src] ?? 0
               const yesterN = snapshotStats.yesterday?.[src] ?? 0
               const delta = todayN - yesterN
+              // 2026-05-29 P0 #5: 톤다운 — today=0 이면 "어제 대비 -N 빨강" 표시 안 함.
+              //   대신 회색 "오늘 batch 대기중". 11AM 시점에 정상 batch 시간 전이라도 장애처럼 안 보이게.
+              //   actual 장애 판단은 별도 TF (project_prod_cron_architecture 참조).
+              const noToday = todayN === 0
               return (
                 <div key={src} style={{ background: '#f8fafc', borderRadius: 12, padding: '14px 16px', border: '1px solid #f1f5f9' }}>
                   <div style={{ marginBottom: 8 }}><SourceBadge source={src} /></div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#1e293b' }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: noToday ? '#94a3b8' : '#1e293b' }}>
                     {todayN.toLocaleString()}
                   </div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
-                    오늘 수집
-                    {yesterN > 0 && (
-                      <span style={{ marginLeft: 6, color: delta > 0 ? '#16a34a' : delta < 0 ? '#dc2626' : '#94a3b8', fontWeight: 600 }}>
-                        ({delta >= 0 ? '+' : ''}{delta} vs 어제)
+                    {noToday ? (
+                      <span style={{ color: '#94a3b8' }}>
+                        오늘 batch 대기중 · 어제 {yesterN.toLocaleString()}
                       </span>
+                    ) : (
+                      <>
+                        오늘 수집
+                        {yesterN > 0 && (
+                          <span style={{ marginLeft: 6, color: delta > 0 ? '#16a34a' : delta < 0 ? '#dc2626' : '#94a3b8', fontWeight: 600 }}>
+                            ({delta >= 0 ? '+' : ''}{delta} vs 어제)
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

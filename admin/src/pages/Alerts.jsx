@@ -1,6 +1,35 @@
 import { useEffect, useState, useCallback } from 'react'
-import { AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Calendar, Info } from 'lucide-react'
+import { AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Calendar, Info, ExternalLink, EyeOff, Eye } from 'lucide-react'
 import api from '../api'
+
+// 2026-05-29 P0 #3 — Codex 사전 Q3: 보수적 라벨. "반영됨"은 실제 price write 확인된 상태에만 사용.
+// 시세 모델 freeze (project_chase_pricing_model_status) 와 충돌 위험 차단.
+const PRICE_REFLECT_MAP = {
+  CONTAMINATION_CONFIRMED: { label: '제외 처리됨', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+  PRICE_DROP_ACCEPTED:     { label: '가격 하락 허용', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+  NO_DATA:                 { label: '판정 보류',     color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+  NO_COL_NUM:              { label: '판정 보류',     color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+  EBAY_ERROR:              { label: '판정 보류',     color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+  SKIPPED:                 { label: '판정 보류',     color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+}
+function reflectLabel(ebayResult) {
+  return PRICE_REFLECT_MAP[ebayResult] ?? { label: '판정 보류', color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' }
+}
+
+/** suspect 와 hist_median 으로 차이율 계산. null/0 safe. */
+function diffPct(suspect, median) {
+  if (suspect == null || median == null) return null
+  const s = Number(suspect), m = Number(median)
+  if (!Number.isFinite(s) || !Number.isFinite(m) || m === 0) return null
+  return ((s - m) / m) * 100
+}
+
+/** scrydex 원본 url 조립. source + ref → 외부 링크. */
+function scrydexUrl(source, enRef, jpRef) {
+  if (source === 'SCRYDEX_EN' && enRef) return `https://scrydex.com/pokemon/cards/_/${enRef}`
+  if (source === 'SCRYDEX_JP' && jpRef) return `https://scrydex.com/pokemon/cards/_/${jpRef}`
+  return null
+}
 
 const S = {
   page:   { padding: '32px 36px', minHeight: '100%', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
@@ -92,11 +121,20 @@ export default function Alerts() {
 
   useEffect(() => { load() }, [load])
 
-  const resolve = async (anomalyId) => {
+  // 2026-05-29 P0 #3 — action 분기 (REVIEWED|DISMISSED). DISMISSED 는 사유 prompt 권장.
+  const resolveWithAction = async (anomalyId, action) => {
+    let memo = null
+    if (action === 'DISMISSED') {
+      memo = prompt('무시 사유 (audit 기록용):')
+      if (memo === null) return  // cancel
+      if (!memo.trim()) { alert('사유를 입력하세요'); return }
+    }
     setResolving(anomalyId)
     try {
-      await api.post(`/admin/price-anomalies/${anomalyId}/resolve`)
+      await api.post(`/admin/price-anomalies/${anomalyId}/resolve`, { action, memo })
       load()
+    } catch (e) {
+      alert(e.response?.data?.message ?? '처리 실패')
     } finally {
       setResolving(null)
     }
@@ -247,79 +285,128 @@ export default function Alerts() {
                       <div>
                         <span style={{
                           fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 99,
-                          background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0',
+                          background: a.resolutionType === 'DISMISSED' ? '#fef2f2' : '#f0fdf4',
+                          color: a.resolutionType === 'DISMISSED' ? '#b91c1c' : '#16a34a',
+                          border: `1px solid ${a.resolutionType === 'DISMISSED' ? '#fecaca' : '#bbf7d0'}`,
                           display: 'inline-flex', alignItems: 'center', gap: 4,
                         }}>
-                          <CheckCircle size={11} color="#16a34a" /> 처리 완료
+                          {a.resolutionType === 'DISMISSED'
+                            ? <><EyeOff size={11} /> 무시됨</>
+                            : <><CheckCircle size={11} /> 검토 완료</>}
                         </span>
                         <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>
                           {a.resolvedAt ? fmtFull(a.resolvedAt) : '-'}
                         </div>
                       </div>
-                    ) : (() => {
-                      const isBenign = a.ebayResult === 'PRICE_DROP_ACCEPTED'
-                      const isContam = a.ebayResult === 'CONTAMINATION_CONFIRMED'
-                      const label = resolving === a.anomalyId ? '닫는 중...'
-                        : isBenign  ? '✓ 정상 하락 — 알림 닫기'
-                        : isContam  ? '✓ 오염 제외됨 — 알림 닫기'
-                        : '알림 닫기'
-                      const colors = isBenign
-                        ? { bg: '#f0fdf4', border: '#86efac', text: '#15803d' }
-                        : isContam
-                          ? { bg: '#fef2f2', border: '#fca5a5', text: '#b91c1c' }
-                          : { bg: '#f8fafc', border: '#cbd5e1', text: '#475569' }
-                      return (
-                        <button
-                          onClick={e => { e.stopPropagation(); resolve(a.anomalyId) }}
-                          disabled={resolving === a.anomalyId}
-                          style={{
-                            padding: '6px 12px', borderRadius: 8,
-                            border: `1px solid ${colors.border}`,
-                            background: resolving === a.anomalyId ? '#f1f5f9' : colors.bg,
-                            color: resolving === a.anomalyId ? '#94a3b8' : colors.text,
-                            fontSize: 12, fontWeight: 700, cursor: resolving === a.anomalyId ? 'not-allowed' : 'pointer',
-                            fontFamily: 'inherit', whiteSpace: 'nowrap',
-                          }}
-                        >{label}</button>
-                      )
-                    })()}
+                    ) : (
+                      // 2026-05-29 P0 #3: 4 버튼 — 카드 상세 / 원본 보기 / 검토 완료 / 무시.
+                      // Codex 사전 Q4: REVIEWED vs DISMISSED 구분 → resolution_type 컬럼 저장.
+                      (() => {
+                        const src = scrydexUrl(a.source, a.enScrydexRef, a.jpScrydexRef)
+                        const busy = resolving === a.anomalyId
+                        const Btn = ({ onClick, color, border, text, label, disabled, icon }) => (
+                          <button
+                            onClick={onClick}
+                            disabled={disabled || busy}
+                            style={{
+                              padding: '4px 8px', borderRadius: 6,
+                              border: `1px solid ${border}`,
+                              background: disabled ? '#f8fafc' : color,
+                              color: disabled ? '#cbd5e1' : text,
+                              fontSize: 11, fontWeight: 600,
+                              cursor: disabled || busy ? 'not-allowed' : 'pointer',
+                              fontFamily: 'inherit', whiteSpace: 'nowrap',
+                              display: 'inline-flex', alignItems: 'center', gap: 3,
+                            }}
+                          >{icon}{label}</button>
+                        )
+                        return (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, minWidth: 200 }}>
+                            <Btn
+                              onClick={e => { e.stopPropagation(); window.open(`/admin/cards?search=${encodeURIComponent(a.cardName ?? a.cardId)}`, '_blank') }}
+                              color="#fff" border="#cbd5e1" text="#475569"
+                              icon={<Eye size={10} />} label="카드 상세"
+                            />
+                            <Btn
+                              onClick={e => { e.stopPropagation(); if (src) window.open(src, '_blank') }}
+                              disabled={!src}
+                              color="#fff" border="#cbd5e1" text="#475569"
+                              icon={<ExternalLink size={10} />} label={src ? '원본 보기' : '원본 X'}
+                            />
+                            <Btn
+                              onClick={e => { e.stopPropagation(); resolveWithAction(a.anomalyId, 'REVIEWED') }}
+                              color="#f0fdf4" border="#86efac" text="#15803d"
+                              icon={<CheckCircle size={10} />} label="검토 완료"
+                            />
+                            <Btn
+                              onClick={e => { e.stopPropagation(); resolveWithAction(a.anomalyId, 'DISMISSED') }}
+                              color="#fef2f2" border="#fca5a5" text="#b91c1c"
+                              icon={<EyeOff size={10} />} label="무시"
+                            />
+                          </div>
+                        )
+                      })()
+                    )}
                   </td>
                 </tr>
                 {/* 행 클릭 시 처리 방법 상세 표시 */}
-                {tooltip === a.anomalyId && (
+                {tooltip === a.anomalyId && (() => {
+                  // 2026-05-29 P0 #3: 운영자가 행동 결정 가능하도록 정보 강화.
+                  //   - 이상 유형 / 원천 / 차이율 / 앱 시세 반영 여부 / 권장 조치
+                  const diff = diffPct(a.suspectPriceUsd, a.histMedianUsd)
+                  const reflect = reflectLabel(a.ebayResult)
+                  return (
                   <tr key={`${a.anomalyId}-detail`}>
                     <td colSpan={8} style={{ padding: '0 16px 12px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
                       <div style={{ padding: '12px 16px', borderRadius: 10, background: '#fff', border: '1px solid #e2e8f0', fontSize: 12, color: '#374151', lineHeight: 1.8 }}>
-                        <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>처리 흐름</div>
+                        <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>처리 흐름 · 운영 판단 정보</div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '2px 12px' }}>
                           <span style={{ color: '#94a3b8', fontWeight: 600 }}>감지 시각</span>
                           <span>{fmtFull(a.detectedAt)}</span>
+
+                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>이상 유형</span>
+                          <span><EbayBadge result={a.ebayResult} /><span style={{ marginLeft: 8, color: '#475569' }}>{EBAY_LABELS[a.ebayResult]?.label ?? a.ebayResult}</span></span>
+
+                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>원천 데이터</span>
+                          <span style={{ color: '#475569', fontWeight: 600 }}>{a.source} {a.cardId}</span>
+
                           <span style={{ color: '#94a3b8', fontWeight: 600 }}>이상 내용</span>
                           <span>{a.reason ?? '-'}</span>
-                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>eBay 검증</span>
-                          <span>
-                            <EbayBadge result={a.ebayResult} />
-                            <span style={{ marginLeft: 8, color: '#475569' }}>
-                              {EBAY_LABELS[a.ebayResult]?.label ?? a.ebayResult}
-                            </span>
+
+                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>기준값 대비 차이율</span>
+                          <span style={{ color: diff != null && diff < 0 ? '#dc2626' : diff != null && diff > 0 ? '#16a34a' : '#94a3b8', fontWeight: 700 }}>
+                            {diff != null
+                              ? `${diff > 0 ? '+' : ''}${diff.toFixed(1)}% (suspect $${a.suspectPriceUsd} vs 중앙값 $${a.histMedianUsd})`
+                              : '계산 불가 (중앙값 없음)'}
                           </span>
-                          {a.isResolved && (
+
+                          <span style={{ color: '#94a3b8', fontWeight: 600 }}>앱 시세 반영 여부</span>
+                          <span>
+                            <span style={{
+                              fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
+                              background: reflect.bg, color: reflect.color, border: `1px solid ${reflect.border}`,
+                            }}>{reflect.label}</span>
+                          </span>
+
+                          {a.isResolved ? (
                             <>
-                              <span style={{ color: '#94a3b8', fontWeight: 600 }}>처리 완료 시각</span>
-                              <span>{fmtFull(a.resolvedAt)}</span>
-                              <span style={{ color: '#94a3b8', fontWeight: 600 }}>처리 방법</span>
-                              <span style={{ color: '#15803d', fontWeight: 600 }}>{resolveExplanation(a.ebayResult)}</span>
+                              <span style={{ color: '#94a3b8', fontWeight: 600 }}>처리 완료</span>
+                              <span>
+                                {fmtFull(a.resolvedAt)} ·{' '}
+                                <b style={{ color: a.resolutionType === 'DISMISSED' ? '#b91c1c' : '#15803d' }}>
+                                  {a.resolutionType === 'DISMISSED' ? '무시됨' : '검토 완료'}
+                                </b>
+                              </span>
                             </>
-                          )}
-                          {!a.isResolved && (
+                          ) : (
                             <>
-                              <span style={{ color: '#94a3b8', fontWeight: 600 }}>현재 상태</span>
+                              <span style={{ color: '#94a3b8', fontWeight: 600 }}>권장 조치</span>
                               <span style={{ color: '#b45309', fontWeight: 600 }}>
-                                {a.ebayResult === 'PRICE_DROP_ACCEPTED'
-                                  ? 'eBay에서 정상 하락으로 확인됨 — 관리자 최종 처리 대기 중'
-                                  : a.ebayResult === 'CONTAMINATION_CONFIRMED'
-                                    ? 'scrydex 오염 데이터 확인됨 — 해당 값 이미 제외됨, 처리 완료로 표시 권장'
-                                    : '관리자 검토 필요'}
+                                {a.ebayResult === 'CONTAMINATION_CONFIRMED'
+                                  ? '오염 데이터 확인됨 — 이미 시세 계산에서 제외. "검토 완료" 추천'
+                                  : a.ebayResult === 'PRICE_DROP_ACCEPTED'
+                                    ? 'eBay 정상 하락 확인됨 — 본인 판단으로 "검토 완료" 또는 "무시"'
+                                    : '판정 보류 상태 — 운영자 직접 확인 후 처리'}
                               </span>
                             </>
                           )}
@@ -327,7 +414,8 @@ export default function Alerts() {
                       </div>
                     </td>
                   </tr>
-                )}
+                  )
+                })()}
               </>
             ))}
           </tbody>

@@ -13,12 +13,17 @@ import org.jsoup.nodes.Element;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import java.net.http.HttpClient;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -39,6 +44,38 @@ public class AdminController {
 
     /** RestClient with short timeout — scanner 다운 시 dashboard 응답 지연 막기. */
     private RestClient scannerClient;
+
+    /** 2026-05-29 P0 #2 — 서비스 상태 정책 토글. enabled=false 면 reachable 여부 무관하게 Disabled. */
+    @Value("${app.services.scanner.enabled:false}")
+    private boolean scannerEnabled;
+    @Value("${app.services.grading.enabled:false}")
+    private boolean gradingEnabled;
+    @Value("${grading.service.url:}")
+    private String gradingBaseUrl;
+
+    /**
+     * 2026-05-29 Codex 사후 Q2 — bounded executor + RestClient timeout.
+     *  - ForkJoin common pool 포화 방지 (동시 admin 다수가 dashboard 새로고침 시 worker thread 점거).
+     *  - HttpClient 1.5s connect/request timeout — slow scanner 가 backend thread 잡아두는 거 차단.
+     *  전체 timeout = joinSafe 2s upper bound, 평소엔 1.5s 안에 끝남.
+     */
+    private static final ExecutorService SERVICE_PROBE_POOL =
+            Executors.newFixedThreadPool(4, r -> {
+                Thread t = new Thread(r, "svc-probe");
+                t.setDaemon(true);
+                return t;
+            });
+
+    private static final JdkClientHttpRequestFactory PROBE_REQUEST_FACTORY = buildProbeRequestFactory();
+
+    private static JdkClientHttpRequestFactory buildProbeRequestFactory() {
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(1500))
+                .build();
+        JdkClientHttpRequestFactory f = new JdkClientHttpRequestFactory(httpClient);
+        f.setReadTimeout(Duration.ofMillis(1500));
+        return f;
+    }
 
     /* ── 공통 헬퍼 ── */
     private long count(String jpql) {
@@ -159,6 +196,87 @@ public class AdminController {
     }
 
     /* ════════════════════════════════
+       2026-05-29 P0 #2: 서비스 상태 (병렬 health check + 분류)
+       — 브라우저에서 직접 localhost:8082 호출하던 ServiceRow 대체.
+       Codex 사전 Q2: enabled=false 무조건 Disabled, /health 3개 병렬, 전체 timeout ≤2s.
+       상태:
+         RUNNING        = enabled=true + URL 설정됨 + /health 200 within 1.5s
+         DOWN           = enabled=true + URL 설정됨 + 응답 실패/timeout
+         DISABLED       = enabled=false (URL 도달성 무관)
+         NOT_CONFIGURED = URL 비어있음
+       ════════════════════════════════ */
+    @GetMapping("/services-status")
+    public ReturnData<?> servicesStatus() {
+        long t0 = System.currentTimeMillis();
+
+        // 병렬 health check — bounded executor (Codex 사후 Q2). backend 자체는 즉시 RUNNING.
+        java.util.concurrent.CompletableFuture<Map<String, Object>> backFuture =
+                java.util.concurrent.CompletableFuture.completedFuture(
+                        Map.of("name", "Spring Boot API", "status", "RUNNING",
+                               "responseMs", 0, "url", "self"));
+        java.util.concurrent.CompletableFuture<Map<String, Object>> scannerFuture =
+                java.util.concurrent.CompletableFuture.supplyAsync(
+                        () -> probeService("FastAPI Scanner", scannerBaseUrl, scannerEnabled),
+                        SERVICE_PROBE_POOL);
+        java.util.concurrent.CompletableFuture<Map<String, Object>> gradingFuture =
+                java.util.concurrent.CompletableFuture.supplyAsync(
+                        () -> probeService("FastAPI Grading", gradingBaseUrl, gradingEnabled),
+                        SERVICE_PROBE_POOL);
+
+        // 전체 2초 timeout — slow service 가 dashboard 전체 잡지 못하게.
+        List<Map<String, Object>> services = new ArrayList<>();
+        services.add(joinSafe(backFuture));
+        services.add(joinSafe(scannerFuture));
+        services.add(joinSafe(gradingFuture));
+
+        return ReturnData.success(Map.of(
+            "services", services,
+            "totalMs",  System.currentTimeMillis() - t0
+        ));
+    }
+
+    private Map<String, Object> joinSafe(java.util.concurrent.CompletableFuture<Map<String, Object>> f) {
+        try {
+            return f.get(2, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            return Map.of("name", "unknown", "status", "DOWN", "error", e.getClass().getSimpleName());
+        }
+    }
+
+    /** 단일 서비스 분류. URL 비어있으면 NOT_CONFIGURED, enabled=false 면 DISABLED. */
+    private Map<String, Object> probeService(String name, String baseUrl, boolean enabled) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("name", name);
+        result.put("url", baseUrl == null ? "" : baseUrl);
+
+        if (baseUrl == null || baseUrl.isBlank()) {
+            result.put("status", "NOT_CONFIGURED");
+            return result;
+        }
+        if (!enabled) {
+            result.put("status", "DISABLED");
+            return result;
+        }
+        long t = System.currentTimeMillis();
+        try {
+            // Codex 사후 Q2: explicit connect/read timeout via shared JdkClientHttpRequestFactory.
+            RestClient client = RestClient.builder()
+                    .baseUrl(baseUrl)
+                    .requestFactory(PROBE_REQUEST_FACTORY)
+                    .build();
+            String body = client.get().uri("/health").retrieve().body(String.class);
+            result.put("status", "RUNNING");
+            result.put("responseMs", System.currentTimeMillis() - t);
+            if (body != null && body.length() < 200) result.put("body", body);
+        } catch (Exception e) {
+            result.put("status", "DOWN");
+            result.put("error", e.getClass().getSimpleName());
+            result.put("responseMs", System.currentTimeMillis() - t);
+        }
+        return result;
+    }
+
+    /* ════════════════════════════════
        2026-05-29 P-1: 스캐너 stats proxy
        — Scanner.jsx 가 브라우저에서 직접 http://localhost:8082/info 호출 → prod 에선 닿지 않음.
        backend 가 docker network 안 scanner:8082/health 를 호출 ({"status":"ok","vectors":N}).
@@ -198,25 +316,72 @@ public class AdminController {
     /* ════════════════════════════════
        차트 데이터 (최근 7일)
        ════════════════════════════════ */
+    /**
+     * 2026-05-29 P0 #1 — 누적+신규 한 query (window function) 로 N+1 제거.
+     *   - days param: default 30, max 90.
+     *   - 누적 = 시작일 이전 baseline + 윈도우 내 running sum.
+     *
+     * 2026-05-29 hotfix — PostgreSQL `could not determine data type of parameter $5`:
+     *   원인: `::date` PostgreSQL-only cast + named param 두 번 등장 시 prepared statement 타입 추론 실패.
+     *   수정: 명시 CAST(... AS TIMESTAMP) + TO_CHAR(d.day, 'MM/DD') 로 SQL-side 포매팅
+     *        (java.sql.Date vs LocalDate driver-dependent 캐스트도 같이 우회).
+     *        try-catch 로 fallback empty list — endpoint 500 안 던짐.
+     */
     @GetMapping("/stats/users/chart")
-    public ReturnData<?> usersChart() {
-        List<Map<String, Object>> result = new ArrayList<>();
-        DateTimeFormatter dayFmt = DateTimeFormatter.ofPattern("MM/dd");
+    public ReturnData<?> usersChart(@RequestParam(defaultValue = "30") int days) {
+        int safeDays = Math.min(Math.max(days, 7), 90);
+        LocalDate start = LocalDate.now().minusDays(safeDays - 1);
 
-        for (int i = 6; i >= 0; i--) {
-            LocalDate date = LocalDate.now().minusDays(i);
-            long cnt = ((Number) em.createQuery(
-                "SELECT COUNT(u) FROM User u WHERE u.createdAt >= :start AND u.createdAt < :end"
-            ).setParameter("start", date.atStartOfDay())
-             .setParameter("end",   date.plusDays(1).atStartOfDay())
-             .getSingleResult()).longValue();
+        try {
+            // 시작일 이전 전체 신규 = "초기 누적".
+            long baseline = ((Number) em.createNativeQuery(
+                "SELECT COUNT(*) FROM users WHERE created_at < CAST(:start AS TIMESTAMP)"
+            ).setParameter("start", start.atStartOfDay()).getSingleResult()).longValue();
 
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("day",   date.format(dayFmt));
-            row.put("신규유저", cnt);
-            result.add(row);
+            // 명시 CAST + TO_CHAR — Hibernate prepared statement 타입 추론 안정화.
+            @SuppressWarnings("unchecked")
+            List<Object[]> rows = em.createNativeQuery(
+                "WITH d AS ( " +
+                "  SELECT generate_series( " +
+                "    CAST(:start AS TIMESTAMP)::date, " +
+                "    CAST(:endIncl AS TIMESTAMP)::date, " +
+                "    '1 day'::interval " +
+                "  )::date AS day " +
+                "), " +
+                "n AS ( " +
+                "  SELECT created_at::date AS day, COUNT(*) AS cnt " +
+                "  FROM users " +
+                "  WHERE created_at >= CAST(:start AS TIMESTAMP) " +
+                "    AND created_at <  CAST(:endExclusive AS TIMESTAMP) " +
+                "  GROUP BY created_at::date " +
+                ") " +
+                "SELECT TO_CHAR(d.day, 'MM/DD') AS day_label, " +
+                "       COALESCE(n.cnt, 0) AS new_users, " +
+                "       SUM(COALESCE(n.cnt, 0)) OVER (ORDER BY d.day) AS cumulative_in_window " +
+                "FROM d LEFT JOIN n ON d.day = n.day " +
+                "ORDER BY d.day"
+            ).setParameter("start",        start.atStartOfDay())
+             .setParameter("endIncl",      LocalDate.now().atStartOfDay())
+             .setParameter("endExclusive", LocalDate.now().plusDays(1).atStartOfDay())
+             .getResultList();
+
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Object[] r : rows) {
+                // r[0] = String (TO_CHAR), r[1] = new_users, r[2] = cumulative in window
+                String dayLabel = String.valueOf(r[0]);
+                long newUsers   = ((Number) r[1]).longValue();
+                long cumWindow  = ((Number) r[2]).longValue();
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("day", dayLabel);
+                row.put("신규유저", newUsers);
+                row.put("누적", baseline + cumWindow);
+                result.add(row);
+            }
+            return ReturnData.success(result);
+        } catch (Exception e) {
+            // 안전망 — 차트가 비어도 dashboard 자체는 살림.
+            return ReturnData.success(new ArrayList<Map<String, Object>>());
         }
-        return ReturnData.success(result);
     }
 
     @GetMapping("/stats/scans/chart")
@@ -488,10 +653,13 @@ public class AdminController {
             "SELECT COUNT(*) FROM price_anomalies a" + where
         ).getSingleResult()).longValue();
 
+        // 2026-05-29 P0 #3: enScrydexRef/jpScrydexRef/productId 추가 — 프론트 "원본 보기" 버튼용.
+        //   resolution_type 추가 — 검토 완료 / 무시 구분 (V20260529 마이그레이션).
         @SuppressWarnings("unchecked")
         List<Object[]> rows = em.createNativeQuery(
             "SELECT a.anomaly_id, a.card_id, c.name, a.source, a.detected_at, " +
-            "a.reason, a.suspect_price_usd, a.hist_median_usd, a.ebay_result, a.is_resolved, a.resolved_at " +
+            "a.reason, a.suspect_price_usd, a.hist_median_usd, a.ebay_result, a.is_resolved, a.resolved_at, " +
+            "c.en_scrydex_ref, c.jp_scrydex_ref, c.product_id, a.resolution_type " +
             "FROM price_anomalies a JOIN cards c ON c.card_id = a.card_id" +
             where + " ORDER BY a.detected_at DESC"
         ).setFirstResult(page * size).setMaxResults(size).getResultList();
@@ -510,6 +678,10 @@ public class AdminController {
             m.put("ebayResult",      r[8]);
             m.put("isResolved",      r[9]);
             m.put("resolvedAt",      r[10]);
+            m.put("enScrydexRef",    r[11]);
+            m.put("jpScrydexRef",    r[12]);
+            m.put("productId",       r[13]);
+            m.put("resolutionType",  r[14]);
             content.add(m);
         }
         return ReturnData.success(Map.of(
@@ -539,14 +711,43 @@ public class AdminController {
         return ReturnData.success(result);
     }
 
+    /**
+     * 2026-05-29 P0 #3 — body {action, memo?} 받음.
+     *   action: REVIEWED (검토 완료) | DISMISSED (무시). null/missing → REVIEWED 기본.
+     *   memo: DISMISSED 시 사유 권장 (frontend prompt).
+     *   resolution_type 컬럼 (V20260529 마이그레이션) 에 저장 + admin_actions audit.
+     */
     @PostMapping("/price-anomalies/{anomalyId}/resolve")
     @org.springframework.transaction.annotation.Transactional
-    public ReturnData<?> resolveAnomaly(@PathVariable String anomalyId) {
+    public ReturnData<?> resolveAnomaly(@PathVariable String anomalyId,
+                                        @RequestBody(required = false) Map<String, String> body,
+                                        @org.springframework.security.core.annotation.AuthenticationPrincipal String adminUserId) {
+        String action = body != null ? body.getOrDefault("action", "REVIEWED") : "REVIEWED";
+        String memo   = body != null ? body.get("memo") : null;
+        if (!"REVIEWED".equals(action) && !"DISMISSED".equals(action)) {
+            return ReturnData.badRequest("action 은 REVIEWED 또는 DISMISSED");
+        }
+
         int updated = em.createNativeQuery(
-            "UPDATE price_anomalies SET is_resolved = TRUE, resolved_at = NOW() WHERE anomaly_id = :id"
-        ).setParameter("id", anomalyId).executeUpdate();
+            "UPDATE price_anomalies SET is_resolved = TRUE, resolved_at = NOW(), resolution_type = :rt " +
+            "WHERE anomaly_id = :id"
+        ).setParameter("rt", action).setParameter("id", anomalyId).executeUpdate();
         if (updated == 0) return ReturnData.notFound("anomaly not found: " + anomalyId);
-        return ReturnData.success(Map.of("resolved", true));
+
+        // admin_actions audit — 누가 언제 어느 anomaly 를 어떻게 처리했는지 영구 기록.
+        if (adminUserId != null) {
+            em.createNativeQuery(
+                "INSERT INTO admin_actions (action_id, admin_user_id, action_type, target_type, target_id, memo, previous_state, new_state, created_at) " +
+                "VALUES (:aid, :uid, :type, 'PRICE_ANOMALY', :tid, :memo, 'OPEN', :state, NOW())"
+            ).setParameter("aid", "ACT_" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase())
+             .setParameter("uid", adminUserId)
+             .setParameter("type", "RESOLVE_ANOMALY_" + action)
+             .setParameter("tid", anomalyId)
+             .setParameter("memo", memo)
+             .setParameter("state", "RESOLVED_" + action)
+             .executeUpdate();
+        }
+        return ReturnData.success(Map.of("resolved", true, "action", action));
     }
 
     // eBay 정상 하락으로 확인된 항목 일괄 자동 처리
