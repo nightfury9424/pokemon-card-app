@@ -2,14 +2,18 @@ package com.fury.back.auth;
 
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -18,8 +22,26 @@ public class GoogleAuthService {
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
 
+    /**
+     * 2026-05-29 multi-audience 지원 — iOS app + Web admin SPA 둘 다 ID token 발급 가능.
+     * 쉼표 구분 list. 예: "iosClient.apps.googleusercontent.com,webClient.apps.googleusercontent.com".
+     */
     @Value("${google.client-id}")
-    private String googleClientId;
+    private String googleClientIds;
+
+    private Set<String> allowedAudiences;
+
+    @PostConstruct
+    public void initAudiences() {
+        allowedAudiences = Arrays.stream(googleClientIds.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toUnmodifiableSet());
+        if (allowedAudiences.isEmpty()) {
+            throw new IllegalStateException(
+                    "GOOGLE_CLIENT_ID env must contain at least one OAuth client ID (comma-separated for multi-audience).");
+        }
+    }
 
     private final RestClient restClient = RestClient.create();
 
@@ -29,10 +51,10 @@ public class GoogleAuthService {
         String googleId = (String) payload.get("sub");
         String email    = (String) payload.getOrDefault("email", "");
 
-        // aud 검증 (자기 Client ID인지 확인)
+        // aud 검증 — allowedAudiences 중 하나와 매칭 (iOS / Web 둘 다 허용).
         String aud = (String) payload.get("aud");
-        if (!googleClientId.equals(aud)) {
-            throw new IllegalArgumentException("Invalid Google client ID");
+        if (aud == null || !allowedAudiences.contains(aud)) {
+            throw new IllegalArgumentException("Invalid Google client ID (aud=" + aud + ")");
         }
 
         User user = userRepository.findByGoogleId(googleId)

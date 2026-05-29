@@ -16,8 +16,10 @@ function RequireAuth({ children }) {
 }
 
 export default function App() {
+  // 2026-05-29: vite base='/admin/' 와 일관 — BrowserRouter basename도 동일하게.
+  //   배포 시 https://.../admin/dashboard 같은 URL이 정상 작동.
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
