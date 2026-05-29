@@ -58,28 +58,35 @@ public class DexService {
     /**
      * 2026-05-29 Codex MVP — "최신 세대 우선" 정렬. 정확한 "최근 발매" 아님 (release_date 없음).
      * 향후 products.release_date 컬럼 추가 시 이 정렬 deprecated, ORDER BY 한 줄만 교체.
-     * 시리즈 prefix 매칭 — DB 실측 (LIKE patterns):
-     *   MEGA*                          → 1
-     *   *스칼렛&바이올렛*               → 2  (포켓몬 카드 게임 ~, 강화/하이클래스/확장팩 포함)
-     *   *소드&실드*                     → 3
-     *   *썬&문*                         → 4
-     *   XY*                            → 5  (XY BREAK 도 포함)
-     *   BW*                            → 6
-     *   DP*                            → 7
-     *   기타 (프로모/코리안리그/타운/팩)→ 99
+     *
+     * 2026-05-29 hotfix — PostgreSQL "could not determine data type of parameter $5"
+     * (SQLState 42P18) — inline LIKE 패턴 ('%스칼렛&바이올렛%' 의 `&` 등) 이 Hibernate
+     * native query 에서 prepared statement placeholder 로 잘못 변환되는 문제.
+     * 해결: 모든 LIKE 패턴을 named param 으로 외부화 (binding 명확).
+     * 메모리 feedback_hibernate_native_param_types 참조 — admin chart 와 동일 패턴.
      */
     private static final String PRODUCT_GENERATION_SQL = """
         CASE
-          WHEN p.name LIKE 'MEGA%'             THEN 1
-          WHEN p.name LIKE '%스칼렛&바이올렛%' THEN 2
-          WHEN p.name LIKE '%소드&실드%'       THEN 3
-          WHEN p.name LIKE '%썬&문%'           THEN 4
-          WHEN p.name LIKE 'XY%'               THEN 5
-          WHEN p.name LIKE 'BW%'               THEN 6
-          WHEN p.name LIKE 'DP%'               THEN 7
+          WHEN p.name LIKE :genMega THEN 1
+          WHEN p.name LIKE :genSv   THEN 2
+          WHEN p.name LIKE :genSwsh THEN 3
+          WHEN p.name LIKE :genSm   THEN 4
+          WHEN p.name LIKE :genXy   THEN 5
+          WHEN p.name LIKE :genBw   THEN 6
+          WHEN p.name LIKE :genDp   THEN 7
           ELSE 99
         END
         """;
+
+    private static final String GEN_MEGA = "MEGA%";
+    private static final String GEN_SV   = "%스칼렛&바이올렛%";
+    private static final String GEN_SWSH = "%소드&실드%";
+    private static final String GEN_SM   = "%썬&문%";
+    private static final String GEN_XY   = "XY%";
+    private static final String GEN_BW   = "BW%";
+    private static final String GEN_DP   = "DP%";
+    private static final String EX_PROMO = "%프로모%";
+    private static final String EX_TRAINER_BOX = "%트레이너 박스%";
 
     // ──────────────────────────────────────────────────────────────────
     // GET /api/assets/dex
@@ -106,9 +113,12 @@ public class DexService {
             "  HAVING COUNT(*) >= 5" +
             ") sub " +
             "JOIN products p ON p.product_id = sub.product_id " +
-            "WHERE p.name NOT LIKE '%프로모%' " +
-            "  AND p.name NOT LIKE '%트레이너 박스%'"
-        ).getSingleResult()).longValue();
+            "WHERE p.name NOT LIKE :exPromo " +
+            "  AND p.name NOT LIKE :exTrainerBox"
+        )
+        .setParameter("exPromo", EX_PROMO)
+        .setParameter("exTrainerBox", EX_TRAINER_BOX)
+        .getSingleResult()).longValue();
 
         // 1. 각 product 별 hero card (rarity priority + collection_number asc) + visible 카드 카운트 + 최신 카드 시각.
         //    Card @SQLRestriction("is_visible=true") 는 JPQL 만 적용. native query 는 직접 WHERE 필요.
@@ -146,14 +156,25 @@ public class DexService {
             FROM products p
             JOIN counted c ON c.product_id = p.product_id
             LEFT JOIN heroed h ON h.product_id = p.product_id AND h.rn = 1
-            WHERE p.name NOT LIKE '%프로모%'
-              AND p.name NOT LIKE '%트레이너 박스%'
+            WHERE p.name NOT LIKE :exPromo
+              AND p.name NOT LIKE :exTrainerBox
             ORDER BY
               """ + PRODUCT_GENERATION_SQL + """
               ASC,
               c.latest_card_at DESC NULLS LAST
             LIMIT :limit
-            """).setParameter("limit", limit).getResultList();
+            """)
+            .setParameter("genMega", GEN_MEGA)
+            .setParameter("genSv",   GEN_SV)
+            .setParameter("genSwsh", GEN_SWSH)
+            .setParameter("genSm",   GEN_SM)
+            .setParameter("genXy",   GEN_XY)
+            .setParameter("genBw",   GEN_BW)
+            .setParameter("genDp",   GEN_DP)
+            .setParameter("exPromo", EX_PROMO)
+            .setParameter("exTrainerBox", EX_TRAINER_BOX)
+            .setParameter("limit",   limit)
+            .getResultList();
 
         // 2. 사용자 보유 종 수 (per product). assets join — distinct card_id 기준.
         @SuppressWarnings("unchecked")
