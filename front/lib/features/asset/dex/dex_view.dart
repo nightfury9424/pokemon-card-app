@@ -20,14 +20,21 @@ import 'dex_models.dart';
 class DexView extends StatefulWidget {
   /// 2026-05-29 Codex 사후 Q1 — pull-to-refresh 시 부모(asset_screen) 도 같이 reload.
   /// 도감 탭이 다른 탭과 동일하게 portfolio summary 까지 갱신되게.
+  ///
+  /// 2026-05-29 (fix): nested RefreshIndicator 충돌 해소 — 외부 (asset_screen) 의
+  /// RefreshIndicator + CustomScrollView 가 portfolio + 도감 영역 모두 잡음.
+  /// DexView 는 자체 RefreshIndicator 제거. 외부에서 GlobalKey 로 reload() 호출.
   final Future<void> Function()? onParentRefresh;
   const DexView({super.key, this.onParentRefresh});
 
   @override
-  State<DexView> createState() => _DexViewState();
+  State<DexView> createState() => DexViewState();
 }
 
-class _DexViewState extends State<DexView> {
+class DexViewState extends State<DexView> {
+  /// 외부 (asset_screen) RefreshIndicator 가 GlobalKey 로 호출 — portfolio 와 도감 동기.
+  Future<void> reload() => _load();
+
   DexMain? _data;
   bool _loading = true;
   String? _error;
@@ -67,13 +74,11 @@ class _DexViewState extends State<DexView> {
       );
     }
     final d = _data!;
-    return RefreshIndicator(
-      color: AppColors.blueLight,
-      backgroundColor: AppColors.surfaceCard,
-      onRefresh: _load,
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
+    // asset_screen 의 외부 RefreshIndicator + CustomScrollView 안 SliverFillRemaining
+    // 에 들어감. 자체 CustomScrollView 는 도감 grid 본인 스크롤 처리 (nested).
+    // pull-to-refresh 는 외부 (asset_screen) 가 GlobalKey 로 reload() 호출.
+    return CustomScrollView(
+      slivers: [
           SliverToBoxAdapter(child: _Header(data: d)),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
@@ -101,8 +106,7 @@ class _DexViewState extends State<DexView> {
                 ),
               ),
             ),
-        ],
-      ),
+      ],
     );
   }
 }

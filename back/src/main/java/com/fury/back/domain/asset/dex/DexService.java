@@ -67,13 +67,13 @@ public class DexService {
      */
     private static final String PRODUCT_GENERATION_SQL = """
         CASE
-          WHEN p.name LIKE :genMega THEN 1
-          WHEN p.name LIKE :genSv   THEN 2
-          WHEN p.name LIKE :genSwsh THEN 3
-          WHEN p.name LIKE :genSm   THEN 4
-          WHEN p.name LIKE :genXy   THEN 5
-          WHEN p.name LIKE :genBw   THEN 6
-          WHEN p.name LIKE :genDp   THEN 7
+          WHEN p.name LIKE CAST(:genMega AS TEXT) THEN 1
+          WHEN p.name LIKE CAST(:genSv   AS TEXT) THEN 2
+          WHEN p.name LIKE CAST(:genSwsh AS TEXT) THEN 3
+          WHEN p.name LIKE CAST(:genSm   AS TEXT) THEN 4
+          WHEN p.name LIKE CAST(:genXy   AS TEXT) THEN 5
+          WHEN p.name LIKE CAST(:genBw   AS TEXT) THEN 6
+          WHEN p.name LIKE CAST(:genDp   AS TEXT) THEN 7
           ELSE 99
         END
         """;
@@ -113,8 +113,8 @@ public class DexService {
             "  HAVING COUNT(*) >= 5" +
             ") sub " +
             "JOIN products p ON p.product_id = sub.product_id " +
-            "WHERE p.name NOT LIKE :exPromo " +
-            "  AND p.name NOT LIKE :exTrainerBox"
+            "WHERE p.name NOT LIKE CAST(:exPromo AS TEXT) " +
+            "  AND p.name NOT LIKE CAST(:exTrainerBox AS TEXT)"
         )
         .setParameter("exPromo", EX_PROMO)
         .setParameter("exTrainerBox", EX_TRAINER_BOX)
@@ -156,8 +156,8 @@ public class DexService {
             FROM products p
             JOIN counted c ON c.product_id = p.product_id
             LEFT JOIN heroed h ON h.product_id = p.product_id AND h.rn = 1
-            WHERE p.name NOT LIKE :exPromo
-              AND p.name NOT LIKE :exTrainerBox
+            WHERE p.name NOT LIKE CAST(:exPromo AS TEXT)
+              AND p.name NOT LIKE CAST(:exTrainerBox AS TEXT)
             ORDER BY
               """ + PRODUCT_GENERATION_SQL + """
               ASC,

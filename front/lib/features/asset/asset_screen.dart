@@ -18,6 +18,10 @@ import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_info_toast.dart';
 import 'dex/dex_view.dart';
 
+/// 2026-05-29 Phase B (fix): GlobalKey 로 DexView 의 reload() 호출.
+/// 외부 RefreshIndicator 가 portfolio + 도감 동시 갱신 (사용자 시각 통일 명시).
+final GlobalKey<DexViewState> _dexKey = GlobalKey<DexViewState>();
+
 class AssetScreen extends StatefulWidget {
   final int initialTabIndex;
   const AssetScreen({super.key, this.initialTabIndex = 0});
@@ -779,24 +783,28 @@ class _AssetScreenState extends State<AssetScreen> {
           ? const Center(
               child: CircularProgressIndicator(color: Colors.white30),
             )
-          : _tabIndex == 3
-              // 2026-05-29 Phase B: 도감 탭 — 자체 RefreshIndicator + CustomScrollView 사용.
-              //   외부 nested scroll 충돌 회피 위해 별도 Column 구조.
-              ? Column(
-                  children: [
-                    _buildPortfolioSummary(),
-                    _buildTabAndSortRow(),
-                    Expanded(child: DexView(onParentRefresh: _loadData)),
-                  ],
-                )
-              : RefreshIndicator(
-              onRefresh: _loadData,
+          : RefreshIndicator(
+              onRefresh: () async {
+                await _loadData();
+                // 도감 탭이면 도감 데이터도 같이 갱신.
+                if (_tabIndex == 3) {
+                  await _dexKey.currentState?.reload();
+                }
+              },
               child: CustomScrollView(
                 slivers: [
                   SliverToBoxAdapter(child: _buildPortfolioSummary()),
                   SliverToBoxAdapter(child: _buildTabAndSortRow()),
+                  // 2026-05-29 Phase B (fix): 도감 탭 (index 3) — SliverFillRemaining 안에 DexView.
+                  //   외부 RefreshIndicator + CustomScrollView 공유 → portfolio summary
+                  //   시각 일관성 확보 (사용자 명시 — 탭마다 다르게 보이면 안 됨).
+                  if (_tabIndex == 3)
+                    SliverFillRemaining(
+                      hasScrollBody: true,
+                      child: DexView(key: _dexKey, onParentRefresh: _loadData),
+                    )
                   // 내 매수 주문 탭 (index 2)
-                  if (_tabIndex == 2) ...[
+                  else if (_tabIndex == 2) ...[
                     if (_myBuyOrders.isEmpty)
                       const SliverFillRemaining(
                         hasScrollBody: false,
