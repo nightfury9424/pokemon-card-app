@@ -171,15 +171,16 @@ export default function Price() {
           <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b', letterSpacing: -0.5 }}>시세 관리</div>
           <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 3 }}>scrydex 기반 한국 시장 계수 및 카드 시세</div>
         </div>
-        <button onClick={fetchPrices} disabled={fetching} style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '9px 16px', borderRadius: 10, border: 'none', cursor: fetching ? 'not-allowed' : 'pointer',
-          background: fetching ? '#cbd5e1' : 'linear-gradient(135deg, #6366f1, #4f46e5)',
-          color: '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+        {/* 2026-05-31 사고 재발 방지 — 수동 refresh-ko-estimates 호출이 v6_apply 보정 우회하여
+            chase 시세 망가짐 발생. 매일 23:45 Spring @Scheduled 가 자동 호출하므로 admin 수동 불필요. */}
+        <div style={{
+          padding: '9px 16px', borderRadius: 10,
+          background: '#f1f5f9', color: '#64748b',
+          fontSize: 12, fontWeight: 500, fontFamily: 'inherit',
+          border: '1px solid #e2e8f0',
         }}>
-          <Zap size={13} />
-          {fetching ? 'KO 예상가 재계산 중...' : 'KO 예상가 재계산'}
-        </button>
+          🔒 KO 예상가 재계산 = 매일 23:45 자동 (수동 호출 차단됨, 사고 재발 방지)
+        </div>
       </div>
 
       <div style={{ fontSize: 11, color: calcAt ? '#10b981' : '#94a3b8', marginBottom: syncResult ? 12 : 24, fontWeight: 500 }}>
@@ -341,15 +342,16 @@ export default function Price() {
                 onChange={e => setAdjInput(e.target.value)}
                 style={{ width: 100, padding: '8px 12px', borderRadius: 8, border: '1px solid #fcd34d', fontSize: 14, fontWeight: 700, color: '#92400e', background: '#fff', outline: 'none' }}
               />
-              <button
-                onClick={saveAdjustment}
-                disabled={adjSaving}
-                style={{
-                  padding: '8px 18px', borderRadius: 8, border: 'none', cursor: adjSaving ? 'not-allowed' : 'pointer',
-                  background: adjSaving ? '#d1d5db' : '#d97706', color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
-                }}>
-                {adjSaving ? '재계산 중...' : '적용 및 재계산'}
-              </button>
+              {/* 2026-05-31 사고 재발 방지 — market-adjustment 변경 시 refresh-ko-estimates 자동 trigger
+                  → v6_apply 보정 우회 → chase 시세 망가짐 위험. 차단 (DangerousAdminFilter). */}
+              <div style={{
+                padding: '8px 16px', borderRadius: 8,
+                background: '#f1f5f9', color: '#64748b',
+                fontSize: 11, fontWeight: 500, fontFamily: 'inherit',
+                border: '1px solid #e2e8f0',
+              }}>
+                🔒 변경 차단 (사고 재발 방지)
+              </div>
             </div>
           </div>
           {adjResult && (
