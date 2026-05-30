@@ -44,7 +44,7 @@ public class DexDto {
         private String  productName;
         private int     totalKoVisible;
         private int     ownedCount;
-        private List<DexCard> hits;     // top 4 (rarity priority + collection_number)
+        private List<DexCard> hits;     // up to 6 — products.dex_hit_card_ids CSV override, else auto top 4 (rarity priority + collection_number) fallback
         private List<DexCard> cards;    // 시리즈 visible 카드 전체 (collection_number asc)
     }
 

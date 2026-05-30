@@ -213,12 +213,13 @@ class _HitsRow extends StatelessWidget {
           const SizedBox(height: 10),
           // 2026-05-29 Codex 사후 Q5 — 4분할 너무 좁아 rarity 라벨 가독성 저하.
           // horizontal scroll + 고정 width 96px → iPhone SE 에서도 4장 1.5 보이며 명확.
+          // 2026-05-30 Cycle 2 — 컬렉션형 시리즈 (VSTAR/테라스탈/151/VMAX) override 시 최대 6장.
           SizedBox(
             height: 152,  // 96 width × 0.68 ratio ≈ 141, 라벨/badge 여백 포함.
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: EdgeInsets.zero,
-              itemCount: hits.length.clamp(0, 4),
+              itemCount: hits.length.clamp(0, 6),
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (_, i) => SizedBox(
                 width: 96,

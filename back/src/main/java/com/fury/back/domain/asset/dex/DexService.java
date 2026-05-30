@@ -248,14 +248,15 @@ public class DexService {
         }
 
         @SuppressWarnings("unchecked")
-        List<Object> nameRows = em.createNativeQuery(
-                "SELECT name FROM products WHERE product_id = :pid")
+        List<Object[]> productRows = em.createNativeQuery(
+                "SELECT name, dex_hit_card_ids FROM products WHERE product_id = :pid")
                 .setParameter("pid", productId)
                 .getResultList();
-        if (nameRows.isEmpty()) {
+        if (productRows.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND");
         }
-        String productName = (String) nameRows.get(0);
+        String productName = (String) productRows.get(0)[0];
+        String dexHitCsv = (String) productRows.get(0)[1];
 
         // 시리즈 visible 카드 전체 (collection_number asc).
         @SuppressWarnings("unchecked")
@@ -283,9 +284,10 @@ public class DexService {
             ownedQty.put((String) r[0], ((Number) r[1]).intValue());
         }
 
-        // 카드 list 조립.
+        // 카드 list 조립 + cardId → DexCard map (override resolve 재사용).
         List<DexDto.DexCard> allCards = new ArrayList<>(cardRows.size());
-        // hits 후보용 (rarity priority 정렬 후 top 4).
+        Map<String, DexDto.DexCard> byId = new HashMap<>(cardRows.size());
+        // hits 자동 후보 (rarity priority 정렬 후 top 4) — override null/empty 시 fallback.
         List<Object[]> hitsCand = new ArrayList<>(cardRows);
         hitsCand.sort(Comparator.comparingInt(r -> ((Number) r[6]).intValue()));
 
@@ -300,7 +302,7 @@ public class DexService {
             int qty = ownedQty.getOrDefault(cardId, 0);
             Card stub = Card.builder()
                     .cardId(cardId).enScrydexRef(enRef).jpScrydexRef(jpRef).build();
-            allCards.add(DexDto.DexCard.builder()
+            DexDto.DexCard dc = DexDto.DexCard.builder()
                     .cardId(cardId)
                     .name(name)
                     .rarityCode(rarity)
@@ -308,30 +310,32 @@ public class DexService {
                     .imageUrl(cardCdnUrls.forCard(stub))
                     .owned(qty > 0)
                     .quantity(qty)
-                    .build());
+                    .build();
+            allCards.add(dc);
+            byId.put(cardId, dc);
         }
 
-        List<DexDto.DexCard> hits = new ArrayList<>(4);
-        for (Object[] r : hitsCand) {
-            if (hits.size() >= 4) break;
-            String cardId = (String) r[0];
-            String name = (String) r[1];
-            String rarity = (String) r[2];
-            String colNum = (String) r[3];
-            String enRef = (String) r[4];
-            String jpRef = (String) r[5];
-            int qty = ownedQty.getOrDefault(cardId, 0);
-            Card stub = Card.builder()
-                    .cardId(cardId).enScrydexRef(enRef).jpScrydexRef(jpRef).build();
-            hits.add(DexDto.DexCard.builder()
-                    .cardId(cardId)
-                    .name(name)
-                    .rarityCode(rarity)
-                    .collectionNumber(colNum)
-                    .imageUrl(cardCdnUrls.forCard(stub))
-                    .owned(qty > 0)
-                    .quantity(qty)
-                    .build());
+        // 2026-05-30 Cycle 2 — products.dex_hit_card_ids override 우선, 없거나 모두 invalid 시 기존 자동 fallback.
+        // CSV 형식: "CRD_xxx,CRD_yyy,...". 순서 = display 순서. cap 6 (컬렉션형 VSTAR/테라스탈/151/VMAX 허용).
+        // cardRows 가 product_id + is_visible + language='KO' 필터링 → byId 재사용 시 inherit (별 query 불필요).
+        List<DexDto.DexCard> hits = new ArrayList<>(6);
+        if (dexHitCsv != null && !dexHitCsv.isBlank()) {
+            String[] tokens = dexHitCsv.split(",");
+            Set<String> seen = new HashSet<>();
+            for (String t : tokens) {
+                if (hits.size() >= 6) break;
+                String id = t.trim();
+                if (id.isEmpty() || !seen.add(id)) continue;
+                DexDto.DexCard dc = byId.get(id);
+                if (dc != null) hits.add(dc);
+            }
+        }
+        // valid resolve 0건 시 자동 fallback (Codex GO 조건 — empty row 방지).
+        if (hits.isEmpty()) {
+            for (Object[] r : hitsCand) {
+                if (hits.size() >= 4) break;
+                hits.add(byId.get((String) r[0]));
+            }
         }
 
         int totalKo = cardRows.size();
