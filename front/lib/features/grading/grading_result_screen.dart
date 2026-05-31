@@ -321,6 +321,14 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     );
   }
 
+  Color _severityColor(String severity) {
+    switch (severity) {
+      case 'major':    return const Color(0xFFDC2626);
+      case 'moderate': return const Color(0xFFD97706);
+      default:         return const Color(0xFF6B7280);
+    }
+  }
+
   Widget _severityChip(String severity) {
     final (label, color) = switch (severity) {
       'major' => ('심함', const Color(0xFFDC2626)),
@@ -925,6 +933,38 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     );
   }
 
+  /// side/position → normalized Rect (이미지 위 대략 overlay).
+  /// Day 3: backend bbox inverse transform 으로 정확화.
+  Rect? _positionRect(String position) {
+    switch (position) {
+      case 'top_left':     return const Rect.fromLTWH(0.02, 0.02, 0.35, 0.25);
+      case 'top_right':    return const Rect.fromLTWH(0.63, 0.02, 0.35, 0.25);
+      case 'bottom_left':  return const Rect.fromLTWH(0.02, 0.73, 0.35, 0.25);
+      case 'bottom_right': return const Rect.fromLTWH(0.63, 0.73, 0.35, 0.25);
+      case 'center':       return const Rect.fromLTWH(0.30, 0.40, 0.40, 0.20);
+      case 'center_left':  return const Rect.fromLTWH(0.02, 0.40, 0.35, 0.20);
+      case 'middle_right': return const Rect.fromLTWH(0.63, 0.40, 0.35, 0.20);
+      default: return null;
+    }
+  }
+
+  /// side → photo File index. front=0, back=1.
+  File? _photoForSide(String side) {
+    if (side == 'front' && widget.photos.isNotEmpty) return widget.photos[0];
+    if (side == 'back' && widget.photos.length > 1) return widget.photos[1];
+    return null;
+  }
+
+  /// side + position 그룹핑 (예: "앞면 좌상단 코너 마모 후보 2건").
+  Map<String, List<DeductionReason>> _groupBySidePosition(List<DeductionReason> reasons) {
+    final groups = <String, List<DeductionReason>>{};
+    for (final r in reasons) {
+      final key = '${r.side}|${r.position}|${r.type}';
+      groups.putIfAbsent(key, () => []).add(r);
+    }
+    return groups;
+  }
+
   List<DeductionReason> _filterReasonsByMetric(String metric) {
     final p = _parsed;
     if (p == null) return const [];
@@ -1019,60 +1059,74 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                         child: Text('감지된 감점 사유가 없어요',
                             style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
                       )
-                    : ListView.separated(
+                    : ListView(
                         controller: scrollCtrl,
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                        itemCount: reasons.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 6),
-                        itemBuilder: (_, i) {
-                          final r = reasons[i];
-                          return Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.bg,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: AppColors.divider),
-                            ),
-                            child: Row(children: [
-                              Container(
-                                width: 22, height: 22,
-                                decoration: BoxDecoration(
-                                  color: AppColors.blue.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text('${i + 1}',
-                                    style: const TextStyle(
-                                        color: AppColors.blue, fontSize: 11, fontWeight: FontWeight.bold)),
+                        children: [
+                          _buildMetricImageSection(metric, reasons),
+                          const SizedBox(height: 16),
+                          _buildGroupSummary(reasons),
+                          const SizedBox(height: 8),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 4),
+                            child: Text('세부 감점 사유',
+                                style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600)),
+                          ),
+                          ...reasons.asMap().entries.map((e) {
+                            final i = e.key;
+                            final r = e.value;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.bg,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppColors.divider),
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(_humanReasonLabel(r),
-                                        style: const TextStyle(
-                                            color: AppColors.textPrimary,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600)),
-                                    if (r.explanation.isNotEmpty) ...[
+                              child: Row(children: [
+                                Container(
+                                  width: 22, height: 22,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.blue.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text('${i + 1}',
+                                      style: const TextStyle(
+                                          color: AppColors.blue, fontSize: 11, fontWeight: FontWeight.bold)),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(_humanReasonLabel(r),
+                                          style: const TextStyle(
+                                              color: AppColors.textPrimary,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600)),
+                                      if (r.explanation.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(r.explanation,
+                                            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                                      ],
                                       const SizedBox(height: 2),
-                                      Text(r.explanation,
-                                          style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                                      Text(
+                                        '-${r.penalty.toStringAsFixed(1)}점 · 신뢰도 ${(r.confidence * 100).round()}%',
+                                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                                      ),
                                     ],
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '-${r.penalty.toStringAsFixed(1)}점 · 신뢰도 ${(r.confidence * 100).round()}%',
-                                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                              _severityChip(r.severity),
-                            ]),
-                          );
-                        },
+                                _severityChip(r.severity),
+                              ]),
+                            );
+                          }),
+                        ],
                       ),
               ),
             ]);
@@ -1090,5 +1144,175 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           style: const TextStyle(
               color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold)),
     ]);
+  }
+
+  Widget _buildMetricImageSection(String metric, List<DeductionReason> reasons) {
+    if (metric == 'centering') return _buildCenteringVisual();
+    final frontReasons = reasons.where((r) => r.side == 'front').toList();
+    final backReasons = reasons.where((r) => r.side == 'back').toList();
+    final showFront = metric != 'whitening';
+    return Row(children: [
+      if (showFront) ...[
+        Expanded(child: _buildPhotoWithBoxes('앞면', _photoForSide('front'), frontReasons)),
+        const SizedBox(width: 10),
+      ],
+      Expanded(child: _buildPhotoWithBoxes('뒷면', _photoForSide('back'), backReasons)),
+    ]);
+  }
+
+  Widget _buildPhotoWithBoxes(String label, File? file, List<DeductionReason> reasons) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AspectRatio(
+          aspectRatio: 63.0 / 88.0,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LayoutBuilder(
+              builder: (_, c) {
+                final exists = file != null && file.existsSync();
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (exists)
+                      Image.file(file, fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) =>
+                              Container(color: AppColors.divider))
+                    else
+                      Container(color: AppColors.divider),
+                    ...reasons.where((r) => _positionRect(r.position) != null).map((r) {
+                      final rect = _positionRect(r.position)!;
+                      final c2 = _severityColor(r.severity);
+                      return Positioned(
+                        left: rect.left * c.maxWidth,
+                        top: rect.top * c.maxHeight,
+                        width: rect.width * c.maxWidth,
+                        height: rect.height * c.maxHeight,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: c2.withValues(alpha: 0.22),
+                            border: Border.all(color: c2, width: 2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(children: [
+          Text(label,
+              style: const TextStyle(
+                  color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 6),
+          Text('${reasons.length}건',
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildCenteringVisual() {
+    final p = _parsed;
+    final front = _photoForSide('front');
+    final ratio = p?.centeringRatio ?? '';
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      AspectRatio(
+        aspectRatio: 63.0 / 88.0,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LayoutBuilder(
+            builder: (_, c) {
+              final exists = front != null && front.existsSync();
+              return Stack(fit: StackFit.expand, children: [
+                if (exists)
+                  Image.file(front, fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(color: AppColors.divider))
+                else
+                  Container(color: AppColors.divider),
+                Positioned(
+                  left: c.maxWidth / 2 - 1, top: 0, bottom: 0,
+                  child: Container(width: 2, color: AppColors.blue.withValues(alpha: 0.6)),
+                ),
+                Positioned(
+                  top: c.maxHeight / 2 - 1, left: 0, right: 0,
+                  child: Container(height: 2, color: AppColors.blue.withValues(alpha: 0.6)),
+                ),
+              ]);
+            },
+          ),
+        ),
+      ),
+      const SizedBox(height: 8),
+      if (ratio.isNotEmpty)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.blue.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(ratio,
+              style: const TextStyle(
+                  color: AppColors.blue, fontSize: 12, fontWeight: FontWeight.w600)),
+        ),
+    ]);
+  }
+
+  Widget _buildGroupSummary(List<DeductionReason> reasons) {
+    final groups = _groupBySidePosition(reasons);
+    if (groups.isEmpty) return const SizedBox.shrink();
+    final entries = groups.entries.toList()
+      ..sort((a, b) {
+        final aPenalty = a.value.fold<double>(0, (s, r) => s + r.penalty.abs());
+        final bPenalty = b.value.fold<double>(0, (s, r) => s + r.penalty.abs());
+        return bPenalty.compareTo(aPenalty);
+      });
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('영역별 요약',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        ...entries.take(5).map((e) {
+          final list = e.value;
+          final first = list.first;
+          final loc = [_sideKo[first.side] ?? '', _positionKo[first.position] ?? '']
+              .where((s) => s.isNotEmpty).join(' ');
+          final type = _typeKo[first.type] ?? first.type;
+          final total = list.fold<double>(0, (s, r) => s + r.penalty);
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Row(children: [
+              Container(
+                width: 10, height: 10,
+                decoration: BoxDecoration(
+                  color: _severityColor(first.severity),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  loc.isNotEmpty ? '$loc $type · ${list.length}건' : '$type · ${list.length}건',
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                ),
+              ),
+              Text('-${total.abs().toStringAsFixed(1)}점',
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+            ]),
+          );
+        }),
+      ]),
+    );
   }
 }
