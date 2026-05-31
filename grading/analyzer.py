@@ -865,6 +865,7 @@ class GradingAnalyzer:
             if li["severity"] == "warning":
                 lighting_quality = "warning"
 
+        retake_reasons_text = list(dict.fromkeys(retake_reasons_text))
         retake_required = len(retake_reasons_text) > 0
         if retake_required:
             capture_quality = "bad"

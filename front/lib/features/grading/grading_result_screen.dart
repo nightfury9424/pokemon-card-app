@@ -161,7 +161,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
             const Icon(Icons.camera_alt_outlined,
                 color: AppColors.textMuted, size: 56),
             const SizedBox(height: 20),
-            const Text('카드가 잘 인식되지 않았어요',
+            const Text('사진이 선명하지 않아요',
                 style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 17,
@@ -177,7 +177,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
             ),
             const SizedBox(height: 28),
             ElevatedButton.icon(
-              onPressed: () => context.pop(),
+              onPressed: () => context.pop('retake'),
               icon: const Icon(Icons.refresh),
               label: const Text('다시 촬영하기'),
               style: ElevatedButton.styleFrom(

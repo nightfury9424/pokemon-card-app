@@ -29,8 +29,14 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
   String? _initError;
 
   static const _stepLabels = [
-    ('앞면 촬영', '카드 앞면을 프레임 안에 맞춘 뒤 직접 촬영해 주세요'),
-    ('뒷면 촬영', '카드 뒷면을 프레임 안에 맞춘 뒤 직접 촬영해 주세요'),
+    ('앞면 촬영', '카드 4개 모서리가 프레임 안에 모두 보이도록 맞춘 뒤 촬영해 주세요'),
+    ('뒷면 촬영', '카드 4개 모서리가 프레임 안에 모두 보이도록 맞춘 뒤 촬영해 주세요'),
+  ];
+
+  static const _guideHints = [
+    '카드를 한 손으로 고정한 뒤 촬영하면 더 선명해요',
+    '손가락이나 그림자가 카드 위에 들어가지 않게 해주세요',
+    '카드를 화면 가운데에 탭하면 초점을 맞출 수 있어요',
   ];
 
   @override
@@ -74,10 +80,25 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
       _controller = controller;
       _initFuture = controller.initialize();
       await _initFuture;
+      try {
+        await controller.setFocusMode(FocusMode.auto);
+        await controller.setExposureMode(ExposureMode.auto);
+      } catch (_) {}
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) setState(() => _initError = e.toString());
     }
+  }
+
+  Future<void> _tapToFocus(TapDownDetails details, Size previewSize) async {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    final dx = (details.localPosition.dx / previewSize.width).clamp(0.0, 1.0);
+    final dy = (details.localPosition.dy / previewSize.height).clamp(0.0, 1.0);
+    try {
+      await c.setFocusPoint(Offset(dx, dy));
+      await c.setExposurePoint(Offset(dx, dy));
+    } catch (_) {}
   }
 
   Future<void> _shutter() async {
@@ -85,6 +106,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     if (c == null || !c.value.isInitialized || _isCapturing) return;
     setState(() => _isCapturing = true);
     try {
+      await Future.delayed(const Duration(milliseconds: 350));
       final xfile = await c.takePicture();
       _photos.add(File(xfile.path));
       if (_step < 1) {
@@ -93,14 +115,22 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
         if (mounted) {
           setState(() => _isCapturing = false);
           final frameRect = _normalizedFrameRect();
-          final saved = await context.push<bool>('/grading/result', extra: {
-            'photos': _photos,
+          final result = await context.push<dynamic>('/grading/result', extra: {
+            'photos': List<File>.from(_photos),
             'assetId': widget.assetId,
             'cardId': widget.cardId,
             'cardName': widget.cardName,
             'frameRect': frameRect,
           });
-          if ((saved == true) && mounted) context.pop(true);
+          if (!mounted) return;
+          if (result == 'retake') {
+            setState(() {
+              _step = 0;
+              _photos.clear();
+            });
+          } else if (result == true) {
+            context.pop(true);
+          }
         }
       }
     } catch (e) {
@@ -175,27 +205,32 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
         final size = c.value.previewSize;
         final previewW = size?.height ?? 1080.0;
         final previewH = size?.width ?? 1920.0;
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            SizedBox.expand(
-              child: FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(
-                  width: previewW,
-                  height: previewH,
-                  child: CameraPreview(c),
+        final boxSize = Size(box.maxWidth, box.maxHeight);
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (d) => _tapToFocus(d, boxSize),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              SizedBox.expand(
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: previewW,
+                    height: previewH,
+                    child: CameraPreview(c),
+                  ),
                 ),
               ),
-            ),
-            CustomPaint(
-              size: Size(box.maxWidth, box.maxHeight),
-              painter: _FrameOverlayPainter(
-                frameAspect: _frameAspect,
-                frameWidthRatio: _frameWidthRatio,
+              CustomPaint(
+                size: boxSize,
+                painter: _FrameOverlayPainter(
+                  frameAspect: _frameAspect,
+                  frameWidthRatio: _frameWidthRatio,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -251,7 +286,11 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
             Text(hint,
                 style: const TextStyle(color: Colors.white70, fontSize: 12),
                 textAlign: TextAlign.center),
-            const SizedBox(height: 20),
+            const SizedBox(height: 6),
+            Text('💡 ${_guideHints[_step % _guideHints.length]}',
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 16),
             GestureDetector(
               onTap: ready && !_isCapturing ? _shutter : null,
               child: Container(
