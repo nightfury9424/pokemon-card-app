@@ -136,7 +136,7 @@ class GradingScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
-            onPressed: () => context.push('/assets'),
+            onPressed: () => context.push('/grading/select-asset'),
             icon: const Icon(Icons.style_rounded, color: Colors.white),
             label: const Text('내 자산에서 선택', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
