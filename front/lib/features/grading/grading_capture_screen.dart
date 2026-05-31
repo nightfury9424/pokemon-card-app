@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_info_toast.dart';
+import '../../core/widgets/app_error_toast.dart';
 
 enum _FrameState { basic, focusing, capturing, complete }
 
@@ -164,13 +166,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
       if (_step < 1) {
         if (mounted) {
           setState(() { _step++; _isCapturing = false; });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('앞면 촬영 완료 · 이제 뒷면을 촬영해 주세요'),
-              duration: Duration(seconds: 2),
-              backgroundColor: Color(0xFF1A3A6A),
-            ),
-          );
+          AppInfoToast.show(context, '앞면 촬영 완료 · 이제 뒷면을 촬영해 주세요');
         }
       } else {
         if (mounted) {
@@ -201,9 +197,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
           _isCapturing = false;
           _frameState = _FrameState.basic;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('촬영 실패: $e')),
-        );
+        AppErrorToast.show(context, '촬영 실패: $e');
       }
     }
   }
