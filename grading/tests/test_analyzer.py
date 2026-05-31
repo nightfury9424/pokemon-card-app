@@ -250,6 +250,67 @@ def test_retake_required_on_blank_image():
     assert result.capture_quality == "bad"
     assert result.retake_reason != ""
 
+def test_analyze_warped_none_returns_retake():
+    """Codex P0-A: warped_front/back is None 이면 점수 산출 X + retake_required=True."""
+    blank = np.zeros((100, 100, 3), dtype=np.uint8)
+    result = analyzer.analyze(blank, blank, corners=[make_corner_image()] * 8)
+    assert result.retake_required is True
+    assert result.total_score == 0.0
+    assert result.has_major_defect is True
+    assert '카드 외곽' in result.retake_reason
+
+
+def test_analyze_corner_penalty_cap_2():
+    """Codex P0-B: 단일 corner penalty ≤ 2.0 (false positive -6.0 방지)."""
+    front = make_card_image()
+    back = make_back_image()
+    worn_corner = make_corner_image(sharp=False)
+    corners = [worn_corner] * 8
+    result = analyzer.analyze(front, back, corners)
+    for r in result.deduction_reasons:
+        if r.type == 'corner':
+            assert r.penalty <= 2.0, f"corner penalty {r.penalty} > 2.0 cap"
+
+
+def test_analyze_corner_score_floor_5():
+    """Codex P0-B: analyze_corner score floor 5.0 (10 - 6 = 4 같은 낮은 점수 방지)."""
+    img = make_corner_image(sharp=False)
+    score = analyzer.analyze_corner(img)
+    assert score >= 5.0, f"corner score {score} < 5.0 floor"
+
+
+def test_analyze_whitening_dead_zone():
+    """Codex P0-B: whitening_ratio ≤ 0.08 인 코너 = 감점 0 (정상 카드 false positive 방지)."""
+    img = np.ones((150, 150, 3), dtype=np.uint8) * 100
+    # tip 영역 (좌상단 20%) 에 white pixel 거의 없음 → dead zone
+    score = analyzer.analyze_corner(img)
+    assert score == 10.0 or score >= 9.0, f"clean corner score {score} should be near 10 (dead zone)"
+
+
+def test_analyze_confidence_clamp_max_085():
+    """Codex P0-D: deduction reason confidence ≤ 0.85 (신뢰도 100% 노출 차단)."""
+    front = make_card_image()
+    back = make_back_image()
+    corners = [make_corner_image()] * 8
+    result = analyzer.analyze(front, back, corners)
+    for r in result.deduction_reasons:
+        # centering 은 hardcoded 0.9 — 별도 분기
+        if r.type != 'centering':
+            assert r.confidence <= 0.85, f"{r.type} confidence {r.confidence} > 0.85"
+
+
+def test_analyze_reproducibility():
+    """같은 이미지 2회 analyze → 동일 점수 (안정성 보장)."""
+    front = make_card_image()
+    back = make_back_image()
+    corners = [make_corner_image()] * 8
+    r1 = analyzer.analyze(front, back, corners)
+    r2 = analyzer.analyze(front, back, corners)
+    assert r1.total_score == r2.total_score
+    assert r1.grade == r2.grade
+    assert len(r1.deduction_reasons) == len(r2.deduction_reasons)
+
+
 def test_retake_not_required_on_valid_card():
     """정상 카드 이미지 = retake_required False"""
     front = make_card_image()

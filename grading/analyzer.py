@@ -141,36 +141,39 @@ class GradingAnalyzer:
                 imperfect_quad = (area, ratio)
 
         if not candidates:
+            # Codex 진단: frame_hint quad 전체를 카드로 가정하는 fallback = 위험 (배경/손 포함).
+            # quality gate — frame_hint 의 aspect 가 카드 비율 (0.62~0.82) 통과 시만 fallback 허용.
             if frame_hint is not None and gray.size > 0:
                 ch, cw = gray.shape
-                ordered = np.array([
-                    [0, 0],
-                    [cw - 1, 0],
-                    [cw - 1, ch - 1],
-                    [0, ch - 1],
-                ], dtype=np.float32)
-                dst = np.array([
-                    [0, 0],
-                    [self.CARD_WIDTH - 1, 0],
-                    [self.CARD_WIDTH - 1, self.CARD_HEIGHT - 1],
-                    [0, self.CARD_HEIGHT - 1],
-                ], dtype=np.float32)
-                matrix = cv2.getPerspectiveTransform(ordered, dst)
-                warped = cv2.warpPerspective(color, matrix, (self.CARD_WIDTH, self.CARD_HEIGHT))
-                ratio = cw / float(ch) if ch > 0 else 0.0
-                if ratio > 1.0:
-                    ratio = 1.0 / ratio
-                details = {
-                    "warped": warped,
-                    "quad": ordered,
-                    "largest": largest,
-                    "imperfect_quad": None,
-                    "ratio": ratio,
-                    "area_ratio": 1.0,
-                    "from_frame_hint": True,
-                }
-                self._rect_cache[cache_key] = details
-                return details
+                hint_ratio = cw / float(ch) if ch > 0 else 0.0
+                if hint_ratio > 1.0:
+                    hint_ratio = 1.0 / hint_ratio
+                if 0.62 <= hint_ratio <= 0.82:
+                    ordered = np.array([
+                        [0, 0],
+                        [cw - 1, 0],
+                        [cw - 1, ch - 1],
+                        [0, ch - 1],
+                    ], dtype=np.float32)
+                    dst = np.array([
+                        [0, 0],
+                        [self.CARD_WIDTH - 1, 0],
+                        [self.CARD_WIDTH - 1, self.CARD_HEIGHT - 1],
+                        [0, self.CARD_HEIGHT - 1],
+                    ], dtype=np.float32)
+                    matrix = cv2.getPerspectiveTransform(ordered, dst)
+                    warped = cv2.warpPerspective(color, matrix, (self.CARD_WIDTH, self.CARD_HEIGHT))
+                    details = {
+                        "warped": warped,
+                        "quad": ordered,
+                        "largest": largest,
+                        "imperfect_quad": None,
+                        "ratio": hint_ratio,
+                        "area_ratio": 1.0,
+                        "from_frame_hint": True,
+                    }
+                    self._rect_cache[cache_key] = details
+                    return details
 
             details = {
                 "warped": None,
@@ -375,6 +378,12 @@ class GradingAnalyzer:
         return score, detail, ratio
 
     def analyze_corner(self, image) -> float:
+        """Codex 진단 후 수정 — false positive HIGH 산식 fix.
+        - whitening dead zone (≤ 0.08): 감점 0
+        - linear 구간 (0.08 ~ 0.25): 점진적 감점
+        - 단일 코너 penalty cap = 2.0
+        - score floor = 5.0 (확정 ROI)
+        - blur_penalty 약화 (× 0.5)"""
         h, w = image.shape[:2]
         tip_h = max(1, int(h * 0.2))
         tip_w = max(1, int(w * 0.2))
@@ -388,13 +397,20 @@ class GradingAnalyzer:
             np.array([0, 0, 200]),
             np.array([180, 15, 255]),
         )
-        whitening_ratio = np.count_nonzero(white_mask) / white_mask.size
+        whitening_ratio = float(np.count_nonzero(white_mask) / white_mask.size)
+
+        if whitening_ratio <= 0.08:
+            whitening_penalty = 0.0
+        else:
+            whitening_penalty = ((whitening_ratio - 0.08) / 0.17) * 2.0
+            whitening_penalty = max(0.0, min(2.0, whitening_penalty))
 
         gray_tip = cv2.cvtColor(tip, cv2.COLOR_BGR2GRAY)
         lap_var = float(cv2.Laplacian(gray_tip, cv2.CV_64F).var()) if gray_tip.size else 0.0
-        blur_penalty = max(0.0, (80.0 - lap_var) / 80.0) * 2.0
-        whitening_penalty = min(6.0, whitening_ratio * 30.0)
-        score = max(1.0, min(10.0, 10.0 - whitening_penalty - blur_penalty))
+        blur_penalty = max(0.0, (80.0 - lap_var) / 80.0) * 1.0
+
+        score = 10.0 - whitening_penalty - blur_penalty
+        score = max(5.0, min(10.0, score))
         return round(score, 1)
 
     def crop_corners(self, image) -> list:
@@ -516,7 +532,7 @@ class GradingAnalyzer:
                 continue
             x, y, cw, ch = cv2.boundingRect(c)
             area_ratio = area / total_pixels
-            confidence = min(1.0, area_ratio * 100.0)
+            confidence = min(0.85, area_ratio * 100.0)
             regions.append({
                 "bbox": (x / w, y / h, cw / w, ch / h),
                 "confidence": float(round(confidence, 2)),
@@ -550,7 +566,7 @@ class GradingAnalyzer:
                 rtype = "dent"
             else:
                 continue
-            confidence = min(1.0, area / (total_pixels * 0.005))
+            confidence = min(0.85, area / (total_pixels * 0.005))
             regions.append({
                 "bbox": (x / w, y / h, cw / w, ch / h),
                 "type": rtype,
@@ -729,7 +745,7 @@ class GradingAnalyzer:
                 "bbox": (x / w, y / h, cw / w, ch / h),
                 "score": float(score),
                 "severity": severity,
-                "confidence": float(round(min(1.0, (9.0 - score) / 5.0), 2)),
+                "confidence": float(round(min(0.85, (9.0 - score) / 5.0), 2)),
             })
         return results
 
@@ -743,6 +759,41 @@ class GradingAnalyzer:
         self._warped_front = self._find_card_rect(front, frame_hint=frame_hint)
         self._warped_back = self._find_card_rect(back, frame_hint=frame_hint)
         detection = self.detect_card_confidence(front, frame_hint=frame_hint)
+
+        # Codex 진단 후 추가: warped 가 None 이면 점수 산출하지 않고 retake 반환.
+        # 사용자 명시: 손/배경을 카드 손상으로 분석하지 않게 차단.
+        if self._warped_front is None or self._warped_back is None:
+            missing = []
+            if self._warped_front is None:
+                missing.append("앞면")
+            if self._warped_back is None:
+                missing.append("뒷면")
+            reason = f"{'/'.join(missing)} 카드 외곽을 감지하지 못했어요"
+            return AnalysisResult(
+                centering_score=0.0,
+                centering_ratio="",
+                detection_confidence=detection["confidence"],
+                corner_score=0.0,
+                surface_score=0.0,
+                whitening_score=0.0,
+                edge_score=0.0,
+                total_score=0.0,
+                heavy_whitening=False,
+                centering_detail="", corner_detail="",
+                surface_detail="", whitening_detail="", edge_detail="",
+                weighted_score=0.0,
+                total_score_display=0.0,
+                grade="C",
+                grade_color="#95A5A6",
+                deduction_reasons=[],
+                defect_regions=[],
+                has_major_defect=True,
+                retake_required=True,
+                retake_reason=f"{reason}. 프레임에 카드를 맞춰 다시 촬영해 주세요",
+                capture_quality="bad",
+                screen_suspected=False,
+                screen_suspect_reason="",
+            )
 
         centering, centering_detail, centering_ratio = self.analyze_centering(front)
         if corners is None:
@@ -853,6 +904,16 @@ class GradingAnalyzer:
         defect_regions: List[DefectRegion] = []
         next_id = {"n": 0}
 
+        # Codex 진단: warped 가 frame_hint quad fallback 이면 ROI 신뢰성 낮음 → confidence × 0.3.
+        front_fallback = self._rect_cache.get(
+            (id(front), frame_hint) if frame_hint is not None else id(front), {}).get("from_frame_hint", False)
+        back_fallback = self._rect_cache.get(
+            (id(back), frame_hint) if frame_hint is not None else id(back), {}).get("from_frame_hint", False)
+
+        def conf_for_side(side: str, raw: float) -> float:
+            mult = 0.3 if (side == "front" and front_fallback) or (side == "back" and back_fallback) else 1.0
+            return round(raw * mult, 2)
+
         def add_reason(rtype, side, position, severity, confidence, penalty,
                        bbox, label, explanation, color, region_type=None):
             next_id["n"] += 1
@@ -882,9 +943,11 @@ class GradingAnalyzer:
 
         for side_name, side_warped in (("front", warped_front), ("back", warped_back)):
             for c in self.detect_corner_damage(side_warped):
+                # Codex 진단: 단일 corner penalty cap 2.0 (false positive 방지)
+                penalty = round(min(2.0, max(0.0, 10.0 - c["score"])), 1)
                 add_reason(
                     "corner", side_name, c["position"], c["severity"],
-                    c["confidence"], round(10.0 - c["score"], 1), c["bbox"],
+                    conf_for_side(side_name, c["confidence"]), penalty, c["bbox"],
                     f"{side_name} {c['position']} 코너 마모 후보",
                     f"코너 영역 분석 점수 {c['score']:.1f}/10",
                     "#E67E22",
@@ -896,7 +959,8 @@ class GradingAnalyzer:
             sev = "major" if ar > 0.02 else ("moderate" if ar > 0.005 else "minor")
             add_reason(
                 "whitening", "back", "", sev,
-                w_region["confidence"], round(min(2.0, ar * 100.0), 1),
+                conf_for_side("back", w_region["confidence"]),
+                round(min(2.0, ar * 100.0), 1),
                 w_region["bbox"], "백화 후보 영역",
                 f"채도 부스트 분석 검출 — 영역 비율 {ar * 100:.2f}%",
                 "#3498DB",
@@ -904,7 +968,7 @@ class GradingAnalyzer:
 
         for side_name, side_warped in (("front", warped_front), ("back", warped_back)):
             for s_region in self.detect_scratch_regions(side_warped):
-                conf = s_region["confidence"]
+                conf = conf_for_side(side_name, s_region["confidence"])
                 sev = "moderate" if conf > 0.6 else "minor"
                 is_scratch = s_region["type"] == "scratch"
                 label = "스크래치 후보" if is_scratch else "찍힘 후보"
