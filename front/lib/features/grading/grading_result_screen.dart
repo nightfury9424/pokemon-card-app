@@ -35,7 +35,6 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
   GradingResult? _parsed;
   bool _loading = true;
   String? _error;
-  bool _showAllReasons = false;
 
   static const _photoKeys = ['front_image', 'back_image'];
 
@@ -322,118 +321,6 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     );
   }
 
-  Widget _buildReasonList() {
-    final p = _parsed;
-    if (p == null || p.deductionReasons.isEmpty) return const SizedBox.shrink();
-
-    final sorted = List<DeductionReason>.from(p.deductionReasons)
-      ..sort((a, b) {
-        final ap = a.penalty.abs();
-        final bp = b.penalty.abs();
-        if (ap != bp) return bp.compareTo(ap);
-        return b.confidence.compareTo(a.confidence);
-      });
-    final topN = 5;
-    final visible = _showAllReasons ? sorted : sorted.take(topN).toList();
-    final hiddenCount = sorted.length - visible.length;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Text('주요 감점 사유',
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(width: 6),
-            Text('(${sorted.length}건 중 ${visible.length}건)',
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-          ]),
-          const SizedBox(height: 8),
-          ...visible.asMap().entries.map((entry) {
-            final i = entry.key;
-            final r = entry.value;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 6),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.bg,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: Row(children: [
-                Container(
-                  width: 22, height: 22,
-                  decoration: BoxDecoration(
-                    color: AppColors.blue.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text('${i + 1}',
-                      style: const TextStyle(
-                          color: AppColors.blue, fontSize: 11, fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(_humanReasonLabel(r),
-                          style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 2),
-                      Text(
-                        '-${r.penalty.toStringAsFixed(1)}점 · 신뢰도 ${(r.confidence * 100).round()}%',
-                        style: const TextStyle(
-                            color: AppColors.textSecondary, fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ),
-                _severityChip(r.severity),
-              ]),
-            );
-          }),
-          if (hiddenCount > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: TextButton(
-                onPressed: () => setState(() => _showAllReasons = true),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text('전체 감점 사유 $hiddenCount건 더 보기',
-                    style: const TextStyle(
-                        color: AppColors.blue, fontSize: 12, fontWeight: FontWeight.w600)),
-              ),
-            ),
-          if (_showAllReasons && sorted.length > topN)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: TextButton(
-                onPressed: () => setState(() => _showAllReasons = false),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text('접기',
-                    style: TextStyle(
-                        color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
   Widget _severityChip(String severity) {
     final (label, color) = switch (severity) {
       'major' => ('심함', const Color(0xFFDC2626)),
@@ -500,11 +387,10 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     final identityVerified = (r['identityVerified'] as bool?) ?? (r['identity_verified'] as bool?) ?? true;
 
     return ListView(
-      padding: EdgeInsets.zero,
+      padding: const EdgeInsets.only(bottom: 32),
       children: [
         _buildQualityBanner(),
         _buildGradeCard(),
-        _buildReasonList(),
         const Padding(padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
             child: Text('상세 분석',
                 style: TextStyle(
@@ -596,13 +482,13 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           ),
           child: Column(children: [
             _buildScoreRow('센터링', r['centeringScore'], r['centeringDetail'],
-                sub: r['centeringRatio'] as String?),
+                sub: r['centeringRatio'] as String?, metric: 'centering'),
             const Divider(color: AppColors.divider, height: 20),
-            _buildScoreRow('코너', r['cornerScore'], r['cornerDetail']),
+            _buildScoreRow('코너', r['cornerScore'], r['cornerDetail'], metric: 'corner'),
             const Divider(color: AppColors.divider, height: 20),
-            _buildScoreRow('표면', r['surfaceScore'], r['surfaceDetail']),
+            _buildScoreRow('표면', r['surfaceScore'], r['surfaceDetail'], metric: 'surface'),
             const Divider(color: AppColors.divider, height: 20),
-            _buildScoreRow('화이트닝', r['whiteningScore'], r['whiteningDetail']),
+            _buildScoreRow('화이트닝', r['whiteningScore'], r['whiteningDetail'], metric: 'whitening'),
           ]),
         ),
         const SizedBox(height: 24),
@@ -972,11 +858,15 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     return 'APP-$date-$suffix';
   }
 
-  Widget _buildScoreRow(String label, dynamic scoreRaw, dynamic detail, {String? sub}) {
+  Widget _buildScoreRow(String label, dynamic scoreRaw, dynamic detail,
+      {String? sub, String? metric}) {
     final score = (scoreRaw as num).toDouble();
     final color = score >= 9.0 ? AppColors.green : score >= 7.0 ? AppColors.blue : AppColors.red;
     final detailText = detail as String? ?? '';
-    return Column(
+    final reasons = metric != null ? _filterReasonsByMetric(metric) : <DeductionReason>[];
+    final tappable = metric != null && reasons.isNotEmpty;
+
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(children: [
@@ -994,6 +884,10 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           ),
           const SizedBox(width: 12),
           Text(score.toStringAsFixed(1), style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold)),
+          if (tappable) ...[
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
+          ],
         ]),
         if (sub != null && sub.isNotEmpty) ...[
           const SizedBox(height: 4),
@@ -1009,7 +903,192 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
             child: Text(detailText, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
           ),
         ],
+        if (tappable) ...[
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 80),
+            child: Text('${reasons.length}건 감점 사유 보기',
+                style: const TextStyle(color: AppColors.blue, fontSize: 11, fontWeight: FontWeight.w600)),
+          ),
+        ],
       ],
     );
+
+    if (!tappable) return content;
+    return InkWell(
+      onTap: () => _showMetricDetailSheet(metric, label, score, color),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: content,
+      ),
+    );
+  }
+
+  List<DeductionReason> _filterReasonsByMetric(String metric) {
+    final p = _parsed;
+    if (p == null) return const [];
+    bool match(DeductionReason r) {
+      switch (metric) {
+        case 'centering': return r.type == 'centering';
+        case 'corner':    return r.type == 'corner';
+        case 'surface':   return r.type == 'surface' || r.type == 'scratch' || r.type == 'dent';
+        case 'whitening': return r.type == 'whitening';
+        case 'edge':      return r.type == 'edge';
+        default: return false;
+      }
+    }
+    final list = p.deductionReasons.where(match).toList()
+      ..sort((a, b) {
+        final ap = a.penalty.abs();
+        final bp = b.penalty.abs();
+        if (ap != bp) return bp.compareTo(ap);
+        return b.confidence.compareTo(a.confidence);
+      });
+    return list;
+  }
+
+  void _showMetricDetailSheet(String metric, String label, double score, Color color) {
+    final reasons = _filterReasonsByMetric(metric);
+    final totalPenalty = reasons.fold<double>(0, (s, r) => s + r.penalty);
+    final avgConfidence = reasons.isEmpty
+        ? 0.0
+        : reasons.fold<double>(0, (s, r) => s + r.confidence) / reasons.length;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.72,
+          minChildSize: 0.4,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (_, scrollCtrl) {
+            return Column(children: [
+              Container(
+                margin: const EdgeInsets.only(top: 10),
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.textMuted,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Row(children: [
+                  Text(label,
+                      style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  Text(score.toStringAsFixed(1),
+                      style: TextStyle(
+                          color: color, fontSize: 22, fontWeight: FontWeight.bold)),
+                  const Text(' / 10',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                ]),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.bg,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: Row(children: [
+                    Expanded(child: _summaryItem('감점 항목', '${reasons.length}건')),
+                    Container(width: 1, height: 24, color: AppColors.divider),
+                    Expanded(child: _summaryItem('총 감점', '${totalPenalty.toStringAsFixed(1)}점')),
+                    Container(width: 1, height: 24, color: AppColors.divider),
+                    Expanded(child: _summaryItem('평균 신뢰도', '${(avgConfidence * 100).round()}%')),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: reasons.isEmpty
+                    ? const Center(
+                        child: Text('감지된 감점 사유가 없어요',
+                            style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                      )
+                    : ListView.separated(
+                        controller: scrollCtrl,
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                        itemCount: reasons.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 6),
+                        itemBuilder: (_, i) {
+                          final r = reasons[i];
+                          return Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.bg,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.divider),
+                            ),
+                            child: Row(children: [
+                              Container(
+                                width: 22, height: 22,
+                                decoration: BoxDecoration(
+                                  color: AppColors.blue.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text('${i + 1}',
+                                    style: const TextStyle(
+                                        color: AppColors.blue, fontSize: 11, fontWeight: FontWeight.bold)),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(_humanReasonLabel(r),
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600)),
+                                    if (r.explanation.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(r.explanation,
+                                          style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                                    ],
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '-${r.penalty.toStringAsFixed(1)}점 · 신뢰도 ${(r.confidence * 100).round()}%',
+                                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              _severityChip(r.severity),
+                            ]),
+                          );
+                        },
+                      ),
+              ),
+            ]);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _summaryItem(String label, String value) {
+    return Column(children: [
+      Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+      const SizedBox(height: 4),
+      Text(value,
+          style: const TextStyle(
+              color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold)),
+    ]);
   }
 }
