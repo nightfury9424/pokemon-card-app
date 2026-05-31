@@ -37,8 +37,9 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
   bool _loading = true;
   String? _error;
   // P0-1 Codex 사후 fix: image aspect 동적 측정 (AspectRatio 가정 X).
-  // BoxFit.cover crop 으로 bbox overlay 좌표 어긋남 방지.
+  // P0-fix-1: front + back 각각 측정 (back overlay aspect mismatch 방지).
   double? _frontImageAspect;
+  double? _backImageAspect;
 
   static const _photoKeys = ['front_image', 'back_image'];
 
@@ -146,16 +147,17 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           _parsed = data != null ? GradingResult.fromJson(data) : null;
           _loading = false;
         });
-        _loadFrontImageAspect();
+        _loadImageAspect('front');
+        _loadImageAspect('back');
       }
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
   }
 
-  // P0-1 Codex 사후 fix: 사진 실제 aspect 측정 → AspectRatio 동적 적용.
-  void _loadFrontImageAspect() {
-    final file = _photoForSide('front');
+  // P0-fix-1: front + back 각각 aspect 측정 → AspectRatio 동적.
+  void _loadImageAspect(String side) {
+    final file = _photoForSide(side);
     if (file == null || !file.existsSync()) return;
     final provider = FileImage(file);
     final stream = provider.resolve(const ImageConfiguration());
@@ -163,7 +165,12 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     listener = ImageStreamListener((info, _) {
       if (mounted) {
         setState(() {
-          _frontImageAspect = info.image.width / info.image.height;
+          final aspect = info.image.width / info.image.height;
+          if (side == 'front') {
+            _frontImageAspect = aspect;
+          } else {
+            _backImageAspect = aspect;
+          }
         });
       }
       if (listener != null) stream.removeListener(listener);
@@ -1222,19 +1229,55 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     final frontReasons = reasons.where((r) => r.side == 'front').toList();
     final backReasons = reasons.where((r) => r.side == 'back').toList();
     final showFront = metric != 'whitening';
-    return Row(children: [
-      if (showFront) ...[
-        Expanded(child: _buildPhotoWithBoxes('앞면', _photoForSide('front'), frontReasons)),
-        const SizedBox(width: 10),
-      ],
-      Expanded(child: _buildPhotoWithBoxes('뒷면', _photoForSide('back'), backReasons)),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        if (showFront) ...[
+          Expanded(child: _buildPhotoWithBoxes('앞면', 'front', frontReasons)),
+          const SizedBox(width: 10),
+        ],
+        Expanded(child: _buildPhotoWithBoxes('뒷면', 'back', backReasons)),
+      ]),
+      const SizedBox(height: 8),
+      _buildAnalysisBasisLabel(metric),
     ]);
   }
 
-  // P0-1: reason.bbox overlay (severity 색) + tap → fullscreen.
-  Widget _buildPhotoWithBoxes(String label, File? file, List<DeductionReason> reasons) {
+  // P0-fix-1: surface/whitening 분석 근거 라벨 (P1 mask UI 진입 전 최소 표시).
+  Widget _buildAnalysisBasisLabel(String metric) {
+    String? text;
+    if (metric == 'surface') {
+      text = '분석 기준: CLAHE 대비 강화 + 선형/점형 패턴 검출';
+    } else if (metric == 'whitening') {
+      text = '분석 기준: HSV 채도/명도 분석 + 흰 영역 비율';
+    }
+    if (text == null) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Row(children: [
+        const Icon(Icons.science_outlined, size: 12, color: AppColors.textMuted),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(text,
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+        ),
+      ]),
+    );
+  }
+
+  // P0-fix-1: side 별 cardBbox + aspect + source 확인.
+  // 정책: source != "detected" → overlay 숨김 + 안내 (잘못된 박스 X).
+  Widget _buildPhotoWithBoxes(String label, String side, List<DeductionReason> reasons) {
+    final file = _photoForSide(side);
     final p = _parsed;
-    final cardBbox = p?.cardBbox;
+    final cardBboxAny = p?.cardBbox?[side];
+    final isDetected = cardBboxAny?['source']?.toString() == 'detected';
+    final cardBboxDouble = isDetected ? _toDoubleMap(cardBboxAny) : null;
+    final aspect = (side == 'front' ? _frontImageAspect : _backImageAspect) ?? 3.0 / 4.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1243,7 +1286,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
               ? () => _openFullscreenImage(file)
               : null,
           child: AspectRatio(
-            aspectRatio: _frontImageAspect ?? 3.0 / 4.0,
+            aspectRatio: aspect,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LayoutBuilder(
@@ -1254,12 +1297,12 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                           errorBuilder: (_, _, _) => Container(color: AppColors.divider))
                     else
                       Container(color: AppColors.divider),
-                    if (cardBbox != null && reasons.isNotEmpty)
+                    if (cardBboxDouble != null && reasons.isNotEmpty)
                       CustomPaint(
                         size: Size(c.maxWidth, c.maxHeight),
                         painter: _ReasonBboxPainter(
                           reasons: reasons,
-                          cardBbox: cardBbox,
+                          cardBbox: cardBboxDouble,
                         ),
                       ),
                   ]);
@@ -1277,16 +1320,43 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           Text('${reasons.length}건',
               style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
         ]),
+        // P0-fix-1: fallback 시 안내 — 잘못된 박스 X 보장
+        if (!isDetected && reasons.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          const Text('카드 외곽 검출 불안정 — 위치 표시 숨김',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+        ],
       ],
     );
+  }
+
+  // P0-fix-1: cardBbox dynamic → double Map (painter 가 double 만 받음).
+  Map<String, double>? _toDoubleMap(Map<String, dynamic>? src) {
+    if (src == null) return null;
+    final out = <String, double>{};
+    for (final entry in src.entries) {
+      final v = entry.value;
+      if (v is num) out[entry.key] = v.toDouble();
+    }
+    return out;
   }
 
   // P0-1: corner sheet empty 상태에서도 4 corner crop + 점수 시각화.
   Widget _buildCornerEvidence(List<DeductionReason> reasons) {
     final p = _parsed;
-    final regions = p?.cornerRegions;
+    // P0-fix-1: cornerRegions = {"front":{4}, "back":{4}}. 일단 front 만 표시 (기존 UX).
+    // cardBbox['front'].source != "detected" 이면 corner overlay 도 부정확 → 숨김
+    final cardBboxAny = p?.cardBbox?['front'];
+    final bboxDetected = cardBboxAny?['source']?.toString() == 'detected';
+    final regions = bboxDetected ? (p?.cornerRegions?['front']) : null;
     final front = _photoForSide('front');
     if (regions == null || front == null || !front.existsSync()) {
+      // P0-fix-1: detect 실패 시 corner crop X (잘못된 위치 박스 방지)
+      final msg = !bboxDetected
+          ? '카드 외곽 검출 불안정 — 코너 영역 표시 숨김'
+          : (reasons.isEmpty
+              ? '4개 코너 모두 검사 — 감점 없음'
+              : '코너 영역 분석 정보 없음');
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -1294,13 +1364,9 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.divider),
         ),
-        child: Text(
-          reasons.isEmpty
-              ? '4개 코너 모두 검사 — 감점 없음'
-              : '코너 영역 분석 정보 없음',
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
-          textAlign: TextAlign.center,
-        ),
+        child: Text(msg,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            textAlign: TextAlign.center),
       );
     }
     final labels = ['좌상', '우상', '좌하', '우하'];
@@ -1364,11 +1430,14 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     final p = _parsed;
     final front = _photoForSide('front');
     final ratio = p?.centeringRatio ?? '';
-    final cardBbox = p?.cardBbox;
+    // P0-fix-1: cardBbox source != "detected" → 외곽선/lines 숨김 + 추정 배지
+    final cardBboxAny = p?.cardBbox?['front'];
+    final bboxDetected = cardBboxAny?['source']?.toString() == 'detected';
+    final cardBbox = bboxDetected ? _toDoubleMap(cardBboxAny) : null;
     final lines = p?.centeringLines;
     final conf = p?.centeringConfidence ?? 0.0;
     final source = p?.centeringSource ?? 'fallback';
-    final lowConf = conf < 0.5 || source == 'fallback';
+    final lowConf = conf < 0.5 || source == 'fallback' || !bboxDetected;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       GestureDetector(

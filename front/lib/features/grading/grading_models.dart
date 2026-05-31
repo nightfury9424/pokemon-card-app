@@ -94,11 +94,15 @@ class GradingResult {
   final List<DeductionReason> deductionReasons;
   final List<DefectRegion> defectRegions;
   // === P0-1 evidence layer (Phase 2-C) ===
-  final Map<String, double>? cardBbox;
+  // P0-fix-1: cardBbox / cornerRegions 가 front + back nested (back overlay mismatch fix).
+  // cardBbox = {"front": {x,y,w,h,source}, "back": {...}} — 각 사진 좌표계 0~1
+  //   source: "detected" | "frame_hint_fallback"
+  // cornerRegions = {"front": {top_left,...,br}, "back": {top_left,...,br}}
+  final Map<String, Map<String, dynamic>>? cardBbox;
   final Map<String, double>? centeringLines;
   final double centeringConfidence;
   final String centeringSource;
-  final Map<String, Map<String, double>>? cornerRegions;
+  final Map<String, Map<String, Map<String, double>>>? cornerRegions;
   final Map<String, dynamic>? gradeDecisionTrace;
   final Map<String, dynamic>? extra;
 
@@ -156,6 +160,29 @@ class GradingResult {
                   MapEntry(kk.toString(), vv is num ? vv.toDouble() : 0.0))
               : <String, double>{}));
     }
+    // P0-fix-1: cardBbox = {"front":{x,y,w,h,source}, "back":{...}} (source = string)
+    Map<String, Map<String, dynamic>>? _asNestedDynamicMap(dynamic v) {
+      if (v is! Map) return null;
+      return v.map((side, bbox) => MapEntry(
+          side.toString(),
+          bbox is Map
+              ? bbox.map((kk, vv) => MapEntry(kk.toString(), vv))
+              : <String, dynamic>{}));
+    }
+    // P0-fix-1: corner_regions = {"front": {"top_left":{x,y,w,h}, ...}, "back": {...}}
+    Map<String, Map<String, Map<String, double>>>? _asTripleNestedDoubleMap(dynamic v) {
+      if (v is! Map) return null;
+      return v.map((side, regions) => MapEntry(
+          side.toString(),
+          regions is Map
+              ? regions.map((corner, bbox) => MapEntry(
+                  corner.toString(),
+                  bbox is Map
+                      ? bbox.map((kk, vv) =>
+                          MapEntry(kk.toString(), vv is num ? vv.toDouble() : 0.0))
+                      : <String, double>{}))
+              : <String, Map<String, double>>{}));
+    }
     return GradingResult(
       centeringScore: asDouble(json['centeringScore']),
       cornerScore: asDouble(json['cornerScore']),
@@ -190,11 +217,11 @@ class GradingResult {
               ?.map((e) => DefectRegion.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
-      cardBbox: asDoubleMap(json['cardBbox']),
+      cardBbox: _asNestedDynamicMap(json['cardBbox']),
       centeringLines: asDoubleMap(json['centeringLines']),
       centeringConfidence: asDouble(json['centeringConfidence']),
       centeringSource: json['centeringSource']?.toString() ?? 'fallback',
-      cornerRegions: asNestedDoubleMap(json['cornerRegions']),
+      cornerRegions: _asTripleNestedDoubleMap(json['cornerRegions']),
       gradeDecisionTrace: json['gradeDecisionTrace'] is Map
           ? Map<String, dynamic>.from(json['gradeDecisionTrace'] as Map)
           : null,

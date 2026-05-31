@@ -433,17 +433,24 @@ class GradingAnalyzer:
 
     @staticmethod
     def _compute_card_bbox(image, frame_hint, details):
-        """P0-1: 사진 전체 normalized 0~1 card bbox (quad 외접 사각형)."""
+        """P0-1: 사진 전체 normalized 0~1 card bbox (quad 외접 사각형).
+        P0-fix-1: source 명시 — "detected" / "frame_hint_fallback".
+        UI 가 source != "detected" 면 overlay 표시 안 함 (잘못된 박스 방지)."""
         if image is None or image.size == 0:
             return None
         H, W = image.shape[:2]
         if W <= 0 or H <= 0:
             return None
         quad = details.get("quad") if details else None
+        from_hint = bool(details.get("from_frame_hint", False)) if details else False
         if quad is None:
             if frame_hint is not None:
                 fx, fy, fw, fh = frame_hint
-                return {"x": float(fx), "y": float(fy), "w": float(fw), "h": float(fh)}
+                return {
+                    "x": float(fx), "y": float(fy),
+                    "w": float(fw), "h": float(fh),
+                    "source": "frame_hint_fallback",
+                }
             return None
         if frame_hint is not None:
             fx, fy, fw, fh = frame_hint
@@ -456,11 +463,14 @@ class GradingAnalyzer:
             ys = quad[:, 1]
         x_min, x_max = float(np.min(xs)), float(np.max(xs))
         y_min, y_max = float(np.min(ys)), float(np.max(ys))
+        # from_hint = True → quad 가 frame_hint 자체 (실제 카드 외곽 아님)
+        source = "frame_hint_fallback" if from_hint else "detected"
         return {
             "x": max(0.0, min(1.0, x_min / W)),
             "y": max(0.0, min(1.0, y_min / H)),
             "w": max(0.0, min(1.0, (x_max - x_min) / W)),
             "h": max(0.0, min(1.0, (y_max - y_min) / H)),
+            "source": source,
         }
 
     @staticmethod
@@ -1163,10 +1173,16 @@ class GradingAnalyzer:
 
         (centering, centering_detail, centering_ratio,
          centering_lines, centering_conf, centering_source) = self.analyze_centering(front)
-        # P0-1: card_bbox + corner_regions (front 기준) — UI evidence layer
+        # P0-fix-1: card_bbox + corner_regions front/back 각각 (back overlay 좌표 mismatch fix)
         front_details = self._find_card_rect_details(front, frame_hint=frame_hint)
-        card_bbox = self._compute_card_bbox(front, frame_hint, front_details)
-        corner_regions = self._compute_corner_regions(card_bbox)
+        back_details = self._find_card_rect_details(back, frame_hint=frame_hint)
+        front_card_bbox = self._compute_card_bbox(front, frame_hint, front_details)
+        back_card_bbox = self._compute_card_bbox(back, frame_hint, back_details)
+        card_bbox = {"front": front_card_bbox, "back": back_card_bbox}
+        corner_regions = {
+            "front": self._compute_corner_regions(front_card_bbox),
+            "back": self._compute_corner_regions(back_card_bbox),
+        }
         if corners is None:
             corners = self.crop_corners(front) + self.crop_corners(back)
 

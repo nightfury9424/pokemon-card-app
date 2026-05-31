@@ -40,11 +40,12 @@ public class GradingAnalysisDto {
     @JsonProperty("screen_suspect_reason") private String screenSuspectReason;
 
     // === P0-1 evidence layer (Phase 2-C) ===
-    @JsonProperty("card_bbox")             private Map<String, Double> cardBbox;
+    // P0-fix-1: cardBbox / cornerRegions 가 front + back nested (back overlay mismatch fix).
+    @JsonProperty("card_bbox")             private Map<String, Object> cardBbox;
     @JsonProperty("centering_lines")       private Map<String, Double> centeringLines;
     @JsonProperty("centering_confidence")  private Double centeringConfidence;
     @JsonProperty("centering_source")      private String centeringSource;
-    @JsonProperty("corner_regions")        private Map<String, Map<String, Double>> cornerRegions;
+    @JsonProperty("corner_regions")        private Map<String, Object> cornerRegions;
     @JsonProperty("grade_decision_trace")  private Map<String, Object> gradeDecisionTrace;
     @JsonProperty("extra")                 private Map<String, Object> extra;
 }

@@ -41,11 +41,12 @@ public class GradingResultDto {
     private String screenSuspectReason;
 
     // === P0-1 evidence layer (Phase 2-C) ===
-    private Map<String, Double> cardBbox;
+    // P0-fix-1: cardBbox / cornerRegions 가 front + back nested (back overlay mismatch fix).
+    private Map<String, Object> cardBbox;
     private Map<String, Double> centeringLines;
     private Double centeringConfidence;
     private String centeringSource;
-    private Map<String, Map<String, Double>> cornerRegions;
+    private Map<String, Object> cornerRegions;
     private Map<String, Object> gradeDecisionTrace;
     private Map<String, Object> extra;
 }
