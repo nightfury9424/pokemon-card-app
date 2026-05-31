@@ -578,19 +578,82 @@ class GradingAnalyzer:
             return True
         return False
 
+    # Phase 2-B Step 2 — bbox NMS / merge helper.
+    # 같은 type 끼리 (IoU > iou_thr) OR (center distance < center_thr × max_dim) OR
+    # (한 쪽이 다른 쪽 contained) 면 confidence 큰 쪽 keep.
+    @staticmethod
+    def _merge_regions(regions: list, iou_thr: float = 0.2,
+                       center_thr: float = 0.75) -> list:
+        if not regions:
+            return regions
+
+        def iou(a, b):
+            ax, ay, aw, ah = a["bbox"]
+            bx, by, bw, bh = b["bbox"]
+            x1, y1 = max(ax, bx), max(ay, by)
+            x2 = min(ax + aw, bx + bw)
+            y2 = min(ay + ah, by + bh)
+            if x2 <= x1 or y2 <= y1:
+                return 0.0
+            inter = (x2 - x1) * (y2 - y1)
+            union = aw * ah + bw * bh - inter
+            return inter / union if union > 0 else 0.0
+
+        def contained(a, b):
+            ax, ay, aw, ah = a["bbox"]
+            bx, by, bw, bh = b["bbox"]
+            return (ax >= bx and ay >= by and ax + aw <= bx + bw
+                    and ay + ah <= by + bh)
+
+        def near_center(a, b):
+            ax, ay, aw, ah = a["bbox"]
+            bx, by, bw, bh = b["bbox"]
+            acx, acy = ax + aw / 2, ay + ah / 2
+            bcx, bcy = bx + bw / 2, by + bh / 2
+            dist = ((acx - bcx) ** 2 + (acy - bcy) ** 2) ** 0.5
+            max_dim = max(aw, ah, bw, bh)
+            return max_dim > 0 and dist < center_thr * max_dim
+
+        # confidence 내림차순 → 같은 type 끼리만 merge.
+        # Codex 사후: near_center 단독 suppress 는 다른 위치 결함을 합칠 risk →
+        # (IoU>0 OR contained) AND near_center 로 정정.
+        sorted_regions = sorted(regions, key=lambda r: -r.get("confidence", 0.0))
+        kept = []
+        for r in sorted_regions:
+            rt = r.get("type")
+            dup = False
+            for k in kept:
+                if k.get("type") != rt:
+                    continue
+                center_dup = near_center(r, k) and (
+                    iou(r, k) > 0.0
+                    or contained(r, k) or contained(k, r))
+                if (iou(r, k) > iou_thr
+                        or contained(r, k) or contained(k, r)
+                        or center_dup):
+                    dup = True
+                    break
+            if not dup:
+                kept.append(r)
+        return kept
+
     def detect_whitening_regions(self, card_roi) -> list:
-        """spec § 2 — HSV S 부스트 → 흰 영역 highlight → bbox list."""
+        """spec § 2 — HSV S 부스트 → 흰 영역 highlight → bbox list.
+        Phase 2-B Step 2: threshold ↑ + confidence floor + NMS + cap 10."""
         if card_roi is None or card_roi.size == 0:
             return []
         hsv = cv2.cvtColor(card_roi, cv2.COLOR_BGR2HSV).astype(np.float32)
         hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 2.0, 0, 255)
         boosted = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
         diff = cv2.absdiff(boosted, card_roi)
-        mask = (diff.sum(axis=2) > 60).astype(np.uint8) * 255
+        # Codex 사전: 60→75 (FN 위험 흡수, scratch 와 동시 상향 X)
+        mask = (diff.sum(axis=2) > 75).astype(np.uint8) * 255
         h, w = mask.shape
         total_pixels = float(h * w)
-        min_area = max(20, int(total_pixels * 0.0005))
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Codex 사전: min_area max(20, 0.0005) → max(50, 0.0010)
+        min_area = max(50, int(total_pixels * 0.0010))
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_SIMPLE)
         regions = []
         for c in contours:
             area = float(cv2.contourArea(c))
@@ -599,15 +662,36 @@ class GradingAnalyzer:
             x, y, cw, ch = cv2.boundingRect(c)
             area_ratio = area / total_pixels
             confidence = min(0.85, area_ratio * 100.0)
+            # Codex 사전: confidence floor 0.15
+            if confidence < 0.15:
+                continue
             regions.append({
                 "bbox": (x / w, y / h, cw / w, ch / h),
+                "type": "whitening",
                 "confidence": float(round(confidence, 2)),
                 "area_ratio": float(round(area_ratio, 4)),
             })
-        return regions
+        # NMS merge + cap 10 (severity 추정 후 sort)
+        merged = self._merge_regions(regions)
+        for r in merged:
+            ar = r.get("area_ratio", 0.0)
+            r["_sev_rank"] = 2 if ar > 0.02 else (1 if ar > 0.005 else 0)
+        # Codex 사후: bbox tuple tie-breaker 로 deterministic 순서 보장.
+        merged.sort(key=lambda r: (
+            -r.get("_sev_rank", 0),
+            -r.get("confidence", 0.0),
+            -r.get("area_ratio", 0.0),
+            r.get("bbox", (0.0, 0.0, 0.0, 0.0)),
+        ))
+        return merged[:10]
+
+    # Phase 2-B Step 2 — artwork interior border (정규화 좌표).
+    # 카드 테두리 ~6% → 0.08 안쪽 = artwork interior 로 분류 stricter 기준 적용.
+    _ARTWORK_BORDER = 0.08
 
     def detect_scratch_regions(self, card_roi) -> list:
-        """spec § 2 — CLAHE local contrast → 선형(스크래치) / 점형(찍힘) 패턴."""
+        """spec § 2 — CLAHE local contrast → 선형(스크래치) / 점형(찍힘) 패턴.
+        Phase 2-B Step 2: threshold ↑ + artwork interior stricter + NMS + cap 20."""
         if card_roi is None or card_roi.size == 0:
             return []
         lab = cv2.cvtColor(card_roi, cv2.COLOR_BGR2LAB)
@@ -615,30 +699,60 @@ class GradingAnalyzer:
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         enhanced = clahe.apply(l_channel)
         diff = cv2.absdiff(enhanced, l_channel)
-        mask = (diff > 40).astype(np.uint8) * 255
+        # Codex 사전: 40→50 (75 권장은 너무 강함, FN 위험)
+        mask = (diff > 50).astype(np.uint8) * 255
         h, w = mask.shape
         total_pixels = float(h * w)
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_SIMPLE)
+        border = self._ARTWORK_BORDER
         regions = []
         for c in contours:
             x, y, cw, ch = cv2.boundingRect(c)
-            if cw < 4 or ch < 4:
+            # Codex 사전: min size 4→6 (16px → 36px)
+            if cw < 6 or ch < 6:
                 continue
             aspect = max(cw / max(ch, 1), ch / max(cw, 1))
             area = float(cv2.contourArea(c))
-            if aspect > 4.0 and area > 50:
+            if aspect > 4.0 and area > 80:
                 rtype = "scratch"
-            elif 1.0 <= aspect <= 4.0 and 30 <= area < 200:
+            elif 1.0 <= aspect <= 4.0 and 40 <= area < 250:
                 rtype = "dent"
             else:
                 continue
+            # artwork interior 추가 stricter — bbox 전체가 (border ~ 1-border)
+            # 사각형 내부면 area > 150 + confidence ≥ 0.30 만 통과.
+            # Codex 사후: 중심 기준은 외곽 걸친 bbox 도 stricter 적용 risk → bbox 전체.
+            x1_norm = x / w
+            y1_norm = y / h
+            x2_norm = (x + cw) / w
+            y2_norm = (y + ch) / h
+            in_artwork = (border <= x1_norm and x2_norm <= 1 - border
+                          and border <= y1_norm and y2_norm <= 1 - border)
             confidence = min(0.85, area / (total_pixels * 0.005))
+            # Codex 사전: confidence floor 0.20
+            if confidence < 0.20:
+                continue
+            if in_artwork and (area < 150 or confidence < 0.30):
+                continue
             regions.append({
                 "bbox": (x / w, y / h, cw / w, ch / h),
                 "type": rtype,
                 "confidence": float(round(confidence, 2)),
+                "area": float(round(area, 1)),
             })
-        return regions
+        # NMS merge + cap 20 (severity moderate/minor 산정 후 sort)
+        merged = self._merge_regions(regions)
+        for r in merged:
+            r["_sev_rank"] = 1 if r.get("confidence", 0.0) > 0.6 else 0
+        # Codex 사후: bbox tuple tie-breaker 로 deterministic 순서 보장.
+        merged.sort(key=lambda r: (
+            -r.get("_sev_rank", 0),
+            -r.get("confidence", 0.0),
+            -r.get("area", 0.0),
+            r.get("bbox", (0.0, 0.0, 0.0, 0.0)),
+        ))
+        return merged[:20]
 
     def precheck(self, image, side: str = "front", frame_hint=None) -> dict:
         """촬영 직후 lightweight 품질 게이트. /analyze 전 per-side 검증용.
