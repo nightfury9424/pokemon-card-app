@@ -16,6 +16,7 @@ async def analyze(
     frame_y: float | None = Form(None),
     frame_w: float | None = Form(None),
     frame_h: float | None = Form(None),
+    debug: bool = Form(False),
 ):
     async def read_image(upload: UploadFile):
         data = await upload.read()
@@ -37,7 +38,7 @@ async def analyze(
             max(0.0, min(1.0, frame_h)),
         )
 
-    return analyzer.analyze(front_img, back_img, frame_hint=frame_hint)
+    return analyzer.analyze(front_img, back_img, frame_hint=frame_hint, debug=debug)
 
 
 @app.post("/precheck")

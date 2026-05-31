@@ -1,8 +1,14 @@
-from typing import List
+import json
+import os
+import uuid
+from datetime import datetime
+from typing import List, Optional
 
 import cv2
 import numpy as np
 from models import AnalysisResult, DeductionReason, DefectRegion
+
+DEBUG_ROOT = "/tmp/grading_debug"
 
 
 class GradingAnalyzer:
@@ -38,6 +44,66 @@ class GradingAnalyzer:
         self._front_image_id = None
         self._back_image_id = None
         self._rect_cache = {}
+
+    # ── Debug output helpers (Phase 2-A) ─────────────────────────────────
+    @staticmethod
+    def _new_session_id() -> str:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return f"{ts}_{uuid.uuid4().hex[:8]}"
+
+    @staticmethod
+    def _debug_dir(session_id: str) -> str:
+        d = os.path.join(DEBUG_ROOT, session_id)
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    @staticmethod
+    def _debug_save_image(session_id: str, filename: str, image) -> Optional[str]:
+        if image is None or image.size == 0:
+            return None
+        path = os.path.join(GradingAnalyzer._debug_dir(session_id), filename)
+        try:
+            cv2.imwrite(path, image)
+            return path
+        except Exception:
+            return None
+
+    @staticmethod
+    def _build_clahe_visual(card_roi):
+        """detect_scratch_regions 의 CLAHE local contrast 결과를 시각용 image 로 변환."""
+        if card_roi is None or card_roi.size == 0:
+            return None
+        lab = cv2.cvtColor(card_roi, cv2.COLOR_BGR2LAB)
+        l_channel = lab[:, :, 0]
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(l_channel)
+        diff = cv2.absdiff(enhanced, l_channel)
+        diff_norm = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX)
+        return cv2.cvtColor(diff_norm.astype(np.uint8), cv2.COLOR_GRAY2BGR)
+
+    @staticmethod
+    def _build_whitening_mask_visual(card_roi):
+        """detect_whitening_regions 의 HSV S 부스트 mask 시각용."""
+        if card_roi is None or card_roi.size == 0:
+            return None
+        hsv = cv2.cvtColor(card_roi, cv2.COLOR_BGR2HSV).astype(np.float32)
+        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 2.0, 0, 255)
+        boosted = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+        diff = cv2.absdiff(boosted, card_roi)
+        mask = (diff.sum(axis=2) > 60).astype(np.uint8) * 255
+        overlay = card_roi.copy()
+        overlay[mask > 0] = [0, 0, 255]
+        return cv2.addWeighted(card_roi, 0.6, overlay, 0.4, 0)
+
+    def _write_debug_json(self, session_id: str, payload: dict) -> Optional[str]:
+        path = os.path.join(self._debug_dir(session_id), "analysis_debug.json")
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2, default=str)
+            return path
+        except Exception:
+            return None
+    # ─────────────────────────────────────────────────────────────────────
 
     def _order_quad_points(self, points):
         pts = points.reshape(4, 2).astype(np.float32)
@@ -750,15 +816,26 @@ class GradingAnalyzer:
         return results
 
     def analyze(self, front, back, corners: list | None = None,
-                frame_hint: tuple | None = None) -> AnalysisResult:
+                frame_hint: tuple | None = None,
+                debug: bool = False) -> AnalysisResult:
         """frame_hint = (fx, fy, fw, fh) normalized 0~1.
-        Flutter capture screen 의 frame overlay 좌표 → backend 분석 ROI 기준."""
+        Flutter capture screen 의 frame overlay 좌표 → backend 분석 ROI 기준.
+        debug=True → /tmp/grading_debug/{session_id}/ 에 ROI/corner/mask/JSON 저장."""
         self._rect_cache = {}
         self._front_image_id = id(front)
         self._back_image_id = id(back)
         self._warped_front = self._find_card_rect(front, frame_hint=frame_hint)
         self._warped_back = self._find_card_rect(back, frame_hint=frame_hint)
         detection = self.detect_card_confidence(front, frame_hint=frame_hint)
+
+        # ── Debug session 시작 ──
+        session_id = self._new_session_id() if debug else None
+        debug_paths: dict = {}
+        if debug:
+            debug_paths["front_roi"] = self._debug_save_image(
+                session_id, "front_roi.jpg", self._warped_front)
+            debug_paths["back_roi"] = self._debug_save_image(
+                session_id, "back_roi.jpg", self._warped_back)
 
         # Codex 진단 후 추가: warped 가 None 이면 점수 산출하지 않고 retake 반환.
         # 사용자 명시: 손/배경을 카드 손상으로 분석하지 않게 차단.
@@ -769,6 +846,20 @@ class GradingAnalyzer:
             if self._warped_back is None:
                 missing.append("뒷면")
             reason = f"{'/'.join(missing)} 카드 외곽을 감지하지 못했어요"
+            if debug and session_id is not None:
+                self._write_debug_json(session_id, {
+                    "session_id": session_id,
+                    "total_score": 0.0,
+                    "grade": "C",
+                    "capture_quality": "bad",
+                    "retake_required": True,
+                    "retake_reason": f"{reason}. 프레임에 카드를 맞춰 다시 촬영해 주세요",
+                    "warped_front_present": self._warped_front is not None,
+                    "warped_back_present": self._warped_back is not None,
+                    "detection_confidence": detection["confidence"],
+                    "early_exit": "warped_none",
+                    "debug_paths": debug_paths,
+                })
             return AnalysisResult(
                 centering_score=0.0,
                 centering_ratio="",
@@ -1018,6 +1109,63 @@ class GradingAnalyzer:
         else:
             capture_quality = "good"
         retake_reason = " / ".join(retake_reasons_text)
+
+        # ── Debug 단계별 save + JSON ──
+        if debug and session_id is not None:
+            corner_names = [
+                "front_corner_top_left", "front_corner_top_right",
+                "front_corner_bottom_left", "front_corner_bottom_right",
+                "back_corner_top_left", "back_corner_top_right",
+                "back_corner_bottom_left", "back_corner_bottom_right",
+            ]
+            for i, c_img in enumerate(corners or []):
+                if i < len(corner_names):
+                    debug_paths[corner_names[i]] = self._debug_save_image(
+                        session_id, f"{corner_names[i]}.jpg", c_img)
+            debug_paths["surface_clahe_front"] = self._debug_save_image(
+                session_id, "surface_clahe_front.jpg",
+                self._build_clahe_visual(warped_front))
+            debug_paths["surface_clahe_back"] = self._debug_save_image(
+                session_id, "surface_clahe_back.jpg",
+                self._build_clahe_visual(warped_back))
+            debug_paths["whitening_mask_front"] = self._debug_save_image(
+                session_id, "whitening_mask_front.jpg",
+                self._build_whitening_mask_visual(warped_front))
+            debug_paths["whitening_mask_back"] = self._debug_save_image(
+                session_id, "whitening_mask_back.jpg",
+                self._build_whitening_mask_visual(warped_back))
+
+            self._write_debug_json(session_id, {
+                "session_id": session_id,
+                "total_score": total_score_display,
+                "grade": grade,
+                "capture_quality": capture_quality,
+                "retake_required": retake_required,
+                "retake_reason": retake_reason,
+                "warped_front_present": warped_front is not None,
+                "warped_back_present": warped_back is not None,
+                "front_from_frame_hint": front_fallback,
+                "back_from_frame_hint": back_fallback,
+                "detection_confidence": detection["confidence"],
+                "centering_score": centering,
+                "corner_score": corner_avg,
+                "surface_score": surface_avg,
+                "whitening_score": whitening_combined,
+                "edge_score": edge_score,
+                "corner_scores_individual": corner_scores,
+                "lighting_quality": lighting_quality,
+                "lighting_issues_front": lighting_front.get("issues", []),
+                "lighting_issues_back": lighting_back.get("issues", []),
+                "deduction_reason_count": len(deduction_reasons),
+                "deduction_reason_by_type": {
+                    t: sum(1 for r in deduction_reasons if r.type == t)
+                    for t in ("centering", "corner", "scratch", "dent",
+                              "whitening", "surface", "edge")
+                },
+                "confidence_distribution": [round(r.confidence, 2) for r in deduction_reasons],
+                "penalty_distribution": [round(r.penalty, 2) for r in deduction_reasons],
+                "debug_paths": debug_paths,
+            })
 
         return AnalysisResult(
             centering_score=centering,
