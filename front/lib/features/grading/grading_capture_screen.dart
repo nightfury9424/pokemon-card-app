@@ -183,10 +183,28 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
       if (!mounted) return;
       if (precheck != null && precheck['ok'] != true) {
         try { if (shotFile.existsSync()) shotFile.deleteSync(); } catch (_) {}
+        final reasonCode = (precheck['reason_code'] as String?) ?? '';
         final title = (precheck['reason_title'] as String?) ?? '다시 촬영해 주세요';
         final msg = (precheck['reason_message'] as String?) ?? '';
         setState(() => _isCapturing = false);
-        AppErrorToast.show(context, msg.isNotEmpty ? '$title · $msg' : title);
+        // P0-A: wrong_side 는 dialog 로 강조 (사용자가 명확히 인지)
+        if (reasonCode == 'wrong_side') {
+          await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(title),
+              content: Text(msg.isNotEmpty ? msg : '카드 면을 확인해 주세요'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('다시 촬영'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          AppErrorToast.show(context, msg.isNotEmpty ? '$title · $msg' : title);
+        }
         return;
       }
 

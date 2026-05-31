@@ -925,6 +925,34 @@ class GradingAnalyzer:
         ))
         return merged[:20]
 
+    @staticmethod
+    def _is_card_back(warped_card) -> tuple[bool, float]:
+        """P0-A: warped 카드 전체의 HSV 색 분포로 Pokemon 뒷면 판정.
+        Pokemon back = 파란색 wave 배경 (~0.25~) + 노란색 Pokemon 로고 (~0.07~).
+        ML X — OpenCV color-based 만 사용.
+        Returns (is_back, confidence 0~1).
+        실측 (fixture 3종 평균):
+          front: blue=0.046, yellow=0.142 → not back
+          back:  blue=0.285, yellow=0.097 → back
+        """
+        if warped_card is None or warped_card.size == 0:
+            return False, 0.0
+        h, w = warped_card.shape[:2]
+        if h < 20 or w < 20:
+            return False, 0.0
+        hsv = cv2.cvtColor(warped_card, cv2.COLOR_BGR2HSV)
+        total = float(h * w)
+        # 파란색 hue 100~135 (wave 배경)
+        blue_mask = cv2.inRange(hsv, np.array([100, 80, 80]), np.array([135, 255, 255]))
+        blue_ratio = float(np.count_nonzero(blue_mask)) / total
+        # 노란색 hue 20~35 (Pokemon 로고)
+        yellow_mask = cv2.inRange(hsv, np.array([20, 120, 120]), np.array([35, 255, 255]))
+        yellow_ratio = float(np.count_nonzero(yellow_mask)) / total
+        # back 패턴: 파란색 dominance + 노란 로고 일부
+        is_back = blue_ratio > 0.20 and yellow_ratio > 0.05
+        confidence = min(1.0, blue_ratio * 1.5 + yellow_ratio * 2.0)
+        return is_back, round(confidence, 2)
+
     def precheck(self, image, side: str = "front", frame_hint=None) -> dict:
         """촬영 직후 lightweight 품질 게이트. /analyze 전 per-side 검증용.
         score / reason_code / quality 만 반환. deduction/grade 생성 X."""
@@ -975,6 +1003,30 @@ class GradingAnalyzer:
         if glare_area_ratio > 0.12:
             return self._precheck_result(side, False, "bad", "glare",
                 "카드 표면에 빛 반사가 강해요", "각도를 바꿔 다시 촬영해 주세요",
+                blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
+
+        # P0-B: analyze 단계의 det_conf < 0.40 retake 를 precheck 시점으로 끌어올림.
+        # 결과 화면 진입 전 차단 — 사용자가 2장 다 찍은 뒤 retake 보지 X.
+        area_ratio = float(details.get("area_ratio", 0.0))
+        if area_ratio < 0.40:
+            return self._precheck_result(side, False, "bad", "low_detection",
+                "카드 외곽 검출이 약해요",
+                "카드가 프레임 안에 잘 들어오도록 다시 촬영해 주세요",
+                blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
+
+        # P0-A: front/back identity check (촬영 단계에서 바로 잡음).
+        # Pokemon back = HSV 파란색 dominance + 노란 로고. ML X — OpenCV color only.
+        is_back, _back_conf = self._is_card_back(warped)
+        expected_back = (side == "back")
+        if is_back != expected_back:
+            if side == "front" and is_back:
+                title = "촬영한 면이 달라요"
+                message = "뒷면이 보여요. 카드 앞면을 촬영해 주세요"
+            else:  # side == "back" and not is_back
+                title = "촬영한 면이 달라요"
+                message = "앞면이 보여요. 카드 뒷면을 촬영해 주세요"
+            return self._precheck_result(side, False, "bad", "wrong_side",
+                title, message,
                 blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
 
         is_warning = (
