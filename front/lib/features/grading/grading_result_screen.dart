@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
 import '../../core/network/api_client.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
+import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/app_success_toast.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
@@ -554,6 +555,37 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
             final nav = Navigator.of(ctx);
             try {
               if (widget.assetId != null) {
+                // 기존 그레이딩 결과 확인 — 자동 덮어쓰기 금지.
+                try {
+                  final assetRes = await ApiClient.get(
+                      '${ApiConstants.assets}/${widget.assetId}');
+                  final assetData = assetRes['data'] as Map<String, dynamic>?;
+                  final existingGrade =
+                      (assetData?['estimatedGrade'] as num?)?.toDouble();
+                  if (existingGrade != null && mounted) {
+                    final confirmed = await AppConfirmDialog.show(
+                      context,
+                      icon: Icons.compare_arrows_rounded,
+                      iconColor: AppColors.blue,
+                      title: '기존 분석 결과가 있어요',
+                      message:
+                          '기존 분석: ${existingGrade.toStringAsFixed(1)}점\n'
+                          '새 분석: ${estimatedScore.toStringAsFixed(1)}점\n\n'
+                          '새 결과로 변경하면 기존 결과는 사라져요.',
+                      cancelLabel: '기존 유지',
+                      confirmLabel: '새 결과로 변경',
+                    );
+                    if (confirmed != true) {
+                      if (mounted) {
+                        AppInfoToast.show(context, '기존 결과를 유지했어요');
+                      }
+                      return;
+                    }
+                  }
+                } catch (_) {
+                  // fetch 실패 시 그대로 진행 (silent, 안전성 우선)
+                }
+
                 final files = <String, File>{
                   'front_image': await _resizePhoto(widget.photos[0]),
                   'back_image': await _resizePhoto(widget.photos[1]),
