@@ -203,6 +203,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             label: '카드 스캔',
                             onTap: () => context.push('/scanner'),
                           ),
+                          _MenuItem(
+                            icon: Icons.auto_awesome_rounded,
+                            iconColor: const Color(0xFFFFD700),
+                            label: 'AI 그레이딩',
+                            onTap: () => context.push('/grading'),
+                          ),
                         ]),
                         const SizedBox(height: 20),
                         _buildSectionLabel('고객 지원'),
