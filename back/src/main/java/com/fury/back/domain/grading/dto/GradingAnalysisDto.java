@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class GradingAnalysisDto {
@@ -37,4 +38,13 @@ public class GradingAnalysisDto {
 
     @JsonProperty("screen_suspected")      private boolean screenSuspected;
     @JsonProperty("screen_suspect_reason") private String screenSuspectReason;
+
+    // === P0-1 evidence layer (Phase 2-C) ===
+    @JsonProperty("card_bbox")             private Map<String, Double> cardBbox;
+    @JsonProperty("centering_lines")       private Map<String, Double> centeringLines;
+    @JsonProperty("centering_confidence")  private Double centeringConfidence;
+    @JsonProperty("centering_source")      private String centeringSource;
+    @JsonProperty("corner_regions")        private Map<String, Map<String, Double>> cornerRegions;
+    @JsonProperty("grade_decision_trace")  private Map<String, Object> gradeDecisionTrace;
+    @JsonProperty("extra")                 private Map<String, Object> extra;
 }

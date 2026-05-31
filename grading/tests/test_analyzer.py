@@ -42,17 +42,17 @@ def reset_analyzer_state():
 
 def test_centering_perfect():
     img = make_card_image(lr_offset=0, tb_offset=0)
-    score, detail, ratio = analyzer.analyze_centering(img)
+    score, detail, ratio, _lines, _conf, _src = analyzer.analyze_centering(img)
     assert score >= 9.0, f"완벽한 센터링인데 점수가 낮음: {score}"
 
 def test_centering_off():
     img = make_card_image(lr_offset=30, tb_offset=0)
-    score, detail, ratio = analyzer.analyze_centering(img)
+    score, detail, ratio, _lines, _conf, _src = analyzer.analyze_centering(img)
     assert score < 9.0, f"치우친 센터링인데 점수가 높음: {score}"
 
 def test_centering_returns_float():
     img = make_card_image()
-    score, detail, ratio = analyzer.analyze_centering(img)
+    score, detail, ratio, _lines, _conf, _src = analyzer.analyze_centering(img)
     assert isinstance(score, float)
     assert 1.0 <= score <= 10.0
 

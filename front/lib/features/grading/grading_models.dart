@@ -93,6 +93,14 @@ class GradingResult {
   final String edgeDetail;
   final List<DeductionReason> deductionReasons;
   final List<DefectRegion> defectRegions;
+  // === P0-1 evidence layer (Phase 2-C) ===
+  final Map<String, double>? cardBbox;
+  final Map<String, double>? centeringLines;
+  final double centeringConfidence;
+  final String centeringSource;
+  final Map<String, Map<String, double>>? cornerRegions;
+  final Map<String, dynamic>? gradeDecisionTrace;
+  final Map<String, dynamic>? extra;
 
   GradingResult({
     required this.centeringScore,
@@ -122,11 +130,32 @@ class GradingResult {
     required this.edgeDetail,
     required this.deductionReasons,
     required this.defectRegions,
+    this.cardBbox,
+    this.centeringLines,
+    this.centeringConfidence = 0.0,
+    this.centeringSource = 'fallback',
+    this.cornerRegions,
+    this.gradeDecisionTrace,
+    this.extra,
   });
 
   factory GradingResult.fromJson(Map<String, dynamic> json) {
     double asDouble(dynamic v, [double fallback = 0.0]) =>
         v is num ? v.toDouble() : fallback;
+    Map<String, double>? asDoubleMap(dynamic v) {
+      if (v is! Map) return null;
+      return v.map((k, val) =>
+          MapEntry(k.toString(), val is num ? val.toDouble() : 0.0));
+    }
+    Map<String, Map<String, double>>? asNestedDoubleMap(dynamic v) {
+      if (v is! Map) return null;
+      return v.map((k, val) => MapEntry(
+          k.toString(),
+          val is Map
+              ? val.map((kk, vv) =>
+                  MapEntry(kk.toString(), vv is num ? vv.toDouble() : 0.0))
+              : <String, double>{}));
+    }
     return GradingResult(
       centeringScore: asDouble(json['centeringScore']),
       cornerScore: asDouble(json['cornerScore']),
@@ -161,6 +190,17 @@ class GradingResult {
               ?.map((e) => DefectRegion.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
+      cardBbox: asDoubleMap(json['cardBbox']),
+      centeringLines: asDoubleMap(json['centeringLines']),
+      centeringConfidence: asDouble(json['centeringConfidence']),
+      centeringSource: json['centeringSource']?.toString() ?? 'fallback',
+      cornerRegions: asNestedDoubleMap(json['cornerRegions']),
+      gradeDecisionTrace: json['gradeDecisionTrace'] is Map
+          ? Map<String, dynamic>.from(json['gradeDecisionTrace'] as Map)
+          : null,
+      extra: json['extra'] is Map
+          ? Map<String, dynamic>.from(json['extra'] as Map)
+          : null,
     );
   }
 }

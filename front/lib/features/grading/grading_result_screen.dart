@@ -36,6 +36,9 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
   GradingResult? _parsed;
   bool _loading = true;
   String? _error;
+  // P0-1 Codex 사후 fix: image aspect 동적 측정 (AspectRatio 가정 X).
+  // BoxFit.cover crop 으로 bbox overlay 좌표 어긋남 방지.
+  double? _frontImageAspect;
 
   static const _photoKeys = ['front_image', 'back_image'];
 
@@ -143,10 +146,31 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           _parsed = data != null ? GradingResult.fromJson(data) : null;
           _loading = false;
         });
+        _loadFrontImageAspect();
       }
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
+  }
+
+  // P0-1 Codex 사후 fix: 사진 실제 aspect 측정 → AspectRatio 동적 적용.
+  void _loadFrontImageAspect() {
+    final file = _photoForSide('front');
+    if (file == null || !file.existsSync()) return;
+    final provider = FileImage(file);
+    final stream = provider.resolve(const ImageConfiguration());
+    ImageStreamListener? listener;
+    listener = ImageStreamListener((info, _) {
+      if (mounted) {
+        setState(() {
+          _frontImageAspect = info.image.width / info.image.height;
+        });
+      }
+      if (listener != null) stream.removeListener(listener);
+    }, onError: (_, _) {
+      if (listener != null) stream.removeListener(listener);
+    });
+    stream.addListener(listener);
   }
 
   @override
@@ -259,6 +283,8 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
               const SizedBox(height: 4),
               const Text('PokeFolio AI 자체 평가',
                   style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              // P0-1: 강등 배지 + 사유 (grade_decision_trace.caps_applied)
+              ..._buildGradeDemotion(p),
               if (p.deductionReasons.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(_lowestMetricLine(p),
@@ -270,6 +296,43 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
         ),
       ]),
     );
+  }
+
+  // P0-1: grade_decision_trace.caps_applied 가 있으면 강등 배지 + 사유 메시지.
+  List<Widget> _buildGradeDemotion(GradingResult p) {
+    final trace = p.gradeDecisionTrace;
+    if (trace == null) return const [];
+    final caps = trace['caps_applied'];
+    if (caps is! List || caps.isEmpty) return const [];
+    final first = caps.first;
+    final message = first is Map ? (first['message']?.toString() ?? '') : '';
+    final rawGrade = trace['raw_grade_by_weight']?.toString() ?? '';
+    return [
+      const SizedBox(height: 6),
+      Row(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE67E22).withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: const Color(0xFFE67E22), width: 1),
+          ),
+          child: const Text('강등',
+              style: TextStyle(
+                  color: Color(0xFFE67E22), fontSize: 10, fontWeight: FontWeight.w700)),
+        ),
+        const SizedBox(width: 6),
+        if (rawGrade.isNotEmpty)
+          Text('가중 $rawGrade → 최종 ${p.grade}',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+      ]),
+      if (message.isNotEmpty) ...[
+        const SizedBox(height: 4),
+        Text(message,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+      ],
+    ];
   }
 
   String _lowestMetricLine(GradingResult p) {
@@ -1155,6 +1218,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
 
   Widget _buildMetricImageSection(String metric, List<DeductionReason> reasons) {
     if (metric == 'centering') return _buildCenteringVisual();
+    if (metric == 'corner') return _buildCornerEvidence(reasons);
     final frontReasons = reasons.where((r) => r.side == 'front').toList();
     final backReasons = reasons.where((r) => r.side == 'back').toList();
     final showFront = metric != 'whitening';
@@ -1167,18 +1231,41 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     ]);
   }
 
+  // P0-1: reason.bbox overlay (severity 색) + tap → fullscreen.
   Widget _buildPhotoWithBoxes(String label, File? file, List<DeductionReason> reasons) {
+    final p = _parsed;
+    final cardBbox = p?.cardBbox;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AspectRatio(
-          aspectRatio: 63.0 / 88.0,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: file != null && file.existsSync()
-                ? Image.file(file, fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(color: AppColors.divider))
-                : Container(color: AppColors.divider),
+        GestureDetector(
+          onTap: file != null && file.existsSync()
+              ? () => _openFullscreenImage(file)
+              : null,
+          child: AspectRatio(
+            aspectRatio: _frontImageAspect ?? 3.0 / 4.0,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LayoutBuilder(
+                builder: (_, c) {
+                  return Stack(fit: StackFit.expand, children: [
+                    if (file != null && file.existsSync())
+                      Image.file(file, fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(color: AppColors.divider))
+                    else
+                      Container(color: AppColors.divider),
+                    if (cardBbox != null && reasons.isNotEmpty)
+                      CustomPaint(
+                        size: Size(c.maxWidth, c.maxHeight),
+                        painter: _ReasonBboxPainter(
+                          reasons: reasons,
+                          cardBbox: cardBbox,
+                        ),
+                      ),
+                  ]);
+                },
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 6),
@@ -1194,50 +1281,168 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     );
   }
 
+  // P0-1: corner sheet empty 상태에서도 4 corner crop + 점수 시각화.
+  Widget _buildCornerEvidence(List<DeductionReason> reasons) {
+    final p = _parsed;
+    final regions = p?.cornerRegions;
+    final front = _photoForSide('front');
+    if (regions == null || front == null || !front.existsSync()) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.bg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Text(
+          reasons.isEmpty
+              ? '4개 코너 모두 검사 — 감점 없음'
+              : '코너 영역 분석 정보 없음',
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+    final labels = ['좌상', '우상', '좌하', '우하'];
+    final keys = ['top_left', 'top_right', 'bottom_left', 'bottom_right'];
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('앞면 4개 코너',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 6),
+      Row(children: List.generate(4, (i) {
+        final r = regions[keys[i]];
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: i < 3 ? 6 : 0),
+            child: GestureDetector(
+              onTap: () => _openFullscreenImage(front),
+              child: AspectRatio(
+                aspectRatio: 1.0,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LayoutBuilder(
+                    builder: (_, c) {
+                      return Stack(fit: StackFit.expand, children: [
+                        if (r != null)
+                          _CornerCropPainter(file: front, region: r)
+                        else
+                          Container(color: AppColors.divider),
+                        Positioned(
+                          left: 4, bottom: 4,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Text(labels[i],
+                                style: const TextStyle(color: Colors.white, fontSize: 9)),
+                          ),
+                        ),
+                      ]);
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      })),
+      const SizedBox(height: 8),
+      Text(
+        reasons.isEmpty
+            ? '4개 코너 모두 검사 완료 — 감점 없음'
+            : '${reasons.length}건 후보 감지',
+        style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+      ),
+    ]);
+  }
+
+  // P0-1: card_bbox + centering_lines + confidence 기반 evidence overlay.
+  // 사진 박스 정중앙 X — 실제 카드 외곽 + 검출된 inner border 4 line 그리기.
   Widget _buildCenteringVisual() {
     final p = _parsed;
     final front = _photoForSide('front');
     final ratio = p?.centeringRatio ?? '';
+    final cardBbox = p?.cardBbox;
+    final lines = p?.centeringLines;
+    final conf = p?.centeringConfidence ?? 0.0;
+    final source = p?.centeringSource ?? 'fallback';
+    final lowConf = conf < 0.5 || source == 'fallback';
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      AspectRatio(
-        aspectRatio: 63.0 / 88.0,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LayoutBuilder(
-            builder: (_, c) {
-              final exists = front != null && front.existsSync();
-              return Stack(fit: StackFit.expand, children: [
-                if (exists)
-                  Image.file(front, fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(color: AppColors.divider))
-                else
-                  Container(color: AppColors.divider),
-                Positioned(
-                  left: c.maxWidth / 2 - 1, top: 0, bottom: 0,
-                  child: Container(width: 2, color: AppColors.blue.withValues(alpha: 0.6)),
-                ),
-                Positioned(
-                  top: c.maxHeight / 2 - 1, left: 0, right: 0,
-                  child: Container(height: 2, color: AppColors.blue.withValues(alpha: 0.6)),
-                ),
-              ]);
-            },
+      GestureDetector(
+        onTap: front != null && front.existsSync()
+            ? () => _openFullscreenImage(front)
+            : null,
+        child: AspectRatio(
+          aspectRatio: _frontImageAspect ?? 3.0 / 4.0,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LayoutBuilder(
+              builder: (_, c) {
+                final exists = front != null && front.existsSync();
+                return Stack(fit: StackFit.expand, children: [
+                  if (exists)
+                    Image.file(front, fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Container(color: AppColors.divider))
+                  else
+                    Container(color: AppColors.divider),
+                  if (cardBbox != null)
+                    CustomPaint(
+                      size: Size(c.maxWidth, c.maxHeight),
+                      painter: _CenteringEvidencePainter(
+                        cardBbox: cardBbox,
+                        lines: lines,
+                        lowConfidence: lowConf,
+                      ),
+                    ),
+                ]);
+              },
+            ),
           ),
         ),
       ),
       const SizedBox(height: 8),
-      if (ratio.isNotEmpty)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.blue.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(6),
+      Row(children: [
+        if (ratio.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.blue.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(ratio,
+                style: const TextStyle(
+                    color: AppColors.blue, fontSize: 12, fontWeight: FontWeight.w600)),
           ),
-          child: Text(ratio,
-              style: const TextStyle(
-                  color: AppColors.blue, fontSize: 12, fontWeight: FontWeight.w600)),
-        ),
+        const SizedBox(width: 6),
+        if (lowConf)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFC107).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFFFFC107), width: 1),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.warning_amber_rounded,
+                  size: 11, color: Color(0xFFFFC107)),
+              const SizedBox(width: 3),
+              Text('추정 (신뢰도 ${(conf * 100).round()}%)',
+                  style: const TextStyle(
+                      color: Color(0xFFFFC107), fontSize: 10, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+      ]),
     ]);
+  }
+
+  void _openFullscreenImage(File file) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _FullscreenImageViewer(file: file),
+      fullscreenDialog: true,
+    ));
   }
 
   Widget _buildGroupSummary(List<DeductionReason> reasons) {
@@ -1290,6 +1495,196 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
             ]),
           );
         }),
+      ]),
+    );
+  }
+}
+
+// === P0-1 evidence layer widgets ===
+
+/// 사진 위에 card_bbox 외곽 + centering_lines 4 line 그리기.
+/// low confidence 면 dashed line.
+class _CenteringEvidencePainter extends CustomPainter {
+  final Map<String, double> cardBbox;
+  final Map<String, double>? lines;
+  final bool lowConfidence;
+
+  _CenteringEvidencePainter({
+    required this.cardBbox,
+    required this.lines,
+    required this.lowConfidence,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = cardBbox['x']! * size.width;
+    final cy = cardBbox['y']! * size.height;
+    final cw = cardBbox['w']! * size.width;
+    final ch = cardBbox['h']! * size.height;
+
+    // 카드 외곽
+    final bboxPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = const Color(0xFF3498DB).withValues(alpha: 0.7);
+    canvas.drawRect(Rect.fromLTWH(cx, cy, cw, ch), bboxPaint);
+
+    if (lines == null) return;
+    final lx = cardBbox['x']! + (lines!['left_x'] ?? 0) * cardBbox['w']!;
+    final rx = cardBbox['x']! + (lines!['right_x'] ?? 1) * cardBbox['w']!;
+    final ty = cardBbox['y']! + (lines!['top_y'] ?? 0) * cardBbox['h']!;
+    final by = cardBbox['y']! + (lines!['bottom_y'] ?? 1) * cardBbox['h']!;
+
+    final linePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = lowConfidence
+          ? const Color(0xFFFFC107).withValues(alpha: 0.85)
+          : const Color(0xFF3498DB).withValues(alpha: 0.85);
+
+    if (lowConfidence) {
+      _drawDashedLine(canvas, Offset(lx * size.width, cy), Offset(lx * size.width, cy + ch), linePaint);
+      _drawDashedLine(canvas, Offset(rx * size.width, cy), Offset(rx * size.width, cy + ch), linePaint);
+      _drawDashedLine(canvas, Offset(cx, ty * size.height), Offset(cx + cw, ty * size.height), linePaint);
+      _drawDashedLine(canvas, Offset(cx, by * size.height), Offset(cx + cw, by * size.height), linePaint);
+    } else {
+      canvas.drawLine(Offset(lx * size.width, cy), Offset(lx * size.width, cy + ch), linePaint);
+      canvas.drawLine(Offset(rx * size.width, cy), Offset(rx * size.width, cy + ch), linePaint);
+      canvas.drawLine(Offset(cx, ty * size.height), Offset(cx + cw, ty * size.height), linePaint);
+      canvas.drawLine(Offset(cx, by * size.height), Offset(cx + cw, by * size.height), linePaint);
+    }
+  }
+
+  void _drawDashedLine(Canvas c, Offset a, Offset b, Paint p) {
+    const dashW = 6.0;
+    const gapW = 4.0;
+    final dx = b.dx - a.dx;
+    final dy = b.dy - a.dy;
+    final dist = sqrt(dx * dx + dy * dy);
+    final n = (dist / (dashW + gapW)).floor();
+    final ux = dx / dist;
+    final uy = dy / dist;
+    for (int i = 0; i < n; i++) {
+      final s = i * (dashW + gapW);
+      c.drawLine(Offset(a.dx + ux * s, a.dy + uy * s),
+          Offset(a.dx + ux * (s + dashW), a.dy + uy * (s + dashW)), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CenteringEvidencePainter old) =>
+      old.cardBbox != cardBbox || old.lines != lines || old.lowConfidence != lowConfidence;
+}
+
+/// 사진 위에 reason.bbox 그리기 (severity 색).
+/// reason.bbox = warped 카드 좌표 (0~1) → cardBbox 로 사진 좌표 변환.
+class _ReasonBboxPainter extends CustomPainter {
+  final List<DeductionReason> reasons;
+  final Map<String, double> cardBbox;
+
+  _ReasonBboxPainter({required this.reasons, required this.cardBbox});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = cardBbox['x']! * size.width;
+    final cy = cardBbox['y']! * size.height;
+    final cw = cardBbox['w']! * size.width;
+    final ch = cardBbox['h']! * size.height;
+    for (final r in reasons) {
+      final b = r.bbox;
+      if (b == null || b.length < 4) continue;
+      final color = _severityColor(r.severity).withValues(alpha: 0.85);
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = color;
+      final rect = Rect.fromLTWH(
+        cx + b[0] * cw,
+        cy + b[1] * ch,
+        b[2] * cw,
+        b[3] * ch,
+      );
+      canvas.drawRect(rect, paint);
+    }
+  }
+
+  Color _severityColor(String sev) {
+    switch (sev) {
+      case 'major':
+        return const Color(0xFFE74C3C);
+      case 'moderate':
+        return const Color(0xFFE67E22);
+      default:
+        return const Color(0xFFF1C40F);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReasonBboxPainter old) =>
+      old.reasons != reasons || old.cardBbox != cardBbox;
+}
+
+/// 사진의 region 영역만 1:1 box 에 채워서 표시 (OverflowBox + Transform).
+class _CornerCropPainter extends StatelessWidget {
+  final File file;
+  final Map<String, double> region;
+  const _CornerCropPainter({required this.file, required this.region});
+
+  @override
+  Widget build(BuildContext context) {
+    final w = region['w'] ?? 0;
+    final h = region['h'] ?? 0;
+    if (w <= 0 || h <= 0) return Container(color: const Color(0xFF333333));
+    return LayoutBuilder(builder: (_, c) {
+      final fullW = c.maxWidth / w;
+      final fullH = c.maxHeight / h;
+      return ClipRect(
+        child: OverflowBox(
+          maxWidth: fullW,
+          maxHeight: fullH,
+          alignment: Alignment.topLeft,
+          child: Transform.translate(
+            offset: Offset(-(region['x'] ?? 0) * fullW, -(region['y'] ?? 0) * fullH),
+            child: SizedBox(
+              width: fullW,
+              height: fullH,
+              child: Image.file(file, fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(color: const Color(0xFF333333))),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+}
+
+/// fullscreen image viewer (pinch zoom + pan + 닫기).
+class _FullscreenImageViewer extends StatelessWidget {
+  final File file;
+  const _FullscreenImageViewer({required this.file});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(children: [
+        Center(
+          child: InteractiveViewer(
+            minScale: 0.8,
+            maxScale: 4.0,
+            child: Image.file(file,
+                errorBuilder: (_, _, _) =>
+                    const Center(child: Icon(Icons.error, color: Colors.white))),
+          ),
+        ),
+        Positioned(
+          top: MediaQuery.of(context).padding.top + 8,
+          right: 8,
+          child: IconButton(
+            icon: const Icon(Icons.close, color: Colors.white, size: 28),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
       ]),
     );
   }

@@ -101,6 +101,14 @@ public class GradingServiceImpl implements GradingService {
                 .captureQuality(analysis.getCaptureQuality())
                 .screenSuspected(analysis.isScreenSuspected())
                 .screenSuspectReason(analysis.getScreenSuspectReason())
+                // === P0-1 evidence layer (Phase 2-C) ===
+                .cardBbox(analysis.getCardBbox())
+                .centeringLines(analysis.getCenteringLines())
+                .centeringConfidence(analysis.getCenteringConfidence())
+                .centeringSource(analysis.getCenteringSource())
+                .cornerRegions(analysis.getCornerRegions())
+                .gradeDecisionTrace(analysis.getGradeDecisionTrace())
+                .extra(analysis.getExtra())
                 .build());
     }
 

@@ -355,7 +355,9 @@ class GradingAnalyzer:
         ch = min(h - y, ch + 2 * pad)
         return x, y, cw, ch
 
-    def _detect_inner_border_margins(self, card_gray) -> tuple[int, int, int, int]:
+    def _detect_inner_border_margins(self, card_gray) -> dict:
+        """P0-1: dict 반환 — margins + line 좌표 + candidate 수 + fallback flag.
+        호출자가 confidence/source 산출에 사용."""
         rh, rw = card_gray.shape
         blurred = cv2.GaussianBlur(card_gray, (5, 5), 0)
         edges = cv2.Canny(blurred, 40, 120)
@@ -401,6 +403,11 @@ class GradingAnalyzer:
         fallback_top = fallback_bottom = max(1, int(rh * 0.08))
         fallback_left = fallback_right = max(1, int(rw * 0.08))
 
+        top_fb = not top_candidates
+        bot_fb = not bottom_candidates
+        left_fb = not left_candidates
+        right_fb = not right_candidates
+
         top_m = int(round(np.median(top_candidates))) if top_candidates else fallback_top
         bottom_line = int(round(np.median(bottom_candidates))) if bottom_candidates else rh - 1 - fallback_bottom
         left_m = int(round(np.median(left_candidates))) if left_candidates else fallback_left
@@ -408,12 +415,103 @@ class GradingAnalyzer:
 
         bottom_m = max(0, rh - 1 - bottom_line)
         right_m = max(0, rw - 1 - right_line)
-        return max(0, top_m), bottom_m, max(0, left_m), right_m
+        return {
+            "top_m": max(0, top_m),
+            "bottom_m": bottom_m,
+            "left_m": max(0, left_m),
+            "right_m": right_m,
+            "top_y_norm": float(top_m / rh) if rh > 0 else 0.0,
+            "bottom_y_norm": float(bottom_line / rh) if rh > 0 else 1.0,
+            "left_x_norm": float(left_m / rw) if rw > 0 else 0.0,
+            "right_x_norm": float(right_line / rw) if rw > 0 else 1.0,
+            "top_n": len(top_candidates),
+            "bottom_n": len(bottom_candidates),
+            "left_n": len(left_candidates),
+            "right_n": len(right_candidates),
+            "fallbacks_used": int(top_fb) + int(bot_fb) + int(left_fb) + int(right_fb),
+        }
 
-    def analyze_centering(self, image) -> tuple[float, str, str]:
+    @staticmethod
+    def _compute_card_bbox(image, frame_hint, details):
+        """P0-1: 사진 전체 normalized 0~1 card bbox (quad 외접 사각형)."""
+        if image is None or image.size == 0:
+            return None
+        H, W = image.shape[:2]
+        if W <= 0 or H <= 0:
+            return None
+        quad = details.get("quad") if details else None
+        if quad is None:
+            if frame_hint is not None:
+                fx, fy, fw, fh = frame_hint
+                return {"x": float(fx), "y": float(fy), "w": float(fw), "h": float(fh)}
+            return None
+        if frame_hint is not None:
+            fx, fy, fw, fh = frame_hint
+            x_offset = fx * W
+            y_offset = fy * H
+            xs = quad[:, 0] + x_offset
+            ys = quad[:, 1] + y_offset
+        else:
+            xs = quad[:, 0]
+            ys = quad[:, 1]
+        x_min, x_max = float(np.min(xs)), float(np.max(xs))
+        y_min, y_max = float(np.min(ys)), float(np.max(ys))
+        return {
+            "x": max(0.0, min(1.0, x_min / W)),
+            "y": max(0.0, min(1.0, y_min / H)),
+            "w": max(0.0, min(1.0, (x_max - x_min) / W)),
+            "h": max(0.0, min(1.0, (y_max - y_min) / H)),
+        }
+
+    @staticmethod
+    def _compute_corner_regions(card_bbox):
+        """P0-1: 4 corner bbox (사진 normalized 0~1, card_bbox 의 20% × 20%)."""
+        if card_bbox is None:
+            return None
+        cx, cy = card_bbox["x"], card_bbox["y"]
+        cw, ch = card_bbox["w"], card_bbox["h"]
+        cw20, ch20 = cw * 0.2, ch * 0.2
+        return {
+            "top_left":     {"x": cx,             "y": cy,             "w": cw20, "h": ch20},
+            "top_right":    {"x": cx + cw - cw20, "y": cy,             "w": cw20, "h": ch20},
+            "bottom_left":  {"x": cx,             "y": cy + ch - ch20, "w": cw20, "h": ch20},
+            "bottom_right": {"x": cx + cw - cw20, "y": cy + ch - ch20, "w": cw20, "h": ch20},
+        }
+
+    @staticmethod
+    def _centering_confidence_source(d: dict, lr_pct: float, tb_pct: float) -> tuple[float, str]:
+        """P0-1: candidate 수 + 대칭 evidence + fallback 기반 confidence/source 산출."""
+        n_min = min(d["top_n"], d["bottom_n"], d["left_n"], d["right_n"])
+        fallbacks = d["fallbacks_used"]
+        if n_min >= 2:
+            base = 0.85
+        elif n_min == 1:
+            base = 0.65
+        else:
+            base = 0.30
+        lr_dev = abs(lr_pct - 50)
+        tb_dev = abs(tb_pct - 50)
+        if lr_dev < 5 and tb_dev < 5:
+            base += 0.10
+        elif (lr_dev > 25 or tb_dev > 25) and n_min < 2:
+            # 극단값 + 후보 적음 = 오탐 risk
+            base *= 0.7
+        base -= 0.10 * fallbacks
+        conf = max(0.10, min(0.95, round(base, 2)))
+        if fallbacks == 0 and n_min >= 1:
+            source = "detected"
+        elif fallbacks == 4:
+            source = "fallback"
+        else:
+            source = "partial"
+        return conf, source
+
+    def analyze_centering(self, image) -> tuple[float, str, str, dict, float, str]:
+        """P0-1: 추가 반환 = lines(dict), confidence(float), source(str)."""
         card = self._card_image_or_roi(image)
         card_gray = cv2.cvtColor(card, cv2.COLOR_BGR2GRAY)
-        top_m, bottom_m, left_m, right_m = self._detect_inner_border_margins(card_gray)
+        d = self._detect_inner_border_margins(card_gray)
+        top_m, bottom_m, left_m, right_m = d["top_m"], d["bottom_m"], d["left_m"], d["right_m"]
 
         def compute_score(m1, m2):
             total = m1 + m2
@@ -441,7 +539,14 @@ class GradingAnalyzer:
         else:
             detail = f"상하 센터링 불균형 감지 — 주요 감점 요인 ({ratio})"
 
-        return score, detail, ratio
+        conf, source = self._centering_confidence_source(d, float(lp), float(tp))
+        lines = {
+            "left_x": d["left_x_norm"],
+            "right_x": d["right_x_norm"],
+            "top_y": d["top_y_norm"],
+            "bottom_y": d["bottom_y_norm"],
+        }
+        return score, detail, ratio, lines, conf, source
 
     def analyze_corner(self, image) -> float:
         """Codex 진단 후 수정 — false positive HIGH 산식 fix.
@@ -550,19 +655,75 @@ class GradingAnalyzer:
     _CORNER_NAMES = ['앞 좌상단', '앞 우상단', '앞 좌하단', '앞 우하단',
                      '뒤 좌상단', '뒤 우상단', '뒤 좌하단', '뒤 우하단']
 
+    _METRIC_LABEL_KO = {
+        "centering": "센터링",
+        "corner": "코너",
+        "surface": "표면",
+        "whitening": "화이트닝",
+        "edge": "엣지",
+    }
+
     @classmethod
     def calculate_grade(cls, weighted_raw: float, metrics: dict, has_major: bool):
-        """spec § 3 — 9단계 cap (weakest link rule).
-        weighted AND min(metrics) 둘 다 충족해야 등급 부여.
-        S+/S 는 major defect 시 강등."""
-        min_metric = min(metrics.values()) if metrics else 0.0
-        for grade, w_thr, m_thr, color in cls._GRADE_TABLE:
-            if weighted_raw < w_thr or min_metric < m_thr:
+        """spec § 3 — 9단계 cap (weakest link rule). 역호환 wrapper."""
+        grade, color, _ = cls.calculate_grade_with_trace(weighted_raw, metrics, has_major)
+        return grade, color
+
+    @classmethod
+    def calculate_grade_with_trace(cls, weighted_raw: float, metrics: dict, has_major: bool):
+        """P0-1: weakest-link rule + decision trace.
+        Returns (grade, color, trace_dict)."""
+        # weighted 만 기준 등급 (min_metric 무시) — 사용자 납득용
+        raw_grade = cls._DEFAULT_GRADE[0]
+        for g, w_thr, _, _ in cls._GRADE_TABLE:
+            if weighted_raw >= w_thr:
+                raw_grade = g
+                break
+
+        # final grade (weakest-link + has_major)
+        final_grade, final_color = cls._DEFAULT_GRADE
+        for g, w_thr, m_thr, color in cls._GRADE_TABLE:
+            if weighted_raw < w_thr:
                 continue
-            if grade in ("S+", "S") and has_major:
+            if metrics and min(metrics.values()) < m_thr:
                 continue
-            return grade, color
-        return cls._DEFAULT_GRADE
+            if g in ("S+", "S") and has_major:
+                continue
+            final_grade, final_color = g, color
+            break
+
+        # min metric
+        min_metric_name = min(metrics, key=metrics.get) if metrics else None
+        min_metric_score = float(metrics[min_metric_name]) if min_metric_name else 0.0
+
+        caps = []
+        if raw_grade != final_grade:
+            if min_metric_name is not None:
+                label = cls._METRIC_LABEL_KO.get(min_metric_name, min_metric_name)
+                caps.append({
+                    "type": "min_metric_cap",
+                    "metric": min_metric_name,
+                    "metric_score": round(min_metric_score, 1),
+                    "raw_grade": raw_grade,
+                    "final_grade": final_grade,
+                    "message": f"{label} {min_metric_score:.1f}점 기준 최종 등급 {final_grade}로 제한",
+                })
+            if has_major and raw_grade in ("S+", "S"):
+                caps.append({
+                    "type": "major_defect",
+                    "raw_grade": raw_grade,
+                    "final_grade": final_grade,
+                    "message": "심각한 결함 감지 — S/S+ 등급 강등",
+                })
+
+        trace = {
+            "raw_grade_by_weight": raw_grade,
+            "final_grade": final_grade,
+            "min_metric_name": min_metric_name,
+            "min_metric_score": round(min_metric_score, 1),
+            "caps_applied": caps,
+        }
+        return final_grade, final_color, trace
 
     @staticmethod
     def has_major_defect(metrics: dict, reasons: List[DeductionReason]) -> bool:
@@ -1000,7 +1161,12 @@ class GradingAnalyzer:
                 screen_suspect_reason="",
             )
 
-        centering, centering_detail, centering_ratio = self.analyze_centering(front)
+        (centering, centering_detail, centering_ratio,
+         centering_lines, centering_conf, centering_source) = self.analyze_centering(front)
+        # P0-1: card_bbox + corner_regions (front 기준) — UI evidence layer
+        front_details = self._find_card_rect_details(front, frame_hint=frame_hint)
+        card_bbox = self._compute_card_bbox(front, frame_hint, front_details)
+        corner_regions = self._compute_corner_regions(card_bbox)
         if corners is None:
             corners = self.crop_corners(front) + self.crop_corners(back)
 
@@ -1186,7 +1352,8 @@ class GradingAnalyzer:
                 )
 
         has_major = self.has_major_defect(metrics_dict, deduction_reasons)
-        grade, grade_color = self.calculate_grade(weighted_raw, metrics_dict, has_major)
+        grade, grade_color, grade_trace = self.calculate_grade_with_trace(
+            weighted_raw, metrics_dict, has_major)
         total_score_display = round(weighted_raw, 1)
 
         # === Retake / capture quality (사용자 design: 틀=가이드, 분석=ROI, retake=분석 불가능 시) ===
@@ -1308,4 +1475,12 @@ class GradingAnalyzer:
             capture_quality=capture_quality,
             screen_suspected=False,
             screen_suspect_reason="",
+            # === P0-1 evidence layer ===
+            card_bbox=card_bbox,
+            centering_lines=centering_lines,
+            centering_confidence=centering_conf,
+            centering_source=centering_source,
+            corner_regions=corner_regions,
+            grade_decision_trace=grade_trace,
+            extra={},
         )

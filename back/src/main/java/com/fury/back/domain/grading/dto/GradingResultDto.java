@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -38,4 +39,13 @@ public class GradingResultDto {
 
     private boolean screenSuspected;
     private String screenSuspectReason;
+
+    // === P0-1 evidence layer (Phase 2-C) ===
+    private Map<String, Double> cardBbox;
+    private Map<String, Double> centeringLines;
+    private Double centeringConfidence;
+    private String centeringSource;
+    private Map<String, Map<String, Double>> cornerRegions;
+    private Map<String, Object> gradeDecisionTrace;
+    private Map<String, Object> extra;
 }
