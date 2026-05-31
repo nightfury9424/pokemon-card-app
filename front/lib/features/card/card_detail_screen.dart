@@ -4080,7 +4080,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           ? AppColors.blue
           : AppColors.red;
       return GestureDetector(
-        onTap: assetId != null ? () => _showGradingPhotos(assetId) : null,
+        onTap: assetId != null
+            ? () => context.push('/grading/saved/$assetId')
+            : null,
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -4121,9 +4123,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   ),
                   const SizedBox(width: 6),
                   const Icon(
-                    Icons.photo_library_outlined,
+                    Icons.chevron_right,
                     color: AppColors.textMuted,
-                    size: 16,
+                    size: 18,
                   ),
                 ],
               ),

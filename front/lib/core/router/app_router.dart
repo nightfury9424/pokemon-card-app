@@ -7,6 +7,7 @@ import '../../features/grading/grading_screen.dart';
 import '../../features/grading/grading_capture_screen.dart';
 import '../../features/grading/grading_result_screen.dart';
 import '../../features/grading/grading_asset_select_screen.dart';
+import '../../features/grading/asset_grading_detail_screen.dart';
 import '../../features/shell/main_shell.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/scanner/scanner_screen.dart';
@@ -200,6 +201,11 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/grading/select-asset',
       builder: (_, _) => const GradingAssetSelectScreen(),
+    ),
+    GoRoute(
+      path: '/grading/saved/:assetId',
+      builder: (context, state) =>
+          AssetGradingDetailScreen(assetId: state.pathParameters['assetId']!),
     ),
     GoRoute(
       path: '/grading/capture',

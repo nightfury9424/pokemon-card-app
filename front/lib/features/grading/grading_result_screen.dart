@@ -969,8 +969,25 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     return list.length > cap ? list.sublist(0, cap) : list;
   }
 
+  int _rawReasonCountForMetric(String metric) {
+    final p = _parsed;
+    if (p == null) return 0;
+    return p.deductionReasons.where((r) {
+      switch (metric) {
+        case 'centering': return r.type == 'centering';
+        case 'corner':    return r.type == 'corner';
+        case 'surface':   return r.type == 'surface' || r.type == 'scratch' || r.type == 'dent';
+        case 'whitening': return r.type == 'whitening';
+        case 'edge':      return r.type == 'edge';
+        default: return false;
+      }
+    }).length;
+  }
+
   void _showMetricDetailSheet(String metric, String label, double score, Color color) {
     final reasons = _filterReasonsByMetric(metric);
+    final rawCount = _rawReasonCountForMetric(metric);
+    final hiddenCount = rawCount - reasons.length;
     final totalPenalty = reasons.fold<double>(0, (s, r) => s + r.penalty);
     final avgConfidence = reasons.isEmpty
         ? 0.0
@@ -1025,7 +1042,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                     border: Border.all(color: AppColors.divider),
                   ),
                   child: Row(children: [
-                    Expanded(child: _summaryItem('감점 항목', '${reasons.length}건')),
+                    Expanded(child: _summaryItem('주요 후보', '${reasons.length}건')),
                     Container(width: 1, height: 24, color: AppColors.divider),
                     Expanded(child: _summaryItem('총 감점', '${totalPenalty.toStringAsFixed(1)}점')),
                     Container(width: 1, height: 24, color: AppColors.divider),
@@ -1033,6 +1050,15 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                   ]),
                 ),
               ),
+              if (hiddenCount > 0)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+                  child: Text(
+                    '신뢰도 낮은 참고 후보 $hiddenCount건은 숨김',
+                    style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               const SizedBox(height: 12),
               Expanded(
                 child: reasons.isEmpty
