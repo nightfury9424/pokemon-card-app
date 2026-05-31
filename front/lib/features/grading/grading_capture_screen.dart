@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/api_constants.dart';
@@ -38,6 +40,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
   Offset? _focusPoint;
   Timer? _focusRingTimer;
   Timer? _frameStateTimer;
+  Size? _lastBoxSize;
 
   static const _stepLabels = [
     ('앞면 촬영', '카드 4개 모서리가 프레임 안에 모두 보이도록 맞춘 뒤 촬영해 주세요'),
@@ -54,6 +57,10 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // frame_hint 계산이 portrait 가정에 의존 — capture 동안 portrait 고정.
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+    ]);
     _initCamera();
   }
 
@@ -63,6 +70,12 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     _frameStateTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     super.dispose();
   }
 
@@ -242,16 +255,114 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     }
   }
 
-  Map<String, double> _normalizedFrameRect() {
-    final frameW = _frameWidthRatio;
-    final frameH = (_frameWidthRatio / _frameAspect).clamp(0.0, 1.0);
-    final frameX = (1.0 - frameW) / 2.0;
-    final frameY = (1.0 - frameH) / 2.0;
+  // Flutter capture frame → sensor 좌표계로 변환된 normalized frame_hint.
+  // 화면 좌표 기반 hardcoded fallback (sensor BoxFit.cover crop 무시) — 안전망.
+  static const _frameDefaultX = 0.175;
+  static const _frameDefaultY = 0.046;
+  static const _frameDefaultW = 0.65;
+  static const _frameDefaultH = 0.908;
+
+  Map<String, double> _defaultFrameRect() => {
+        'frame_x': _frameDefaultX,
+        'frame_y': _frameDefaultY,
+        'frame_w': _frameDefaultW,
+        'frame_h': _frameDefaultH,
+      };
+
+  // sensor BoxFit.cover crop 을 반영한 frame_hint 산출.
+  // _FrameOverlayPainter 의 box 좌표 frame 을 sensor 이미지 (takePicture 결과)
+  // 의 normalized 0~1 좌표로 변환.
+  //
+  // 가정:
+  //   1. capture screen 은 portrait 고정.
+  //   2. controller.previewSize 는 sensor raw (보통 landscape).
+  //   3. takePicture() 결과 이미지는 portrait orientation 으로 저장됨.
+  //
+  // 방어적 처리:
+  //   - previewSize.width/height 의 의미가 device/플러그인마다 다를 수 있어
+  //     long/short 으로 통합 후 portrait 가정에서 swap.
+  //   - 결과 frame aspect 가 카드 비율 (63/88 ≈ 0.716) 에서 크게 벗어나면
+  //     fallback (sensor aspect 추론 실패 시).
+  Map<String, double> _normalizedFrameRect([CameraController? c, Size? boxSize]) {
+    c ??= _controller;
+    boxSize ??= _lastBoxSize;
+    if (c == null || boxSize == null || boxSize.width <= 0 || boxSize.height <= 0) {
+      return _defaultFrameRect();
+    }
+
+    final preview = c.value.previewSize;
+    if (preview == null || preview.width <= 0 || preview.height <= 0) {
+      return _defaultFrameRect();
+    }
+
+    // sensor long/short 으로 통합 (orientation 의미 디바이스/플러그인 차이 흡수).
+    final sensorLong = preview.width >= preview.height ? preview.width : preview.height;
+    final sensorShort = preview.width >= preview.height ? preview.height : preview.width;
+
+    // portrait 고정 가정: 이미지 width = sensor short, height = sensor long.
+    final sensorW = sensorShort;
+    final sensorH = sensorLong;
+    final sensorAspect = sensorW / sensorH; // < 1 (portrait)
+    final boxAspect = boxSize.width / boxSize.height; // < 1 on phone portrait
+
+    // BoxFit.cover: sensor 를 box 에 cover.
+    double scaledSensorW;
+    double scaledSensorH;
+    if (sensorAspect > boxAspect) {
+      // sensor 가 box 보다 가로로 wide → height 가 fit, 좌우 crop.
+      scaledSensorH = boxSize.height;
+      scaledSensorW = boxSize.height * sensorAspect;
+    } else {
+      // sensor 가 box 보다 narrow → width 가 fit, 상하 crop.
+      scaledSensorW = boxSize.width;
+      scaledSensorH = boxSize.width / sensorAspect;
+    }
+
+    // _FrameOverlayPainter 와 동일한 box 좌표 frame.
+    final framePixelW = boxSize.width * _frameWidthRatio;
+    final framePixelH = framePixelW / _frameAspect;
+    final framePixelX = (boxSize.width - framePixelW) / 2.0;
+    final framePixelY = (boxSize.height - framePixelH) / 2.0;
+
+    // scaledSensor 의 box 안 offset (BoxFit.cover 의 crop 보정).
+    final scaledOffsetX = (boxSize.width - scaledSensorW) / 2.0;
+    final scaledOffsetY = (boxSize.height - scaledSensorH) / 2.0;
+
+    // frame in scaledSensor 좌표.
+    final frameInSensorX = framePixelX - scaledOffsetX;
+    final frameInSensorY = framePixelY - scaledOffsetY;
+
+    final frameNormX = (frameInSensorX / scaledSensorW).clamp(0.0, 1.0);
+    final frameNormY = (frameInSensorY / scaledSensorH).clamp(0.0, 1.0);
+    final frameNormW = (framePixelW / scaledSensorW).clamp(0.0, 1.0);
+    final frameNormH = (framePixelH / scaledSensorH).clamp(0.0, 1.0);
+
+    // 결과 sensor-aspect 검증 — 카드 비율 (~0.716) 에서 0.60~0.85 벗어나면 fallback.
+    // backend P0-C gate (0.62~0.82) 보다 살짝 넓혀 잘못된 hint 가 gate 까지 도달 X.
+    final resultAspect = (frameNormW * sensorW) / (frameNormH * sensorH);
+    final invalid =
+        resultAspect.isNaN || resultAspect < 0.60 || resultAspect > 0.85;
+
+    if (kDebugMode) {
+      debugPrint('[frame_hint] preview=$preview box=$boxSize '
+          'sensorAspect=${sensorAspect.toStringAsFixed(3)} '
+          'boxAspect=${boxAspect.toStringAsFixed(3)} '
+          'scaled=(${scaledSensorW.toStringAsFixed(0)},${scaledSensorH.toStringAsFixed(0)}) '
+          'frame=(${frameNormX.toStringAsFixed(3)},${frameNormY.toStringAsFixed(3)},'
+          '${frameNormW.toStringAsFixed(3)},${frameNormH.toStringAsFixed(3)}) '
+          'aspect=${resultAspect.toStringAsFixed(3)}'
+          '${invalid ? " INVALID→fallback" : ""}');
+    }
+
+    if (invalid) {
+      return _defaultFrameRect();
+    }
+
     return {
-      'frame_x': frameX,
-      'frame_y': frameY,
-      'frame_w': frameW,
-      'frame_h': frameH,
+      'frame_x': frameNormX,
+      'frame_y': frameNormY,
+      'frame_w': frameNormW,
+      'frame_h': frameNormH,
     };
   }
 
@@ -305,6 +416,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
         final previewW = size?.height ?? 1080.0;
         final previewH = size?.width ?? 1920.0;
         final boxSize = Size(box.maxWidth, box.maxHeight);
+        _lastBoxSize = boxSize;
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapDown: (d) => _tapToFocus(d, boxSize, previewW, previewH),
