@@ -172,14 +172,20 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
   Widget _buildPreviewWithFrame(CameraController c) {
     return LayoutBuilder(
       builder: (context, box) {
-        final aspect = c.value.aspectRatio;
+        final size = c.value.previewSize;
+        final previewW = size?.height ?? 1080.0;
+        final previewH = size?.width ?? 1920.0;
         return Stack(
           fit: StackFit.expand,
           children: [
-            Center(
-              child: AspectRatio(
-                aspectRatio: aspect,
-                child: CameraPreview(c),
+            SizedBox.expand(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: previewW,
+                  height: previewH,
+                  child: CameraPreview(c),
+                ),
               ),
             ),
             CustomPaint(

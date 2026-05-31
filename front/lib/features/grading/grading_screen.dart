@@ -116,14 +116,45 @@ class GradingScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () => context.push('/grading/capture'),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.blue.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.blue.withOpacity(0.25)),
+            ),
+            child: const Row(children: [
+              Icon(Icons.info_outline_rounded, color: AppColors.blue, size: 18),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '그레이딩은 내 자산에 등록된 카드에 대해 진행돼요.\n아래에서 자산을 선택하거나 새 카드를 등록해 주세요.',
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 12, height: 1.5),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () => context.push('/assets'),
+            icon: const Icon(Icons.style_rounded, color: Colors.white),
+            label: const Text('내 자산에서 선택', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.blue,
               minimumSize: const Size(double.infinity, 52),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
-            child: const Text('시작하기', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => context.push('/scanner'),
+            icon: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.textPrimary),
+            label: const Text('카드 스캐너로 새 카드 등록', style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: AppColors.divider),
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
           ),
         ],
       ),
