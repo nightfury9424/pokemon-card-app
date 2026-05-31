@@ -4,6 +4,8 @@
 fixture 비어있으면 skip. 이미지 + expected.json 있으면 자동 회귀.
 
 폴더 구조: tests/fixtures/{card_id}/expected.json + *.jpg
+
+앱 호출 조건과 동일 — frame_hint 전달 (Flutter _normalizedFrameRect() 와 일치).
 """
 import json
 import os
@@ -18,6 +20,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from analyzer import GradingAnalyzer
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+# Flutter capture_screen 의 _normalizedFrameRect() 와 일치:
+#   _frameWidthRatio = 0.65
+#   _frameAspect = 63 / 88
+#   frameH = 0.65 / (63/88) ≈ 0.9079
+#   frameX = (1 - 0.65) / 2 = 0.175
+#   frameY = (1 - 0.9079) / 2 ≈ 0.046
+DEFAULT_FRAME_HINT = (0.175, 0.046, 0.65, 0.908)
 
 
 def _collect_fixture_cases():
@@ -41,6 +51,11 @@ def _collect_fixture_cases():
             back = card_dir / shot.get("back", "")
             if not front.exists() or not back.exists():
                 continue
+            hint_raw = shot.get("frame_hint") or data.get("frame_hint")
+            if hint_raw and len(hint_raw) == 4:
+                frame_hint = tuple(float(x) for x in hint_raw)
+            else:
+                frame_hint = DEFAULT_FRAME_HINT
             cases.append({
                 "card_id": data.get("card_id", card_dir.name),
                 "card_name": data.get("card_name", card_dir.name),
@@ -50,6 +65,7 @@ def _collect_fixture_cases():
                 "expected_total": float(shot.get("expected_total", 0)),
                 "tolerance": float(shot.get("tolerance", 0.5)),
                 "notes": shot.get("notes", ""),
+                "frame_hint": frame_hint,
             })
     return cases
 
@@ -73,7 +89,9 @@ def test_golden_score_within_tolerance(case):
     assert back is not None, f"back load failed: {case['back_path']}"
 
     analyzer = GradingAnalyzer()
-    result = analyzer.analyze(front, back)
+    # 앱과 동일 조건 — frame_hint + debug=True (/tmp/grading_debug/ 자동 저장)
+    result = analyzer.analyze(
+        front, back, frame_hint=case["frame_hint"], debug=True)
 
     diff = abs(result.total_score - case["expected_total"])
     assert diff <= case["tolerance"], (
@@ -81,7 +99,9 @@ def test_golden_score_within_tolerance(case):
         f"expected={case['expected_total']:.1f} actual={result.total_score:.1f} "
         f"diff={diff:.2f} > tol={case['tolerance']:.2f}\n"
         f"  notes: {case['notes']}\n"
-        f"  retake={result.retake_required} grade={result.grade}"
+        f"  retake={result.retake_required} reason={result.retake_reason}\n"
+        f"  grade={result.grade}\n"
+        f"  hint: /tmp/grading_debug/ 의 최신 세션 분석"
     )
 
 
@@ -102,7 +122,7 @@ def test_golden_reproducibility_across_shots():
         for c in cases:
             front = cv2.imread(c["front_path"])
             back = cv2.imread(c["back_path"])
-            r = analyzer.analyze(front, back)
+            r = analyzer.analyze(front, back, frame_hint=c["frame_hint"])
             if not r.retake_required:
                 scores.append(r.total_score)
         if len(scores) < 2:

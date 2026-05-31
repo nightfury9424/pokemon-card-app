@@ -33,11 +33,17 @@ fixtures/
       "back": "4.jpg",
       "expected_total": 9.0,
       "tolerance": 0.5,
-      "notes": "각도 약간 기울어짐"
+      "notes": "각도 약간 기울어짐",
+      "frame_hint": [0.175, 0.046, 0.65, 0.908]
     }
   ]
 }
 ```
+
+**frame_hint** (optional, `[x, y, w, h]` normalized 0~1):
+- 생략 시 `DEFAULT_FRAME_HINT = (0.175, 0.046, 0.65, 0.908)` 사용 (Flutter capture screen frame 과 일치)
+- shot 별 또는 카드 단위 (root level) 지정 가능
+- 폰 카메라 sensor 안의 카드 위치를 명시
 
 ## 사용자 실행 절차
 
