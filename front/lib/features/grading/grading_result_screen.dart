@@ -290,7 +290,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     if (!showWarning) return const SizedBox.shrink();
     final msg = p.screenSuspected && p.screenSuspectReason.isNotEmpty
         ? p.screenSuspectReason
-        : '촬영 품질이 낮아 분석 정확도가 떨어질 수 있어요';
+        : '더 정확한 분석을 원하면 다시 촬영해 주세요';
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -390,12 +390,10 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
   Widget _buildResult() {
     final r = _result!;
     final total = (r['totalScore'] as num).toDouble();
-    final heavy = r['heavyWhitening'] as bool? ?? false;
-    final confidence = (r['detectionConfidence'] as num?)?.toDouble() ?? 1.0;
     final identityVerified = (r['identityVerified'] as bool?) ?? (r['identity_verified'] as bool?) ?? true;
 
     return ListView(
-      padding: const EdgeInsets.only(bottom: 32),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 32),
       children: [
         _buildQualityBanner(),
         _buildGradeCard(),
@@ -426,57 +424,19 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
               ),
-              child: const Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('AI 예측', style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
-                  SizedBox(height: 2),
-                  Text('외부 등급사 아님', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                ],
-              ),
+              child: const Text('PokeFolio AI 컨디션 분석',
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
             ),
             const SizedBox(height: 12),
-            const Text('예상 등급', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            const Text('예상 컨디션 점수', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
             const SizedBox(height: 8),
             Text(total.toStringAsFixed(1),
                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 56, fontWeight: FontWeight.bold)),
-            Text(
-              '${(total - 1.0).clamp(1.0, 10.0).toStringAsFixed(1)} ~ ${(total + 1.0).clamp(1.0, 10.0).toStringAsFixed(1)} 예상 범위',
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+            const SizedBox(height: 4),
+            const Text(
+              '실물 카드 상태를 바탕으로 한 참고용 분석입니다',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 11),
             ),
-            const SizedBox(height: 8),
-            // 상시 disclaimer — confidence 높아도 항상 표시 (공식 등급 오해 방지).
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                '앱의 AI 예측 결과이며, 실제 PSA/BRG 등급 또는 인증 결과와 다를 수 있습니다.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12, height: 1.4),
-              ),
-            ),
-            if (confidence < 0.6) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.red.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                child: const Text('⚠ 카드 인식 실패 — 재촬영 권장', style: TextStyle(color: AppColors.red, fontSize: 12)),
-              ),
-            ] else if (confidence < 0.85) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                child: const Text('⚠ 카드 인식 불완전 — 결과 참고용으로만 사용', style: TextStyle(color: AppColors.gold, fontSize: 12)),
-              ),
-            ],
-            if (heavy) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.red.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                child: const Text('⚠ 심한 화이트닝 감지됨', style: TextStyle(color: AppColors.red, fontSize: 12)),
-              ),
-            ],
           ]),
         ),
         const SizedBox(height: 20),
@@ -933,21 +893,6 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     );
   }
 
-  /// side/position → normalized Rect (이미지 위 대략 overlay).
-  /// Day 3: backend bbox inverse transform 으로 정확화.
-  Rect? _positionRect(String position) {
-    switch (position) {
-      case 'top_left':     return const Rect.fromLTWH(0.02, 0.02, 0.35, 0.25);
-      case 'top_right':    return const Rect.fromLTWH(0.63, 0.02, 0.35, 0.25);
-      case 'bottom_left':  return const Rect.fromLTWH(0.02, 0.73, 0.35, 0.25);
-      case 'bottom_right': return const Rect.fromLTWH(0.63, 0.73, 0.35, 0.25);
-      case 'center':       return const Rect.fromLTWH(0.30, 0.40, 0.40, 0.20);
-      case 'center_left':  return const Rect.fromLTWH(0.02, 0.40, 0.35, 0.20);
-      case 'middle_right': return const Rect.fromLTWH(0.63, 0.40, 0.35, 0.20);
-      default: return null;
-    }
-  }
-
   /// side → photo File index. front=0, back=1.
   File? _photoForSide(String side) {
     if (side == 'front' && widget.photos.isNotEmpty) return widget.photos[0];
@@ -978,14 +923,18 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
         default: return false;
       }
     }
-    final list = p.deductionReasons.where(match).toList()
+    final list = p.deductionReasons
+        .where(match)
+        .where((r) => r.confidence >= 0.15 || r.type == 'centering')
+        .toList()
       ..sort((a, b) {
         final ap = a.penalty.abs();
         final bp = b.penalty.abs();
         if (ap != bp) return bp.compareTo(ap);
         return b.confidence.compareTo(a.confidence);
       });
-    return list;
+    final cap = (metric == 'surface' || metric == 'scratch') ? 10 : 20;
+    return list.length > cap ? list.sublist(0, cap) : list;
   }
 
   void _showMetricDetailSheet(String metric, String label, double score, Color color) {
@@ -1168,39 +1117,10 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           aspectRatio: 63.0 / 88.0,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: LayoutBuilder(
-              builder: (_, c) {
-                final exists = file != null && file.existsSync();
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (exists)
-                      Image.file(file, fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
-                              Container(color: AppColors.divider))
-                    else
-                      Container(color: AppColors.divider),
-                    ...reasons.where((r) => _positionRect(r.position) != null).map((r) {
-                      final rect = _positionRect(r.position)!;
-                      final c2 = _severityColor(r.severity);
-                      return Positioned(
-                        left: rect.left * c.maxWidth,
-                        top: rect.top * c.maxHeight,
-                        width: rect.width * c.maxWidth,
-                        height: rect.height * c.maxHeight,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: c2.withValues(alpha: 0.22),
-                            border: Border.all(color: c2, width: 2),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      );
-                    }),
-                  ],
-                );
-              },
-            ),
+            child: file != null && file.existsSync()
+                ? Image.file(file, fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => Container(color: AppColors.divider))
+                : Container(color: AppColors.divider),
           ),
         ),
         const SizedBox(height: 6),

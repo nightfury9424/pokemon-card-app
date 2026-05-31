@@ -40,6 +40,34 @@ async def analyze(
     return analyzer.analyze(front_img, back_img, frame_hint=frame_hint)
 
 
+@app.post("/precheck")
+async def precheck(
+    image: UploadFile = File(...),
+    side: str = Form("front"),
+    frame_x: float | None = Form(None),
+    frame_y: float | None = Form(None),
+    frame_w: float | None = Form(None),
+    frame_h: float | None = Form(None),
+):
+    data = await image.read()
+    arr = np.frombuffer(data, np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if img is None:
+        raise HTTPException(status_code=400, detail=f"Invalid image: {image.filename}")
+
+    frame_hint = None
+    if all(v is not None for v in (frame_x, frame_y, frame_w, frame_h)):
+        frame_hint = (
+            max(0.0, min(1.0, frame_x)),
+            max(0.0, min(1.0, frame_y)),
+            max(0.0, min(1.0, frame_w)),
+            max(0.0, min(1.0, frame_h)),
+        )
+
+    side_norm = side if side in ("front", "back") else "front"
+    return analyzer.precheck(img, side=side_norm, frame_hint=frame_hint)
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}

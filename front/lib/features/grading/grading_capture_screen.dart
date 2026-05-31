@@ -5,6 +5,8 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/api_constants.dart';
+import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/app_error_toast.dart';
@@ -155,13 +157,27 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     try {
       await Future.delayed(const Duration(milliseconds: 350));
       final xfile = await c.takePicture();
-      _photos.add(File(xfile.path));
+      final shotFile = File(xfile.path);
 
       setState(() => _frameState = _FrameState.complete);
       _frameStateTimer?.cancel();
       _frameStateTimer = Timer(const Duration(milliseconds: 500), () {
         if (mounted) setState(() => _frameState = _FrameState.basic);
       });
+
+      final side = _step == 0 ? 'front' : 'back';
+      final precheck = await _runPrecheck(shotFile, side);
+      if (!mounted) return;
+      if (precheck != null && precheck['ok'] != true) {
+        try { if (shotFile.existsSync()) shotFile.deleteSync(); } catch (_) {}
+        final title = (precheck['reason_title'] as String?) ?? '다시 촬영해 주세요';
+        final msg = (precheck['reason_message'] as String?) ?? '';
+        setState(() => _isCapturing = false);
+        AppErrorToast.show(context, msg.isNotEmpty ? '$title · $msg' : title);
+        return;
+      }
+
+      _photos.add(shotFile);
 
       if (_step < 1) {
         if (mounted) {
@@ -199,6 +215,30 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
         });
         AppErrorToast.show(context, '촬영 실패: $e');
       }
+    }
+  }
+
+  Future<Map<String, dynamic>?> _runPrecheck(File file, String side) async {
+    try {
+      final frameRect = _normalizedFrameRect();
+      final res = await ApiClient.postMultipart(
+        ApiConstants.gradingPrecheck,
+        files: {'image': file},
+        fields: {
+          'side': side,
+          'frame_x': (frameRect['frame_x'] ?? 0).toString(),
+          'frame_y': (frameRect['frame_y'] ?? 0).toString(),
+          'frame_w': (frameRect['frame_w'] ?? 1).toString(),
+          'frame_h': (frameRect['frame_h'] ?? 1).toString(),
+        },
+        sendTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 20),
+      );
+      final data = res['data'];
+      if (data is Map) return Map<String, dynamic>.from(data);
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 

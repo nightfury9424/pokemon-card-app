@@ -3,6 +3,7 @@ package com.fury.back.domain.grading;
 import com.fury.back.common.ReturnData;
 import com.fury.back.domain.grading.dto.GradingAnalysisDto;
 import com.fury.back.domain.grading.dto.GradingResultDto;
+import com.fury.back.domain.grading.dto.PrecheckResultDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -28,6 +29,42 @@ public class GradingServiceImpl implements GradingService {
 
     @Value("${scanner.base-url:http://localhost:8082}")
     private String scannerBaseUrl;
+
+    @Override
+    public ReturnData<PrecheckResultDto> precheck(
+            MultipartFile image, String side,
+            Double frameX, Double frameY, Double frameW, Double frameH) {
+        if (image == null || image.isEmpty()) {
+            return ReturnData.badRequest("image는 필수입니다.");
+        }
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            ByteArrayResource resource = new ByteArrayResource(image.getBytes()) {
+                @Override public String getFilename() { return image.getOriginalFilename(); }
+            };
+            body.add("image", resource);
+            body.add("side", side != null ? side : "front");
+            if (frameX != null && frameY != null && frameW != null && frameH != null) {
+                body.add("frame_x", frameX.toString());
+                body.add("frame_y", frameY.toString());
+                body.add("frame_w", frameW.toString());
+                body.add("frame_h", frameH.toString());
+            }
+            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+            factory.setConnectTimeout(5_000);
+            factory.setReadTimeout(15_000);
+            RestTemplate rt = new RestTemplate(factory);
+            ResponseEntity<PrecheckResultDto> response = rt.postForEntity(
+                    gradingServiceUrl + "/precheck",
+                    new HttpEntity<>(body, headers),
+                    PrecheckResultDto.class);
+            return ReturnData.success(response.getBody());
+        } catch (IOException e) {
+            return ReturnData.fail("F500", "이미지 읽기 실패: " + e.getMessage());
+        }
+    }
 
     @Override
     public ReturnData<GradingResultDto> analyze(

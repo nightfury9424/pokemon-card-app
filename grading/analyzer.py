@@ -558,6 +558,86 @@ class GradingAnalyzer:
             })
         return regions
 
+    def precheck(self, image, side: str = "front", frame_hint=None) -> dict:
+        """촬영 직후 lightweight 품질 게이트. /analyze 전 per-side 검증용.
+        score / reason_code / quality 만 반환. deduction/grade 생성 X."""
+        if image is None or image.size == 0:
+            return self._precheck_result(side, False, "bad", "card_not_detected",
+                "카드를 찾지 못했어요", "프레임에 카드를 맞춰 다시 촬영해 주세요",
+                blur=0.0, glare=0.0, exposure=0.0, roi=0.0)
+
+        details = self._find_card_rect_details(image, frame_hint=frame_hint)
+        warped = details["warped"]
+        det_conf = float(details.get("area_ratio", 0.0))
+        if warped is None or warped.size == 0:
+            return self._precheck_result(side, False, "bad", "card_not_detected",
+                "카드를 찾지 못했어요", "프레임에 카드를 맞춰 다시 촬영해 주세요",
+                blur=0.0, glare=0.0, exposure=0.0, roi=det_conf)
+
+        gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+        lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        blur_score = min(1.0, lap_var / 200.0)
+
+        hsv = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV)
+        v = hsv[:, :, 2]
+        v_mean = float(v.mean())
+        exposure_score = 1.0 - min(1.0, abs(v_mean - 140.0) / 140.0)
+        overexp_ratio = float((v > 250).sum()) / float(v.size)
+
+        bright_mask = (v > 245).astype(np.uint8) * 255
+        contours, _ = cv2.findContours(bright_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        glare_area_ratio = (max([cv2.contourArea(c) for c in contours]) / float(v.size)
+                            if contours else 0.0)
+        glare_score = 1.0 - min(1.0, glare_area_ratio / 0.15)
+
+        roi_quality = float(details.get("ratio", 0.0))
+        roi_score = min(1.0, roi_quality / 0.75) if roi_quality > 0 else 0.5
+
+        if lap_var < 30:
+            return self._precheck_result(side, False, "bad", "blur",
+                "사진이 선명하지 않아요", "카드를 한 손으로 고정한 뒤 다시 촬영해 주세요",
+                blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
+        if v_mean < 60:
+            return self._precheck_result(side, False, "bad", "under_exposed",
+                "촬영 환경이 너무 어두워요", "밝은 곳에서 다시 촬영해 주세요",
+                blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
+        if overexp_ratio > 0.30:
+            return self._precheck_result(side, False, "bad", "over_exposed",
+                "사진이 너무 밝아요", "직사광선/플래시를 피해 다시 촬영해 주세요",
+                blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
+        if glare_area_ratio > 0.12:
+            return self._precheck_result(side, False, "bad", "glare",
+                "카드 표면에 빛 반사가 강해요", "각도를 바꿔 다시 촬영해 주세요",
+                blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
+
+        is_warning = (
+            lap_var < 50 or v_mean < 80 or overexp_ratio > 0.15 or glare_area_ratio > 0.05
+        )
+        if is_warning:
+            return self._precheck_result(side, True, "warning", "low_quality",
+                "촬영 상태를 다시 확인해 주세요",
+                "더 정확한 분석을 원하면 다시 촬영해 주세요",
+                blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
+
+        return self._precheck_result(side, True, "good", None, None, None,
+            blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
+
+    @staticmethod
+    def _precheck_result(side, ok, quality, code, title, message,
+                         blur, glare, exposure, roi):
+        return {
+            "ok": ok,
+            "side": side,
+            "quality": quality,
+            "reason_code": code,
+            "reason_title": title,
+            "reason_message": message,
+            "blur_score": round(blur, 3),
+            "glare_score": round(glare, 3),
+            "exposure_score": round(exposure, 3),
+            "roi_score": round(roi, 3),
+        }
+
     def _check_lighting_quality(self, card_roi) -> dict:
         """ROI 기반 lighting 5종 검사. 사용자 design = AI 그레이딩 품질 절반.
         under_exposed / over_exposed / glare / blur / uneven (shadow)."""

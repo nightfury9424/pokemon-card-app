@@ -34,6 +34,7 @@ class ApiConstants {
   static const String prices = '/api/prices/cards';
   static const String assets = '/api/assets';
   static const String gradingAnalyze = '/api/grading/analyze';
+  static const String gradingPrecheck = '/api/grading/precheck';
   static const String gradingHistory = '/api/grading/history';
   static const String scannerIdentify = '/api/scanner/identify';
   static const String scannerDetect   = '/api/scanner/detect';
