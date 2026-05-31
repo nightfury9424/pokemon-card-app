@@ -10,23 +10,45 @@ import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_error_toast.dart';
+import 'grading_models.dart';
 
 class GradingResultScreen extends StatefulWidget {
   final List<File> photos;
   final String? assetId;
   final String? cardId;
   final String? cardName;
-  const GradingResultScreen({super.key, required this.photos, this.assetId, this.cardId, this.cardName});
+  final Map<String, double>? frameRect;
+  const GradingResultScreen({
+    super.key,
+    required this.photos,
+    this.assetId,
+    this.cardId,
+    this.cardName,
+    this.frameRect,
+  });
   @override
   State<GradingResultScreen> createState() => _GradingResultScreenState();
 }
 
 class _GradingResultScreenState extends State<GradingResultScreen> {
   Map<String, dynamic>? _result;
+  GradingResult? _parsed;
   bool _loading = true;
   String? _error;
 
   static const _photoKeys = ['front_image', 'back_image'];
+
+  @override
+  void dispose() {
+    for (final f in widget.photos) {
+      try {
+        if (f.existsSync()) f.deleteSync();
+        final resized = File('${f.parent.path}/resized_${f.uri.pathSegments.last}');
+        if (resized.existsSync()) resized.deleteSync();
+      } catch (_) {}
+    }
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -67,17 +89,32 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
       for (int i = 0; i < widget.photos.length; i++) {
         files[_photoKeys[i]] = await _resizePhoto(widget.photos[i]);
       }
+      final fields = <String, String>{
+        'userId': userId,
+        if (widget.cardId != null) 'cardId': widget.cardId!,
+      };
+      final fr = widget.frameRect;
+      if (fr != null) {
+        fields['frame_x'] = (fr['frame_x'] ?? 0).toString();
+        fields['frame_y'] = (fr['frame_y'] ?? 0).toString();
+        fields['frame_w'] = (fr['frame_w'] ?? 1).toString();
+        fields['frame_h'] = (fr['frame_h'] ?? 1).toString();
+      }
       final res = await ApiClient.postMultipart(
         ApiConstants.gradingAnalyze,
         files: files,
-        fields: {
-          'userId': userId,
-          if (widget.cardId != null) 'cardId': widget.cardId!,
-        },
+        fields: fields,
         sendTimeout: const Duration(seconds: 60),
         receiveTimeout: const Duration(seconds: 120),
       );
-      if (mounted) setState(() { _result = res['data']; _loading = false; });
+      final data = res['data'] as Map<String, dynamic>?;
+      if (mounted) {
+        setState(() {
+          _result = data;
+          _parsed = data != null ? GradingResult.fromJson(data) : null;
+          _loading = false;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
@@ -103,7 +140,229 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
             ]))
           : _error != null
               ? _buildErrorView()
-              : _buildResult(),
+              : (_isRetakeBlocked() ? _buildRetakeView() : _buildResult()),
+    );
+  }
+
+  bool _isRetakeBlocked() {
+    final p = _parsed;
+    if (p == null) return false;
+    return p.retakeRequired || p.captureQuality == 'bad';
+  }
+
+  Widget _buildRetakeView() {
+    final p = _parsed!;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.camera_alt_outlined,
+                color: AppColors.textMuted, size: 56),
+            const SizedBox(height: 20),
+            const Text('카드가 잘 인식되지 않았어요',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                )),
+            const SizedBox(height: 10),
+            Text(
+              p.retakeReason.isNotEmpty
+                  ? p.retakeReason
+                  : '카드를 프레임 안에 맞춘 뒤 다시 촬영해 주세요',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 28),
+            ElevatedButton.icon(
+              onPressed: () => context.pop(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('다시 촬영하기'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGradeCard() {
+    final p = _parsed;
+    if (p == null) return const SizedBox.shrink();
+    final colorHex = p.gradeColor.replaceAll('#', '');
+    final color = Color(int.parse('FF$colorHex', radix: 16));
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(children: [
+        Container(
+          width: 88, height: 88,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(14)),
+          alignment: Alignment.center,
+          child: Text(p.grade,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox(width: 18),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(p.totalScoreDisplay.toStringAsFixed(1),
+                  style: TextStyle(
+                      color: color,
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      height: 1.0)),
+              const SizedBox(height: 4),
+              const Text('PokeFolio AI 자체 평가',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              if (p.deductionReasons.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(_lowestMetricLine(p),
+                    style: const TextStyle(
+                        color: AppColors.textPrimary, fontSize: 12)),
+              ],
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+
+  String _lowestMetricLine(GradingResult p) {
+    final metrics = {
+      '센터링': p.centeringScore,
+      '코너': p.cornerScore,
+      '표면': p.surfaceScore,
+      '백화': p.whiteningScore,
+      '엣지': p.edgeScore,
+    };
+    final lowest = metrics.entries.reduce((a, b) => a.value <= b.value ? a : b);
+    return '${lowest.key} 항목이 가장 낮게 측정되었어요 (${lowest.value.toStringAsFixed(1)})';
+  }
+
+  Widget _buildQualityBanner() {
+    final p = _parsed;
+    if (p == null) return const SizedBox.shrink();
+    final showWarning = p.captureQuality == 'warning' || p.screenSuspected;
+    if (!showWarning) return const SizedBox.shrink();
+    final msg = p.screenSuspected && p.screenSuspectReason.isNotEmpty
+        ? p.screenSuspectReason
+        : '촬영 품질이 낮아 분석 정확도가 떨어질 수 있어요';
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7E6),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFFC76A)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 18),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(msg,
+              style: const TextStyle(
+                  color: Color(0xFF92400E), fontSize: 12, fontWeight: FontWeight.w600)),
+        ),
+        const SizedBox(width: 6),
+        GestureDetector(
+          onTap: () => context.pop(),
+          child: const Text('다시 찍기',
+              style: TextStyle(
+                  color: Color(0xFFD97706),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  decoration: TextDecoration.underline)),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildReasonList() {
+    final p = _parsed;
+    if (p == null || p.deductionReasons.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('감점 사유 (${p.deductionReasons.length})',
+              style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          ...p.deductionReasons.take(8).map((r) => Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.bg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(r.label,
+                            style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Text(
+                          '-${r.penalty.toStringAsFixed(1)} · 신뢰도 ${(r.confidence * 100).round()}%',
+                          style: const TextStyle(
+                              color: AppColors.textSecondary, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _severityChip(r.severity),
+                ]),
+              )),
+          if (p.deductionReasons.length > 8)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 4),
+              child: Text('… 외 ${p.deductionReasons.length - 8}개',
+                  style: const TextStyle(
+                      color: AppColors.textMuted, fontSize: 11)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _severityChip(String severity) {
+    final (label, color) = switch (severity) {
+      'major' => ('심함', const Color(0xFFDC2626)),
+      'moderate' => ('보통', const Color(0xFFD97706)),
+      _ => ('경미', const Color(0xFF6B7280)),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(label,
+          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -156,9 +415,19 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     final identityVerified = (r['identityVerified'] as bool?) ?? (r['identity_verified'] as bool?) ?? true;
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.zero,
       children: [
+        _buildQualityBanner(),
+        _buildGradeCard(),
+        _buildReasonList(),
+        const Padding(padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+            child: Text('상세 분석',
+                style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600))),
         Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
@@ -166,7 +435,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
               begin: Alignment.topLeft, end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.blue.withOpacity(0.3)),
+            border: Border.all(color: AppColors.blue.withValues(alpha: 0.3)),
           ),
           child: Column(children: [
             // 두 줄 neutral grey 배지 — 56pt 숫자 위에 맥락 먼저 인식시킴.
@@ -233,6 +502,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
         ),
         const SizedBox(height: 20),
         Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: AppColors.surfaceCard,
@@ -379,7 +649,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                 final userRes = await ApiClient.get('/api/users/me');
                 userId = (userRes['data'] as Map<String, dynamic>?)?['userId'] as String? ?? 'guest';
               } catch (_) {}
-              await ApiClient.post(ApiConstants.assets, {
+              final createRes = await ApiClient.post(ApiConstants.assets, {
                 'data': {
                   'userId': userId,
                   'cardId': cardId,
@@ -397,6 +667,32 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                   'purchasedAt': DateTime.now().toIso8601String().substring(0, 10),
                 }
               });
+              final newAssetId = (createRes['data'] is Map)
+                  ? ((createRes['data'] as Map)['assetId'] as String?)
+                  : null;
+              if (newAssetId != null && widget.photos.length >= 2) {
+                final files = <String, File>{
+                  'front_image': await _resizePhoto(widget.photos[0]),
+                  'back_image': await _resizePhoto(widget.photos[1]),
+                };
+                await ApiClient.postMultipart(
+                  '${ApiConstants.assets}/$newAssetId/grading',
+                  files: files,
+                  fields: {
+                    'cardStatus': 'RAW',
+                    'app_analysis_id': appAnalysisId,
+                    'estimated_grade': estimatedScore.toStringAsFixed(1),
+                    'centering_score': _scoreField('centeringScore'),
+                    'corner_score': _scoreField('cornerScore'),
+                    'surface_score': _scoreField('surfaceScore'),
+                    'whitening_score': _scoreField('whiteningScore'),
+                    'centering_ratio': (_result?['centeringRatio'] as String?) ?? '',
+                    'detection_confidence': _scoreField('detectionConfidence', fallback: 1.0, fractionDigits: 2),
+                  },
+                  sendTimeout: const Duration(seconds: 60),
+                  receiveTimeout: const Duration(seconds: 60),
+                );
+              }
               AssetNotifier.instance.notifyChanged();
               nav.pop();
               if (mounted) {

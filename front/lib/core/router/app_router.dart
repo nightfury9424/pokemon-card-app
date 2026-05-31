@@ -222,6 +222,9 @@ final appRouter = GoRouter(
           assetId: extra['assetId'] as String?,
           cardId: extra['cardId'] as String?,
           cardName: extra['cardName'] as String?,
+          frameRect: extra['frameRect'] is Map
+              ? Map<String, double>.from(extra['frameRect'] as Map)
+              : null,
         );
       },
     ),

@@ -30,9 +30,11 @@ public class GradingServiceImpl implements GradingService {
     private String scannerBaseUrl;
 
     @Override
-    public ReturnData<GradingResultDto> analyze(Map<String, MultipartFile> photos, String cardId) {
+    public ReturnData<GradingResultDto> analyze(
+            Map<String, MultipartFile> photos, String cardId,
+            Double frameX, Double frameY, Double frameW, Double frameH) {
         boolean identityVerified = verifyIdentity(photos.get("front_image"), cardId);
-        GradingAnalysisDto analysis = callPythonService(photos);
+        GradingAnalysisDto analysis = callPythonService(photos, frameX, frameY, frameW, frameH);
         analysis.setIdentityVerified(identityVerified);
         return ReturnData.success(GradingResultDto.builder()
                 .centeringScore(analysis.getCenteringScore())
@@ -48,6 +50,20 @@ public class GradingServiceImpl implements GradingService {
                 .surfaceDetail(analysis.getSurfaceDetail())
                 .whiteningDetail(analysis.getWhiteningDetail())
                 .identityVerified(analysis.isIdentityVerified())
+                .edgeScore(analysis.getEdgeScore())
+                .edgeDetail(analysis.getEdgeDetail())
+                .weightedScore(analysis.getWeightedScore())
+                .totalScoreDisplay(analysis.getTotalScoreDisplay())
+                .grade(analysis.getGrade())
+                .gradeColor(analysis.getGradeColor())
+                .deductionReasons(analysis.getDeductionReasons())
+                .defectRegions(analysis.getDefectRegions())
+                .hasMajorDefect(analysis.isHasMajorDefect())
+                .retakeRequired(analysis.isRetakeRequired())
+                .retakeReason(analysis.getRetakeReason())
+                .captureQuality(analysis.getCaptureQuality())
+                .screenSuspected(analysis.isScreenSuspected())
+                .screenSuspectReason(analysis.getScreenSuspectReason())
                 .build());
     }
 
@@ -98,7 +114,9 @@ public class GradingServiceImpl implements GradingService {
         }
     }
 
-    private GradingAnalysisDto callPythonService(Map<String, MultipartFile> photos) {
+    private GradingAnalysisDto callPythonService(
+            Map<String, MultipartFile> photos,
+            Double frameX, Double frameY, Double frameW, Double frameH) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
@@ -112,6 +130,12 @@ public class GradingServiceImpl implements GradingService {
                 throw new RuntimeException("사진 읽기 실패: " + name, e);
             }
         });
+        if (frameX != null && frameY != null && frameW != null && frameH != null) {
+            body.add("frame_x", frameX.toString());
+            body.add("frame_y", frameY.toString());
+            body.add("frame_w", frameW.toString());
+            body.add("frame_h", frameH.toString());
+        }
         HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(5_000);
