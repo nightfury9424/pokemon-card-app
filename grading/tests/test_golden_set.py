@@ -62,6 +62,8 @@ def _collect_fixture_cases():
                 "shot_index": i,
                 "front_path": str(front),
                 "back_path": str(back),
+                # retake expected 인 shot 은 expected_total 무관 (점수 검증 skip).
+                "expected_retake": bool(shot.get("expected_retake", False)),
                 "expected_total": float(shot.get("expected_total", 0)),
                 "tolerance": float(shot.get("tolerance", 0.5)),
                 "notes": shot.get("notes", ""),
@@ -82,7 +84,8 @@ _CASE_IDS = [f"{c['card_id']}_shot{c['shot_index']}" for c in _FIXTURE_CASES]
 )
 @pytest.mark.parametrize("case", _FIXTURE_CASES, ids=_CASE_IDS)
 def test_golden_score_within_tolerance(case):
-    """각 fixture shot 의 expected_total 대비 변동폭 ≤ tolerance."""
+    """각 fixture shot 의 expected_total 대비 변동폭 ≤ tolerance.
+    expected_retake=True 인 shot 은 retake_required=True 검증 (점수 검증 skip)."""
     front = cv2.imread(case["front_path"])
     back = cv2.imread(case["back_path"])
     assert front is not None, f"front load failed: {case['front_path']}"
@@ -93,6 +96,19 @@ def test_golden_score_within_tolerance(case):
     result = analyzer.analyze(
         front, back, frame_hint=case["frame_hint"], debug=True)
 
+    if case.get("expected_retake"):
+        assert result.retake_required, (
+            f"{case['card_id']} shot{case['shot_index']} "
+            f"expected_retake=True 인데 retake_required=False (score={result.total_score})\n"
+            f"  notes: {case['notes']}"
+        )
+        return
+
+    assert not result.retake_required, (
+        f"{case['card_id']} shot{case['shot_index']} 정상 shot 인데 retake 발생\n"
+        f"  notes: {case['notes']} reason={result.retake_reason}"
+    )
+
     diff = abs(result.total_score - case["expected_total"])
     assert diff <= case["tolerance"], (
         f"{case['card_id']} shot{case['shot_index']} "
@@ -102,6 +118,30 @@ def test_golden_score_within_tolerance(case):
         f"  retake={result.retake_required} reason={result.retake_reason}\n"
         f"  grade={result.grade}\n"
         f"  hint: /tmp/grading_debug/ 의 최신 세션 분석"
+    )
+
+
+@pytest.mark.skipif(
+    not _FIXTURE_CASES,
+    reason="fixtures/ 비어있음",
+)
+@pytest.mark.parametrize("case", _FIXTURE_CASES, ids=_CASE_IDS)
+def test_golden_reasons_count_under_cap(case):
+    """Phase 2-B Step 2 회귀 검증 — backend raw 후보 cap 25.
+    retake shot 은 reasons 0 이라 무관 (assertion skip)."""
+    if case.get("expected_retake"):
+        pytest.skip("retake expected — reasons cap 무관")
+    front = cv2.imread(case["front_path"])
+    back = cv2.imread(case["back_path"])
+    analyzer = GradingAnalyzer()
+    r = analyzer.analyze(front, back, frame_hint=case["frame_hint"])
+    if r.retake_required:
+        pytest.skip("runtime retake — reasons cap 무관")
+    assert len(r.deduction_reasons) <= 25, (
+        f"{case['card_id']} shot{case['shot_index']} "
+        f"reasons={len(r.deduction_reasons)} > 25\n"
+        f"  raw reduction 회귀 — analyzer.detect_*_regions threshold/cap 검증 필요\n"
+        f"  notes: {case['notes']}"
     )
 
 

@@ -1,0 +1,21 @@
+{
+  "card_id": "charizard_bright_001",
+  "card_name": "리자몽 ex SAR (silver foil, 밝은 일러스트)",
+  "shots": [
+    {
+      "front": "1.jpg",
+      "back": "2.jpg",
+      "expected_total": 8.2,
+      "tolerance": 0.5,
+      "notes": "정상 촬영 — 밝은 silver foil whitening false positive 검증",
+      "frame_hint": [0.198, 0.149, 0.601, 0.638]
+    },
+    {
+      "front": "3.jpg",
+      "back": "4.jpg",
+      "expected_retake": true,
+      "notes": "카드 회전 큼 — backend frame_hint quality gate 가 retake 강제",
+      "frame_hint": [0.055, 0.108, 0.873, 0.754]
+    }
+  ]
+}
