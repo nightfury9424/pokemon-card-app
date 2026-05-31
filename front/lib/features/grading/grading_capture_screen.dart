@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
@@ -5,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
+
+enum _FrameState { basic, focusing, capturing, complete }
 
 class GradingCaptureScreen extends StatefulWidget {
   final String? assetId;
@@ -19,7 +22,7 @@ class GradingCaptureScreen extends StatefulWidget {
 class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     with WidgetsBindingObserver {
   static const _frameAspect = 63.0 / 88.0;
-  static const _frameWidthRatio = 0.78;
+  static const _frameWidthRatio = 0.65;
 
   CameraController? _controller;
   Future<void>? _initFuture;
@@ -27,6 +30,10 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
   final List<File> _photos = [];
   bool _isCapturing = false;
   String? _initError;
+  _FrameState _frameState = _FrameState.basic;
+  Offset? _focusPoint;
+  Timer? _focusRingTimer;
+  Timer? _frameStateTimer;
 
   static const _stepLabels = [
     ('앞면 촬영', '카드 4개 모서리가 프레임 안에 모두 보이도록 맞춘 뒤 촬영해 주세요'),
@@ -34,9 +41,9 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
   ];
 
   static const _guideHints = [
-    '카드를 한 손으로 고정한 뒤 촬영하면 더 선명해요',
+    '카드와 카메라 사이 15cm 이상 거리를 두면 더 선명해요',
+    '화면 가운데를 탭하면 초점을 맞출 수 있어요',
     '손가락이나 그림자가 카드 위에 들어가지 않게 해주세요',
-    '카드를 화면 가운데에 탭하면 초점을 맞출 수 있어요',
   ];
 
   @override
@@ -48,6 +55,8 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
 
   @override
   void dispose() {
+    _focusRingTimer?.cancel();
+    _frameStateTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
     super.dispose();
@@ -73,7 +82,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
       );
       final controller = CameraController(
         back,
-        ResolutionPreset.high,
+        ResolutionPreset.veryHigh,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
@@ -90,27 +99,79 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     }
   }
 
-  Future<void> _tapToFocus(TapDownDetails details, Size previewSize) async {
+  /// BoxFit.cover crop 보정 — preview aspect vs box aspect 비교 후 sensor 좌표로 변환.
+  Offset _tapToSensorPoint(Offset tap, Size boxSize, double previewW, double previewH) {
+    final boxAspect = boxSize.width / boxSize.height;
+    final previewAspect = previewW / previewH;
+    double scaledW, scaledH;
+    if (previewAspect > boxAspect) {
+      scaledH = boxSize.height;
+      scaledW = boxSize.height * previewAspect;
+    } else {
+      scaledW = boxSize.width;
+      scaledH = boxSize.width / previewAspect;
+    }
+    final offsetX = (scaledW - boxSize.width) / 2.0;
+    final offsetY = (scaledH - boxSize.height) / 2.0;
+    final sensorX = ((tap.dx + offsetX) / scaledW).clamp(0.0, 1.0);
+    final sensorY = ((tap.dy + offsetY) / scaledH).clamp(0.0, 1.0);
+    return Offset(sensorX, sensorY);
+  }
+
+  Future<void> _tapToFocus(TapDownDetails details, Size boxSize, double previewW, double previewH) async {
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
-    final dx = (details.localPosition.dx / previewSize.width).clamp(0.0, 1.0);
-    final dy = (details.localPosition.dy / previewSize.height).clamp(0.0, 1.0);
+    final tap = details.localPosition;
+    final sensor = _tapToSensorPoint(tap, boxSize, previewW, previewH);
+    setState(() {
+      _focusPoint = tap;
+      _frameState = _FrameState.focusing;
+    });
+    _focusRingTimer?.cancel();
+    _focusRingTimer = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) setState(() => _focusPoint = null);
+    });
+    _frameStateTimer?.cancel();
+    _frameStateTimer = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() {
+        if (_frameState == _FrameState.focusing) _frameState = _FrameState.basic;
+      });
+    });
     try {
-      await c.setFocusPoint(Offset(dx, dy));
-      await c.setExposurePoint(Offset(dx, dy));
+      await c.setFocusPoint(sensor);
+      await c.setExposurePoint(sensor);
     } catch (_) {}
   }
 
   Future<void> _shutter() async {
     final c = _controller;
     if (c == null || !c.value.isInitialized || _isCapturing) return;
-    setState(() => _isCapturing = true);
+    setState(() {
+      _isCapturing = true;
+      _frameState = _FrameState.capturing;
+    });
     try {
       await Future.delayed(const Duration(milliseconds: 350));
       final xfile = await c.takePicture();
       _photos.add(File(xfile.path));
+
+      setState(() => _frameState = _FrameState.complete);
+      _frameStateTimer?.cancel();
+      _frameStateTimer = Timer(const Duration(milliseconds: 500), () {
+        if (mounted) setState(() => _frameState = _FrameState.basic);
+      });
+
       if (_step < 1) {
-        if (mounted) setState(() { _step++; _isCapturing = false; });
+        if (mounted) {
+          setState(() { _step++; _isCapturing = false; });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('앞면 촬영 완료 · 이제 뒷면을 촬영해 주세요'),
+              duration: Duration(seconds: 2),
+              backgroundColor: Color(0xFF1A3A6A),
+            ),
+          );
+        }
       } else {
         if (mounted) {
           setState(() => _isCapturing = false);
@@ -127,6 +188,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
             setState(() {
               _step = 0;
               _photos.clear();
+              _frameState = _FrameState.basic;
             });
           } else if (result == true) {
             context.pop(true);
@@ -135,7 +197,10 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isCapturing = false);
+        setState(() {
+          _isCapturing = false;
+          _frameState = _FrameState.basic;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('촬영 실패: $e')),
         );
@@ -208,7 +273,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
         final boxSize = Size(box.maxWidth, box.maxHeight);
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTapDown: (d) => _tapToFocus(d, boxSize),
+          onTapDown: (d) => _tapToFocus(d, boxSize, previewW, previewH),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -227,8 +292,23 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
                 painter: _FrameOverlayPainter(
                   frameAspect: _frameAspect,
                   frameWidthRatio: _frameWidthRatio,
+                  state: _frameState,
                 ),
               ),
+              if (_focusPoint != null)
+                Positioned(
+                  left: _focusPoint!.dx - 32,
+                  top: _focusPoint!.dy - 32,
+                  child: IgnorePointer(
+                    child: Container(
+                      width: 64, height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFFFD700), width: 2),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         );
@@ -320,7 +400,39 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
 class _FrameOverlayPainter extends CustomPainter {
   final double frameAspect;
   final double frameWidthRatio;
-  _FrameOverlayPainter({required this.frameAspect, required this.frameWidthRatio});
+  final _FrameState state;
+  _FrameOverlayPainter({
+    required this.frameAspect,
+    required this.frameWidthRatio,
+    required this.state,
+  });
+
+  Color get _strokeColor {
+    switch (state) {
+      case _FrameState.focusing:  return const Color(0xFFFFD700);
+      case _FrameState.capturing: return const Color(0xFF60A5FA);
+      case _FrameState.complete:  return const Color(0xFF10B981);
+      case _FrameState.basic:     return Colors.white;
+    }
+  }
+
+  Color get _markerColor {
+    switch (state) {
+      case _FrameState.focusing:  return const Color(0xFFFFD700);
+      case _FrameState.capturing: return const Color(0xFF60A5FA);
+      case _FrameState.complete:  return const Color(0xFF10B981);
+      case _FrameState.basic:     return AppColors.blue;
+    }
+  }
+
+  double get _glowAlpha {
+    switch (state) {
+      case _FrameState.focusing:  return 0.6;
+      case _FrameState.capturing: return 0.5;
+      case _FrameState.complete:  return 0.8;
+      case _FrameState.basic:     return 0.0;
+    }
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -336,15 +448,25 @@ class _FrameOverlayPainter extends CustomPainter {
       ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(14)));
     canvas.drawPath(Path.combine(PathOperation.difference, outer, inner), dim);
 
+    if (_glowAlpha > 0) {
+      final glow = Paint()
+        ..color = _strokeColor.withValues(alpha: _glowAlpha)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 10
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+      canvas.drawRRect(
+          RRect.fromRectAndRadius(rect, const Radius.circular(14)), glow);
+    }
+
     final framePaint = Paint()
-      ..color = Colors.white
+      ..color = _strokeColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+      ..strokeWidth = state == _FrameState.basic ? 2 : 3;
     canvas.drawRRect(
         RRect.fromRectAndRadius(rect, const Radius.circular(14)), framePaint);
 
     final markerPaint = Paint()
-      ..color = AppColors.blue
+      ..color = _markerColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4
       ..strokeCap = StrokeCap.round;
@@ -374,5 +496,6 @@ class _FrameOverlayPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _FrameOverlayPainter old) => false;
+  bool shouldRepaint(covariant _FrameOverlayPainter old) =>
+      old.state != state;
 }
