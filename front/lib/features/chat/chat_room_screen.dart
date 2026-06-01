@@ -813,8 +813,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                           icon: Icons.report_gmailerrorred_rounded,
                           iconColor: AppColors.red,
                           title: '신고하고 차단할까요?',
-                          message: '신고하면 해당 사용자가 자동으로 차단되어\n'
-                              '더 이상 대화할 수 없어요.\n'
+                          message: '신고하면 해당 사용자가 자동으로 차단되며,\n'
+                              '신고된 채팅 내용은 관리자가 모두 확인합니다.\n'
                               '욕설·사기 등 악의적 행위는 수사기관 정보제공 등으로 대응합니다.',
                           cancelLabel: '취소',
                           confirmLabel: '신고하고 차단',

@@ -15,6 +15,9 @@ public interface ReportRepository extends JpaRepository<Report, String> {
     long countByReporterIdAndTargetTypeAndTargetIdAndStatus(
             String reporterId, String targetType, String targetId, String status);
 
+    /** 같은 사용자를 같은 신고자가 이미 신고했는지 (1회 제한 — 차단 풀고 재신고 방지). */
+    boolean existsByReporterIdAndTargetUserId(String reporterId, String targetUserId);
+
     /**
      * 2026-05-29 admin Stage 0 (Codex G) — 신고 list pageable + status/targetType/시간 filter.
      *   default sort: status=PENDING newest first (idx_reports_status_created 활용).
