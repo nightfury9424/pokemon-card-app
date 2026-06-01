@@ -27,6 +27,21 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _onAppleLogin() async {
+    setState(() => _loading = true);
+    try {
+      final requiresOnboarding = await AuthService.loginWithApple();
+      if (!mounted) return;
+      context.go(requiresOnboarding ? '/onboarding' : '/home');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      // 취소는 조용히 무시.
+      if (e.toString().contains('취소')) return;
+      AppErrorToast.show(context, 'Apple 로그인 실패: $e');
+    }
+  }
+
   Future<void> _onDevLogin() async {
     setState(() => _loading = true);
     final requiresOnboarding = await AuthService.devLogin();
@@ -70,6 +85,29 @@ class _LoginScreenState extends State<LoginScreen> {
               const Text('자산 관리',
                   style: TextStyle(fontSize: 16, color: AppColors.textSecondary, fontWeight: FontWeight.w400)),
               const Spacer(flex: 3),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _onAppleLogin,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.apple, size: 22, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text('Apple로 시작하기',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 height: 52,

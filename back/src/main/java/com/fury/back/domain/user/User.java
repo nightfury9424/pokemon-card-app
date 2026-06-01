@@ -17,8 +17,13 @@ public class User {
     @Column(name = "user_id", length = 50)
     private String userId;
 
-    @Column(name = "google_id", nullable = false, unique = true, length = 100)
+    // Apple 로그인 추가로 nullable — Google/Apple 중 하나로 가입.
+    @Column(name = "google_id", unique = true, length = 100)
     private String googleId;
+
+    /** Sign in with Apple sub (고유 id). Google 미사용 가입 시 사용. */
+    @Column(name = "apple_id", unique = true, length = 100)
+    private String appleId;
 
     @Column(name = "nickname", length = 50)
     private String nickname;

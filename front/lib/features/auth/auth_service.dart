@@ -1,4 +1,5 @@
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/token_storage.dart';
@@ -21,6 +22,37 @@ class AuthService {
       'idToken': idToken,
     });
 
+    final data = response['data'] as Map<String, dynamic>;
+    final jwt = data['accessToken'] as String;
+    final requiresOnboarding = (data['requiresOnboarding'] as bool?) ?? false;
+    await TokenStorage.save(jwt);
+    await TokenStorage.setOnboarded(!requiresOnboarding);
+    AuthState.instance.markLoggedIn(onboarded: !requiresOnboarding);
+    return requiresOnboarding;
+  }
+
+  /// Sign in with Apple. 로그인 후 온보딩 필요 여부 반환. 취소 시 예외.
+  static Future<bool> loginWithApple() async {
+    final AuthorizationCredentialAppleID credential;
+    try {
+      credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) {
+        throw Exception('Apple 로그인 취소됨');
+      }
+      rethrow;
+    }
+    final identityToken = credential.identityToken;
+    if (identityToken == null) throw Exception('Apple 토큰을 받지 못했습니다');
+
+    final response = await ApiClient.post('/api/auth/apple/token', {
+      'identityToken': identityToken,
+    });
     final data = response['data'] as Map<String, dynamic>;
     final jwt = data['accessToken'] as String;
     final requiresOnboarding = (data['requiresOnboarding'] as bool?) ?? false;

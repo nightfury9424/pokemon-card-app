@@ -13,6 +13,8 @@ dependencies:
 
   # 구글 로그인
   google_sign_in: ">=6.2.1 <6.3.0"
+  # Apple 로그인 (App Store 정식심사 4.8 필수)
+  sign_in_with_apple: ^6.1.4
 
   # 카메라 + OCR
   camera: ^0.11.1
