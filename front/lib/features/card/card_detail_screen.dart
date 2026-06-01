@@ -3922,9 +3922,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       _tabController.animateTo(1);
     }
     final assetId = asset['assetId'] as String?;
-    // 예상가치 (KO mid) tick floor 를 기본 가격으로 전달 — 사용자 정책: 가격 협의 폐지, 자동 기본값.
+    // 판매 기본가 = 사용자에게 보이는 현재가(displayPrice) 를 100원 단위로 반올림해 자동 기입.
+    // KO mid 는 JP/EN/GRADED 자산에서 null/왜곡되므로 displayPrice 우선 (line 1172 정책과 동일).
+    // (이전: ko mid → _floorToTick. 1000 tick 이라 140원 등 저가 카드가 0원으로 떨어지는 버그.)
+    final displayPrice = (asset['displayPrice'] as num?)?.toInt();
     final midPrice = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
-    final defaultPrice = midPrice != null ? _floorToTick(midPrice) : null;
+    final basePrice =
+        (displayPrice != null && displayPrice > 0) ? displayPrice : midPrice;
+    final defaultPrice =
+        (basePrice != null && basePrice > 0) ? _roundTo100(basePrice) : null;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final created = await context.push<bool>('/trades/create', extra: {
@@ -4361,39 +4367,52 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     //              RAW + cardVerified=false → "실카드 검증 필요" + CTA.
     // 기존 "아직 등급 분석이 진행되지 않았습니다" 잔재 문구 제거.
     if (cardVerified) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 24, height: 24,
-              decoration: BoxDecoration(
-                color: const Color(0xFF15110A),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFD4AF37), width: 1.2),
+      // 탭 → 등록된 앞면/뒷면 실사진 뷰어 (_showGradingPhotos 재사용, 제목은 "실카드 검증 사진").
+      final canViewPhotos = assetId != null && assetId.isNotEmpty;
+      return GestureDetector(
+        onTap: canViewPhotos ? () => _showGradingPhotos(assetId) : null,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 24, height: 24,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF15110A),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFD4AF37), width: 1.2),
+                ),
+                child: const Icon(Icons.check_rounded, size: 14, color: Color(0xFFFFD86B)),
               ),
-              child: const Icon(Icons.check_rounded, size: 14, color: Color(0xFFFFD86B)),
-            ),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('실카드 검증 완료',
-                      style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w800)),
-                  SizedBox(height: 2),
-                  Text('앞면/뒷면 실사진이 등록되었습니다.',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('실카드 검증 완료',
+                        style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 2),
+                    Text(
+                        canViewPhotos
+                            ? '탭하여 앞면/뒷면 실사진 보기'
+                            : '앞면/뒷면 실사진이 등록되었습니다.',
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  ],
+                ),
               ),
-            ),
-          ],
+              if (canViewPhotos) ...[
+                const SizedBox(width: 6),
+                const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
+              ],
+            ],
+          ),
         ),
       );
     }
@@ -4452,13 +4471,16 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
   Future<void> _showGradingPhotos(String assetId) async {
     List<Map<String, dynamic>> images = [];
+    bool loadFailed = false;
     try {
       final res = await ApiClient.get('/api/assets/$assetId/images');
       final data = res['data'];
       if (data is List) {
         images = List<Map<String, dynamic>>.from(data);
       }
-    } catch (_) {}
+    } catch (_) {
+      loadFailed = true;
+    }
 
     if (!mounted) return;
 
@@ -4466,7 +4488,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final back = images.where((i) => i['imageType'] == 'BACK').firstOrNull;
 
     if (front == null && back == null) {
-      AppInfoToast.show(context, '저장된 사진이 없습니다');
+      // fetch 실패(401/500)를 "사진 없음"으로 오인시키지 않도록 구분 (Codex P2).
+      AppInfoToast.show(
+        context,
+        loadFailed ? '사진을 불러오지 못했습니다' : '저장된 사진이 없습니다',
+      );
       return;
     }
 
@@ -4481,7 +4507,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                '등급 분석 사진',
+                '실카드 검증 사진',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -4896,6 +4922,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   static int _floorToTick(int price) {
     final t = _tickFor(price);
     return (price ~/ t) * t;
+  }
+
+  // 판매 기본가 자동 기입용 — 현 시세를 100원 단위로 반올림 (최소 100원).
+  static int _roundTo100(int price) {
+    final r = ((price + 50) ~/ 100) * 100;
+    return r < 100 ? 100 : r;
   }
 
   static String _formatThousands(int v) {
