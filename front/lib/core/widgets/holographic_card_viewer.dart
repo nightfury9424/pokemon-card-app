@@ -145,27 +145,6 @@ class _HolographicCardViewerState extends State<HolographicCardViewer>
                       ),
                     ),
                   ),
-                  // 힌트 (첫 진입 시)
-                  Positioned(
-                    bottom: 32,
-                    left: 0, right: 0,
-                    child: Opacity(
-                      opacity: (1 - _entryCtrl.value).clamp(0.0, 1.0) * 0 + 0.6,
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text(
-                            '드래그해서 카드를 기울여보세요',
-                            style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
