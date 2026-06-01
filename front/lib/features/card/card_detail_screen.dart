@@ -4227,6 +4227,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final cornerScore = (asset['cornerScore'] as num?)?.toDouble();
     final surfaceScore = (asset['surfaceScore'] as num?)?.toDouble();
     final whiteningScore = (asset['whiteningScore'] as num?)?.toDouble();
+    // Hotfix 10-4: RAW 자산의 실카드 검증 상태.
+    final cardVerified = asset['cardVerified'] == true;
+    final cardNameForVerify = (_cardDetail?['name'] as String?) ?? widget.cardId;
 
     if (cardStatus == 'GRADED' &&
         gradingCompany != null &&
@@ -4304,7 +4307,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   ),
                   const SizedBox(width: 6),
                   const Text(
-                    '앱 분석 등급',
+                    // Hotfix 10-4: enableAiGrading=false 시 unreachable 이지만 안전을 위해 라벨 정정.
+                    '카드 분석',
                     style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
@@ -4353,22 +4357,95 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.info_outline, color: AppColors.textMuted, size: 16),
-          SizedBox(width: 8),
-          Text(
-            '아직 등급 분석이 진행되지 않았습니다',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-          ),
-        ],
+    // Hotfix 10-4: RAW + cardVerified=true → "실카드 검증 완료" 표시.
+    //              RAW + cardVerified=false → "실카드 검증 필요" + CTA.
+    // 기존 "아직 등급 분석이 진행되지 않았습니다" 잔재 문구 제거.
+    if (cardVerified) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 24, height: 24,
+              decoration: BoxDecoration(
+                color: const Color(0xFF15110A),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFD4AF37), width: 1.2),
+              ),
+              child: const Icon(Icons.check_rounded, size: 14, color: Color(0xFFFFD86B)),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('실카드 검증 완료',
+                      style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w800)),
+                  SizedBox(height: 2),
+                  Text('앞면/뒷면 실사진이 등록되었습니다.',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    // 미검증 RAW — CTA 영역
+    return GestureDetector(
+      onTap: () async {
+        final start = await _showCardVerifyRequiredSheet(cardName: cardNameForVerify);
+        if (!mounted || start != true) return;
+        final captured = await context.push<Map?>('/grading/capture', extra: {
+          'mode': 'card_verify',
+          'assetId': assetId,
+          'cardId': widget.cardId,
+          'cardName': cardNameForVerify,
+        });
+        if (!mounted || captured == null) return;
+        final next = await _showCardVerifyDoneSheet(cardName: cardNameForVerify);
+        if (!mounted) return;
+        if (next == 'trade_create') {
+          // 사용자가 검증 후 바로 판매글 작성 — 기존 sell flow 진입.
+          await _onSellTap(cardNameForVerify, '', null);
+        } else {
+          await _loadData(); // 검증 완료 → badge / 영역 갱신
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.blue.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.verified_outlined, color: AppColors.blue, size: 22),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('실카드 검증이 필요합니다',
+                      style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w800)),
+                  SizedBox(height: 2),
+                  Text('판매 전 등록한 카드와 실제 보유 카드가 같은지 확인해 주세요.',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
+          ],
+        ),
       ),
     );
   }

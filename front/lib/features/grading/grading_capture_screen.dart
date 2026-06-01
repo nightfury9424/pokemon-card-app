@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+// Hotfix 10-4: scanner identify 입력 정규화 (orientation/crop/resize/JPEG re-encode).
+import 'package:image/image.dart' as img;
 
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
@@ -329,24 +331,80 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     }
   }
 
-  // Hotfix 10-2 v2 (Plan E): scanner /identify 호출 → top-1.cardId == expectedCardId AND score >= 0.75 검증.
-  // 실패 시 dialog 표시 + false return. 통과 시 true.
-  // - status 'no_card' / 'not_found' → 차단 (카드 미검출)
-  // - top-1 cardId mismatch → 차단 ("등록한 카드와 일치하지 않습니다")
-  // - score < 0.75 → 차단 (저신뢰 매칭)
+  // Hotfix 10-2 v2 (Plan E) + Hotfix 10-4: scanner /identify 호출 + 입력 정규화.
+  // Hotfix 10-4 핵심: takePicture 원본을 그대로 보내면 DINOv2 가 wrong cardId 매칭 → 사용자 같은 카드도
+  // "일치하지 않습니다" 차단됨. scanner_screen 의 stream 식별 패턴과 동일하게 맞춤:
+  //   bakeOrientation → frame ROI crop → resize cap 1280 → JPEG 85 → postBytes
+  // 정책 유지: top-1.cardId == expectedCardId AND score >= 0.75. threshold 낮추기 / top-5 통과 금지.
   Future<bool> _verifyCardIdentity(File frontFile, String expectedCardId) async {
     const double scoreThreshold = 0.75;
     try {
-      final res = await ApiClient.uploadFile(
-        ApiConstants.scannerIdentify,
-        frontFile.path,
-        field: 'image',
-      );
+      // 1. 이미지 decode + EXIF orientation 정규화
+      final originalBytes = await frontFile.readAsBytes();
+      final decoded = img.decodeImage(originalBytes);
+      Map<String, dynamic> res;
+      if (decoded == null) {
+        // decode 실패 fallback: 원본 그대로 (안전망)
+        res = await ApiClient.uploadFile(
+          ApiConstants.scannerIdentify,
+          frontFile.path,
+          field: 'image',
+        );
+      } else {
+        final oriented = img.bakeOrientation(decoded);
+
+        // 2. frame_rect (normalized 0~1) → pixel crop
+        final rect = _normalizedFrameRect();
+        final fx = rect['frame_x'] ?? 0.0;
+        final fy = rect['frame_y'] ?? 0.0;
+        final fw = rect['frame_w'] ?? 1.0;
+        final fh = rect['frame_h'] ?? 1.0;
+        final cx = (oriented.width * fx).round();
+        final cy = (oriented.height * fy).round();
+        final cw = (oriented.width * fw).round();
+        final ch = (oriented.height * fh).round();
+        final useCrop = cw > 100 && ch > 100
+            && cx >= 0 && cy >= 0
+            && cx + cw <= oriented.width
+            && cy + ch <= oriented.height;
+        final cropped = useCrop
+            ? img.copyCrop(oriented, x: cx, y: cy, width: cw, height: ch)
+            : oriented;
+
+        // 3. resize cap 1280 (scanner_screen 패턴)
+        final resized = cropped.width > 1280
+            ? img.copyResize(cropped, width: 1280)
+            : cropped;
+
+        // 4. JPEG re-encode
+        final jpegBytes = img.encodeJpg(resized, quality: 85);
+
+        if (kDebugMode) {
+          debugPrint('[VerifyCardIdentity] decoded=${decoded.width}x${decoded.height} '
+              'oriented=${oriented.width}x${oriented.height} '
+              'crop=$useCrop ${cw}x$ch resized=${resized.width}x${resized.height} '
+              'jpeg=${jpegBytes.length}b');
+        }
+
+        // 5. postBytes (scanner_screen 과 동일 endpoint 호출 방식)
+        res = await ApiClient.postBytes(
+          ApiConstants.scannerIdentify,
+          fieldName: 'image',
+          bytes: jpegBytes,
+          filename: 'verify.jpg',
+        );
+      }
+
       if (!mounted) return false;
       final data = (res['data'] is Map)
           ? Map<String, dynamic>.from(res['data'] as Map)
           : <String, dynamic>{};
       final status = data['status'] as String?;
+      if (kDebugMode) {
+        debugPrint('[VerifyCardIdentity] status=$status score=${data['score']} '
+            'topCardId=${(data['card'] is Map) ? (data['card'] as Map)['cardId'] : null} '
+            'expected=$expectedCardId candidates=${(data['candidates'] as List?)?.length}');
+      }
       if (status == 'no_card' || status == 'not_found' || data['card'] == null) {
         await _showVerifyFailDialog('카드를 인식하지 못했어요',
             '카드가 프레임 안에 선명하게 보이도록 다시 촬영해 주세요.');
