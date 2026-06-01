@@ -131,7 +131,7 @@ public class DexService {
               SELECT v.*,
                      ROW_NUMBER() OVER (
                        PARTITION BY product_id
-                       ORDER BY hero_price DESC NULLS LAST, rarity_priority ASC, collection_number ASC NULLS LAST, card_id ASC
+                       ORDER BY (CASE WHEN rarity_code = 'MUR' THEN 0 ELSE 1 END) ASC, hero_price DESC NULLS LAST, rarity_priority ASC, collection_number ASC NULLS LAST, card_id ASC
                      ) AS rn
               FROM visible v
             )

@@ -37,7 +37,6 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
   final _freeText = TextEditingController();
 
   bool _sending = false;
-  String? _nickname;
   String? _email;
 
   @override
@@ -52,11 +51,10 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
       final data = res['data'] as Map<String, dynamic>?;
       if (!mounted) return;
       setState(() {
-        _nickname = data?['nickname'] as String?;
         _email = data?['email'] as String?;
       });
     } catch (_) {
-      // silent — 메타 footer/회신 이메일에만 쓰임. 실패해도 폼은 정상 동작.
+      // silent — 회신 이메일에만 쓰임. 실패해도 폼은 정상 동작.
     }
   }
 
@@ -93,14 +91,10 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
       buf.writeln('추가 설명:');
       buf.writeln(_cardExtra.text.trim());
     } else {
-      buf.writeln(_freeText.text.trim());
+      buf.write(_freeText.text.trim());
     }
-    buf.writeln('');
-    buf.writeln('─────────');
-    buf.writeln('닉네임: ${_nickname ?? '(불러오기 실패)'}');
-    buf.writeln('작성 시각: ${DateTime.now().toIso8601String()}');
-    buf.writeln('앱 버전: PokeFolio 1.0 (베타)');
-    return buf.toString();
+    // 메타(닉네임/시각/버전) footer 제거 — admin 에 userId/작성일 컬럼 별도 존재, content 깔끔하게.
+    return buf.toString().trim();
   }
 
   String _buildTitle() {
