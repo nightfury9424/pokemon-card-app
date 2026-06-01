@@ -83,5 +83,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Apple export compliance: 앱이 non-exempt encryption 미사용 명시. -->
+	<!-- HTTPS / JWT / Google Sign-In / Keychain = OS 제공 표준 암호화만 사용 → exempt. -->
+	<!-- 새 버전 제출마다 App Store Connect 의 "암호화 사용 여부" 반복 질문 회피. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
