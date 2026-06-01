@@ -938,7 +938,10 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     final color = score >= 9.0 ? AppColors.green : score >= 7.0 ? AppColors.blue : AppColors.red;
     final detailText = detail as String? ?? '';
     final reasons = metric != null ? _filterReasonsByMetric(metric) : <DeductionReason>[];
-    final tappable = metric != null && reasons.isNotEmpty;
+    // hotfix 8: row tappable = metric 만 있으면 항상 (reasons empty 라도 sheet 진입).
+    // 코너/화이트닝 만점 (reasons 0건) 시 chevron X / tap X 됐던 bug fix.
+    final tappable = metric != null;
+    final hasReasons = reasons.isNotEmpty;
 
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -981,8 +984,12 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           const SizedBox(height: 4),
           Padding(
             padding: const EdgeInsets.only(left: 80),
-            child: Text('${reasons.length}건 감점 사유 보기',
-                style: const TextStyle(color: AppColors.blue, fontSize: 11, fontWeight: FontWeight.w600)),
+            // hotfix 8: confidence < 0.50 = 참고 후보 (penalty 0). "감점 사유" 표현 X.
+            // 진짜 감점 (penalty > 0) 개수와 참고 후보 개수 분리 또는 "후보 상세 보기" 통합 표현.
+            child: Text(
+              hasReasons ? '${reasons.length}건 후보 상세 보기' : '상세 보기',
+              style: const TextStyle(color: AppColors.blue, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ],
@@ -1062,7 +1069,10 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     final reasons = _filterReasonsByMetric(metric);
     final rawCount = _rawReasonCountForMetric(metric);
     final hiddenCount = rawCount - reasons.length;
-    final totalPenalty = reasons.fold<double>(0, (s, r) => s + r.penalty);
+    // hotfix 8 보정: 감점 후보 / 참고 후보 분리.
+    final scoredReasons = reasons.where((r) => r.penalty > 0).toList();
+    final referenceReasons = reasons.where((r) => r.penalty == 0).toList();
+    final totalPenalty = scoredReasons.fold<double>(0, (s, r) => s + r.penalty);
     final avgConfidence = reasons.isEmpty
         ? 0.0
         : reasons.fold<double>(0, (s, r) => s + r.confidence) / reasons.length;
@@ -1120,9 +1130,17 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                     border: Border.all(color: AppColors.divider),
                   ),
                   child: Row(children: [
-                    Expanded(child: _summaryItem('주요 후보', '${reasons.length}건')),
+                    // hotfix 8 보정: 감점 N건 / 참고 M건 분리. "주요 후보" 표현 X.
+                    Expanded(child: _summaryItem(
+                      '감지 후보',
+                      referenceReasons.isEmpty
+                          ? '${reasons.length}건'
+                          : '감점 ${scoredReasons.length}건 / 참고 ${referenceReasons.length}건')),
                     Container(width: 1, height: 24, color: AppColors.divider),
-                    Expanded(child: _summaryItem('총 감점', '${totalPenalty.toStringAsFixed(1)}점')),
+                    Expanded(child: _summaryItem('총 감점',
+                      totalPenalty > 0
+                          ? '${totalPenalty.toStringAsFixed(1)}점'
+                          : '없음')),
                     Container(width: 1, height: 24, color: AppColors.divider),
                     Expanded(child: _summaryItem('평균 신뢰도', '${(avgConfidence * 100).round()}%')),
                   ]),
@@ -1202,8 +1220,12 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                                             maxLines: 2, overflow: TextOverflow.ellipsis),
                                       ],
                                       const SizedBox(height: 2),
+                                      // hotfix 8: penalty 0 = 참고 후보 (점수 영향 X).
+                                      // "-0.0점" 모순 표시 금지.
                                       Text(
-                                        '-${r.penalty.toStringAsFixed(1)}점 · 신뢰도 ${(r.confidence * 100).round()}%',
+                                        r.penalty > 0
+                                            ? '-${r.penalty.toStringAsFixed(1)}점 · 신뢰도 ${(r.confidence * 100).round()}%'
+                                            : '참고 후보 · 점수 영향 없음 · 신뢰도 ${(r.confidence * 100).round()}%',
                                         style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                                       ),
                                     ],
@@ -1624,27 +1646,46 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           final loc = [_sideKo[first.side] ?? '', _positionKo[first.position] ?? '']
               .where((s) => s.isNotEmpty).join(' ');
           final type = _typeKo[first.type] ?? first.type;
-          final total = list.fold<double>(0, (s, r) => s + r.penalty);
+          // hotfix 8 보정: 감점 / 참고 분리. penalty 0 후보 = 점수 영향 X.
+          final scored = list.where((r) => r.penalty > 0).toList();
+          final reference = list.where((r) => r.penalty == 0).toList();
+          final scoredPenalty = scored.fold<double>(0, (s, r) => s + r.penalty);
+          // 카운트 표시: 감점 N건 (+ 참고 M건)
+          final countLabel = scored.isNotEmpty && reference.isNotEmpty
+              ? '감점 ${scored.length}건 · 참고 ${reference.length}건'
+              : scored.isNotEmpty
+                  ? '감점 ${scored.length}건'
+                  : '참고 ${reference.length}건';
+          // 점수 표시: 감점 있음 = "-X.X점", 없음 = "점수 영향 없음"
+          final rightLabel = scoredPenalty > 0
+              ? '-${scoredPenalty.toStringAsFixed(1)}점'
+              : '점수 영향 없음';
+          // severity 색: 실제 감점 후보 우선, 없으면 참고 후보 색 (옅음)
+          final severityForColor = scored.isNotEmpty ? scored.first.severity : first.severity;
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 3),
             child: Row(children: [
               Container(
                 width: 10, height: 10,
                 decoration: BoxDecoration(
-                  color: _severityColor(first.severity),
+                  color: scored.isNotEmpty
+                      ? _severityColor(severityForColor)
+                      : AppColors.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  loc.isNotEmpty ? '$loc $type · ${list.length}건' : '$type · ${list.length}건',
+                  loc.isNotEmpty ? '$loc $type · $countLabel' : '$type · $countLabel',
                   style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
                 ),
               ),
-              Text('-${total.abs().toStringAsFixed(1)}점',
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+              Text(rightLabel,
+                  style: TextStyle(
+                      color: scoredPenalty > 0 ? AppColors.textSecondary : AppColors.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
             ]),
           );
         }),

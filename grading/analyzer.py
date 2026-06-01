@@ -1540,8 +1540,15 @@ class GradingAnalyzer:
                 )
 
         # P0-C hotfix issue 1: 점수/감점 source of truth 통합.
-        # reasons emit 후 metric_score 에서 penalty 차감 → 화면에 표시되는 score 와
-        # reasons 가 일치 보장. (이전: surface 10.0 + 후보 5건 + 감점 2.5점 모순)
+        # hotfix 8 추가: confidence < 0.50 = 참고 후보 (penalty 0, 점수 영향 X).
+        # 0.50~0.75 = 약한 감점 (×0.5). >= 0.75 = 정상 감점.
+        # → 표면 33% 신뢰도 후보가 점수 박살 (4.8) 했던 문제 해결.
+        for r in deduction_reasons:
+            if r.confidence < 0.50:
+                r.penalty = 0.0
+            elif r.confidence < 0.75:
+                r.penalty = round(r.penalty * 0.5, 2)
+
         corner_penalty = sum(r.penalty for r in deduction_reasons if r.type == "corner")
         surface_penalty = sum(r.penalty for r in deduction_reasons if r.type in ("scratch", "dent"))
         whitening_penalty = sum(r.penalty for r in deduction_reasons if r.type == "whitening")

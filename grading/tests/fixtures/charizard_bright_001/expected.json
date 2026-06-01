@@ -5,9 +5,9 @@
     {
       "front": "1.jpg",
       "back": "2.jpg",
-      "expected_total": 7.2,
+      "expected_total": 8.2,
       "tolerance": 0.5,
-      "notes": "정상 촬영. P0-C hotfix issue 1 (점수/감점 통합) 후 baseline.",
+      "notes": "정상 촬영. hotfix 8 (confidence threshold) 후 baseline.",
       "frame_hint": [0.198, 0.149, 0.601, 0.638]
     },
     {
