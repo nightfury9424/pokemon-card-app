@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_error_toast.dart';
+import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/app_success_toast.dart';
 import 'inquiry_category.dart';
 
@@ -73,9 +74,7 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
-    );
+    AppInfoToast.show(context, msg);
   }
 
   /// 본문 자동 생성 — 카드 추가 요청이면 구조화, 아니면 공통 자유 텍스트.

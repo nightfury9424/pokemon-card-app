@@ -231,6 +231,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onTap: () => context.push('/support'),
                           ),
                           _MenuItem(
+                            icon: Icons.inbox_outlined,
+                            iconColor: AppColors.blueLight,
+                            label: '내 문의 내역',
+                            onTap: () => context.push('/profile/inquiries'),
+                          ),
+                          _MenuItem(
                             icon: Icons.description_outlined,
                             iconColor: AppColors.textSecondary,
                             label: '이용약관',
