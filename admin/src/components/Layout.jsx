@@ -2,13 +2,14 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import {
   LayoutDashboard, CreditCard, Users, ArrowLeftRight,
-  TrendingUp, ScanLine, LogOut, AlertTriangle, Flag
+  TrendingUp, ScanLine, LogOut, AlertTriangle, Flag, Mail
 } from 'lucide-react'
 import api from '../api'
 
 const nav = [
   { to: '/dashboard', icon: LayoutDashboard, label: '대시보드' },
   { to: '/reports',   icon: Flag,            label: '신고 처리', reportBadge: true },
+  { to: '/inquiries', icon: Mail,            label: '고객 문의' },
   { to: '/users',     icon: Users,           label: '유저 관리' },
   { to: '/trades',    icon: ArrowLeftRight,  label: '거래 관리' },
   { to: '/cards',     icon: CreditCard,      label: '카드 관리' },
