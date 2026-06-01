@@ -6,8 +6,6 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-// Hotfix 10-4: scanner identify 입력 정규화 (orientation/crop/resize/JPEG re-encode).
-import 'package:image/image.dart' as img;
 
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
@@ -49,6 +47,9 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
   Future<void>? _initFuture;
   int _step = 0;
   final List<File> _photos = [];
+  // Hotfix 10-5: card_verify 모드에서 앞면은 scanner_screen delegate 검증 결과(임시 JPEG)로
+  // 채워진다. front 확보 전에는 자체 (뒷면용) 카메라를 켜지 않는다.
+  bool _frontVerified = false;
   bool _isCapturing = false;
   String? _initError;
   _FrameState _frameState = _FrameState.basic;
@@ -76,7 +77,14 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     SystemChrome.setPreferredOrientations(const [
       DeviceOrientation.portraitUp,
     ]);
-    _initCamera();
+    // Hotfix 10-5: card_verify 는 앞면을 scanner_screen delegate 로 검증한다.
+    // 통과(top-1.cardId == cardId && score >= 0.75) 후에만 뒷면 카메라를 켠다.
+    // (앞면 takePicture 자체 crop identify 폐기 — wrong cardId 의 원인.)
+    if (widget.isCardVerifyMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startFrontVerify());
+    } else {
+      _initCamera();
+    }
   }
 
   @override
@@ -85,6 +93,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     _frameStateTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
+    _cleanupTempPhotos(); // 남은 임시 촬영/검증 JPEG 정리 (Codex P2).
     SystemChrome.setPreferredOrientations(const [
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
@@ -101,6 +110,8 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     if (state == AppLifecycleState.inactive) {
       c.dispose();
     } else if (state == AppLifecycleState.resumed) {
+      // card_verify 앞면 검증(scanner) 진행 중에는 뒷면 카메라를 켜지 않는다.
+      if (widget.isCardVerifyMode && !_frontVerified) return;
       _initCamera();
     }
   }
@@ -128,6 +139,43 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) setState(() => _initError = e.toString());
+    }
+  }
+
+  // Hotfix 10-5: 앞면 실카드 검증 = scanner_screen delegate.
+  // scanner_screen 의 검증된 stream frame(JPEG 임시파일 경로)을 받아 FRONT 사진으로 사용한다.
+  // 통과 정책은 scanner_screen 내부: top-1.cardId == cardId && score >= 0.75 (threshold/top-1 유지).
+  // 여기서는 직접 identify 하지 않는다 — 자체 crop 방식은 wrong cardId 원인이라 폐기.
+  Future<void> _startFrontVerify() async {
+    if (!mounted) return;
+    final cardId = widget.cardId;
+    if (cardId == null || cardId.isEmpty) {
+      AppErrorToast.show(context, '카드 정보를 확인할 수 없어요.');
+      context.pop();
+      return;
+    }
+    final frontPath = await context.push<String>(
+      '/scanner?expectedCardId=${Uri.encodeComponent(cardId)}&verify=true',
+    );
+    if (!mounted) return;
+    if (frontPath == null || frontPath.isEmpty) {
+      // 사용자가 앞면 검증을 취소(뒤로) — 판매 플로우 중단.
+      context.pop();
+      return;
+    }
+    _photos
+      ..clear()
+      ..add(File(frontPath));
+    setState(() {
+      _frontVerified = true;
+      _step = 1; // 앞면 검증 완료 → 뒷면 촬영 단계.
+    });
+    // scanner stream 카메라가 dispose 될 시간을 준 뒤 뒷면 카메라 init (iOS AVCaptureSession 충돌 방지).
+    await Future.delayed(const Duration(milliseconds: 350));
+    if (!mounted) return;
+    await _initCamera();
+    if (mounted) {
+      AppInfoToast.show(context, '앞면 검증 완료 · 이제 뒷면을 촬영해 주세요');
     }
   }
 
@@ -223,19 +271,8 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
         return;
       }
 
-      // Hotfix 10-2 v2 (Plan E): card_verify 모드 + 앞면(_step==0) 시 scanner identify 로 실카드 매칭 검증.
-      // 통과 조건: top-1.cardId == widget.cardId AND score >= 0.75.
-      // 불일치 또는 낮은 score → 차단 + 재촬영 안내. 사진 저장하지 않음.
-      if (widget.isCardVerifyMode && _step == 0 && widget.cardId != null) {
-        final verify = await _verifyCardIdentity(shotFile, widget.cardId!);
-        if (!mounted) return;
-        if (!verify) {
-          try { if (shotFile.existsSync()) shotFile.deleteSync(); } catch (_) {}
-          setState(() => _isCapturing = false);
-          return;
-        }
-      }
-
+      // Hotfix 10-5: card_verify 의 앞면 검증은 scanner_screen delegate(_startFrontVerify)에서
+      // 이미 끝났다. 이 화면의 takePicture 는 뒷면(_step==1)만 담당 — 여기서 identify 하지 않는다.
       _photos.add(shotFile);
 
       if (_step < 1) {
@@ -320,6 +357,8 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
       final data = (res['data'] is Map)
           ? Map<String, dynamic>.from(res['data'] as Map)
           : <String, dynamic>{};
+      // 업로드 성공 — 서버에 저장됐으니 로컬 임시파일 삭제 (leak 방지, Codex P2).
+      _cleanupTempPhotos();
       context.pop({
         'frontUrl': data['frontUrl'],
         'backUrl': data['backUrl'],
@@ -331,125 +370,13 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     }
   }
 
-  // Hotfix 10-2 v2 (Plan E) + Hotfix 10-4: scanner /identify 호출 + 입력 정규화.
-  // Hotfix 10-4 핵심: takePicture 원본을 그대로 보내면 DINOv2 가 wrong cardId 매칭 → 사용자 같은 카드도
-  // "일치하지 않습니다" 차단됨. scanner_screen 의 stream 식별 패턴과 동일하게 맞춤:
-  //   bakeOrientation → frame ROI crop → resize cap 1280 → JPEG 85 → postBytes
-  // 정책 유지: top-1.cardId == expectedCardId AND score >= 0.75. threshold 낮추기 / top-5 통과 금지.
-  Future<bool> _verifyCardIdentity(File frontFile, String expectedCardId) async {
-    const double scoreThreshold = 0.75;
-    try {
-      // 1. 이미지 decode + EXIF orientation 정규화
-      final originalBytes = await frontFile.readAsBytes();
-      final decoded = img.decodeImage(originalBytes);
-      Map<String, dynamic> res;
-      if (decoded == null) {
-        // decode 실패 fallback: 원본 그대로 (안전망)
-        res = await ApiClient.uploadFile(
-          ApiConstants.scannerIdentify,
-          frontFile.path,
-          field: 'image',
-        );
-      } else {
-        final oriented = img.bakeOrientation(decoded);
-
-        // 2. frame_rect (normalized 0~1) → pixel crop
-        final rect = _normalizedFrameRect();
-        final fx = rect['frame_x'] ?? 0.0;
-        final fy = rect['frame_y'] ?? 0.0;
-        final fw = rect['frame_w'] ?? 1.0;
-        final fh = rect['frame_h'] ?? 1.0;
-        final cx = (oriented.width * fx).round();
-        final cy = (oriented.height * fy).round();
-        final cw = (oriented.width * fw).round();
-        final ch = (oriented.height * fh).round();
-        final useCrop = cw > 100 && ch > 100
-            && cx >= 0 && cy >= 0
-            && cx + cw <= oriented.width
-            && cy + ch <= oriented.height;
-        final cropped = useCrop
-            ? img.copyCrop(oriented, x: cx, y: cy, width: cw, height: ch)
-            : oriented;
-
-        // 3. resize cap 1280 (scanner_screen 패턴)
-        final resized = cropped.width > 1280
-            ? img.copyResize(cropped, width: 1280)
-            : cropped;
-
-        // 4. JPEG re-encode
-        final jpegBytes = img.encodeJpg(resized, quality: 85);
-
-        if (kDebugMode) {
-          debugPrint('[VerifyCardIdentity] decoded=${decoded.width}x${decoded.height} '
-              'oriented=${oriented.width}x${oriented.height} '
-              'crop=$useCrop ${cw}x$ch resized=${resized.width}x${resized.height} '
-              'jpeg=${jpegBytes.length}b');
-        }
-
-        // 5. postBytes (scanner_screen 과 동일 endpoint 호출 방식)
-        res = await ApiClient.postBytes(
-          ApiConstants.scannerIdentify,
-          fieldName: 'image',
-          bytes: jpegBytes,
-          filename: 'verify.jpg',
-        );
-      }
-
-      if (!mounted) return false;
-      final data = (res['data'] is Map)
-          ? Map<String, dynamic>.from(res['data'] as Map)
-          : <String, dynamic>{};
-      final status = data['status'] as String?;
-      if (kDebugMode) {
-        debugPrint('[VerifyCardIdentity] status=$status score=${data['score']} '
-            'topCardId=${(data['card'] is Map) ? (data['card'] as Map)['cardId'] : null} '
-            'expected=$expectedCardId candidates=${(data['candidates'] as List?)?.length}');
-      }
-      if (status == 'no_card' || status == 'not_found' || data['card'] == null) {
-        await _showVerifyFailDialog('카드를 인식하지 못했어요',
-            '카드가 프레임 안에 선명하게 보이도록 다시 촬영해 주세요.');
-        return false;
-      }
-      final card = (data['card'] is Map)
-          ? Map<String, dynamic>.from(data['card'] as Map)
-          : <String, dynamic>{};
-      final identifiedCardId = card['cardId'] as String?;
-      final score = (data['score'] as num?)?.toDouble() ?? 0.0;
-
-      if (identifiedCardId != expectedCardId) {
-        await _showVerifyFailDialog('등록한 카드와 일치하지 않습니다',
-            '같은 카드의 앞면을 다시 촬영해 주세요.');
-        return false;
-      }
-      if (score < scoreThreshold) {
-        await _showVerifyFailDialog('카드 확인이 어려워요',
-            '조명이 균일한 곳에서 카드 전체가 잘 보이도록 다시 촬영해 주세요.');
-        return false;
-      }
-      return true;
-    } catch (e) {
-      if (!mounted) return false;
-      await _showVerifyFailDialog('확인 중 오류가 발생했어요',
-          '잠시 후 다시 시도해 주세요.\n($e)');
-      return false;
+  // Hotfix 10-5: scanner 검증 front JPEG + takePicture back 등 임시파일 정리.
+  void _cleanupTempPhotos() {
+    for (final f in _photos) {
+      try {
+        if (f.existsSync()) f.deleteSync();
+      } catch (_) {}
     }
-  }
-
-  Future<void> _showVerifyFailDialog(String title, String msg) async {
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(msg),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('다시 촬영'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<bool> _filesIdentical(File a, File b) async {

@@ -80,7 +80,13 @@ final appRouter = GoRouter(
       path: '/scanner',
       builder: (_, state) {
         final expected = state.uri.queryParameters['expectedCardId'];
-        return ScannerScreen(expectedCardId: expected);
+        // Hotfix 10-5: verify=true 면 실카드 검증 모드 — 일치 시 자산 등록 시트 대신
+        // 통과한 stream frame JPEG 임시파일 경로로 pop. 일반 등록 흐름 무영향.
+        // expectedCardId 가 없으면 verify 모드 비활성 (등록 흐름으로 오작동 방지, Codex P1).
+        final verify = expected != null &&
+            expected.isNotEmpty &&
+            state.uri.queryParameters['verify'] == 'true';
+        return ScannerScreen(expectedCardId: expected, verifyMode: verify);
       },
     ),
     // 2026-05-29 Phase B — 도감 시리즈 상세.

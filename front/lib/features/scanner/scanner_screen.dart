@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -15,13 +16,25 @@ import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/app_segmented_toggle.dart';
 import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/app_error_toast.dart';
 
 class ScannerScreen extends StatefulWidget {
   /// 카드 상세에서 진입 시 전달. 스캔 결과가 이 cardId와 다르면 등록 차단.
   final String? expectedCardId;
-  const ScannerScreen({super.key, this.expectedCardId});
+
+  /// Hotfix 10-5 실카드 검증 모드. true 면 expectedCardId 와 일치(top-1.cardId ==
+  /// expectedCardId && score >= 0.75) 시 자산 등록 시트를 띄우지 않고, 검증을 통과한
+  /// 바로 그 stream frame JPEG 를 임시파일로 저장해 그 경로(String)로 pop 한다.
+  /// 불일치 시 기존 mismatch 오버레이로 재스캔 유도. 일반 등록 흐름과 완전 분리.
+  final bool verifyMode;
+
+  const ScannerScreen({
+    super.key,
+    this.expectedCardId,
+    this.verifyMode = false,
+  });
 
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
@@ -228,6 +241,49 @@ class _ScannerScreenState extends State<ScannerScreen>
       // expectedCardId가 지정되어 있으면, matchedCardId가 null이거나 다를 때 모두 mismatch로 차단.
       // 비정상 응답으로 null이 와도 등록 UI가 열리지 않도록 가드.
       final mismatched = expected != null && matchedCardId != expected;
+      final scoreVal = (score as num?)?.toDouble() ?? 0.0;
+
+      // Hotfix 10-5: 실카드 검증 모드 — 정책 top-1.cardId == expectedCardId && score >= 0.75.
+      // threshold 낮추기 / top-5 통과 금지. 통과한 바로 그 stream frame 을 FRONT 사진으로 저장 후
+      // 그 경로(String)로 pop. 일반 등록 시트(_addToAsset)는 띄우지 않음.
+      if (widget.verifyMode && expected != null) {
+        if (!mounted) return; // postBytes await 사이 dispose 가드 (Codex P0).
+        if (matchedCardId == expected && scoreVal >= 0.75) {
+          await _camera?.stopImageStream();
+          final path = await _saveVerifiedFrame(jpegBytes);
+          if (!mounted) return;
+          if (path == null) {
+            // 저장 실패 — 스캔 재개 (검증 통과 처리하지 않음).
+            if (_camera != null &&
+                _camera!.value.isInitialized &&
+                !_camera!.value.isStreamingImages) {
+              await _camera!.startImageStream(_onFrame);
+            }
+            return;
+          }
+          // 뒷면 카메라(grading_capture)와 AVCaptureSession 충돌을 막기 위해
+          // pop 전에 scanner 카메라를 확실히 dispose (Codex P1 — 350ms 타이밍 의존 제거).
+          await _camera?.dispose();
+          _camera = null;
+          if (!mounted) return;
+          context.pop(path);
+          return;
+        }
+        if (matchedCardId != null && mismatched) {
+          setState(() {
+            _foundCard = card;
+            _candidates = const [];
+            _resultShowing = true;
+            _mismatch = true;
+            _resultStatus = status;
+            _debugText = '';
+          });
+          await _camera?.stopImageStream();
+          return;
+        }
+        // 같은 카드지만 score < 0.75 (low_confidence) 또는 모호 — 계속 스캔(정렬 유도).
+        return;
+      }
 
       if (mounted) {
         setState(() {
@@ -246,6 +302,21 @@ class _ScannerScreenState extends State<ScannerScreen>
       if (mounted) setState(() => _debugText = 'error: $e');
     } finally {
       _isProcessing = false;
+    }
+  }
+
+  // Hotfix 10-5: 실카드 검증 통과 frame 을 임시파일로 저장 → FRONT 사진 경로 반환.
+  // takePicture 고해상 대신 검증을 통과한 "바로 그 프레임"을 그대로 사용 (mismatch 재유입 방지).
+  Future<String?> _saveVerifiedFrame(List<int> bytes) async {
+    try {
+      final f = File(
+        '${Directory.systemTemp.path}/verify_front_'
+        '${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+      await f.writeAsBytes(bytes, flush: true);
+      return f.path;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -474,65 +545,31 @@ class _ScannerScreenState extends State<ScannerScreen>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: ['KO', 'JP', 'EN'].map((lang) {
-                      final sel = selectedLanguage == lang;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: GestureDetector(
-                          onTap: () => setModal(() => selectedLanguage = lang),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: sel
-                                  ? const Color(0xFF2563EB)
-                                  : Colors.white10,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: sel
-                                    ? const Color(0xFF2563EB)
-                                    : Colors.white24,
-                              ),
-                            ),
-                            child: Text(
-                              lang,
-                              style: TextStyle(
-                                color: sel ? Colors.white : Colors.white70,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                  // 토글 통일 (Hotfix 10-5): 공통 AppSegmentedToggle 로 일관.
+                  AppSegmentedToggle(
+                    labels: const ['KO', 'JP', 'EN'],
+                    selectedIndex:
+                        const ['KO', 'JP', 'EN'].indexOf(selectedLanguage),
+                    onChanged: (i) => setModal(
+                      () => selectedLanguage = const ['KO', 'JP', 'EN'][i],
+                    ),
                   ),
                   const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _RegistrationTypeButton(
-                          label: 'RAW 카드',
-                          selected: selectedType == 'RAW',
-                          onTap: () => setModal(() {
-                            selectedType = 'RAW';
-                            gradingCompany = null;
-                            gradeValue = null;
-                          }),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _RegistrationTypeButton(
-                          label: '등급 카드',
-                          selected: selectedType == 'GRADED',
-                          onTap: () => setModal(() => selectedType = 'GRADED'),
-                        ),
-                      ),
-                    ],
+                  AppSegmentedToggle(
+                    labels: const ['RAW 카드', '등급 카드'],
+                    selectedIndex: selectedType == null
+                        ? -1
+                        : (selectedType == 'RAW' ? 0 : 1),
+                    height: 42,
+                    onChanged: (i) => setModal(() {
+                      if (i == 0) {
+                        selectedType = 'RAW';
+                        gradingCompany = null;
+                        gradeValue = null;
+                      } else {
+                        selectedType = 'GRADED';
+                      }
+                    }),
                   ),
                   // GRADED 선택 시 회사·등급 토큰 노출
                   if (selectedType == 'GRADED') ...[
@@ -546,41 +583,14 @@ class _ScannerScreenState extends State<ScannerScreen>
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      children: ['PSA', 'BRG'].map((c) {
-                        final sel = gradingCompany == c;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: GestureDetector(
-                            onTap: () => setModal(() => gradingCompany = c),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: sel
-                                    ? const Color(0xFFFFB300)
-                                    : Colors.white10,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: sel
-                                      ? const Color(0xFFFFB300)
-                                      : Colors.white24,
-                                ),
-                              ),
-                              child: Text(
-                                c,
-                                style: TextStyle(
-                                  color: sel ? Colors.black87 : Colors.white70,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                    AppSegmentedToggle(
+                      labels: const ['PSA', 'BRG'],
+                      selectedIndex: gradingCompany == null
+                          ? -1
+                          : (gradingCompany == 'PSA' ? 0 : 1),
+                      onChanged: (i) => setModal(
+                        () => gradingCompany = i == 0 ? 'PSA' : 'BRG',
+                      ),
                     ),
                     // PSA10 + EN/JP는 실제 시세 데이터 있을 확률 ↑ → 안내 숨김.
                     // 나머지 조합(BRG, KO+PSA, PSA 9 이하 등)은 RAW 폴백 가능성 안내.
@@ -633,44 +643,12 @@ class _ScannerScreenState extends State<ScannerScreen>
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: grades.map((g) {
-                        final sel = gradeValue == g;
-                        return GestureDetector(
-                          onTap: () => setModal(() => gradeValue = g),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: sel
-                                  ? const Color(
-                                      0xFFFFB300,
-                                    ).withValues(alpha: 0.2)
-                                  : Colors.white10,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: sel
-                                    ? const Color(0xFFFFB300)
-                                    : Colors.white24,
-                              ),
-                            ),
-                            child: Text(
-                              g,
-                              style: TextStyle(
-                                color: sel
-                                    ? const Color(0xFFFFB300)
-                                    : Colors.white70,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                    AppSegmentedToggle(
+                      labels: grades,
+                      selectedIndex:
+                          gradeValue == null ? -1 : grades.indexOf(gradeValue!),
+                      onChanged: (i) =>
+                          setModal(() => gradeValue = grades[i]),
                     ),
                   ],
                   const SizedBox(height: 20),
@@ -937,10 +915,12 @@ class _ScannerScreenState extends State<ScannerScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                '카드 상세에서 진입한 카드와 일치하지 않아\n등록할 수 없습니다.',
+              Text(
+                widget.verifyMode
+                    ? '검증하려는 카드와 일치하지 않습니다.\n같은 카드의 앞면을 다시 촬영해 주세요.'
+                    : '카드 상세에서 진입한 카드와 일치하지 않아\n등록할 수 없습니다.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white60, fontSize: 13),
+                style: const TextStyle(color: Colors.white60, fontSize: 13),
               ),
               const SizedBox(height: 24),
               Container(
@@ -1647,43 +1627,6 @@ class _CardFramePainter extends CustomPainter {
 }
 
 // ─── 버튼 ────────────────────────────────────────────────────────────────────
-
-class _RegistrationTypeButton extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _RegistrationTypeButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: selected
-            ? const Color(0xFF2563EB).withValues(alpha: 0.22)
-            : Colors.white10,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: selected ? const Color(0xFF2563EB) : Colors.white12,
-        ),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: TextStyle(
-          color: selected ? Colors.white : Colors.white60,
-          fontSize: 14,
-          fontWeight: selected ? FontWeight.bold : FontWeight.w600,
-        ),
-      ),
-    ),
-  );
-}
 
 class _ActionBtn extends StatelessWidget {
   final String label;
