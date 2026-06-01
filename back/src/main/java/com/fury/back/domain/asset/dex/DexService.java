@@ -111,7 +111,11 @@ public class DexService {
               SELECT c.product_id, c.card_id, c.name, c.rarity_code, c.collection_number,
                      c.en_scrydex_ref, c.jp_scrydex_ref, c.created_at,
                      """ + RARITY_PRIORITY_SQL + """
-                     AS rarity_priority
+                     AS rarity_priority,
+                     -- hero tie-break: 동일 레어 중 KO 예상가 최고 카드를 대표(chase)로.
+                     (SELECT ps.price FROM price_snapshots ps
+                       WHERE ps.card_id = c.card_id AND ps.source = 'KO_ESTIMATED'
+                       ORDER BY ps.traded_at DESC LIMIT 1) AS hero_price
               FROM cards c
               WHERE c.is_visible = TRUE AND c.language = 'KO'
             ),
@@ -127,7 +131,7 @@ public class DexService {
               SELECT v.*,
                      ROW_NUMBER() OVER (
                        PARTITION BY product_id
-                       ORDER BY rarity_priority ASC, collection_number ASC NULLS LAST, card_id ASC
+                       ORDER BY rarity_priority ASC, hero_price DESC NULLS LAST, collection_number ASC NULLS LAST, card_id ASC
                      ) AS rn
               FROM visible v
             )
