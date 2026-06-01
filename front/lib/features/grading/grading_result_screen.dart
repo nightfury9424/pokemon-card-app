@@ -1081,6 +1081,10 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           maxChildSize: 0.95,
           expand: false,
           builder: (_, scrollCtrl) {
+            // P0-C hotfix issue 2: StatefulBuilder — outer setState 가 sheet rebuild 시키지 못하던
+            // bug fix. innerSetState 호출 시 sheet 안의 widget tree 만 rebuild.
+            return StatefulBuilder(
+              builder: (sheetContext, sheetSetState) {
             return Column(children: [
               Container(
                 margin: const EdgeInsets.only(top: 10),
@@ -1135,7 +1139,9 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                 ),
               const SizedBox(height: 12),
               Expanded(
-                child: reasons.isEmpty
+                // P0-C hotfix issue 3: corner 만점 case 도 ListView 분기 진입.
+                // (이전: reasons empty 면 "감지된 감점 사유 없어요" 만 표시 → _buildCornerEvidence X)
+                child: (reasons.isEmpty && metric != 'corner' && metric != 'centering')
                     ? const Center(
                         child: Text('감지된 감점 사유가 없어요',
                             style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
@@ -1144,7 +1150,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                         controller: scrollCtrl,
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                         children: [
-                          _buildMetricImageSection(metric, reasons),
+                          _buildMetricImageSection(metric, reasons, sheetSetState),
                           const SizedBox(height: 16),
                           _buildGroupSummary(reasons),
                           const SizedBox(height: 8),
@@ -1211,6 +1217,8 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                       ),
               ),
             ]);
+              },  // StatefulBuilder builder 닫기
+            );
           },
         );
       },
@@ -1227,7 +1235,9 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     ]);
   }
 
-  Widget _buildMetricImageSection(String metric, List<DeductionReason> reasons) {
+  // P0-C hotfix issue 2: sheetSetState 받음 — 토글 onChanged 가 sheet 내부 rebuild.
+  Widget _buildMetricImageSection(String metric, List<DeductionReason> reasons,
+      [StateSetter? sheetSetState]) {
     if (metric == 'centering') return _buildCenteringVisual();
     if (metric == 'corner') return _buildCornerEvidence(reasons);
     final frontReasons = reasons.where((r) => r.side == 'front').toList();
@@ -1241,7 +1251,11 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
         AppSegmentedToggle(
           labels: const ['원본 보기', '후보 강조 보기', '후보 위치 표시'],
           selectedIndex: viewIdx,
-          onChanged: (i) => setState(() => _evidenceViewIndex[metric] = i),
+          // P0-C hotfix issue 2: outer setState + sheetSetState 둘 다 → sheet rebuild
+          onChanged: (i) {
+            setState(() => _evidenceViewIndex[metric] = i);
+            if (sheetSetState != null) sheetSetState(() {});
+          },
         ),
         const SizedBox(height: 10),
       ],

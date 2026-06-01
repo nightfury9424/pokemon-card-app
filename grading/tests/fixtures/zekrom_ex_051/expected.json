@@ -5,17 +5,17 @@
     {
       "front": "1.jpg",
       "back": "2.jpg",
-      "expected_total": 9.0,
+      "expected_total": 7.8,
       "tolerance": 0.5,
-      "notes": "정상 촬영 앞/뒤 (HSV orange subtraction bbox)",
+      "notes": "정상 촬영. P0-C hotfix issue 1 (점수/감점 source 통합) 후 baseline.",
       "frame_hint": [0.208, 0.175, 0.593, 0.616]
     },
     {
       "front": "5.jpg",
       "back": "6.jpg",
-      "expected_total": 9.0,
+      "expected_total": 7.7,
       "tolerance": 0.5,
-      "notes": "약간 회전 + 그림자 앞/뒤",
+      "notes": "약간 회전 + 그림자. P0-C hotfix 후 baseline.",
       "frame_hint": [0.217, 0.194, 0.636, 0.633]
     }
   ]

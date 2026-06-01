@@ -83,17 +83,49 @@ class GradingAnalyzer:
 
     @staticmethod
     def _build_whitening_mask_visual(card_roi):
-        """detect_whitening_regions 의 HSV S 부스트 mask 시각용."""
+        """detect_whitening_regions 의 mask 시각용.
+        P0-C hotfix issue 4: 카드 전체 빨강 마스크 X → 테두리 band 10% 만.
+        + min/max area filter (작은 후보만, 큰 반사광 제외)."""
         if card_roi is None or card_roi.size == 0:
             return None
+        h, w = card_roi.shape[:2]
+        if h < 20 or w < 20:
+            return card_roi.copy()
         hsv = cv2.cvtColor(card_roi, cv2.COLOR_BGR2HSV).astype(np.float32)
         hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 2.0, 0, 255)
         boosted = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
         diff = cv2.absdiff(boosted, card_roi)
-        mask = (diff.sum(axis=2) > 60).astype(np.uint8) * 255
+        mask = (diff.sum(axis=2) > 75).astype(np.uint8) * 255
+
+        # P0-C hotfix: band mask only (외쪽 10%)
+        band = max(8, int(min(h, w) * 0.10))
+        band_mask = np.zeros((h, w), dtype=np.uint8)
+        band_mask[:band, :] = 255
+        band_mask[-band:, :] = 255
+        band_mask[:, :band] = 255
+        band_mask[:, -band:] = 255
+        mask = cv2.bitwise_and(mask, band_mask)
+
+        # min/max area filter
+        total = h * w
+        min_area = max(15, int(total * 0.00005))
+        max_area = int(total * 0.003)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        filtered_mask = np.zeros_like(mask)
+        for c in contours:
+            area = cv2.contourArea(c)
+            if min_area <= area <= max_area:
+                cv2.drawContours(filtered_mask, [c], -1, 255, -1)
+
+        # 후보 영역만 작은 outline + 노란 박스 (큰 빨강 마스크 X)
         overlay = card_roi.copy()
-        overlay[mask > 0] = [0, 0, 255]
-        return cv2.addWeighted(card_roi, 0.6, overlay, 0.4, 0)
+        contours2, _ = cv2.findContours(filtered_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for c in contours2:
+            x, y, cw, ch = cv2.boundingRect(c)
+            # 작은 박스 outline (노란색 = 시각 강조, 카드 그림 위에 살짝)
+            cv2.rectangle(overlay, (x - 2, y - 2), (x + cw + 2, y + ch + 2),
+                          (0, 255, 255), 2)  # BGR 노란색
+        return overlay
 
     def _write_debug_json(self, session_id: str, payload: dict) -> Optional[str]:
         path = os.path.join(self._debug_dir(session_id), "analysis_debug.json")
@@ -673,6 +705,17 @@ class GradingAnalyzer:
         "edge": "엣지",
     }
 
+    _CORNER_POSITION_KO = {
+        "top_left": "좌상단",
+        "top_right": "우상단",
+        "bottom_left": "좌하단",
+        "bottom_right": "우하단",
+    }
+
+    @classmethod
+    def _positionKo(cls, pos: str) -> str:
+        return cls._CORNER_POSITION_KO.get(pos, pos)
+
     @classmethod
     def calculate_grade(cls, weighted_raw: float, metrics: dict, has_major: bool):
         """spec § 3 — 9단계 cap (weakest link rule). 역호환 wrapper."""
@@ -808,46 +851,76 @@ class GradingAnalyzer:
                 kept.append(r)
         return kept
 
+    # P0-C hotfix issue 4: 화이트닝 ROI = 카드 외곽 10% band 만.
+    # 사용자 명시: 테두리의 작은 흰 점/색 빠짐 검출. 전체 카드 큰 마스크 X.
+    _WHITENING_BAND_RATIO = 0.10  # 외곽 10%
+
     def detect_whitening_regions(self, card_roi) -> list:
         """spec § 2 — HSV S 부스트 → 흰 영역 highlight → bbox list.
-        Phase 2-B Step 2: threshold ↑ + confidence floor + NMS + cap 10."""
+        P0-C hotfix: 테두리 band 만 분석 + 작은 connected component + 위치 label.
+        사용자 명시 영상 = 오른쪽 테두리의 작은 흰 점/색 빠짐 검출 목표."""
         if card_roi is None or card_roi.size == 0:
             return []
         hsv = cv2.cvtColor(card_roi, cv2.COLOR_BGR2HSV).astype(np.float32)
         hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 2.0, 0, 255)
         boosted = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
         diff = cv2.absdiff(boosted, card_roi)
-        # Codex 사전: 60→75 (FN 위험 흡수, scratch 와 동시 상향 X)
         mask = (diff.sum(axis=2) > 75).astype(np.uint8) * 255
         h, w = mask.shape
         total_pixels = float(h * w)
-        # Codex 사전: min_area max(20, 0.0005) → max(50, 0.0010)
-        min_area = max(50, int(total_pixels * 0.0010))
+
+        # P0-C hotfix: outer band mask. 안쪽 영역 (로고/포켓볼/illustration) 제외.
+        band = max(8, int(min(h, w) * self._WHITENING_BAND_RATIO))
+        band_mask = np.zeros((h, w), dtype=np.uint8)
+        band_mask[:band, :] = 255
+        band_mask[-band:, :] = 255
+        band_mask[:, :band] = 255
+        band_mask[:, -band:] = 255
+        mask = cv2.bitwise_and(mask, band_mask)
+
+        # P0-C hotfix: 작은 connected component (점/얇은 영역) 만.
+        # 큰 영역 (반사광 / 큰 색 변화) 제외.
+        min_area = max(15, int(total_pixels * 0.00005))   # 매우 작은 점도 검출
+        max_area = int(total_pixels * 0.003)              # 큰 반사광 제외
+
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
                                        cv2.CHAIN_APPROX_SIMPLE)
         regions = []
         for c in contours:
             area = float(cv2.contourArea(c))
-            if area < min_area:
+            if area < min_area or area > max_area:
                 continue
             x, y, cw, ch = cv2.boundingRect(c)
             area_ratio = area / total_pixels
-            confidence = min(0.85, area_ratio * 100.0)
-            # Codex 사전: confidence floor 0.15
-            if confidence < 0.15:
+            confidence = min(0.85, area_ratio * 200.0)  # 작은 점이라 boost
+            if confidence < 0.10:
                 continue
+
+            # 위치 label (상/하/좌/우 테두리)
+            cx_n = (x + cw / 2) / w
+            cy_n = (y + ch / 2) / h
+            band_n = self._WHITENING_BAND_RATIO
+            if cy_n < band_n:
+                position = "상단 테두리"
+            elif cy_n > 1 - band_n:
+                position = "하단 테두리"
+            elif cx_n < band_n:
+                position = "좌측 테두리"
+            else:
+                position = "우측 테두리"
+
             regions.append({
                 "bbox": (x / w, y / h, cw / w, ch / h),
                 "type": "whitening",
+                "position_label": position,
                 "confidence": float(round(confidence, 2)),
                 "area_ratio": float(round(area_ratio, 4)),
             })
-        # NMS merge + cap 10 (severity 추정 후 sort)
+        # NMS merge + cap 10
         merged = self._merge_regions(regions)
         for r in merged:
             ar = r.get("area_ratio", 0.0)
-            r["_sev_rank"] = 2 if ar > 0.02 else (1 if ar > 0.005 else 0)
-        # Codex 사후: bbox tuple tie-breaker 로 deterministic 순서 보장.
+            r["_sev_rank"] = 2 if ar > 0.01 else (1 if ar > 0.003 else 0)
         merged.sort(key=lambda r: (
             -r.get("_sev_rank", 0),
             -r.get("confidence", 0.0),
@@ -926,15 +999,45 @@ class GradingAnalyzer:
         return merged[:20]
 
     @staticmethod
-    def _is_card_back(warped_card) -> tuple[bool, float]:
-        """P0-A: warped 카드 전체의 HSV 색 분포로 Pokemon 뒷면 판정.
-        Pokemon back = 파란색 wave 배경 (~0.25~) + 노란색 Pokemon 로고 (~0.07~).
-        ML X — OpenCV color-based 만 사용.
-        Returns (is_back, confidence 0~1).
-        실측 (fixture 3종 평균):
-          front: blue=0.046, yellow=0.142 → not back
-          back:  blue=0.285, yellow=0.097 → back
+    def _detect_card_side(warped_card):
+        """P0-A hotfix: 사용자 명시 정책 — confidence 낮음 ≠ front 확신.
+        front detector 단순 alg (hue std) = fixture 검증 실패 (back 사진도 hue 다양).
+        → back detector 만 단방향. 애매하면 None (low_detection).
+
+        Returns (side, signals) where side ∈ {"back", None}.
+        side="back" → back 확신 high. None → 애매 (front 가능성 단정 X).
         """
+        if warped_card is None or warped_card.size == 0:
+            return None, {"back": 0.0, "blue_ratio": 0.0, "yellow_ratio": 0.0}
+        h, w = warped_card.shape[:2]
+        if h < 20 or w < 20:
+            return None, {"back": 0.0, "blue_ratio": 0.0, "yellow_ratio": 0.0}
+        hsv = cv2.cvtColor(warped_card, cv2.COLOR_BGR2HSV)
+        total = float(h * w)
+
+        # back signal — 파란 wave + 노란 로고 dominance
+        blue_mask = cv2.inRange(hsv, np.array([100, 80, 80]), np.array([135, 255, 255]))
+        blue_ratio = float(np.count_nonzero(blue_mask)) / total
+        yellow_mask = cv2.inRange(hsv, np.array([20, 120, 120]), np.array([35, 255, 255]))
+        yellow_ratio = float(np.count_nonzero(yellow_mask)) / total
+        back_signal = min(1.0, blue_ratio * 1.5 + yellow_ratio * 2.0)
+
+        # back 확신 = signal >= 0.50 AND raw threshold 둘 다 통과 (보수적)
+        if back_signal >= 0.50 and blue_ratio > 0.20 and yellow_ratio > 0.05:
+            side = "back"
+        else:
+            side = None  # 애매 — front 단정 X
+
+        signals = {
+            "back": round(back_signal, 2),
+            "blue_ratio": round(blue_ratio, 3),
+            "yellow_ratio": round(yellow_ratio, 3),
+        }
+        return side, signals
+
+    @staticmethod
+    def _is_card_back(warped_card) -> tuple[bool, float]:
+        """역호환 wrapper — _detect_card_side 사용 권장."""
         if warped_card is None or warped_card.size == 0:
             return False, 0.0
         h, w = warped_card.shape[:2]
@@ -942,10 +1045,8 @@ class GradingAnalyzer:
             return False, 0.0
         hsv = cv2.cvtColor(warped_card, cv2.COLOR_BGR2HSV)
         total = float(h * w)
-        # 파란색 hue 100~135 (wave 배경)
         blue_mask = cv2.inRange(hsv, np.array([100, 80, 80]), np.array([135, 255, 255]))
         blue_ratio = float(np.count_nonzero(blue_mask)) / total
-        # 노란색 hue 20~35 (Pokemon 로고)
         yellow_mask = cv2.inRange(hsv, np.array([20, 120, 120]), np.array([35, 255, 255]))
         yellow_ratio = float(np.count_nonzero(yellow_mask)) / total
         # back 패턴: 파란색 dominance + 노란 로고 일부
@@ -1014,20 +1115,26 @@ class GradingAnalyzer:
                 "카드가 프레임 안에 잘 들어오도록 다시 촬영해 주세요",
                 blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
 
-        # P0-A: front/back identity check (촬영 단계에서 바로 잡음).
-        # Pokemon back = HSV 파란색 dominance + 노란 로고. ML X — OpenCV color only.
-        is_back, _back_conf = self._is_card_back(warped)
-        expected_back = (side == "back")
-        if is_back != expected_back:
-            if side == "front" and is_back:
-                title = "촬영한 면이 달라요"
-                message = "뒷면이 보여요. 카드 앞면을 촬영해 주세요"
-            else:  # side == "back" and not is_back
-                title = "촬영한 면이 달라요"
-                message = "앞면이 보여요. 카드 뒷면을 촬영해 주세요"
-            return self._precheck_result(side, False, "bad", "wrong_side",
-                title, message,
-                blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
+        # P0-A hotfix: ternary 분기 (사용자 정책 — 애매 → low_detection, wrong_side X).
+        # back 확신 + side=front → wrong_side
+        # back 단계 + back 확신 X → low_detection (애매)
+        # front 단계 + 애매 → 통과 (front 단정 X)
+        side_detected, _side_signals = self._detect_card_side(warped)
+        if side == "back":
+            if side_detected != "back":
+                # back 단계인데 back 확신 X → 면 식별 어려움
+                return self._precheck_result(side, False, "bad", "low_detection",
+                    "카드 면 식별이 어려워요",
+                    "더 밝은 곳에서 카드 뒷면을 정확히 촬영해 주세요",
+                    blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
+        else:  # side == "front"
+            if side_detected == "back":
+                # front 단계인데 back 확신 → 잘못된 면
+                return self._precheck_result(side, False, "bad", "wrong_side",
+                    "촬영한 면이 달라요",
+                    "뒷면이 보여요. 카드 앞면을 촬영해 주세요",
+                    blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
+            # side_detected = None → 통과 (front 가능성, 단정 X)
 
         is_warning = (
             lap_var < 50 or v_mean < 80 or overexp_ratio > 0.15 or glare_area_ratio > 0.05
@@ -1383,13 +1490,15 @@ class GradingAnalyzer:
 
         for side_name, side_warped in (("front", warped_front), ("back", warped_back)):
             for c in self.detect_corner_damage(side_warped):
-                # Codex 진단: 단일 corner penalty cap 2.0 (false positive 방지)
                 penalty = round(min(2.0, max(0.0, 10.0 - c["score"])), 1)
+                side_ko = "앞면" if side_name == "front" else "뒷면"
+                pos_ko = self._positionKo(c["position"])
                 add_reason(
                     "corner", side_name, c["position"], c["severity"],
                     conf_for_side(side_name, c["confidence"]), penalty, c["bbox"],
-                    f"{side_name} {c['position']} 코너 마모 후보",
-                    f"코너 영역 분석 점수 {c['score']:.1f}/10",
+                    f"{side_ko} {pos_ko} 코너 마모 후보",
+                    # P0-C hotfix issue 5: 사용자 친화 문구 (기술명 X)
+                    f"{side_ko} {pos_ko} 코너의 마모/눌림 후보입니다",
                     "#E67E22",
                     region_type="corner_damage",
                 )
@@ -1397,12 +1506,15 @@ class GradingAnalyzer:
         for w_region in self.detect_whitening_regions(warped_back):
             ar = w_region["area_ratio"]
             sev = "major" if ar > 0.02 else ("moderate" if ar > 0.005 else "minor")
+            # P0-C hotfix issue 4 + 5: 위치 label + 사용자 친화 문구
+            position_label = w_region.get("position_label", "테두리")
             add_reason(
                 "whitening", "back", "", sev,
                 conf_for_side("back", w_region["confidence"]),
                 round(min(2.0, ar * 100.0), 1),
-                w_region["bbox"], "백화 후보 영역",
-                f"채도 부스트 분석 검출 — 영역 비율 {ar * 100:.2f}%",
+                w_region["bbox"],
+                f"뒷면 {position_label} 백화 후보",
+                f"뒷면 {position_label} 주변의 밝은 점/색 빠짐 후보입니다",
                 "#3498DB",
             )
 
@@ -1411,14 +1523,49 @@ class GradingAnalyzer:
                 conf = conf_for_side(side_name, s_region["confidence"])
                 sev = "moderate" if conf > 0.6 else "minor"
                 is_scratch = s_region["type"] == "scratch"
-                label = "스크래치 후보" if is_scratch else "찍힘 후보"
+                side_ko = "앞면" if side_name == "front" else "뒷면"
+                label = f"{side_ko} 표면 {'스크래치' if is_scratch else '찍힘'} 후보"
+                # P0-C hotfix issue 5: 사용자 친화 문구
+                explanation = (
+                    f"{side_ko} 표면의 얇은 선형 패턴 후보입니다"
+                    if is_scratch
+                    else f"{side_ko} 표면의 점형 찍힘 후보입니다"
+                )
                 add_reason(
                     s_region["type"], side_name, "", sev,
                     conf, 0.5 if is_scratch else 0.3,
                     s_region["bbox"], label,
-                    f"CLAHE local contrast 분석 — {label}",
+                    explanation,
                     "#9B59B6",
                 )
+
+        # P0-C hotfix issue 1: 점수/감점 source of truth 통합.
+        # reasons emit 후 metric_score 에서 penalty 차감 → 화면에 표시되는 score 와
+        # reasons 가 일치 보장. (이전: surface 10.0 + 후보 5건 + 감점 2.5점 모순)
+        corner_penalty = sum(r.penalty for r in deduction_reasons if r.type == "corner")
+        surface_penalty = sum(r.penalty for r in deduction_reasons if r.type in ("scratch", "dent"))
+        whitening_penalty = sum(r.penalty for r in deduction_reasons if r.type == "whitening")
+
+        corner_avg = round(max(0.0, corner_avg - corner_penalty), 1)
+        surface_avg = round(max(0.0, surface_avg - surface_penalty), 1)
+        whitening_combined = round(max(0.0, whitening_combined - whitening_penalty), 1)
+
+        # weighted_raw 재계산 (penalty 차감 후 metric)
+        edge_score = round((corner_avg + surface_avg) / 2, 1)
+        metrics_dict["corner"] = corner_avg
+        metrics_dict["surface"] = surface_avg
+        metrics_dict["whitening"] = whitening_combined
+        metrics_dict["edge"] = edge_score
+        weighted_raw = (
+            centering * w["centering"]
+            + corner_avg * w["corner"]
+            + surface_avg * w["surface"]
+            + whitening_combined * w["whitening"]
+            + edge_score * w["edge"]
+        )
+        if heavy:
+            weighted_raw *= 0.85
+        weighted_raw = round(min(10.0, max(0.0, weighted_raw)), 2)
 
         has_major = self.has_major_defect(metrics_dict, deduction_reasons)
         grade, grade_color, grade_trace = self.calculate_grade_with_trace(
