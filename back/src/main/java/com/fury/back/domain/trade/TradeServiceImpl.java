@@ -172,26 +172,33 @@ public class TradeServiceImpl implements TradeService {
     /**
      * 매물 가격 sanity 검증 — 시장 교란 방지. 범위 밖이면 에러 메시지 반환(null=정상).
      *  - GRADED: KO 예상가가 RAW 기준이라 부정확 → skip.
-     *  - 예상가(KO_ESTIMATED) >= 1000원: ±50% 범위 밖 차단(양방향).
-     *  - 예상가 없음/저가: 절대 상한(1천만)만.
+     *  - 금액대별 유동 밴드: 저가는 노이즈 커서 느슨, 고가는 ±50% 로 수렴.
+     *  - 예상가 없음: 절대 상한(1천만)만.
      */
     private String validateListingPrice(String cardId, String cardStatus, int price) {
         if ("GRADED".equals(cardStatus)) return null;
-        final int ceiling = 10_000_000;
         Integer est = priceSnapshotRepository
                 .findFirstByCardIdAndSourceOrderByTradedAtDesc(cardId, "KO_ESTIMATED")
                 .map(com.fury.back.domain.price.PriceSnapshot::getPrice)
                 .orElse(null);
-        if (est != null && est >= 1000) {
-            long lower = Math.round(est * 0.5);
-            long upper = Math.round(est * 1.5);
-            if (price < lower || price > upper) {
-                return "시세와 크게 동떨어진 가격은 등록할 수 없습니다. (예상 시세의 ±50% 범위로 등록해 주세요)";
-            }
-        } else if (price > ceiling) {
-            return "비정상적으로 높은 가격은 등록할 수 없습니다.";
+        if (est == null || est <= 0) {
+            return price > 10_000_000 ? "비정상적으로 높은 가격은 등록할 수 없습니다." : null;
+        }
+        long[] band = priceBand(est);
+        if (price < band[0] || price > band[1]) {
+            return "시세와 크게 동떨어진 가격은 등록할 수 없습니다.";
         }
         return null;
+    }
+
+    /** 예상가 → [하한, 상한]. 저가일수록 넓고 고가일수록 ±50% 로 좁아짐. front 와 동일 정책. */
+    static long[] priceBand(int est) {
+        final double up, low;
+        if (est < 10_000)        { up = 5.0; low = 0.2; }
+        else if (est < 100_000)  { up = 3.0; low = 0.4; }
+        else if (est < 1_000_000){ up = 2.0; low = 0.5; }
+        else                     { up = 1.5; low = 0.5; }
+        return new long[]{ Math.round(est * low), Math.round(est * up) };
     }
 
     @Override
