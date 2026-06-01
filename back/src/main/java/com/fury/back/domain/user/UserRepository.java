@@ -10,6 +10,7 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByGoogleId(String googleId);
+    Optional<User> findByAppleId(String appleId);
 
     /**
      * 2026-05-29 admin Stage 0 (Codex H) — 사용자 검색.
