@@ -3,6 +3,12 @@ package com.fury.back.domain.report;
 import com.fury.back.auth.JwtUtil;
 import com.fury.back.common.IdGenerator;
 import com.fury.back.common.ReturnData;
+import com.fury.back.domain.block.Block;
+import com.fury.back.domain.block.BlockRepository;
+import com.fury.back.domain.chat.ChatRoom;
+import com.fury.back.domain.chat.ChatRoomRepository;
+import com.fury.back.domain.trade.TradePost;
+import com.fury.back.domain.trade.TradePostRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,6 +31,9 @@ public class ReportController {
 
     private final ReportRepository reportRepository;
     private final JwtUtil jwtUtil;
+    private final BlockRepository blockRepository;
+    private final ChatRoomRepository chatRoomRepository;
+    private final TradePostRepository tradePostRepository;
 
     @Operation(summary = "신고 등록", description = "거래/사용자/매수호가/채팅 신고")
     @PostMapping
@@ -74,7 +83,37 @@ public class ReportController {
                 .status("PENDING")
                 .build();
         Report saved = reportRepository.save(report);
+
+        // 신고 시 대상 사용자 자동 차단 (front 에서 "차단됩니다" 안내). 차단 실패해도 신고는 접수.
+        try {
+            String blockTargetId = resolveBlockTarget(targetType, targetId, reporterId);
+            if (blockTargetId != null && !blockTargetId.equals(reporterId)
+                    && blockRepository.findByBlockerIdAndBlockedId(reporterId, blockTargetId).isEmpty()) {
+                blockRepository.save(Block.builder()
+                        .blockId(IdGenerator.generate())
+                        .blockerId(reporterId)
+                        .blockedId(blockTargetId)
+                        .build());
+            }
+        } catch (Exception ignored) {
+            // 차단 실패는 무시 — 신고 접수가 우선.
+        }
+
         return ReturnData.success(Map.of("reportId", saved.getReportId()));
+    }
+
+    /** 신고 대상 → 차단할 사용자 id. USER=대상, TRADE=판매자, CHAT=상대(나 아닌 참가자). */
+    private String resolveBlockTarget(String targetType, String targetId, String reporterId) {
+        return switch (targetType) {
+            case "USER" -> targetId;
+            case "TRADE" -> tradePostRepository.findById(targetId)
+                    .map(TradePost::getSellerId).orElse(null);
+            case "CHAT" -> chatRoomRepository.findById(targetId)
+                    .map(r -> reporterId.equals(r.getSellerUserId())
+                            ? r.getBuyerUserId() : r.getSellerUserId())
+                    .orElse(null);
+            default -> null; // BUY_ORDER 등
+        };
     }
 
     @Operation(summary = "내 신고 list")

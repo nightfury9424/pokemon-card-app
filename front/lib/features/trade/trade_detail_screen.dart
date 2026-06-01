@@ -1122,6 +1122,36 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                     ),
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.shield_outlined, color: AppColors.gold, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '신고하면 해당 판매자가 자동으로 차단됩니다.\n'
+                            '욕설·사기·비매너 행위는 수사기관 정보제공 등 가능한 모든 조치로 대응합니다.',
+                            style: TextStyle(
+                              color: AppColors.gold.withValues(alpha: 0.95),
+                              fontSize: 12,
+                              height: 1.45,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 const Divider(color: AppColors.divider, height: 1),
                 ...reasons.map((r) {
                   return ListTile(
