@@ -1,17 +1,23 @@
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
+import '../../core/widgets/app_success_toast.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/app_segmented_toggle.dart';
+import '../../core/widgets/app_info_toast.dart';
+import '../../core/widgets/app_error_toast.dart';
 
 class ScannerScreen extends StatefulWidget {
   /// 카드 상세에서 진입 시 전달. 스캔 결과가 이 cardId와 다르면 등록 차단.
@@ -48,6 +54,14 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   DateTime _lastScan = DateTime(0);
   static const _scanInterval = Duration(milliseconds: 1000);
+
+  // 2026-05-20 Phase B: 토스트 표시 동안 스캔 차단 + 방금 등록 카드 즉시 재인식 차단.
+  // 등록 후 토스트 1.3초 + 마진 = 1.6초 동안 _processFrame skip.
+  DateTime? _scanPausedUntil;
+  // 최근 등록한 cardId — 같은 카드 즉시 재인식 차단 (60초 cooldown).
+  // {cardId: 등록 시각} — _processFrame에서 매칭 cardId가 60초 안이면 skip.
+  final Map<String, DateTime> _recentlyRegistered = {};
+  static const _recentRegisterCooldown = Duration(seconds: 60);
 
   late AnimationController _glowCtrl;
   late Animation<double> _glowAnim;
@@ -157,6 +171,10 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   Future<void> _processFrame(CameraImage frame) async {
     if (!mounted || _isProcessing) return;
+    // 토스트 표시 동안 스캔 일시 중지.
+    if (_scanPausedUntil != null && DateTime.now().isBefore(_scanPausedUntil!)) {
+      return;
+    }
     _isProcessing = true;
 
     try {
@@ -184,12 +202,29 @@ class _ScannerScreenState extends State<ScannerScreen>
 
       if (status == 'no_card') return;
 
-      if (mounted) setState(() => _debugText = 'status=$status score=$score');
+      // Phase 1 (2026-05-20): debug text는 dev/profile build에서만. release에서 사용자 노출 X.
+      if (kDebugMode && mounted) {
+        setState(() => _debugText = 'status=$status score=$score');
+      }
 
       if (card == null || status == 'not_found') return;
 
       final rawCandidates = data?['candidates'] as List? ?? [];
       final matchedCardId = card['cardId'] as String?;
+
+      // 2026-05-20 Phase B: 방금 등록한 카드 즉시 재인식 차단 (60초 cooldown).
+      // 사용자가 등록 직후 폰을 든 상태로 이미 그 카드를 잡고 있으면
+      // 자동으로 다시 결과 시트가 떠서 혼란. 등록 후 cooldown.
+      if (matchedCardId != null) {
+        final registeredAt = _recentlyRegistered[matchedCardId];
+        if (registeredAt != null) {
+          if (DateTime.now().difference(registeredAt) < _recentRegisterCooldown) {
+            return;
+          }
+          _recentlyRegistered.remove(matchedCardId);  // expire
+        }
+      }
+
       final expected = widget.expectedCardId;
       // expectedCardId가 지정되어 있으면, matchedCardId가 null이거나 다를 때 모두 mismatch로 차단.
       // 비정상 응답으로 null이 와도 등록 UI가 열리지 않도록 가드.
@@ -296,51 +331,16 @@ class _ScannerScreenState extends State<ScannerScreen>
     String cardId,
     Map<String, dynamic> card,
   ) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A2035),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(
-              Icons.warning_amber_rounded,
-              color: Color(0xFFEAB308),
-              size: 22,
-            ),
-            SizedBox(width: 8),
-            Text(
-              '인식 신뢰도 낮음',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-        content: const Text(
+    final ok = await AppConfirmDialog.show(
+      context,
+      icon: Icons.warning_amber_rounded,
+      iconColor: const Color(0xFFEAB308),
+      title: '인식 신뢰도 낮음',
+      message:
           '카드 인식 신뢰도가 낮아 다른 카드일 수 있어요.\n'
           '실물 카드와 화면 카드가 일치하는지 다시 확인하세요.',
-          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('취소', style: TextStyle(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text('맞아요, 등록', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+      cancelLabel: '취소',
+      confirmLabel: '맞아요, 등록',
     );
     if (ok == true && mounted) {
       await _addToAsset(cardId, card);
@@ -371,9 +371,7 @@ class _ScannerScreenState extends State<ScannerScreen>
             // GRADED 선택 시 회사·등급 필수. PSA·BRG만 지원 (CGC/BGS 미지원)
             if (selectedType == 'GRADED' &&
                 (gradingCompany == null || gradeValue == null)) {
-              ScaffoldMessenger.of(
-                ctx,
-              ).showSnackBar(const SnackBar(content: Text('감정사와 등급을 선택해주세요')));
+              AppInfoToast.show(ctx, '감정사와 등급을 선택해주세요');
               return;
             }
             // submit 중 사용자가 칩 토글해도 영향 없도록 전체 입력값 snapshot — race 방지
@@ -409,23 +407,24 @@ class _ScannerScreenState extends State<ScannerScreen>
               await _loadOwnedCards();
               if (!mounted) return;
               AssetNotifier.instance.notifyChanged();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('자산에 추가됐습니다'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              AppSuccessToast.show(context, '자산에 추가됐습니다');
+              // Phase B: 토스트 표시 동안 (1.3초 + margin 0.3초) 스캔 일시 중지.
+              _scanPausedUntil = DateTime.now().add(const Duration(milliseconds: 1600));
+              // 방금 등록한 cardId 60초 cooldown — 즉시 재인식 차단.
+              _recentlyRegistered[cardId] = DateTime.now();
               _dismissResult();
+
+              // Phase 6: 카드 상세에서 expectedCardId로 진입한 경우 등록 직후 자동 복귀.
+              // 일반 흐름(expectedCardId == null)에는 영향 없음. return으로 후속 setState/snackbar 차단.
+              if (widget.expectedCardId != null && mounted) {
+                context.pop(true);
+                return;
+              }
             } catch (_) {
               if (!ctx.mounted) return;
               setModal(() => submitting = false);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('등록 실패'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                AppErrorToast.show(context, '등록 실패');
               }
             }
           }
@@ -476,65 +475,30 @@ class _ScannerScreenState extends State<ScannerScreen>
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: ['KO', 'JP', 'EN'].map((lang) {
-                      final sel = selectedLanguage == lang;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: GestureDetector(
-                          onTap: () => setModal(() => selectedLanguage = lang),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: sel
-                                  ? const Color(0xFF2563EB)
-                                  : Colors.white10,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: sel
-                                    ? const Color(0xFF2563EB)
-                                    : Colors.white24,
-                              ),
-                            ),
-                            child: Text(
-                              lang,
-                              style: TextStyle(
-                                color: sel ? Colors.white : Colors.white70,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                  // 토글 통일 (Hotfix 10-5): 공통 AppSegmentedToggle 로 일관.
+                  AppSegmentedToggle(
+                    labels: const ['KO', 'JP', 'EN'],
+                    selectedIndex:
+                        const ['KO', 'JP', 'EN'].indexOf(selectedLanguage),
+                    onChanged: (i) => setModal(
+                      () => selectedLanguage = const ['KO', 'JP', 'EN'][i],
+                    ),
                   ),
                   const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _RegistrationTypeButton(
-                          label: 'RAW 카드',
-                          selected: selectedType == 'RAW',
-                          onTap: () => setModal(() {
-                            selectedType = 'RAW';
-                            gradingCompany = null;
-                            gradeValue = null;
-                          }),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _RegistrationTypeButton(
-                          label: '등급 카드',
-                          selected: selectedType == 'GRADED',
-                          onTap: () => setModal(() => selectedType = 'GRADED'),
-                        ),
-                      ),
-                    ],
+                  AppSegmentedToggle(
+                    labels: const ['RAW 카드', '등급 카드'],
+                    selectedIndex: selectedType == null
+                        ? -1
+                        : (selectedType == 'RAW' ? 0 : 1),
+                    onChanged: (i) => setModal(() {
+                      if (i == 0) {
+                        selectedType = 'RAW';
+                        gradingCompany = null;
+                        gradeValue = null;
+                      } else {
+                        selectedType = 'GRADED';
+                      }
+                    }),
                   ),
                   // GRADED 선택 시 회사·등급 토큰 노출
                   if (selectedType == 'GRADED') ...[
@@ -548,41 +512,14 @@ class _ScannerScreenState extends State<ScannerScreen>
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      children: ['PSA', 'BRG'].map((c) {
-                        final sel = gradingCompany == c;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: GestureDetector(
-                            onTap: () => setModal(() => gradingCompany = c),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: sel
-                                    ? const Color(0xFFFFB300)
-                                    : Colors.white10,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: sel
-                                      ? const Color(0xFFFFB300)
-                                      : Colors.white24,
-                                ),
-                              ),
-                              child: Text(
-                                c,
-                                style: TextStyle(
-                                  color: sel ? Colors.black87 : Colors.white70,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                    AppSegmentedToggle(
+                      labels: const ['PSA', 'BRG'],
+                      selectedIndex: gradingCompany == null
+                          ? -1
+                          : (gradingCompany == 'PSA' ? 0 : 1),
+                      onChanged: (i) => setModal(
+                        () => gradingCompany = i == 0 ? 'PSA' : 'BRG',
+                      ),
                     ),
                     // PSA10 + EN/JP는 실제 시세 데이터 있을 확률 ↑ → 안내 숨김.
                     // 나머지 조합(BRG, KO+PSA, PSA 9 이하 등)은 RAW 폴백 가능성 안내.
@@ -635,44 +572,12 @@ class _ScannerScreenState extends State<ScannerScreen>
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: grades.map((g) {
-                        final sel = gradeValue == g;
-                        return GestureDetector(
-                          onTap: () => setModal(() => gradeValue = g),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: sel
-                                  ? const Color(
-                                      0xFFFFB300,
-                                    ).withValues(alpha: 0.2)
-                                  : Colors.white10,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: sel
-                                    ? const Color(0xFFFFB300)
-                                    : Colors.white24,
-                              ),
-                            ),
-                            child: Text(
-                              g,
-                              style: TextStyle(
-                                color: sel
-                                    ? const Color(0xFFFFB300)
-                                    : Colors.white70,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                    AppSegmentedToggle(
+                      labels: grades,
+                      selectedIndex:
+                          gradeValue == null ? -1 : grades.indexOf(gradeValue!),
+                      onChanged: (i) =>
+                          setModal(() => gradeValue = grades[i]),
                     ),
                   ],
                   const SizedBox(height: 20),
@@ -754,7 +659,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               ),
             ),
 
-            if (_debugText.isNotEmpty && !_resultShowing)
+            if (kDebugMode && _debugText.isNotEmpty && !_resultShowing)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 56,
                 left: 0,
@@ -797,7 +702,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                                 width: 12,
                                 height: 12,
                                 child: CircularProgressIndicator(
-                                  color: Color(0xFF3B82F6),
+                                  color: Color(0xFF60A5FA),
                                   strokeWidth: 2,
                                 ),
                               ),
@@ -805,21 +710,64 @@ class _ScannerScreenState extends State<ScannerScreen>
                               Text(
                                 '인식 중...',
                                 style: TextStyle(
-                                  color: Color(0xFF3B82F6),
+                                  color: Color(0xFF60A5FA),
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
                           )
-                        : const Text(
-                            '틀 안에 카드를 맞춰주세요',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
+                        : (_lastIdentifyStatus == 'not_found'
+                              ? const Column(
+                                  key: ValueKey('not_found'),
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '카드를 다시 프레임 안에 맞춰주세요',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                    SizedBox(height: 6),
+                                    Text(
+                                      '정면으로 카드 외곽이 프레임 안에 들어가게 해주세요',
+                                      style: TextStyle(
+                                        color: Colors.white60,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : const Column(
+                                  key: ValueKey('idle'),
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '카드를 프레임 안에 맞춰주세요',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                    SizedBox(height: 6),
+                                    Text(
+                                      '밝은 곳에서 정면으로 촬영하면 더 정확해요',
+                                      style: TextStyle(
+                                        color: Colors.white60,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                  ],
+                                )),
                   ),
                 ),
               ),
@@ -852,8 +800,9 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   Widget _buildCardFrame() {
-    // 인식 중에는 파란색 강조, 대기 중에는 흰색. 화면 가운데 고정 wireframe.
-    final color = _isProcessing ? const Color(0xFF3B82F6) : Colors.white;
+    // C-1 Lite (2026-05-20): 인식 중 soft blue (60A5FA), idle white.
+    // hard blue (3B82F6)는 너무 강조 → soft tint로 고급스러움 유지.
+    final color = _isProcessing ? const Color(0xFF60A5FA) : Colors.white;
     return AnimatedBuilder(
       animation: Listenable.merge([_glowAnim, _sweepCtrl]),
       builder: (_, _) => CustomPaint(
@@ -871,7 +820,6 @@ class _ScannerScreenState extends State<ScannerScreen>
     final card = _foundCard!;
     final name = card['name'] as String? ?? '';
     final imageUrl = resolveCardImageUrl(card);
-    final cdnUrl = resolveCdnImageUrl(card);
 
     return Container(
       color: Colors.black87,
@@ -914,7 +862,6 @@ class _ScannerScreenState extends State<ScannerScreen>
                       borderRadius: BorderRadius.circular(6),
                       child: CardImage(
                         imageUrl: imageUrl,
-                        cdnFallbackUrl: cdnUrl,
                         width: 60,
                         height: 84,
                         fit: BoxFit.cover,
@@ -991,7 +938,6 @@ class _ScannerScreenState extends State<ScannerScreen>
     final rarity = card['rarityCode'] as String? ?? '';
     final number = card['collectionNumber'] as String? ?? '';
     final imageUrl = resolveCardImageUrl(card);
-    final cdnUrl = resolveCdnImageUrl(card);
     final owned = _ownedSummaries[cardId];
     final isOwned = owned != null;
     // ScannerController.getCardWithPrice가 채워주는 KO 환산가 + 전일 변동률.
@@ -1012,8 +958,9 @@ class _ScannerScreenState extends State<ScannerScreen>
     final Color pctColor = display == null
         ? AppColors.textMuted
         : switch (display.color) {
-            PriceChangeColor.positive => AppColors.green,
-            PriceChangeColor.negative => AppColors.red,
+            // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+            PriceChangeColor.positive => AppColors.red,
+            PriceChangeColor.negative => AppColors.blue,
             PriceChangeColor.neutral => AppColors.textMuted,
           };
     // 세트명은 너무 길고 잘 안 보이므로 제외. 컬렉션 번호 + 레어도만 표시.
@@ -1024,26 +971,26 @@ class _ScannerScreenState extends State<ScannerScreen>
     // 신뢰도 chip — 백엔드 status가 'success'면 확실, 'low_confidence'면 검토 필요.
     final bool isLowConfidence = _resultStatus == 'low_confidence';
     final String confLabel = isLowConfidence ? '검토 필요' : '확실';
-    final Color confFg = isLowConfidence
-        ? const Color(0xFFEAB308)
-        : AppColors.green;
+    final Color confFg = isLowConfidence ? AppColors.gold : AppColors.green;
     final Color confBg = isLowConfidence
-        ? const Color(0x29EAB308) // 16% gold
-        : const Color(0x2905C072); // 16% green
+        ? AppColors.gold.withValues(alpha: 0.16)
+        : AppColors.green.withValues(alpha: 0.16);
 
     return Column(
       children: [
         Expanded(
           child: Container(
-            color: Colors.black54,
+            // C-2 (2026-05-20): dim 진하게 → 카드 영역 강조 (이전 0.54 → 0.70).
+            color: Colors.black.withValues(alpha: 0.70),
             child: Center(
-              child: _buildDetectedCardFrame(imageUrl, cdnUrl, isOwned),
+              child: _buildDetectedCardFrame(imageUrl, isOwned),
             ),
           ),
         ),
         Container(
           decoration: const BoxDecoration(
-            color: Color(0xFF111827),
+            // C-2: hardcoded #111827 → AppColors.surfaceElevated 토큰 (앱 일관).
+            color: AppColors.surfaceElevated,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
@@ -1079,7 +1026,6 @@ class _ScannerScreenState extends State<ScannerScreen>
                         borderRadius: BorderRadius.circular(8),
                         child: CardImage(
                           imageUrl: imageUrl,
-                          cdnFallbackUrl: cdnUrl,
                           width: 90,
                           height: 126,
                           fit: BoxFit.cover,
@@ -1239,7 +1185,8 @@ class _ScannerScreenState extends State<ScannerScreen>
                                         label: isLowConfidence
                                             ? '확인 후 등록'
                                             : '자산 등록',
-                                        color: const Color(0xFF2563EB),
+                                        // C-2: 앱 표준 AppColors.blue (#1B64DA) 통일.
+                                        color: AppColors.blue,
                                         onTap: () => isLowConfidence
                                             ? _confirmThenAddToAsset(
                                                 cardId,
@@ -1252,7 +1199,8 @@ class _ScannerScreenState extends State<ScannerScreen>
                               Expanded(
                                 child: _ActionBtn(
                                   label: '상세 보기',
-                                  color: const Color(0xFF374151),
+                                  // C-2: 더 어두운 surface로 secondary CTA 톤다운.
+                                  color: AppColors.surfaceCard,
                                   onTap: () async {
                                     await _dismissResult();
                                     if (!mounted) return;
@@ -1282,40 +1230,97 @@ class _ScannerScreenState extends State<ScannerScreen>
               ),
               if (_candidates.length > 1) ...[
                 const Divider(color: Colors.white10, height: 1),
+                // C-3 (2026-05-20): top-3 후보 UX — thumbnail ↑ + 카드명 + "추천" badge.
                 SizedBox(
-                  height: 80,
+                  height: 116,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+                      horizontal: 16,
+                      vertical: 12,
                     ),
                     itemCount: _candidates.length,
                     itemBuilder: (_, i) {
                       final c = _candidates[i];
                       final cUrl = resolveCardImageUrl(c);
+                      final cName = c['name'] as String? ?? '';
+                      final isTop = i == 0;
                       return GestureDetector(
                         onTap: () => _selectCandidate(c),
+                        behavior: HitTestBehavior.opaque,
                         child: Container(
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: i == 0
-                                  ? const Color(0xFFEAB308)
-                                  : Colors.white24,
-                              width: i == 0 ? 2 : 1,
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(5),
-                            child: CardImage(
-                              imageUrl: cUrl,
-                              cdnFallbackUrl: resolveCdnImageUrl(c),
-                              width: 43,
-                              height: 60,
-                              fit: BoxFit.cover,
-                            ),
+                          margin: const EdgeInsets.only(right: 10),
+                          width: 64,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(7),
+                                      border: Border.all(
+                                        color: isTop
+                                            ? AppColors.gold
+                                            : Colors.white24,
+                                        width: isTop ? 2 : 1,
+                                      ),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: CardImage(
+                                        imageUrl: cUrl,
+                                        width: 56,
+                                        height: 78,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isTop)
+                                    Positioned(
+                                      top: -6,
+                                      right: -6,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 5,
+                                          vertical: 1,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.gold,
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: const Text(
+                                          '추천',
+                                          style: TextStyle(
+                                            color: Colors.black,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: -0.2,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                cName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: isTop
+                                      ? Colors.white
+                                      : Colors.white60,
+                                  fontSize: 10,
+                                  fontWeight: isTop
+                                      ? FontWeight.w700
+                                      : FontWeight.w400,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );
@@ -1332,7 +1337,6 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   Widget _buildDetectedCardFrame(
     String? imageUrl,
-    String? cdnUrl,
     bool isOwned,
   ) {
     // 카메라 화면 인식 카드는 크게 (시선 집중 → 즉시 식별).
@@ -1347,7 +1351,6 @@ class _ScannerScreenState extends State<ScannerScreen>
               borderRadius: BorderRadius.circular(12),
               child: CardImage(
                 imageUrl: imageUrl,
-                cdnFallbackUrl: cdnUrl,
                 width: w,
                 height: h,
                 fit: BoxFit.cover,
@@ -1387,7 +1390,7 @@ class _ScannerScreenState extends State<ScannerScreen>
             border: Border.all(color: const Color(0xFFEAB308), width: 3),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFEAB308).withOpacity(0.5),
+                color: const Color(0xFFEAB308).withValues(alpha: 0.5),
                 blurRadius: 16,
                 spreadRadius: 2,
               ),
@@ -1443,7 +1446,7 @@ class _CardFramePainter extends CustomPainter {
       );
     }
 
-    // ── 1. dim overlay (카드 영역 외 어둡게)
+    // ── 1. dim overlay (카드 영역 외 어둡게) — Phase 1 (2026-05-20): idle alpha 강화
     final outerPath = Path()
       ..moveTo(quad[0].dx, quad[0].dy)
       ..lineTo(quad[1].dx, quad[1].dy)
@@ -1451,64 +1454,25 @@ class _CardFramePainter extends CustomPainter {
       ..lineTo(quad[3].dx, quad[3].dy)
       ..close();
     final all = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-    final dimAlpha = detected ? 0.55 : 0.32;
+    final dimAlpha = detected ? 0.65 : 0.55;
     canvas.drawPath(
       Path.combine(PathOperation.difference, all, outerPath),
       Paint()..color = Colors.black.withValues(alpha: dimAlpha),
     );
 
-    // ── 2. 외곽 (accent)
+    // ── 2. 외곽 (accent) — Phase 1: 얇게, 시각 노이즈 줄임
     canvas.drawPath(
       outerPath,
       Paint()
-        ..color = frameColor.withValues(alpha: detected ? 1.0 : 0.85)
+        ..color = frameColor.withValues(alpha: detected ? 1.0 : 0.55)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5,
+        ..strokeWidth = detected ? 2.5 : 1.5,
     );
 
-    // ── 3. 내부 wireframe (Codex: detect 시 alpha 낮춰서 시끄럽지 않게)
-    final innerAlpha = detected ? 0.28 : 0.45;
-    final inner = Paint()
-      ..color = Colors.white.withValues(alpha: innerAlpha)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    // 3a. 상단 ribbon (이름/HP 영역)
-    final ribbon = Path()
-      ..moveTo(at(0.06, 0.04).dx, at(0.06, 0.04).dy)
-      ..lineTo(at(0.94, 0.04).dx, at(0.94, 0.04).dy)
-      ..lineTo(at(0.94, 0.11).dx, at(0.94, 0.11).dy)
-      ..lineTo(at(0.06, 0.11).dx, at(0.06, 0.11).dy)
-      ..close();
-    canvas.drawPath(ribbon, inner);
-
-    // 3b. art-frame (top-left clipped — 포켓몬 카드 art-frame 모양)
-    final art = Path()
-      ..moveTo(at(0.17, 0.14).dx, at(0.17, 0.14).dy)
-      ..lineTo(at(0.93, 0.14).dx, at(0.93, 0.14).dy)
-      ..lineTo(at(0.93, 0.62).dx, at(0.93, 0.62).dy)
-      ..lineTo(at(0.07, 0.62).dx, at(0.07, 0.62).dy)
-      ..lineTo(at(0.07, 0.24).dx, at(0.07, 0.24).dy)
-      ..close();
-    canvas.drawPath(art, inner);
-
-    // 3c. info bar (기술명)
-    canvas.drawLine(at(0.10, 0.69), at(0.90, 0.69), inner);
-
-    // 3d. 하단 rule box
-    final rule = Path()
-      ..moveTo(at(0.04, 0.85).dx, at(0.04, 0.85).dy)
-      ..lineTo(at(0.96, 0.85).dx, at(0.96, 0.85).dy)
-      ..lineTo(at(0.96, 0.93).dx, at(0.96, 0.93).dy)
-      ..lineTo(at(0.04, 0.93).dx, at(0.04, 0.93).dy)
-      ..close();
-    canvas.drawPath(
-      rule,
-      Paint()
-        ..color = Colors.white.withValues(alpha: detected ? 0.22 : 0.30)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2,
-    );
+    // ── 3. 내부 wireframe 제거 (Phase 1, 2026-05-20)
+    //   ribbon/art-frame/info-bar/rule box → 카드 외곽만 맞추는 단순 UX.
+    //   사용자가 "내 카드 안에 그림 맞춰야 하나?" 혼란 제거.
+    //   TCGplayer/StripeCardScan/VisionKit 표준 패턴.
 
     // ── 4. 4 코너 bracket (quad 4점에서 안쪽으로)
     final edgeAvg = (_dist(quad[0], quad[1]) + _dist(quad[1], quad[2])) / 2;
@@ -1591,43 +1555,6 @@ class _CardFramePainter extends CustomPainter {
 
 // ─── 버튼 ────────────────────────────────────────────────────────────────────
 
-class _RegistrationTypeButton extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _RegistrationTypeButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: selected
-            ? const Color(0xFF2563EB).withOpacity(0.22)
-            : Colors.white10,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: selected ? const Color(0xFF2563EB) : Colors.white12,
-        ),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: TextStyle(
-          color: selected ? Colors.white : Colors.white60,
-          fontSize: 14,
-          fontWeight: selected ? FontWeight.bold : FontWeight.w600,
-        ),
-      ),
-    ),
-  );
-}
-
 class _ActionBtn extends StatelessWidget {
   final String label;
   final Color color;
@@ -1641,19 +1568,22 @@ class _ActionBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
+    behavior: HitTestBehavior.opaque,
     child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      // C-2: vertical padding 10 → 14 (height ~48, 토스 표준 CTA 사이즈).
+      padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
       ),
       alignment: Alignment.center,
       child: Text(
         label,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.2,
         ),
       ),
     ),
@@ -1663,10 +1593,11 @@ class _ActionBtn extends StatelessWidget {
 class _OwnedBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 10),
+    // C-2: _ActionBtn과 height 통일.
+    padding: const EdgeInsets.symmetric(vertical: 14),
     decoration: BoxDecoration(
       color: Colors.white10,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       border: Border.all(color: Colors.white24),
     ),
     alignment: Alignment.center,
@@ -1679,8 +1610,9 @@ class _OwnedBtn extends StatelessWidget {
           '보유 중',
           style: TextStyle(
             color: Colors.white38,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
           ),
         ),
       ],

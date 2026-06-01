@@ -8,6 +8,8 @@ import Price from './pages/Price'
 import Scanner from './pages/Scanner'
 import Login from './pages/Login'
 import Alerts from './pages/Alerts'
+import Reports from './pages/Reports'
+import Inquiries from './pages/Inquiries'
 
 function RequireAuth({ children }) {
   const token = localStorage.getItem('admin_token')
@@ -15,8 +17,10 @@ function RequireAuth({ children }) {
 }
 
 export default function App() {
+  // 2026-05-29: vite base='/admin/' 와 일관 — BrowserRouter basename도 동일하게.
+  //   배포 시 https://.../admin/dashboard 같은 URL이 정상 작동.
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
@@ -28,6 +32,8 @@ export default function App() {
           <Route path="price" element={<Price />} />
           <Route path="scanner" element={<Scanner />} />
           <Route path="alerts" element={<Alerts />} />
+          <Route path="reports" element={<Reports />} />
+          <Route path="inquiries" element={<Inquiries />} />
         </Route>
       </Routes>
     </BrowserRouter>

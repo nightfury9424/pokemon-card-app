@@ -3,6 +3,7 @@ package com.fury.back.domain.trade.dto;
 import com.fury.back.domain.card.Card;
 import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.user.User;
+import com.fury.back.storage.StorageKeyUrls;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -11,7 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class TradePostDto {
 
     private String tradeId;
@@ -37,6 +38,10 @@ public class TradePostDto {
     // 카드 정보 (조회 시 포함)
     private CardSummaryDto card;
 
+    // 거래 list engagement — chat_rooms / post_interests batch count (다른 화면에선 null 가능).
+    private Long chatCount;
+    private Long favoriteCount;
+
     public static TradePostDto from(TradePost post) {
         return TradePostDto.builder()
                 .tradeId(post.getTradeId())
@@ -45,7 +50,7 @@ public class TradePostDto {
                 .title(post.getTitle())
                 .description(post.getDescription())
                 .price(post.getPrice())
-                .imageUrl(post.getImageUrl())
+                .imageUrl(StorageKeyUrls.toProxyCsv(post.getImageUrl()))
                 .imageUrls(splitImageUrls(post.getImageUrl()))
                 .cardStatus(post.getCardStatus())
                 .condition(post.getCondition())
@@ -66,7 +71,7 @@ public class TradePostDto {
                 .title(post.getTitle())
                 .description(post.getDescription())
                 .price(post.getPrice())
-                .imageUrl(post.getImageUrl())
+                .imageUrl(StorageKeyUrls.toProxyCsv(post.getImageUrl()))
                 .imageUrls(splitImageUrls(post.getImageUrl()))
                 .cardStatus(post.getCardStatus())
                 .condition(post.getCondition())
@@ -85,9 +90,11 @@ public class TradePostDto {
         if (imageUrl == null || imageUrl.isBlank()) {
             return List.of();
         }
+        // Phase 1-7: DB는 storage key 저장 → 응답에서 /api/images/secure/{key} proxy URL로 변환.
         return Arrays.stream(imageUrl.split(","))
                 .map(String::trim)
                 .filter(url -> !url.isBlank())
+                .map(StorageKeyUrls::toProxyUrl)
                 .toList();
     }
 

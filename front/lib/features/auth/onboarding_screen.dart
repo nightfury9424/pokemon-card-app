@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -24,6 +25,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String? _validationError;
   bool _submitting = false;
   int _requestToken = 0;
+  // 회원가입 시 필수 동의 — 한국 개인정보보호법 + Apple App Review.
+  // MVP는 프론트 체크박스만 (체크 전엔 "시작하기" 비활성). 백엔드 동의 시각 기록은 v1.1.
+  bool _agreedTos = false;
+  bool _agreedPrivacy = false;
 
   @override
   void dispose() {
@@ -88,7 +93,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
+  /// 백엔드 envelope의 specific 사유 노출 — NicknameValidator가 ResponseStatusException으로
+  /// "닉네임은 2~15자여야 합니다" / "사용할 수 없는 닉네임입니다" 등 명시 사유 던짐.
+  /// ApiClient.get → DioException → response.data['message'] 추출이 정공법. toString 파싱은 fallback.
   String _extractMessage(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map && data['message'] is String) {
+        final msg = (data['message'] as String).trim();
+        if (msg.isNotEmpty) return msg;
+      }
+    }
     final s = e.toString();
     final idx = s.indexOf('"message"');
     if (idx >= 0) {
@@ -101,7 +116,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canSubmit = _available == true && !_submitting;
+    final canSubmit = _available == true && !_submitting && _agreedTos && _agreedPrivacy;
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: SafeArea(
@@ -190,6 +205,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   style: TextStyle(color: AppColors.green, fontSize: 13),
                 ),
               ],
+              const SizedBox(height: 24),
+              // 회원가입 필수 동의 (한국 개인정보보호법 + Apple App Review). 둘 다 체크돼야 "시작하기" 활성.
+              _ConsentCheckbox(
+                checked: _agreedTos,
+                onChanged: (v) => setState(() => _agreedTos = v),
+                label: '이용약관에 동의합니다 (필수)',
+                onLinkTap: () => context.push('/legal/terms'),
+              ),
+              const SizedBox(height: 8),
+              _ConsentCheckbox(
+                checked: _agreedPrivacy,
+                onChanged: (v) => setState(() => _agreedPrivacy = v),
+                label: '개인정보처리방침에 동의합니다 (필수)',
+                onLinkTap: () => context.push('/legal/privacy'),
+              ),
               const Spacer(),
               SizedBox(
                 height: 52,
@@ -220,6 +250,71 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 가입 동의 체크박스 row — 라벨 + "보기" 링크. 필수 동의(_agreedTos/_agreedPrivacy)에만 사용.
+class _ConsentCheckbox extends StatelessWidget {
+  final bool checked;
+  final ValueChanged<bool> onChanged;
+  final String label;
+  final VoidCallback onLinkTap;
+
+  const _ConsentCheckbox({
+    required this.checked,
+    required this.onChanged,
+    required this.label,
+    required this.onLinkTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 24,
+          height: 24,
+          child: Checkbox(
+            value: checked,
+            onChanged: (v) => onChanged(v ?? false),
+            activeColor: AppColors.blue,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => onChanged(!checked),
+            behavior: HitTestBehavior.opaque,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        TextButton(
+          onPressed: onLinkTap,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            minimumSize: const Size(0, 32),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: const Text(
+            '보기',
+            style: TextStyle(
+              color: AppColors.blue,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

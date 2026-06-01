@@ -1,0 +1,114 @@
+/// 호가창 1단 chip 상태 (back HogaStatus와 1:1).
+///
+/// PSA/BRG는 [HogaGrade] 2단 chip으로 추가 좁힘.
+enum HogaStatus {
+  raw('RAW'),
+  psa('PSA'),
+  brg('BRG');
+
+  final String wire;
+  const HogaStatus(this.wire);
+
+  static HogaStatus fromWire(String s) =>
+      HogaStatus.values.firstWhere(
+        (e) => e.wire == s.toUpperCase(),
+        orElse: () => HogaStatus.raw,
+      );
+
+  String get label => switch (this) {
+        HogaStatus.raw => 'RAW',
+        HogaStatus.psa => 'PSA',
+        HogaStatus.brg => 'BRG',
+      };
+
+  bool get requiresGrade => this == HogaStatus.psa || this == HogaStatus.brg;
+}
+
+/// 2단 chip — PSA/BRG 등급 (10 / 9). RAW에는 사용 안 함.
+enum HogaGrade {
+  ten('10'),
+  nine('9');
+
+  final String wire;
+  const HogaGrade(this.wire);
+
+  String get label => wire;
+}
+
+/// ASK = 매도(파랑) / BID = 매수(빨강). (2026-05-28 정정 — 한국 증권 호가창 표준)
+enum HogaSide {
+  ask('ASK'),
+  bid('BID');
+
+  final String wire;
+  const HogaSide(this.wire);
+}
+
+/// 호가창 한 행.
+class HogaLevel {
+  final int price;
+  final int count;
+  final double barRatio;
+  /// Phase 4 — 현재 로그인 유저가 이 가격에 OPEN 주문/판매글을 가지고 있는지.
+  final bool hasMine;
+
+  const HogaLevel({
+    required this.price,
+    required this.count,
+    required this.barRatio,
+    this.hasMine = false,
+  });
+
+  factory HogaLevel.fromJson(Map<String, dynamic> json) => HogaLevel(
+        price: (json['price'] as num).toInt(),
+        count: (json['count'] as num).toInt(),
+        barRatio: ((json['barRatio'] as num?) ?? 0).toDouble(),
+        hasMine: (json['hasMine'] as bool?) ?? false,
+      );
+}
+
+/// 호가창 전체 응답.
+class HogaBoardData {
+  final String cardId;
+  final HogaStatus status;
+  final int tickUnit;
+  final int? marketPrice;
+  final int? lowestAsk;
+  final int? highestBid;
+  final int askCount;
+  final int bidCount;
+  final List<HogaLevel> asks;
+  final List<HogaLevel> bids;
+
+  const HogaBoardData({
+    required this.cardId,
+    required this.status,
+    required this.tickUnit,
+    required this.marketPrice,
+    required this.lowestAsk,
+    required this.highestBid,
+    required this.askCount,
+    required this.bidCount,
+    required this.asks,
+    required this.bids,
+  });
+
+  bool get isEmpty => askCount == 0 && bidCount == 0;
+
+  factory HogaBoardData.fromJson(Map<String, dynamic> json) => HogaBoardData(
+        cardId: json['cardId'] as String,
+        status: HogaStatus.fromWire(json['status'] as String),
+        tickUnit: (json['tickUnit'] as num).toInt(),
+        marketPrice: (json['marketPrice'] as num?)?.toInt(),
+        lowestAsk: (json['lowestAsk'] as num?)?.toInt(),
+        highestBid: (json['highestBid'] as num?)?.toInt(),
+        askCount: (json['askCount'] as num).toInt(),
+        bidCount: (json['bidCount'] as num).toInt(),
+        asks: ((json['asks'] as List?) ?? [])
+            .map((e) => HogaLevel.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        bids: ((json['bids'] as List?) ?? [])
+            .map((e) => HogaLevel.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}

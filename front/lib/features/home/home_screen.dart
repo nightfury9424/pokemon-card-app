@@ -8,9 +8,10 @@ import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/rarity.dart';
+import '../../core/utils/price_label.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/animated_counter.dart';
-import '../../core/widgets/card_image.dart' show CardImage, resolveCardImageUrl, resolveCdnImageUrl;
+import '../../core/widgets/card_image.dart' show CardImage, resolveCardImageUrl;
 import '../../core/widgets/pressable.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -445,7 +446,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Text(
                         '$sign${AppColors.formatPrice(diff.toInt())} ($sign${rate.toStringAsFixed(1)}%)',
                         style: TextStyle(
-                          color: isPos ? AppColors.green : AppColors.red,
+                          // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+                          color: isPos ? AppColors.red : AppColors.blue,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
@@ -636,7 +638,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: isPositive ? AppColors.green : AppColors.red,
+                                // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+                                color: isPositive ? AppColors.red : AppColors.blue,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: -0.2,
@@ -1089,6 +1092,8 @@ class _NotificationBellState extends State<_NotificationBell> {
   Future<void> _showNotifications() async {
     await showModalBottomSheet(
       context: context,
+      // ShellRoute child(/home) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+      useRootNavigator: true,
       backgroundColor: AppColors.surfaceCard,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -1509,7 +1514,6 @@ class _CarouselCardState extends State<_CarouselCard>
                   ),
                   child: CardImage(
                     imageUrl: imageUrl,
-                    cdnFallbackUrl: resolveCdnImageUrl(card),
                     width: double.infinity,
                     height: double.infinity,
                     fit: BoxFit.cover,
@@ -1531,8 +1535,10 @@ class _CarouselCardState extends State<_CarouselCard>
               ),
             ),
             const SizedBox(height: 7),
+            // 1행: [rarity pill] [국내 예상가/해외 참고가 pill] — 가격 기준 명확화 (2026-05-28 라벨 정리).
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   constraints: const BoxConstraints(minWidth: 42),
@@ -1563,32 +1569,46 @@ class _CarouselCardState extends State<_CarouselCard>
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    price != null ? AppColors.formatPrice(price) : '-',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                // KO 카드는 시세가 EN raw 환산 추정가라 "예상가" 라벨로 명시
                 if ((card['language'] as String? ?? 'KO') == 'KO') ...[
                   const SizedBox(width: 6),
-                  Text(
-                    '예상가',
-                    style: TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.divider, width: 0.5),
+                    ),
+                    child: Text(
+                      PriceLabel.resolve(
+                        labelType: card['koPriceLabelType'] as String?,
+                        price: price,
+                      ),
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                   ),
                 ],
               ],
+            ),
+            const SizedBox(height: 6),
+            // 2행: 가격 — 더 굵고 크게 (라벨과 줄 분리로 신뢰 정보 시각 우선순위 ↑).
+            Text(
+              price != null ? AppColors.formatPrice(price) : '시세 준비중',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: price != null
+                    ? AppColors.textPrimary
+                    : AppColors.textMuted,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.3,
+              ),
             ),
             // 변동률 (등록 시점 대비 / 전일 대비)
             // PriceDisplayPolicy (2026-05-16): 저가 카드 % 숨김/Stage B 전체 숨김/Stage C 변동 적음
@@ -1610,8 +1630,9 @@ class _CarouselCardState extends State<_CarouselCard>
                 );
                 if (display == null) return const SizedBox.shrink();
                 final color = switch (display.color) {
-                  PriceChangeColor.positive => AppColors.green,
-                  PriceChangeColor.negative => AppColors.red,
+                  // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+                  PriceChangeColor.positive => AppColors.red,
+                  PriceChangeColor.negative => AppColors.blue,
                   PriceChangeColor.neutral => AppColors.textMuted,
                 };
                 return Text(

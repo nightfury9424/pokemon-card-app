@@ -6,16 +6,24 @@ import com.fury.back.common.ReturnData;
 import com.fury.back.domain.asset.Asset;
 import com.fury.back.domain.asset.AssetImage;
 import com.fury.back.domain.asset.AssetImageRepository;
+import com.fury.back.domain.block.Block;
+import com.fury.back.domain.block.BlockRepository;
 import com.fury.back.domain.card.Card;
 import com.fury.back.domain.card.CardRepository;
 import com.fury.back.domain.trade.dto.TradePostDto;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
+import com.fury.back.domain.chat.ChatRoomRepository;
+import com.fury.back.domain.chat.ChatService;
+import com.fury.back.domain.interest.PostInterestRepository;
 import com.fury.back.domain.notification.NotificationService;
+import com.fury.back.storage.ImageStorageService;
+import com.fury.back.storage.StorageKeyUrls;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -39,22 +47,64 @@ public class TradeServiceImpl implements TradeService {
     private final com.fury.back.domain.asset.AssetRepository assetRepository;
     private final AssetImageRepository assetImageRepository;
     private final NotificationService notificationService;
+    private final ImageStorageService imageStorageService;
+    // Bundle 2-D: trade 상태 변경/삭제 시 chat_room에 시스템 메시지 fan-out용.
+    private final ChatService chatService;
+    // 거래 list engagement (chatCount / favoriteCount) batch count용.
+    private final ChatRoomRepository chatRoomRepository;
+    private final PostInterestRepository postInterestRepository;
+    // 1인 1조회 정책 — viewerUserId != sellerId면 INSERT, UNIQUE 충돌 시 무시.
+    private final TradePostViewRepository tradePostViewRepository;
+    private final BlockRepository blockRepository;
 
     @Value("${trade.image.dir}")
-    private String tradeImageDir;
+    private String tradeImageDir;  // Phase 1-7: legacy static handler 호환용 (신규 업로드는 ImageStorageService 사용)
 
     @Override
-    public ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId) {
+    public ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId, String status, String viewerUserId) {
         PageRequest pageable = PageRequest.of(page, size);
         Page<TradePost> posts;
-        if (sellerId != null && !sellerId.isBlank()) {
-            posts = tradePostRepository.findBySellerIdOrderByCreatedAtDesc(sellerId, pageable);
-        } else if (cardId != null && !cardId.isBlank()) {
+        final boolean hasSeller = sellerId != null && !sellerId.isBlank();
+        final boolean hasCard = cardId != null && !cardId.isBlank();
+        final boolean hasStatus = status != null && !status.isBlank();
+        final List<String> blockedSellerIds = viewerUserId == null || viewerUserId.isBlank()
+                ? List.of()
+                : blockRepository.findAllByBlockerId(viewerUserId).stream()
+                        .map(Block::getBlockedId)
+                        .distinct()
+                        .toList();
+        if (!blockedSellerIds.isEmpty()) {
+            List<String> statuses = hasStatus ? List.of(status) : List.of("OPEN", "RESERVED");
+            posts = tradePostRepository.findFilteredExcludingSellers(
+                    hasSeller ? sellerId : null,
+                    hasCard ? cardId : null,
+                    statuses,
+                    blockedSellerIds,
+                    pageable);
+            return ReturnData.success(toTradePostDtoPage(posts));
+        }
+        // Phase 1: sellerId + cardId + status 동시 필터 우선 (기존 sellerId/cardId 단독 분기로 인한 cardId 무시 버그 해결).
+        if (hasSeller && hasCard && hasStatus) {
+            posts = tradePostRepository.findBySellerIdAndCardIdAndStatusOrderByCreatedAtDesc(sellerId, cardId, status, pageable);
+        } else if (hasSeller && hasCard) {
+            posts = tradePostRepository.findBySellerIdAndCardIdOrderByCreatedAtDesc(sellerId, cardId, pageable);
+        } else if (hasSeller) {
+            // 내 판매 항목 default — active(OPEN+RESERVED)만. DELETED/COMPLETED는 별도 화면.
+            posts = tradePostRepository.findBySellerIdAndStatusInOrderByCreatedAtDesc(
+                    sellerId, List.of("OPEN", "RESERVED"), pageable);
+        } else if (hasCard) {
             posts = tradePostRepository.findOpenByCardId(cardId, pageable);
         } else {
-            posts = tradePostRepository.findByStatusOrderByCreatedAtDesc("OPEN", pageable);
+            // status 파라미터 있으면 그대로 / 없으면 OPEN+RESERVED active 상태 (COMPLETED/DELETED 제외)
+            posts = hasStatus
+                    ? tradePostRepository.findByStatusOrderByCreatedAtDesc(status, pageable)
+                    : tradePostRepository.findByStatusInOrderByCreatedAtDesc(List.of("OPEN", "RESERVED"), pageable);
         }
 
+        return ReturnData.success(toTradePostDtoPage(posts));
+    }
+
+    private Page<TradePostDto> toTradePostDtoPage(Page<TradePost> posts) {
         List<String> sellerIds = posts.stream().map(TradePost::getSellerId).distinct().toList();
         List<String> cardIds = posts.stream().map(TradePost::getCardId).distinct().toList();
 
@@ -63,19 +113,59 @@ public class TradeServiceImpl implements TradeService {
         Map<String, Card> cardMap = cardRepository.findAllById(cardIds)
                 .stream().collect(Collectors.toMap(Card::getCardId, Function.identity()));
 
-        Page<TradePostDto> result = posts.map(post ->
-                TradePostDto.fromWithDetails(post, userMap.get(post.getSellerId()), cardMap.get(post.getCardId())));
-        return ReturnData.success(result);
+        // batch count — N+1 방지. tradeId 기준 chat_rooms / post_interests count 한 query씩.
+        List<String> tradeIds = posts.stream().map(TradePost::getTradeId).distinct().toList();
+        Map<String, Long> chatCountMap = tradeIds.isEmpty()
+                ? Map.of()
+                : chatRoomRepository.countBySaleListingIdIn(tradeIds).stream()
+                        .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
+        Map<String, Long> favoriteCountMap = tradeIds.isEmpty()
+                ? Map.of()
+                : postInterestRepository.countByTradeIdIn(tradeIds).stream()
+                        .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
+
+        return posts.map(post -> {
+            TradePostDto dto = TradePostDto.fromWithDetails(
+                    post, userMap.get(post.getSellerId()), cardMap.get(post.getCardId()));
+            return dto.toBuilder()
+                    .chatCount(chatCountMap.getOrDefault(post.getTradeId(), 0L))
+                    .favoriteCount(favoriteCountMap.getOrDefault(post.getTradeId(), 0L))
+                    .build();
+        });
     }
 
     @Override
-    public ReturnData<TradePostDto> getTrade(String tradeId) {
+    @Transactional
+    public ReturnData<TradePostDto> getTrade(String tradeId, String viewerUserId) {
         TradePost post = tradePostRepository.findById(tradeId).orElse(null);
         if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
 
+        // 1인 1조회 — 판매자 본인 조회는 skip. UNIQUE 충돌은 무시 (이미 본 사용자).
+        if (viewerUserId != null
+                && !viewerUserId.isBlank()
+                && !viewerUserId.equals(post.getSellerId())
+                && !tradePostViewRepository.existsByTradeIdAndUserId(tradeId, viewerUserId)) {
+            try {
+                tradePostViewRepository.save(TradePostView.builder()
+                        .viewId(IdGenerator.generate())
+                        .tradeId(tradeId)
+                        .userId(viewerUserId)
+                        .build());
+                post.incrementViewCount();
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                // race-safe: 다른 요청이 먼저 INSERT 성공한 경우 silent.
+            }
+        }
+
         User seller = userRepository.findById(post.getSellerId()).orElse(null);
         Card card = cardRepository.findById(post.getCardId()).orElse(null);
-        return ReturnData.success(TradePostDto.fromWithDetails(post, seller, card));
+        long chatCount = chatRoomRepository.countBySaleListingId(tradeId);
+        long favoriteCount = postInterestRepository.countByTradeId(tradeId);
+        TradePostDto dto = TradePostDto.fromWithDetails(post, seller, card).toBuilder()
+                .chatCount(chatCount)
+                .favoriteCount(favoriteCount)
+                .build();
+        return ReturnData.success(dto);
     }
 
     @Override
@@ -113,6 +203,22 @@ public class TradeServiceImpl implements TradeService {
             if (!hasAsset) return ReturnData.badRequest("내 자산에 등록된 카드만 판매할 수 있습니다.");
         }
 
+        // 판매 가격 필수 (Phase 2: "가격 협의" 폐지. 호가창 ASK 쿼리는 price IS NOT NULL 조건).
+        Integer price = parameterData.getInteger("price");
+        if (price == null || price <= 0) {
+            return ReturnData.badRequest("판매 가격은 필수입니다.");
+        }
+
+        // 동일 assetId OPEN 판매글 중복 차단 (1 자산 = 1 OPEN 판매글).
+        if (assetId != null && !assetId.isBlank()) {
+            // RESERVED도 active trade — 같은 자산에 active(OPEN+RESERVED) 있으면 중복 차단.
+            boolean alreadyActive = tradePostRepository.findByAssetIdOrderByCreatedAtDesc(assetId)
+                    .stream().anyMatch(p -> "OPEN".equals(p.getStatus()) || "RESERVED".equals(p.getStatus()));
+            if (alreadyActive) {
+                return ReturnData.fail("E409", "이미 판매 중인 판매글이 있어요. 기존 판매글을 수정하거나 취소해주세요.");
+            }
+        }
+
         String cardStatus = parameterData.getString("cardStatus");
         String condition = parameterData.getString("condition");
         String gradingCompany = parameterData.getString("gradingCompany");
@@ -146,7 +252,7 @@ public class TradeServiceImpl implements TradeService {
                 .assetId(asset != null ? asset.getAssetId() : null)
                 .title(title)
                 .description(description)
-                .price(parameterData.getInteger("price"))
+                .price(price)
                 .cardStatus(cardStatus != null ? cardStatus : "RAW")
                 .condition(condition)
                 .gradingCompany(effectiveGradingCompany)
@@ -203,23 +309,16 @@ public class TradeServiceImpl implements TradeService {
         Card card = cardRepository.findById(asset.getCardId()).orElse(null);
         if (card == null) return ReturnData.notFound("카드를 찾을 수 없습니다.");
 
+        // RESERVED도 active — OPEN+RESERVED 기존 trade 있으면 그걸 반환.
+        // CLOSED 복구 로직은 제거 (legacy 상태값. 정책상 OPEN/RESERVED/COMPLETED/DELETED만 사용).
         List<TradePost> existingPosts = tradePostRepository.findByAssetIdOrderByCreatedAtDesc(assetId);
-        TradePost openPost = existingPosts.stream()
-                .filter(post -> "OPEN".equals(post.getStatus()))
+        TradePost activePost = existingPosts.stream()
+                .filter(post -> "OPEN".equals(post.getStatus()) || "RESERVED".equals(post.getStatus()))
                 .findFirst()
                 .orElse(null);
-        if (openPost != null) {
+        if (activePost != null) {
             User seller = userRepository.findById(sellerId).orElse(null);
-            return ReturnData.success(TradePostDto.fromWithDetails(openPost, seller, card));
-        }
-        TradePost closedPost = existingPosts.stream()
-                .filter(post -> "CLOSED".equals(post.getStatus()))
-                .findFirst()
-                .orElse(null);
-        if (closedPost != null) {
-            closedPost.updateStatus("OPEN");
-            User seller = userRepository.findById(sellerId).orElse(null);
-            return ReturnData.success(TradePostDto.fromWithDetails(closedPost, seller, card));
+            return ReturnData.success(TradePostDto.fromWithDetails(activePost, seller, card));
         }
 
         String rarity = card.getRarityCode() != null && !card.getRarityCode().isBlank()
@@ -290,13 +389,18 @@ public class TradeServiceImpl implements TradeService {
         if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
         if (!post.getSellerId().equals(userId)) return ReturnData.fail("F403", "권한이 없습니다.");
 
-        tradePostRepository.delete(post);
+        // Bundle 2-A.7: hard delete 금지 — soft delete (status='DELETED' + deleted_at=now).
+        // 채팅방 미니카드/메시지 보존 → 분쟁/신고 근거 유지.
+        // 일반 거래 목록/검색은 status='OPEN' 필터로 자동 제외.
+        post.markDeleted();
+        // Bundle 2-D: 모든 chat_room에 "판매글이 삭제되었습니다." 시스템 메시지 broadcast.
+        chatService.broadcastTradeStatusChanged(tradeId, "DELETED");
         return ReturnData.success();
     }
 
     @Override
     @Transactional
-    public ReturnData<TradePostDto> updateStatus(String tradeId, String userId, String status) {
+    public ReturnData<TradePostDto> updateStatus(String tradeId, String userId, String status, String chatRoomId) {
         if (status == null || status.isBlank()) {
             return ReturnData.badRequest("status는 필수입니다.");
         }
@@ -304,13 +408,98 @@ public class TradeServiceImpl implements TradeService {
         if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
         if (!post.getSellerId().equals(userId)) return ReturnData.fail("F403", "권한이 없습니다.");
 
+        // same-status no-op — 현재 status와 동일한 요청이면 DB update + SYSTEM 메시지 생성 X.
+        // 동일 상태 변경 클릭 시 시스템 메시지 중복 방지.
+        if (status.equals(post.getStatus())) {
+            User seller = userRepository.findById(post.getSellerId()).orElse(null);
+            Card card = cardRepository.findById(post.getCardId()).orElse(null);
+            return ReturnData.success(TradePostDto.fromWithDetails(post, seller, card));
+        }
+
         post.updateStatus(status);
-        // 거래 CLOSED 시 자산은 보존 (이전: assetRepository.deleteById → P&L 히스토리 영구 소실).
-        // 추후 Asset.status 컬럼 마이그레이션 후 SOLD 상태로 분리 예정. REFACTOR_2026-05-12.md 1차-B 참조.
+
+        // 거래중 모델 — active_chat_room_id 처리:
+        // - RESERVED + chatRoomId NOT NULL → 거래 상대 지정 (선택된 chat 만 입력 가능)
+        // - RESERVED + chatRoomId NULL → 기존 호환 (active 변경 X)
+        // - OPEN 복귀 → clear (모든 buyer 다시 채팅 가능)
+        // - COMPLETED / DELETED → 그대로 (선택 상대 후속 대화 정책)
+        if ("RESERVED".equals(status) && chatRoomId != null && !chatRoomId.isBlank()) {
+            post.setActiveChatRoom(chatRoomId);
+        } else if ("OPEN".equals(status)) {
+            post.clearActiveChatRoom();
+        }
+
+        // Bundle 2-D: 모든 chat_room에 상태 변경 시스템 메시지 broadcast.
+        // (OPEN/RESERVED/COMPLETED → 카피 분기, 그 외 silent)
+        chatService.broadcastTradeStatusChanged(tradeId, status);
 
         User seller = userRepository.findById(post.getSellerId()).orElse(null);
         Card card = cardRepository.findById(post.getCardId()).orElse(null);
         return ReturnData.success(TradePostDto.fromWithDetails(post, seller, card));
+    }
+
+    /**
+     * 거래중 모델: 판매자만 호출. 판매글에 연결된 채팅방 list → 거래 상대 선택 sheet 용.
+     * 차단된 user 는 제외. lastMessage / lastMessageAt 으로 정렬 (최근 활성 채팅 먼저).
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ReturnData<java.util.List<com.fury.back.domain.trade.dto.ChatPartnerDto>> getChatPartners(
+            String tradeId, String userId) {
+        TradePost post = tradePostRepository.findById(tradeId).orElse(null);
+        if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
+        if (!post.getSellerId().equals(userId)) return ReturnData.fail("F403", "권한이 없습니다.");
+
+        java.util.List<com.fury.back.domain.chat.ChatRoom> rooms =
+                chatRoomRepository.findAllBySaleListingId(tradeId);
+        java.util.Set<String> blockedByMe = blockRepository.findAllByBlockerId(userId).stream()
+                .map(com.fury.back.domain.block.Block::getBlockedId)
+                .collect(java.util.stream.Collectors.toSet());
+        java.util.List<String> buyerIds = rooms.stream()
+                .map(com.fury.back.domain.chat.ChatRoom::getBuyerUserId)
+                .filter(id -> !blockedByMe.contains(id))
+                .distinct()
+                .toList();
+        java.util.Map<String, User> userMap = userRepository.findAllById(buyerIds).stream()
+                .collect(java.util.stream.Collectors.toMap(User::getUserId, u -> u));
+
+        java.util.List<com.fury.back.domain.trade.dto.ChatPartnerDto> partners = rooms.stream()
+                .filter(r -> !blockedByMe.contains(r.getBuyerUserId()))
+                .map(r -> {
+                    User buyer = userMap.get(r.getBuyerUserId());
+                    return new com.fury.back.domain.trade.dto.ChatPartnerDto(
+                            r.getChatRoomId(),
+                            r.getBuyerUserId(),
+                            buyer != null ? buyer.getNickname() : null,
+                            buyer != null ? buyer.getProfileImageUrl() : null,
+                            r.getLastMessage(),
+                            r.getLastMessageAt());
+                })
+                .sorted((a, b) -> {
+                    if (a.lastMessageAt() == null && b.lastMessageAt() == null) return 0;
+                    if (a.lastMessageAt() == null) return 1;
+                    if (b.lastMessageAt() == null) return -1;
+                    return b.lastMessageAt().compareTo(a.lastMessageAt());
+                })
+                .toList();
+        return ReturnData.success(partners);
+    }
+
+    /**
+     * MY > 내 판매 내역 — sellerId 본인의 OPEN/RESERVED/COMPLETED 이력.
+     * DELETED 숨김. 기존 active list method (OPEN+RESERVED) 와 분리된 별도 history view.
+     * sellerId 는 controller 의 @AuthenticationPrincipal 기준 — IDOR 방지.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ReturnData<Page<TradePostDto>> getMyHistory(String sellerId, int page, int size) {
+        if (sellerId == null || sellerId.isBlank()) {
+            return ReturnData.fail("F403", "인증이 필요합니다.");
+        }
+        Pageable pageable = PageRequest.of(page, size);
+        Page<TradePost> posts = tradePostRepository.findBySellerIdAndStatusInOrderByCreatedAtDesc(
+                sellerId, List.of("OPEN", "RESERVED", "COMPLETED"), pageable);
+        return ReturnData.success(toTradePostDtoPage(posts));
     }
 
     @Override
@@ -321,20 +510,19 @@ public class TradeServiceImpl implements TradeService {
         if (!post.getSellerId().equals(userId)) return ReturnData.fail("F403", "권한이 없습니다.");
 
         try {
-            String ext = getExtension(file.getOriginalFilename());
-            // 3차-C: 디렉토리 풀스캔(listFiles) 제거 → UUID 8자 suffix 사용. 충돌 확률 ≈ 1/2^32.
-            String filename = tradeId + "_" + java.util.UUID.randomUUID().toString().substring(0, 8) + ext;
-            File dest = new File(tradeImageDir + "/" + filename);
-            dest.getParentFile().mkdirs();
-            file.transferTo(dest);
-
-            String newImageUrl = "/images/trades/" + filename;
+            // Phase 1-7: ImageStorageService 사용 (local=disk / prod=S3).
+            // DB에는 storage key 저장. 응답은 /api/images/secure/{key} proxy URL.
+            String key = imageStorageService.store(
+                    "uploads/trade/" + tradeId,
+                    file.getOriginalFilename(),
+                    file
+            );
             if (post.getImageUrl() == null || post.getImageUrl().isBlank()) {
-                post.updateImageUrl(newImageUrl);
+                post.updateImageUrl(key);
             } else {
-                post.updateImageUrl(post.getImageUrl() + "," + newImageUrl);
+                post.updateImageUrl(post.getImageUrl() + "," + key);
             }
-            return ReturnData.success(newImageUrl);
+            return ReturnData.success(StorageKeyUrls.toProxyUrl(key));
         } catch (IOException e) {
             return ReturnData.fail("F500", "이미지 저장 실패: " + e.getMessage());
         }

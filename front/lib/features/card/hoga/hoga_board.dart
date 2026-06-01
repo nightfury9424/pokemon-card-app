@@ -1,0 +1,308 @@
+import 'dart:ui' show ImageFilter;
+
+import 'package:flutter/material.dart';
+import '../../../core/theme/app_colors.dart';
+import 'hoga_pivot_row.dart';
+import 'hoga_row.dart';
+import 'hoga_status_chip_bar.dart';
+import 'hoga_summary_row.dart';
+import 'models/hoga_board_model.dart';
+import 'services/hoga_api.dart';
+
+typedef HogaRowTap = void Function(int price, HogaSide side, HogaStatus status, HogaGrade? grade);
+typedef HogaCountsChanged = void Function(int askCount, int bidCount);
+
+/// PokeFolio 호가창 메인 위젯 — 코인/주식 호가창 스타일 컴팩트 표.
+///
+/// 외곽 카드 박스 없음. row 중심.
+/// CTA([판매하기]/[구매하기])는 CardDetailScreen 하단 sticky footer 담당 — HogaBoard 내부에 등록 버튼 두지 않는다
+/// (feedback_hoga_design_invariants.md).
+class HogaBoard extends StatefulWidget {
+  final String cardId;
+  final HogaRowTap? onRowTap;
+  /// chip 기준 카운트가 갱신될 때 호출 — 카드 상세 헤더와 동기화 용.
+  final HogaCountsChanged? onCountsChanged;
+  /// 외부 trigger — TradePost/BuyOrder 생성·취소 후 부모가 ++ 하면 캐시 비우고 재조회.
+  final int refreshKey;
+
+  const HogaBoard({
+    super.key,
+    required this.cardId,
+    this.onRowTap,
+    this.onCountsChanged,
+    this.refreshKey = 0,
+  });
+
+  @override
+  State<HogaBoard> createState() => _HogaBoardState();
+}
+
+class _HogaBoardState extends State<HogaBoard> {
+  HogaStatus _status = HogaStatus.raw;
+  HogaGrade? _grade;
+
+  String _cacheKey(HogaStatus s, HogaGrade? g) =>
+      s.requiresGrade ? '${widget.cardId}_${s.wire}_${g?.wire ?? "10"}' : '${widget.cardId}_${s.wire}';
+  final Map<String, Future<HogaBoardData>> _cache = {};
+
+  Future<HogaBoardData> _load(HogaStatus status, HogaGrade? grade) {
+    final key = _cacheKey(status, grade);
+    return _cache.putIfAbsent(
+      key,
+      () => HogaApi.fetchBoard(widget.cardId, status: status, grade: grade),
+    );
+  }
+
+  void _retry() {
+    setState(() => _cache.remove(_cacheKey(_status, _grade)));
+  }
+
+  @override
+  void didUpdateWidget(covariant HogaBoard old) {
+    super.didUpdateWidget(old);
+    if (old.cardId != widget.cardId || old.refreshKey != widget.refreshKey) {
+      _cache.clear();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<HogaBoardData>(
+      future: _load(_status, _grade),
+      builder: (ctx, snap) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // chip
+            HogaStatusChipBar(
+              selectedStatus: _status,
+              selectedGrade: _grade,
+              onChanged: (s, g) {
+                setState(() {
+                  _status = s;
+                  _grade = g;
+                });
+              },
+            ),
+            const SizedBox(height: 8),
+            if (snap.connectionState == ConnectionState.waiting)
+              _loading()
+            else if (snap.hasError)
+              _error(snap.error)
+            else
+              _content(snap.data!),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _loading() => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 28),
+        child: Center(
+          child: SizedBox(
+            width: 20, height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+
+  Widget _error(Object? e) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: Center(
+          child: Column(
+            children: [
+              const Text('호가를 불러오지 못했습니다.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              const SizedBox(height: 4),
+              TextButton(onPressed: _retry, child: const Text('재시도')),
+            ],
+          ),
+        ),
+      );
+
+  Widget _content(HogaBoardData board) {
+    // 카운트 변경을 부모에게 전파 (build 직후 안전한 콜백).
+    final cb = widget.onCountsChanged;
+    if (cb != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        cb(board.askCount, board.bidCount);
+      });
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        HogaSummaryRow(board: board),
+        const SizedBox(height: 4),
+        // row 클릭 안내 (작게)
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 2),
+          child: Text(
+            '호가를 누르면 등록자 목록을 볼 수 있어요.',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+          ),
+        ),
+        const SizedBox(height: 6),
+        // 호가창 row 묶음 (외곽 박스 없이 표처럼).
+        // 매도/매수 둘 다 0이면 blur overlay로 first-mover 유도.
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.divider, width: 0.6),
+            ),
+            child: Stack(
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: _tableRows(board),
+                ),
+                if (board.askCount == 0 && board.bidCount == 0)
+                  Positioned.fill(child: _firstMoverOverlay()),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 호가창 표 행들. **fixed empty orderbook frame** — 매도 5칸 / 중간가 / 매수 5칸 항상 유지.
+  /// 실제 데이터 없는 칸은 [_emptyRow]로 채워 호가창 높이가 출렁이지 않게 한다.
+  /// 가짜 가격/수량/MY 절대 넣지 않음 (ghost price ladder X).
+  /// 매도/매수 모두 가격 내림차순 → 매도 부족분은 위쪽 empty, 매수 부족분은 아래쪽 empty.
+  static const int _kMaxLevels = 5;
+
+  List<Widget> _tableRows(HogaBoardData board) {
+    final lowestAsk = board.lowestAsk;
+    final highestBid = board.highestBid;
+    final rows = <Widget>[];
+
+    // 매도 라벨 (색상 정책 2026-05-28 정정: 매도=파랑). count는 실제 askCount만, empty slot 제외.
+    rows.add(_sectionLabel('매도', AppColors.blue, board.askCount));
+
+    // 매도 — 부족분은 위쪽 empty (큰 가격대 멀리), 실제 lowestAsk가 중간가 바로 위에 붙음.
+    final asks = board.asks.take(_kMaxLevels).toList();
+    final emptyAskCount = _kMaxLevels - asks.length;
+    for (int i = 0; i < emptyAskCount; i++) {
+      rows.add(_emptyRow());
+    }
+    for (final ask in asks) {
+      rows.add(HogaRow(
+        level: ask,
+        side: HogaSide.ask,
+        highlight: lowestAsk != null && ask.price == lowestAsk,
+        onTap: widget.onRowTap == null
+            ? null
+            : () => widget.onRowTap!(ask.price, HogaSide.ask, _status, _grade),
+      ));
+    }
+
+    rows.add(HogaPivotRow(marketPrice: board.marketPrice, tickUnit: board.tickUnit));
+
+    // 매수 라벨 (색상 정책 2026-05-28 정정: 매수=빨강)
+    rows.add(_sectionLabel('매수', AppColors.red, board.bidCount));
+
+    // 매수 — 부족분은 아래쪽 empty (작은 가격대 멀리), 실제 highestBid가 중간가 바로 아래.
+    final bids = board.bids.take(_kMaxLevels).toList();
+    for (final bid in bids) {
+      rows.add(HogaRow(
+        level: bid,
+        side: HogaSide.bid,
+        highlight: highestBid != null && bid.price == highestBid,
+        onTap: widget.onRowTap == null
+            ? null
+            : () => widget.onRowTap!(bid.price, HogaSide.bid, _status, _grade),
+      ));
+    }
+    final emptyBidCount = _kMaxLevels - bids.length;
+    for (int i = 0; i < emptyBidCount; i++) {
+      rows.add(_emptyRow());
+    }
+
+    return rows;
+  }
+
+  Widget _sectionLabel(String label, Color color, int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        border: const Border(bottom: BorderSide(color: AppColors.dividerSoft, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.6),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$count건',
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 매도/매수 둘 다 0일 때 호가창 위에 표시되는 first-mover 안내 overlay.
+  /// BackdropFilter로 빈 호가창을 살짝 가리고 중앙에 안내 메시지. IgnorePointer로 클릭 통과.
+  /// 호가가 1개라도 등록되면 자동으로 사라짐 (조건부 렌더링).
+  Widget _firstMoverOverlay() {
+    return IgnorePointer(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: Container(
+          color: Colors.black.withValues(alpha: 0.4),
+          alignment: Alignment.center,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.add_chart_outlined, size: 36, color: AppColors.textSecondary),
+                SizedBox(height: 14),
+                Text(
+                  '아직 등록된 호가가 없어요',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  '판매하기 또는 구매하기로\n첫 호가를 등록해보세요',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 빈 호가 slot (fixed empty orderbook frame).
+  /// HogaRow와 동일 높이 32. 가격/수량/MY/클릭 모두 없음.
+  /// 실제 주문으로 오해하지 않도록 매우 희미한 하단 border만 표시.
+  Widget _emptyRow() => Container(
+        height: 32,
+        decoration: const BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: AppColors.dividerSoft,
+              width: 0.3,
+            ),
+          ),
+        ),
+      );
+}

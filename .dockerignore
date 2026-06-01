@@ -1,0 +1,64 @@
+# Phase 1-8: docker build context 제외 목록.
+# build context 크기 줄임 + 민감/대용량 파일 차단.
+
+# ───────────── version control ─────────────
+.git/
+.gitignore
+.gitattributes
+
+# ───────────── IDE / OS ─────────────
+.idea/
+.vscode/
+.DS_Store
+*.swp
+
+# ───────────── Frontend (서버에 안 올림 — TestFlight/Play로 배포) ─────────────
+front/
+
+# ───────────── Build artifacts ─────────────
+back/build/
+back/.gradle/
+admin/
+docs/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+**/.mypy_cache/
+
+# ───────────── Python venv (image 안에서 새로 install) ─────────────
+**/.venv*/
+**/venv/
+python/.venv_kream/
+
+# ───────────── 학습/검수 데이터 (운영 image에 X) ─────────────
+scanner/data/cards/
+scanner/data/crawl_raw/
+scanner/training/data/
+scanner/training/runs/
+scanner/training/datachips_daangn*/
+back/export/
+checkpoint_*/
+sync_backup_*/
+
+# ───────────── secrets (서버 .env에만) ─────────────
+.env
+.env.*
+!.env.prod.example
+**/application-local.properties
+**/application-prod.properties
+**/application-staging.properties
+**/application-dev.properties
+**/config.py
+**/*.pem
+**/*.key
+
+# ───────────── 큰 모델 파일 (docker volume mount) ─────────────
+scanner/model/
+scanner/db/
+
+# ───────────── 로그/임시 ─────────────
+**/logs/
+**/*.log
+**/tmp/
+*.dump

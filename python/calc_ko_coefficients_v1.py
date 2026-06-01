@@ -21,7 +21,7 @@ import psycopg2
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 log = logging.getLogger(__name__)
 
-DB = {'dbname': 'pokemon_card_db', 'user': 'nightfury'}
+from config import DB_CONFIG as DB  # Phase 1-4: env 기반 DB config
 DAYS = 60
 IQR_FENCE = 1.5
 MIN_SAMPLES_CARD = 5     # CARD coef n>=5

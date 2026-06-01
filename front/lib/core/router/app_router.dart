@@ -6,19 +6,31 @@ import '../../features/auth/onboarding_screen.dart';
 import '../../features/grading/grading_screen.dart';
 import '../../features/grading/grading_capture_screen.dart';
 import '../../features/grading/grading_result_screen.dart';
+import '../../features/grading/grading_asset_select_screen.dart';
+import '../../features/grading/asset_grading_detail_screen.dart';
+import '../constants/feature_flags.dart';
+import '../theme/app_colors.dart';
 import '../../features/shell/main_shell.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/scanner/scanner_screen.dart';
 import '../../features/card/card_detail_screen.dart';
 import '../../features/card/product_cards_screen.dart';
 import '../../features/asset/asset_screen.dart';
+import '../../features/asset/dex/dex_detail_screen.dart';
 import '../../features/price/price_screen.dart';
 import '../../features/packs/packs_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/profile/favorites_screen.dart';
 import '../../features/profile/edit_nickname_screen.dart';
+import '../../features/profile/blocked_users_screen.dart';
+import '../../features/profile/report_history_screen.dart';
 import '../../features/chat/chat_screen.dart';
 import '../../features/chat/chat_room_screen.dart';
+import '../../features/legal/terms_of_service_screen.dart';
+import '../../features/legal/privacy_policy_screen.dart';
+import '../../features/legal/customer_support_screen.dart';
+import '../../features/legal/inquiry_category.dart';
+import '../../features/legal/inquiry_compose_screen.dart';
 import '../../features/trade/trade_list_screen.dart';
 import '../../features/trade/trade_detail_screen.dart';
 import '../../features/trade/trade_create_screen.dart';
@@ -52,12 +64,33 @@ final appRouter = GoRouter(
     GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
     GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
     GoRoute(path: '/profile/edit-nickname', builder: (_, _) => const EditNicknameScreen()),
+    GoRoute(path: '/profile/blocked-users', builder: (_, _) => const BlockedUsersScreen()),
+    GoRoute(path: '/profile/reports', builder: (_, _) => const ReportHistoryScreen()),
+    GoRoute(path: '/legal/terms', builder: (_, _) => const TermsOfServiceScreen()),
+    GoRoute(path: '/legal/privacy', builder: (_, _) => const PrivacyPolicyScreen()),
+    GoRoute(path: '/support', builder: (_, _) => const CustomerSupportScreen()),
+    // 카테고리별 문의 작성 — 잘못된 key면 카테고리 list로 폴백.
+    GoRoute(
+      path: '/support/inquiry/:category',
+      builder: (_, state) {
+        final cat = InquiryCategory.fromKey(state.pathParameters['category']);
+        if (cat == null) return const CustomerSupportScreen();
+        return InquiryComposeScreen(category: cat);
+      },
+    ),
     GoRoute(
       path: '/scanner',
       builder: (_, state) {
         final expected = state.uri.queryParameters['expectedCardId'];
         return ScannerScreen(expectedCardId: expected);
       },
+    ),
+    // 2026-05-29 Phase B — 도감 시리즈 상세.
+    GoRoute(
+      path: '/dex/:productId',
+      builder: (_, state) => DexDetailScreen(
+        productId: state.pathParameters['productId']!,
+      ),
     ),
     GoRoute(
       path: '/card/:cardId',
@@ -129,7 +162,6 @@ final appRouter = GoRouter(
           cardName: extra['cardName'] as String?,
           rarity: extra['rarity'] as String?,
           imageUrl: extra['imageUrl'] as String?,
-          cdnImageUrl: extra['cdnImageUrl'] as String?,
           assetId: extra['assetId'] as String?,
           cardStatus: extra['cardStatus'] as String?,
           estimatedGrade: extra['estimatedGrade'] is num
@@ -151,30 +183,69 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/chat/:roomId',
-      builder: (context, state) => ChatRoomScreen(
-        roomId: state.pathParameters['roomId']!,
-        roomInfo: state.extra is Map
+      // Phase 1 hotfix#9: hotfix#8 FadeTransition 도 animation 진행 중 이전 trade_detail
+      // 이 sub-stack에 visible 한 문제. fade 부드러움 < 잔상 즉시 제거 우선 → NoTransitionPage
+      // (transition 0ms). 클릭 즉시 chat_room 전체 표시, 좌측 trade_detail 관심 버튼 잔상
+      // 완전 제거. 빈 spinner 첫 frame은 그대로지만 fade 중에도 동일 — 이전 화면 노출이
+      // 더 큰 회귀라 transition 자체 폐기가 안전.
+      pageBuilder: (context, state) {
+        final roomInfo = state.extra is Map
             ? Map<String, dynamic>.from(state.extra as Map)
-            : {},
-      ),
+            : <String, dynamic>{};
+        return NoTransitionPage<void>(
+          key: state.pageKey,
+          child: ChatRoomScreen(
+            roomId: state.pathParameters['roomId']!,
+            roomInfo: roomInfo,
+          ),
+        );
+      },
     ),
-    GoRoute(path: '/grading', builder: (_, _) => const GradingScreen()),
+    // Hotfix 10-1: AI 그레이딩 5 route 모두 feature flag 가드.
+    // enableAiGrading=false → _GradingDisabledScreen 으로 redirect.
+    // route 자체 보존 (deep link / 직접 navigate 안전).
+    GoRoute(
+        path: '/grading',
+        builder: (_, _) => FeatureFlags.enableAiGrading
+            ? const GradingScreen()
+            : const _GradingDisabledScreen()),
+    GoRoute(
+      path: '/grading/select-asset',
+      builder: (_, _) => FeatureFlags.enableAiGrading
+          ? const GradingAssetSelectScreen()
+          : const _GradingDisabledScreen(),
+    ),
+    GoRoute(
+      path: '/grading/saved/:assetId',
+      builder: (context, state) => FeatureFlags.enableAiGrading
+          ? AssetGradingDetailScreen(assetId: state.pathParameters['assetId']!)
+          : const _GradingDisabledScreen(),
+    ),
     GoRoute(
       path: '/grading/capture',
+      // Hotfix 10-2 v2 (Plan E): mode='card_verify' (또는 legacy 'sell_photo') 는 enableAiGrading=false 여도 허용.
+      // 그 외 (analyze legacy) 는 enableAiGrading=true 일 때만 허용.
       builder: (context, state) {
         final extra = state.extra is Map
             ? Map<String, dynamic>.from(state.extra as Map)
             : <String, dynamic>{};
+        final mode = extra['mode'] as String? ?? 'analyze';
+        final isCardVerify = mode == 'card_verify' || mode == 'sell_photo';
+        if (!isCardVerify && !FeatureFlags.enableAiGrading) {
+          return const _GradingDisabledScreen();
+        }
         return GradingCaptureScreen(
           assetId: extra['assetId'] as String?,
           cardId: extra['cardId'] as String?,
           cardName: extra['cardName'] as String?,
+          mode: mode,
         );
       },
     ),
     GoRoute(
       path: '/grading/result',
       builder: (context, state) {
+        if (!FeatureFlags.enableAiGrading) return const _GradingDisabledScreen();
         final extra = state.extra is Map
             ? Map<String, dynamic>.from(state.extra as Map)
             : <String, dynamic>{};
@@ -185,6 +256,9 @@ final appRouter = GoRouter(
           assetId: extra['assetId'] as String?,
           cardId: extra['cardId'] as String?,
           cardName: extra['cardName'] as String?,
+          frameRect: extra['frameRect'] is Map
+              ? Map<String, double>.from(extra['frameRect'] as Map)
+              : null,
         );
       },
     ),
@@ -215,3 +289,46 @@ final appRouter = GoRouter(
     ),
   ],
 );
+
+// Hotfix 10-1: AI 그레이딩 비활성 시 5 route 모두 진입 차단 placeholder.
+// 신고 진행상황 처럼 "준비 중" 안내. 코드/route 보존, 진입만 막음.
+class _GradingDisabledScreen extends StatelessWidget {
+  const _GradingDisabledScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(
+        backgroundColor: AppColors.bg,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: const Text('AI 그레이딩',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16,
+                fontWeight: FontWeight.w600)),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: const [
+            Icon(Icons.auto_awesome_rounded, color: AppColors.textMuted, size: 48),
+            SizedBox(height: 16),
+            Text('AI 그레이딩은 현재 준비 중입니다',
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 16,
+                    fontWeight: FontWeight.w600)),
+            SizedBox(height: 8),
+            Text(
+              '더 정확한 카드 상태 분석을 위해 개선 중입니다.\n'
+              '베타 사용자 피드백을 바탕으로 빠르게 출시할 예정입니다.',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12, height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}

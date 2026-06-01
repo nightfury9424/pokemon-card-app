@@ -1,9 +1,15 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'trade_partner_select_sheet.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
+import '../../core/widgets/app_success_toast.dart';
+import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/app_error_toast.dart';
 
 class TradeDetailScreen extends StatefulWidget {
   final String tradeId;
@@ -25,6 +31,10 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
   String? _myUserId;
   List<String> _tradeImages = [];
   int _currentImageIndex = 0;
+  // Bundle 2-A.4: 같은 saleListingId + buyerUserId로 이미 만들어진 채팅방이 있으면
+  // CTA를 "대화 중인 채팅방 보기"로 분기 + 클릭 시 기존 방으로 바로 이동.
+  String? _existingChatRoomId;
+  Map<String, dynamic>? _existingChatRoom;
 
   bool get _isSeller {
     if (_myUserId == null) return false;
@@ -52,6 +62,32 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     super.initState();
     _loadTrade();
     _loadCurrentUser();
+    _loadExistingChatRoom();
+  }
+
+  /// Bundle 2-A.4: 거래 상세 진입 시 GET /api/chat/rooms로 내가 보유한 채팅방 list 받아서
+  /// saleListingId == widget.tradeId 인 방 찾으면 CTA 분기.
+  /// (saleListingId, buyerUserId) UNIQUE라 매칭 1개 또는 0개.
+  Future<void> _loadExistingChatRoom() async {
+    try {
+      final res = await ApiClient.get('/api/chat/rooms');
+      final rooms = (res['data'] as List?) ?? [];
+      Map<String, dynamic>? existing;
+      for (final r in rooms) {
+        if (r is Map && r['saleListingId'] == widget.tradeId) {
+          existing = Map<String, dynamic>.from(r);
+          break;
+        }
+      }
+      if (existing != null && mounted) {
+        setState(() {
+          _existingChatRoomId = existing!['chatRoomId'] as String?;
+          _existingChatRoom = existing;
+        });
+      }
+    } catch (_) {
+      // silent — 실패해도 기본 "판매자에게 문의하기" CTA로 fallback
+    }
   }
 
   Future<void> _loadTrade() async {
@@ -123,20 +159,10 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       if (!mounted) return;
       final liked = res['data']?['isLiked'] as bool? ?? !_isLiked;
       setState(() => _isLiked = liked);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(liked ? '관심 목록에 추가했습니다' : '관심 목록에서 제거했습니다'),
-          duration: const Duration(seconds: 1),
-        ),
-      );
+      AppSuccessToast.show(context, liked ? '관심 목록에 추가했습니다' : '관심 목록에서 제거했습니다');
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('오류가 발생했습니다'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        AppErrorToast.show(context, '오류가 발생했습니다');
       }
     } finally {
       if (mounted) setState(() => _likeLoading = false);
@@ -151,46 +177,63 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
         if (didPop || !mounted) return;
         _popWithResult();
       },
-      child: Scaffold(
-        backgroundColor: AppColors.bg,
-        appBar: AppBar(
-          backgroundColor: AppColors.bg,
-          elevation: 0,
-          foregroundColor: AppColors.textPrimary,
-          title: const Text(
-            '판매글',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          actions: [
-            if (_trade != null && _myUserId != null && !_isSeller)
-              IconButton(
-                tooltip: '신고하기',
-                icon: const Icon(
-                  Icons.flag_outlined,
-                  color: AppColors.textSecondary,
+      child: Stack(
+        children: [
+          Scaffold(
+            backgroundColor: AppColors.bg,
+            appBar: AppBar(
+              backgroundColor: AppColors.bg,
+              elevation: 0,
+              foregroundColor: AppColors.textPrimary,
+              title: const Text(
+                '판매글',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
                 ),
-                onPressed: _showReportSheet,
               ),
-          ],
-        ),
-        body: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.blue),
-              )
-            : _trade == null
-            ? const Center(
-                child: Text(
-                  '판매글을 찾을 수 없습니다',
-                  style: TextStyle(color: AppColors.textSecondary),
+              actions: [
+                if (_trade != null && _myUserId != null && !_isSeller)
+                  IconButton(
+                    tooltip: '신고하기',
+                    icon: const Icon(
+                      Icons.flag_outlined,
+                      color: AppColors.textSecondary,
+                    ),
+                    onPressed: _showReportSheet,
+                  ),
+              ],
+            ),
+            body: _loading
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppColors.blue),
+                  )
+                : _trade == null
+                ? const Center(
+                    child: Text(
+                      '판매글을 찾을 수 없습니다',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  )
+                : _buildBody(),
+            bottomNavigationBar: _trade != null && !_loading
+                ? _buildBottomBar()
+                : null,
+          ),
+          // hotfix#11: 채팅방 진입 직전 화면 전체를 완전 불투명으로 덮음.
+          // 이전 trade_detail UI (관심 버튼/이미지/하단 버튼) 잔상 차단.
+          // _startChat 이 setState(_chatLoading=true) → endOfFrame 대기 → API → push.
+          // cover 가 그려진 후에만 navigation 시작 → 1프레임도 잔상 X.
+          if (_chatLoading)
+            const Positioned.fill(
+              child: Material(
+                color: AppColors.bg,
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.blue),
                 ),
-              )
-            : _buildBody(),
-        bottomNavigationBar: _trade != null && !_loading
-            ? _buildBottomBar()
-            : null,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -218,6 +261,8 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     final createdAt = trade['createdAt'] ?? '';
     final tradeStatus = trade['status'] as String? ?? 'OPEN';
     final viewCount = (trade['viewCount'] as num?)?.toInt() ?? 0;
+    final chatCount = (trade['chatCount'] as num?)?.toInt() ?? 0;
+    final favoriteCount = (trade['favoriteCount'] as num?)?.toInt() ?? 0;
     final rarity = cardData['rarityCode'] ?? '';
     final cardName = cardData['name'] ?? '';
     final cardId = trade['cardId'] ?? '';
@@ -229,7 +274,6 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
         children: [
           _buildTradeImageSection(
             cardImageUrl,
-            resolveCdnImageUrl(cardData),
             tradeStatus,
           ),
 
@@ -300,6 +344,32 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                                     fontSize: 11,
                                   ),
                                 ),
+                              ],
+                              if (chatCount > 0) ...[
+                                const Text(' · ',
+                                    style: TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11)),
+                                const Icon(Icons.chat_bubble_outline_rounded,
+                                    color: AppColors.textMuted, size: 11),
+                                const SizedBox(width: 2),
+                                Text('채팅 $chatCount',
+                                    style: const TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11)),
+                              ],
+                              if (favoriteCount > 0) ...[
+                                const Text(' · ',
+                                    style: TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11)),
+                                const Icon(Icons.favorite_border_rounded,
+                                    color: AppColors.textMuted, size: 11),
+                                const SizedBox(width: 2),
+                                Text('관심 $favoriteCount',
+                                    style: const TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11)),
                               ],
                             ],
                           ),
@@ -382,7 +452,6 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                       children: [
                         CardImage(
                           imageUrl: cardImageUrl,
-                          cdnFallbackUrl: resolveCdnImageUrl(cardData),
                           width: 44,
                           height: 60,
                           borderRadius: BorderRadius.circular(6),
@@ -468,12 +537,10 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Widget _imageFallback(
     String? cardImageUrl,
-    double height, [
-    String? cdnFallbackUrl,
-  ]) {
+    double height,
+  ) {
     return CardImage(
       imageUrl: cardImageUrl,
-      cdnFallbackUrl: cdnFallbackUrl,
       width: double.infinity,
       height: height,
       fit: BoxFit.contain,
@@ -482,7 +549,6 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Widget _buildTradeImageSection(
     String? cardImageUrl,
-    String? cdnFallbackUrl,
     String tradeStatus,
   ) {
     final hasTradeImages = _tradeImages.isNotEmpty;
@@ -504,22 +570,22 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                   itemBuilder: (context, index) {
                     return GestureDetector(
                       onTap: () => _showFullscreenImages(index),
-                      child: Image.network(
-                        _tradeImages[index],
+                      // AuthImage: /api/images/secure/** JWT 부착 (사용자 업로드 trade 이미지)
+                      child: AuthImage(
+                        url: _tradeImages[index],
                         width: double.infinity,
                         height: imageHeight,
                         fit: BoxFit.contain,
                         errorBuilder: (_, __, ___) => _imageFallback(
                           cardImageUrl,
                           imageHeight,
-                          cdnFallbackUrl,
                         ),
                       ),
                     );
                   },
                 )
               else
-                _imageFallback(cardImageUrl, imageHeight, cdnFallbackUrl),
+                _imageFallback(cardImageUrl, imageHeight),
               if (tradeStatus != 'OPEN')
                 Positioned.fill(
                   child: Container(
@@ -536,7 +602,11 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                           border: Border.all(color: Colors.white30),
                         ),
                         child: Text(
-                          tradeStatus == 'RESERVED' ? '예약중' : '거래완료',
+                          switch (tradeStatus) {
+                            'RESERVED' => '예약중',
+                            'DELETED' => '삭제됨',
+                            _ => '거래완료',
+                          },
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -597,8 +667,9 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                     minScale: 1,
                     maxScale: 4,
                     child: Center(
-                      child: Image.network(
-                        _tradeImages[index],
+                      // AuthImage: fullscreen view (사용자 업로드 trade 이미지)
+                      child: AuthImage(
+                        url: _tradeImages[index],
                         fit: BoxFit.contain,
                         errorBuilder: (_, __, ___) => const Icon(
                           Icons.broken_image_outlined,
@@ -649,25 +720,76 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     );
   }
 
+  /// Bundle 2-A.5: 거래 상태 + 기존 채팅방 조합 CTA 라벨.
+  /// 기존 채팅방 있으면 status 무관 "대화 이어가기".
+  /// 없으면 OPEN만 신규 채팅 허용, 그 외 disabled 상태 표시.
+  String _chatCtaLabel(String tradeStatus) {
+    if (_existingChatRoomId != null) return '대화 이어가기';
+    return switch (tradeStatus) {
+      'OPEN' => '채팅하기',
+      'RESERVED' => '거래 중',
+      'COMPLETED' => '거래 완료',
+      'DELETED' => '삭제됨',
+      _ => '채팅하기',
+    };
+  }
+
   Future<void> _startChat() async {
     if (_chatLoading) return;
+    // Phase 1 hotfix#2: existing 분기 제거 — 차단/상대 나감 backend 가드 우회 막음.
+    // backend getOrCreateRoom 은 unique constraint 로 idempotent — existing 이면 같은 room 반환,
+    // 차단/상대 나감이면 save 전 403 (BLOCKED / OTHER_LEFT). 빈 채팅방 생성 X.
     setState(() => _chatLoading = true);
+    // hotfix#11: opaque cover 가 실제 frame 으로 그려진 다음 navigation 시작.
+    // 잔상(좌측 trade_detail UI) 완전 차단 — Scaffold body Stack 의 cover 가 화면을 덮은
+    // 다음에 chat route push.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) {
+      return;
+    }
     try {
       final res = await ApiClient.post('/api/chat/rooms', {
         'saleListingId': widget.tradeId,
       });
       if (!mounted) return;
       final room = res['data'] as Map<String, dynamic>;
-      await context.push('/chat/${room['chatRoomId']}', extra: room);
-    } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('채팅방을 열 수 없습니다'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        setState(() {
+          _existingChatRoomId = room['chatRoomId'] as String?;
+          _existingChatRoom = room;
+        });
       }
+      await context.push('/chat/${room['chatRoomId']}', extra: room);
+    } on DioException catch (e) {
+      // Phase 1 hotfix#6: status + reason 분기.
+      // - 410 GONE TRADE_DELETED → 안내 + 상세 닫고 hoga refresh
+      // - 409 CONFLICT TRADE_RESERVED/COMPLETED → reason별 안내, 화면 유지
+      // - 403 = BLOCKED/OTHER_LEFT → "연락할 수 없는 사용자입니다", 화면 유지
+      // - 그 외 → 일반 실패
+      if (!mounted) return;
+      final status = e.response?.statusCode;
+      final reason = e.response?.data is Map
+          ? (e.response?.data as Map)['message'] as String?
+          : null;
+      if (status == 410) {
+        AppErrorToast.show(context, '삭제된 판매글입니다');
+        context.pop(true); // card_detail _refreshAfterOrderMutation → hoga 갱신
+        return;
+      }
+      if (status == 409) {
+        final msg = switch (reason) {
+          'TRADE_RESERVED' => '예약 중인 거래입니다',
+          'TRADE_COMPLETED' => '거래가 완료되었습니다',
+          _ => '채팅을 시작할 수 없는 상태입니다',
+        };
+        AppErrorToast.show(context, msg);
+        return;
+      }
+      final blocked = status == 403;
+      AppErrorToast.show(context,
+          blocked ? '연락할 수 없는 사용자입니다' : '채팅방을 열 수 없습니다');
+    } catch (_) {
+      if (mounted) AppErrorToast.show(context, '채팅방을 열 수 없습니다');
     } finally {
       if (mounted) setState(() => _chatLoading = false);
     }
@@ -675,7 +797,12 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Widget _buildBottomBar() {
     final tradeStatus = _trade?['status'] as String? ?? 'OPEN';
-    final canChat = tradeStatus == 'OPEN' && !_chatLoading;
+    // Bundle 2-A.5: 거래 상태별 CTA 게이트.
+    // - 기존 채팅방 있으면 status 무관 활성 (이미 대화 중인 buyer는 계속 진행 가능)
+    // - 없으면 OPEN일 때만 새 채팅 시작 가능
+    // RESERVED/COMPLETED/DELETED는 새 buyer 진입 차단 (CANCELED 제거 2026-05-22 — 판매글 상태 부적합).
+    final hasExistingRoom = _existingChatRoomId != null;
+    final canChat = !_chatLoading && (hasExistingRoom || tradeStatus == 'OPEN');
 
     return Container(
       decoration: const BoxDecoration(
@@ -787,18 +914,19 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                                 ),
                               ),
                             )
-                          : const Row(
+                          : Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.chat_bubble_rounded,
                                   color: Colors.white,
                                   size: 18,
                                 ),
-                                SizedBox(width: 8),
+                                const SizedBox(width: 8),
+                                // Bundle 2-A.5: 기존 채팅방 + 거래 상태 조합으로 CTA 분기.
                                 Text(
-                                  '채팅하기',
-                                  style: TextStyle(
+                                  _chatCtaLabel(tradeStatus),
+                                  style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,
@@ -816,10 +944,14 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   void _showStatusSheet() {
     final currentStatus = _trade?['status'] as String? ?? 'OPEN';
+    // 판매글 상태 정책 — OPEN / RESERVED / COMPLETED / DELETED 4개.
+    // 거래 취소는 RESERVED → OPEN 복귀로 처리. 판매 종료는 DELETED (별도 삭제 흐름).
+    // 이전 'CLOSED'는 'COMPLETED'로 통일 (2026-05-22).
+    // 거래중 모델: "예약 중" → "거래 중" UI label. DB enum 은 RESERVED 유지.
     final options = <Map<String, dynamic>>[
       {'label': '판매중', 'status': 'OPEN', 'icon': Icons.sell_rounded},
-      {'label': '예약중', 'status': 'RESERVED', 'icon': Icons.bookmark_rounded},
-      {'label': '거래완료', 'status': 'CLOSED', 'icon': Icons.check_circle_rounded},
+      {'label': '거래 중', 'status': 'RESERVED', 'icon': Icons.bookmark_rounded},
+      {'label': '거래 완료', 'status': 'COMPLETED', 'icon': Icons.check_circle_rounded},
     ];
 
     showModalBottomSheet<void>(
@@ -856,9 +988,21 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                   trailing: selected
                       ? const Icon(Icons.check_rounded, color: AppColors.blue)
                       : null,
-                  onTap: () {
+                  onTap: () async {
                     Navigator.of(context).pop();
-                    _updateStatus(status);
+                    // 거래중 모델: RESERVED 선택 시 거래 상대 선택 sheet 먼저.
+                    // 선택된 chatRoomId 와 함께 status 변경. 다른 status 는 그대로.
+                    if (status == 'RESERVED' && !mounted) return;
+                    if (status == 'RESERVED') {
+                      final chatRoomId = await TradePartnerSelectSheet.show(
+                        context,
+                        tradeId: _currentTradeId,
+                      );
+                      if (chatRoomId == null || !mounted) return;
+                      await _updateStatus(status, chatRoomId: chatRoomId);
+                    } else {
+                      await _updateStatus(status);
+                    }
                   },
                 );
               }).toList(),
@@ -869,7 +1013,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     );
   }
 
-  Future<void> _updateStatus(String newStatus) async {
+  Future<void> _updateStatus(String newStatus, {String? chatRoomId}) async {
     if (_statusUpdating) return;
     final trade = _trade;
     if (trade == null) return;
@@ -883,22 +1027,13 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     });
 
     try {
-      await ApiClient.patch(
-        '/api/trades/$_currentTradeId/status',
-        data: {
-          'data': {'status': newStatus},
-        },
-      );
+      // 거래중 모델: RESERVED 변경 시 chatRoomId 함께 전달.
+      await ApiClient.updateTradeStatus(_currentTradeId, newStatus, chatRoomId: chatRoomId);
       _modified = true;
     } catch (_) {
       if (!mounted) return;
       setState(() => trade['status'] = oldStatus);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('상태 변경 실패'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppErrorToast.show(context, '상태 변경 실패');
     } finally {
       if (mounted) setState(() => _statusUpdating = false);
     }
@@ -936,38 +1071,17 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
   }
 
   Future<void> _confirmDelete() async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surfaceCard,
-          title: const Text(
-            '판매글 삭제',
-            style: TextStyle(color: AppColors.textPrimary),
-          ),
-          content: const Text(
-            '삭제하면 되돌릴 수 없습니다. 진행 중인 채팅에 영향을 줄 수 있습니다.',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                '취소',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _deleteTrade();
-              },
-              child: const Text('삭제', style: TextStyle(color: AppColors.red)),
-            ),
-          ],
-        );
-      },
+    // Polish (2026-05-19): Material AlertDialog → AppConfirmDialog (토스 스타일)
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '판매글 삭제',
+      message: '삭제하면 되돌릴 수 없습니다.\n진행 중인 채팅에 영향을 줄 수 있습니다.',
+      confirmLabel: '삭제',
+      destructive: true,
     );
+    if (ok == true && mounted) {
+      await _deleteTrade();
+    }
   }
 
   void _showReportSheet() {
@@ -1095,7 +1209,6 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
   }
 
   Future<void> _submitReport(String reasonCode, String detail) async {
-    final messenger = ScaffoldMessenger.of(context);
     try {
       await ApiClient.post('/api/reports', {
         'data': {
@@ -1106,20 +1219,13 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
         },
       });
       if (!mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('신고가 접수되었어요. 검토 후 처리할게요.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppSuccessToast.show(context, '신고가 접수되었어요.\n검토 후 처리할게요.');
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString().contains('이미 신고하신')
           ? '이미 신고하신 항목입니다.'
           : '신고 접수 실패. 잠시 후 다시 시도해 주세요.';
-      messenger.showSnackBar(
-        SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
-      );
+      AppErrorToast.show(context, msg);
     }
   }
 
@@ -1127,19 +1233,12 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     try {
       await ApiClient.delete('/api/trades/$_currentTradeId');
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
+      // rootOverlay 사용이라 pop 후에도 토스트 유지.
+      AppSuccessToast.show(context, '판매글이 삭제되었습니다');
       context.pop(true);
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('판매글이 삭제되었습니다'),
-          duration: Duration(seconds: 2),
-        ),
-      );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('삭제 실패'), duration: Duration(seconds: 2)),
-      );
+      AppErrorToast.show(context, '삭제 실패');
     }
   }
 }

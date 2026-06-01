@@ -1,5 +1,6 @@
 package com.fury.back.auth;
 
+import com.fury.back.config.SecurityConfig;
 import com.fury.back.domain.user.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -9,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -23,6 +25,8 @@ import java.util.List;
 public class OnboardingGuardFilter extends OncePerRequestFilter {
 
     private final UserRepository userRepository;
+
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     private static final List<String> ALLOWED_PREFIXES = List.of(
             "/api/auth/",
@@ -48,6 +52,13 @@ public class OnboardingGuardFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         for (String prefix : ALLOWED_PREFIXES) {
             if (path.startsWith(prefix)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+        }
+        // admin path는 OnboardingGuardFilter 대상 제외 — AdminAllowlistFilter 전담.
+        for (String pattern : SecurityConfig.ADMIN_PATH_PATTERNS) {
+            if (PATH_MATCHER.match(pattern, path)) {
                 filterChain.doFilter(request, response);
                 return;
             }

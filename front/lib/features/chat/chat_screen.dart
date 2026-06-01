@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
+import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/card_image.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -18,6 +20,14 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _loadRooms();
+    // Bundle 2-D hotfix: 채팅방에서 상태 변경/메시지 read 시 list 갱신.
+    ChatUnreadNotifier.instance.addListener(_loadRooms);
+  }
+
+  @override
+  void dispose() {
+    ChatUnreadNotifier.instance.removeListener(_loadRooms);
+    super.dispose();
   }
 
   Future<void> _loadRooms() async {
@@ -86,24 +96,27 @@ class _ChatScreenState extends State<ChatScreen> {
     final lastMsg = room['lastMessage'] as String?;
     final otherNickname = room['otherUserNickname'] ?? '';
     final profileUrl = room['otherUserProfileImageUrl'] as String?;
-    final tradeTitle = room['tradeTitle'] ?? '';
+    final tradeTitle = (room['tradeTitle'] as String?) ?? '';
+    // Bundle 2-A.1: 채팅 목록에서 어느 거래 채팅인지 즉시 인지하도록 trade summary line 추가.
+    // trade 매칭 없는 채팅방(dummy/삭제)은 row 생략 — 기존 동작 일관.
+    final cardImageUrl = room['cardImageUrl'] as String?;
+    final tradePrice = (room['tradePrice'] as num?)?.toInt();
+    final tradeStatus = room['tradeStatus'] as String?;
+    // 2026-05-28 BUY chat — contextType ('SALE'/'BUY') 분기 라벨 + 상태 매핑.
+    final contextType = (room['contextType'] as String?) ?? 'SALE';
+    final isBuy = contextType == 'BUY';
+    final showTradeRow = cardImageUrl != null && tradeTitle.isNotEmpty;
 
     return InkWell(
       onTap: () => context.push('/chat/${room['chatRoomId']}', extra: room),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: AppColors.surfaceElevated,
-              backgroundImage:
-                  profileUrl != null ? NetworkImage(profileUrl) : null,
-              child: profileUrl == null
-                  ? const Icon(Icons.person,
-                      color: AppColors.textMuted, size: 22)
-                  : null,
-            ),
+            // Bundle 2-A.3 layout: 거래 채팅이면 카드 썸네일을 대표 이미지로 + 우하단 avatar overlay
+            // (당근식). 거래 정보 없는 dummy 채팅방은 큰 원형 avatar fallback.
+            _buildLeftThumb(showTradeRow, cardImageUrl, profileUrl),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -129,7 +142,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 4),
                   Text(
                     lastMsg ?? tradeTitle,
                     style: TextStyle(
@@ -141,6 +154,48 @@ class _ChatScreenState extends State<ChatScreen> {
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
+                  // Bundle 2-A.3: trade summary 한 줄 (카드명·가격·상태) — 좌측 카드 썸네일 보조.
+                  // 2026-05-28: 맨 앞에 [판매]/[구매] 라벨 WidgetSpan + isBuy 시 가격 prefix "희망가".
+                  if (showTradeRow) ...[
+                    const SizedBox(height: 4),
+                    RichText(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      text: TextSpan(
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11,
+                        ),
+                        children: [
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: _buildContextLabelInline(isBuy: isBuy),
+                          ),
+                          const TextSpan(text: ' '),
+                          TextSpan(text: tradeTitle),
+                          if (tradePrice != null)
+                            TextSpan(
+                                text: isBuy
+                                    ? ' · 희망가 ${_formatPrice(tradePrice)}원'
+                                    : ' · ${_formatPrice(tradePrice)}원'),
+                          if (tradeStatus != null) ...[
+                            const TextSpan(text: ' · '),
+                            TextSpan(
+                              text: isBuy
+                                  ? _buyOrderStatusLabel(tradeStatus)
+                                  : _statusLabel(tradeStatus),
+                              style: TextStyle(
+                                color: isBuy
+                                    ? _buyOrderStatusColor(tradeStatus)
+                                    : _statusColor(tradeStatus),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -163,6 +218,131 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Bundle 2-A.3 layout: 거래 채팅이면 카드 master 이미지를 대표 이미지로 (56x78),
+  /// 우하단에 상대 avatar 작은 overlay (당근식). 거래 정보 없으면 큰 원형 avatar fallback.
+  Widget _buildLeftThumb(bool showTradeRow, String? cardImageUrl, String? profileUrl) {
+    if (showTradeRow && cardImageUrl != null) {
+      return SizedBox(
+        width: 56,
+        height: 78,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            CardImage(
+              imageUrl: cardImageUrl,
+              width: 56,
+              height: 78,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            Positioned(
+              right: -4,
+              bottom: -4,
+              child: Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.bg, width: 2),
+                ),
+                child: CircleAvatar(
+                  radius: 11,
+                  backgroundColor: AppColors.surfaceElevated,
+                  backgroundImage:
+                      profileUrl != null ? NetworkImage(profileUrl) : null,
+                  child: profileUrl == null
+                      ? const Icon(Icons.person,
+                          color: AppColors.textMuted, size: 12)
+                      : null,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    // fallback — trade 매칭 없는 채팅방: 기존 큰 원형 avatar.
+    return CircleAvatar(
+      radius: 26,
+      backgroundColor: AppColors.surfaceElevated,
+      backgroundImage: profileUrl != null ? NetworkImage(profileUrl) : null,
+      child: profileUrl == null
+          ? const Icon(Icons.person, color: AppColors.textMuted, size: 22)
+          : null,
+    );
+  }
+
+  /// Bundle 2-A.1: 콤마 포맷 (반올림 X) — chat_room의 동일 helper와 정책 일관.
+  String _formatPrice(int price) {
+    final str = price.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) buf.write(',');
+      buf.write(str[i]);
+    }
+    return buf.toString();
+  }
+
+  /// fallback은 '판매중' X — 알 수 없는 status를 OPEN처럼 표시하면
+  /// 실제로 삭제/완료/오류인데 거래 가능한 듯 보일 수 있어 위험.
+  String _statusLabel(String status) => switch (status) {
+        'OPEN' => '판매중',
+        'RESERVED' => '예약 중',
+        'COMPLETED' => '거래 완료',
+        'DELETED' => '삭제됨',
+        _ => '상태 확인',
+      };
+
+  /// 채팅 미니카드와 동일 — 양 빨강/음 파랑 정책 회피.
+  /// CANCELED 제거 (2026-05-22) — 판매글 상태에 부적합.
+  Color _statusColor(String status) => switch (status) {
+        'OPEN' => AppColors.green,
+        'RESERVED' => AppColors.gold,
+        'COMPLETED' => AppColors.textMuted,
+        'DELETED' => AppColors.textMuted,
+        _ => AppColors.textMuted,
+      };
+
+  /// 2026-05-28: BuyOrder 상태(OPEN/MATCHED/CANCELED) 라벨 — _statusLabel 의 BUY 버전.
+  String _buyOrderStatusLabel(String status) => switch (status) {
+        'OPEN' => '구매중',
+        'MATCHED' => '매칭 완료',
+        'CANCELED' => '취소됨',
+        _ => '상태 확인',
+      };
+
+  /// 2026-05-28: BuyOrder 상태별 색.
+  Color _buyOrderStatusColor(String status) => switch (status) {
+        'OPEN' => AppColors.green,
+        'MATCHED' => AppColors.textMuted,
+        'CANCELED' => AppColors.textMuted,
+        _ => AppColors.textMuted,
+      };
+
+  /// 2026-05-28: 채팅 list inline 라벨 chip — [판매]/[구매].
+  /// 호가 색 정책 (feedback_color_policy + feedback_hoga_design_invariants):
+  ///   ASK(판매) = 파랑 / BID(구매) = 빨강. 옅은 톤.
+  Widget _buildContextLabelInline({required bool isBuy}) {
+    final color = isBuy ? AppColors.red : AppColors.blue;
+    final label = isBuy ? '구매' : '판매';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.2,
         ),
       ),
     );

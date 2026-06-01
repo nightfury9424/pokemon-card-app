@@ -2,7 +2,10 @@ package com.fury.back.domain.grading.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
+
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 
 @Data
 public class GradingAnalysisDto {
@@ -19,4 +22,30 @@ public class GradingAnalysisDto {
     @JsonProperty("surface_detail")   private String surfaceDetail;
     @JsonProperty("whitening_detail") private String whiteningDetail;
     @JsonProperty("identity_verified") private boolean identityVerified;
+
+    @JsonProperty("edge_score")          private BigDecimal edgeScore;
+    @JsonProperty("edge_detail")         private String edgeDetail;
+    @JsonProperty("weighted_score")      private BigDecimal weightedScore;
+    @JsonProperty("total_score_display") private BigDecimal totalScoreDisplay;
+    @JsonProperty("grade")               private String grade;
+    @JsonProperty("grade_color")         private String gradeColor;
+    @JsonProperty("deduction_reasons")   private List<DeductionReasonDto> deductionReasons;
+    @JsonProperty("defect_regions")      private List<DefectRegionDto> defectRegions;
+    @JsonProperty("has_major_defect")    private boolean hasMajorDefect;
+    @JsonProperty("retake_required")     private boolean retakeRequired;
+    @JsonProperty("retake_reason")       private String retakeReason;
+    @JsonProperty("capture_quality")     private String captureQuality;
+
+    @JsonProperty("screen_suspected")      private boolean screenSuspected;
+    @JsonProperty("screen_suspect_reason") private String screenSuspectReason;
+
+    // === P0-1 evidence layer (Phase 2-C) ===
+    // P0-fix-1: cardBbox / cornerRegions 가 front + back nested (back overlay mismatch fix).
+    @JsonProperty("card_bbox")             private Map<String, Object> cardBbox;
+    @JsonProperty("centering_lines")       private Map<String, Double> centeringLines;
+    @JsonProperty("centering_confidence")  private Double centeringConfidence;
+    @JsonProperty("centering_source")      private String centeringSource;
+    @JsonProperty("corner_regions")        private Map<String, Object> cornerRegions;
+    @JsonProperty("grade_decision_trace")  private Map<String, Object> gradeDecisionTrace;
+    @JsonProperty("extra")                 private Map<String, Object> extra;
 }

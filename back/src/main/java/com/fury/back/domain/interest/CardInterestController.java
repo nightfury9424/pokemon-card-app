@@ -4,6 +4,7 @@ import com.fury.back.common.IdGenerator;
 import com.fury.back.common.ReturnData;
 import com.fury.back.domain.card.Card;
 import com.fury.back.domain.card.CardRepository;
+import com.fury.back.storage.CardCdnUrls;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class CardInterestController {
 
     private final CardInterestRepository cardInterestRepository;
     private final CardRepository cardRepository;
+    private final CardCdnUrls cardCdnUrls;
 
     @Operation(summary = "카드 찜 토글 — 없으면 추가, 있으면 취소. isLiked 반환")
     @PostMapping("/{cardId}/toggle")
@@ -90,7 +92,11 @@ public class CardInterestController {
                     if (card != null) {
                         m.put("name", card.getName());
                         m.put("rarityCode", card.getRarityCode());
-                        m.put("imageUrl", card.getImageUrl());
+                        // CardCdnUrls로 S3 CDN URL 직접 빌드 + jpScrydexRef/enScrydexRef 같이 내려서
+                        // front resolveCardImageUrl이 로컬→CDN→scrydex 우선순위로 fallback 가능하게.
+                        m.put("imageUrl", cardCdnUrls.forCard(card));
+                        m.put("jpScrydexRef", card.getJpScrydexRef());
+                        m.put("enScrydexRef", card.getEnScrydexRef());
                         m.put("language", card.getLanguage());
                     }
                     return m;

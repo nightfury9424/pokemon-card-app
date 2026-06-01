@@ -1,6 +1,34 @@
 import { useEffect, useState } from 'react'
-import { Search, Shield, Ban, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, Ban, Undo2 } from 'lucide-react'
 import api from '../api'
+
+// 2026-05-29 admin Stage 0 — 정지/복구 inline action.
+async function suspendUser(userId) {
+  const reason = prompt('정지 사유 (audit log 기록):')
+  if (!reason || !reason.trim()) return false
+  if (!confirm(`정지 처리할까요? 사유: ${reason}`)) return false
+  try {
+    await api.post(`/admin/users/${userId}/suspend`, { reason: reason.trim() })
+    return true
+  } catch (e) {
+    const msg = e.response?.data?.message ?? '정지 처리 실패'
+    if (msg.includes('ADMIN_USER_NOT_SUSPENDABLE')) alert('관리자 계정은 정지할 수 없어요')
+    else if (msg.includes('USER_ALREADY_DELETED')) alert('이미 탈퇴한 사용자에요')
+    else alert(msg)
+    return false
+  }
+}
+
+async function unsuspendUser(userId) {
+  if (!confirm('정지 해제할까요?')) return false
+  try {
+    await api.post(`/admin/users/${userId}/unsuspend`, {})
+    return true
+  } catch (e) {
+    alert(e.response?.data?.message ?? '정지 해제 실패')
+    return false
+  }
+}
 
 const S = {
   page:   { padding: '32px 36px', minHeight: '100%', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
@@ -76,30 +104,60 @@ export default function Users() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              {['ID', '닉네임', '이메일', '가입일', '스캔', '거래', '상태'].map(h => (
+              {['ID', '닉네임', '이메일', '가입일', '스캔', '거래', '상태', '액션'].map(h => (
                 <th key={h} style={S.th}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>불러오는 중...</td></tr>
+              <tr><td colSpan={8} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>불러오는 중...</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={7} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>유저가 없습니다</td></tr>
-            ) : users.map(u => (
-              <tr key={u.id} style={{ transition: 'background 0.1s' }}
+              <tr><td colSpan={8} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>유저가 없습니다</td></tr>
+            ) : users.map(u => {
+              // 백엔드 응답: suspended (boolean) / status (legacy). suspended true 면 정지 상태.
+              const isSuspended = u.suspended === true || u.status === 'BANNED'
+              const isDeleted = u.deleted === true || u.deletedAt
+              return (
+              <tr key={u.id || u.userId} style={{ transition: 'background 0.1s' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
-                <td style={{ ...S.td, color: '#94a3b8', fontSize: 12 }}>{u.id}</td>
+                <td style={{ ...S.td, color: '#94a3b8', fontSize: 12 }}>{u.id || u.userId}</td>
                 <td style={{ ...S.td, fontWeight: 600, color: '#1e293b' }}>{u.nickname ?? '-'}</td>
                 <td style={S.td}>{u.email ?? '-'}</td>
                 <td style={{ ...S.td, fontSize: 12 }}>{u.createdAt ? u.createdAt.slice(0, 10) : '-'}</td>
                 <td style={S.td}>{(u.scanCount ?? 0).toLocaleString()}</td>
                 <td style={S.td}>{(u.tradeCount ?? 0).toLocaleString()}</td>
-                <td style={S.td}><Badge status={u.status ?? 'ACTIVE'} /></td>
+                <td style={S.td}><Badge status={isDeleted ? 'INACTIVE' : (isSuspended ? 'BANNED' : 'ACTIVE')} /></td>
+                <td style={S.td}>
+                  {isDeleted ? (
+                    <span style={{ color: '#cbd5e1', fontSize: 11 }}>탈퇴</span>
+                  ) : isSuspended ? (
+                    <button onClick={async () => {
+                      const ok = await unsuspendUser(u.id || u.userId)
+                      if (ok) { setPage(p => p); /* trigger re-fetch */ setUsers(prev => prev.filter(x => (x.id || x.userId) !== (u.id || u.userId))); api.get('/admin/users', { params: { page, size, search: search || undefined } }).then(r => { setUsers(r.data?.data?.content ?? []); setTotal(r.data?.data?.totalElements ?? 0) }) }
+                    }} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '4px 10px', borderRadius: 6,
+                      background: '#fff', border: '1px solid #16a34a',
+                      color: '#16a34a', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    }}><Undo2 size={12} /> 정지 해제</button>
+                  ) : (
+                    <button onClick={async () => {
+                      const ok = await suspendUser(u.id || u.userId)
+                      if (ok) api.get('/admin/users', { params: { page, size, search: search || undefined } }).then(r => { setUsers(r.data?.data?.content ?? []); setTotal(r.data?.data?.totalElements ?? 0) })
+                    }} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '4px 10px', borderRadius: 6,
+                      background: '#fff', border: '1px solid #dc2626',
+                      color: '#dc2626', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    }}><Ban size={12} /> 정지</button>
+                  )}
+                </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
 

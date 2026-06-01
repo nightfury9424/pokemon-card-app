@@ -334,7 +334,6 @@ class _PriceScreenState extends State<PriceScreen> {
         ?? (card['latestPrice'] as num?)?.toInt();
     final priceLabel = _priceLabel(card);
     final imageUrl = resolveCardImageUrl(card);
-    final cdnUrl = resolveCdnImageUrl(card);
     final glowColor = AppColors.rarityGlow(rarity);
     final hasGlow = rarity.isNotEmpty && glowColor != Colors.transparent;
 
@@ -356,7 +355,6 @@ class _PriceScreenState extends State<PriceScreen> {
               borderRadius: BorderRadius.circular(6),
               child: CardImage(
                 imageUrl: imageUrl,
-                cdnFallbackUrl: cdnUrl,
                 width: 44,
                 height: 62,
                 borderRadius: BorderRadius.circular(6),

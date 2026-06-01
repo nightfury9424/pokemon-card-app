@@ -1,0 +1,30 @@
+-- ============================================================================
+-- V20260528_3__drop_legacy_nickname_index.sql
+-- ============================================================================
+-- v1.0.1 hotfix — 레거시 닉네임 unique index 제거.
+--
+-- 배경:
+--  - users_nickname_lower_idx (기존): UNIQUE WHERE nickname IS NOT NULL.
+--    deletedAt 무관 전체 row에 unique 강제 → 탈퇴자 마스킹 닉네임
+--    ("탈퇴한 사용자 #<6자 SHA hash>")이 우연히 다른 탈퇴자 hash와 충돌 시 탈퇴 실패.
+--  - uk_users_nickname_active (V20260528_2): UNIQUE WHERE deleted_at IS NULL.
+--    활성 사용자만 unique — 이게 우리가 의도한 사양.
+--
+-- 두 index를 동시에 운영하면 partial이 사양과 맞아도 전체 unique가 strict하게
+-- 깔려서 우리 정책과 충돌. 레거시를 DROP하고 partial만 남긴다.
+--
+-- 적용 전 사전 확인 — 둘 다 존재하는지:
+--   SELECT indexname FROM pg_indexes WHERE tablename = 'users';
+-- → uk_users_nickname_active 존재 확인 후 진행.
+--
+-- 적용 방법 (prod):
+--   docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db \
+--     < V20260528_3__drop_legacy_nickname_index.sql
+--
+-- 적용 후 검증:
+--   SELECT indexname, indexdef FROM pg_indexes
+--    WHERE tablename = 'users' AND indexname LIKE '%nickname%';
+-- → uk_users_nickname_active 한 개만 남아야 정상.
+-- ============================================================================
+
+DROP INDEX IF EXISTS users_nickname_lower_idx;

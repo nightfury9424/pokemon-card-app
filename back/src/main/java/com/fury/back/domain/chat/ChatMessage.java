@@ -30,6 +30,12 @@ public class ChatMessage {
     @Builder.Default
     private Boolean isRead = false;
 
+    // Bundle 2-C: 'USER' (일반) / 'SYSTEM' (상태 변경 안내, 사기 주의 등 자동 메시지).
+    // SYSTEM은 sender_user_id='SYSTEM' 특수값 + user lookup skip.
+    @Column(name = "message_type", nullable = false, length = 20)
+    @Builder.Default
+    private String messageType = "USER";
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

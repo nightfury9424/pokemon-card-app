@@ -12,6 +12,8 @@ import com.fury.back.domain.price.PriceSnapshot;
 import com.fury.back.domain.price.PriceSnapshotRepository;
 import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.trade.TradePostRepository;
+import com.fury.back.storage.ImageStorageService;
+import com.fury.back.storage.StorageKeyUrls;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -41,9 +44,10 @@ public class AssetServiceImpl implements AssetService {
     private final TradePostRepository tradePostRepository;
     private final PriceSnapshotRepository priceSnapshotRepository;
     private final ExchangeRateClient exchangeRateClient;
+    private final ImageStorageService imageStorageService;
 
     @Value("${asset.grading.image.dir:${user.home}/pokemon-card-app/asset_grading_images}")
-    private String assetGradingImageDir;
+    private String assetGradingImageDir;  // Phase 1-7: legacy static handler 호환용
 
     @Override
     public ReturnData<List<AssetDto>> getMyAssets(String userId) {
@@ -64,13 +68,30 @@ public class AssetServiceImpl implements AssetService {
 
         DisplayPriceContext priceCtx = buildDisplayPriceContext(cardIds);
 
+        // Hotfix 10-3: cardVerified 계산용 — FRONT/BACK 둘 다 존재 시 검증 완료.
+        // N+1 방지 위해 자산 image 전체를 1회 batch fetch.
+        List<String> assetIds = assets.stream().map(Asset::getAssetId).toList();
+        Map<String, Set<String>> imageTypeByAssetId = assetIds.isEmpty()
+                ? Map.of()
+                : assetImageRepository.findByAssetIdIn(assetIds).stream()
+                        .collect(Collectors.groupingBy(
+                                AssetImage::getAssetId,
+                                Collectors.mapping(AssetImage::getImageType, Collectors.toSet())
+                        ));
+
         List<AssetDto> result = assets.stream()
                 .map(a -> {
                     DisplayPriceResult dp = resolveDisplayPrice(a, priceCtx);
+                    Set<String> types = imageTypeByAssetId.getOrDefault(a.getAssetId(), Set.of());
+                    // Codex 사후 (Item 12 FAIL) fix: GRADED 자산 (PSA/BRG 외부 인증) 은 자동 verified.
+                    // RAW 만 FRONT + BACK 실사진 게이트 적용.
+                    boolean verified = "GRADED".equals(a.getCardStatus())
+                            || (types.contains("FRONT") && types.contains("BACK"));
                     return AssetDto.fromWithCardAndSelling(a, cardMap.get(a.getCardId()), openTradeMap.get(a.getAssetId()))
                             .toBuilder()
                             .displayPrice(dp.price())
                             .displayPriceBasis(dp.basis())
+                            .cardVerified(verified)
                             .build();
                 })
                 .toList();
@@ -91,11 +112,19 @@ public class AssetServiceImpl implements AssetService {
                             .orElse(null);
                     DisplayPriceContext priceCtx = buildDisplayPriceContext(List.of(a.getCardId()));
                     DisplayPriceResult dp = resolveDisplayPrice(a, priceCtx);
+                    // Hotfix 10-3: 단건도 동일 기준 cardVerified 계산.
+                    // Codex 사후 (Item 12) fix: GRADED 외부 인증 자동 verified.
+                    Set<String> types = assetImageRepository.findByAssetId(a.getAssetId()).stream()
+                            .map(AssetImage::getImageType)
+                            .collect(Collectors.toSet());
+                    boolean verified = "GRADED".equals(a.getCardStatus())
+                            || (types.contains("FRONT") && types.contains("BACK"));
                     return ReturnData.success(AssetDto.from(a).toBuilder()
                             .isSelling(activeTradeId != null)
                             .activeTradeId(activeTradeId)
                             .displayPrice(dp.price())
                             .displayPriceBasis(dp.basis())
+                            .cardVerified(verified)
                             .build());
                 })
                 .orElseGet(() -> ReturnData.notFound("자산을 찾을 수 없습니다. assetId=" + assetId));
@@ -398,28 +427,80 @@ public class AssetServiceImpl implements AssetService {
         asset.updateCertNumberIfEmpty(req.appAnalysisId());
 
         try {
-            String frontFilename = assetId + "_front.jpg";
-            String backFilename = assetId + "_back.jpg";
-            saveImage(frontImage, frontFilename);
-            saveImage(backImage, backFilename);
+            // Phase 1-7: ImageStorageService 사용 (local=disk / prod=S3).
+            // DB에는 storage key, 응답은 /api/images/secure/{key} proxy URL.
+            String frontKey = imageStorageService.store(
+                    "uploads/asset/" + assetId,
+                    frontImage.getOriginalFilename(),
+                    frontImage
+            );
+            String backKey = imageStorageService.store(
+                    "uploads/asset/" + assetId,
+                    backImage.getOriginalFilename(),
+                    backImage
+            );
 
-            List<String> imageUrls = new ArrayList<>();
-            imageUrls.add("/images/asset-grading/" + frontFilename);
-            imageUrls.add("/images/asset-grading/" + backFilename);
+            assetImageRepository.save(AssetImage.of(assetId, "FRONT", frontKey));
+            assetImageRepository.save(AssetImage.of(assetId, "BACK", backKey));
 
-            assetImageRepository.save(AssetImage.of(assetId, "FRONT", imageUrls.get(0)));
-            assetImageRepository.save(AssetImage.of(assetId, "BACK", imageUrls.get(1)));
-
-            return ReturnData.success(imageUrls);
+            return ReturnData.success(List.of(
+                    StorageKeyUrls.toProxyUrl(frontKey),
+                    StorageKeyUrls.toProxyUrl(backKey)
+            ));
         } catch (IOException e) {
             return ReturnData.fail("F500", "이미지 저장 실패: " + e.getMessage());
         }
     }
 
-    private void saveImage(MultipartFile image, String filename) throws IOException {
-        File dest = new File(assetGradingImageDir + "/" + filename);
-        dest.getParentFile().mkdirs();
-        image.transferTo(dest);
+    // Hotfix 10-2 (Plan D): AI 분석 없이 판매용 앞/뒷면 실사진만 저장.
+    // 기존 saveGradingResult 와 분리 — score 필드 없음, AI 결과 저장 없음.
+    // owner 검증 + 기존 FRONT/BACK row delete-then-insert 로 중복 누적 방지.
+    @Override
+    @Transactional
+    public ReturnData<Map<String, String>> saveSellPhotos(String assetId, MultipartFile frontImage,
+                                                           MultipartFile backImage, String userId) {
+        if (assetId == null || assetId.isBlank()) {
+            return ReturnData.badRequest("assetId는 필수입니다.");
+        }
+        if (userId == null || userId.isBlank()) {
+            return ReturnData.fail("F401", "인증이 필요합니다.");
+        }
+        if (frontImage == null || frontImage.isEmpty() || backImage == null || backImage.isEmpty()) {
+            return ReturnData.badRequest("front_image, back_image는 필수입니다.");
+        }
+
+        Asset asset = assetRepository.findById(assetId).orElse(null);
+        if (asset == null) {
+            return ReturnData.notFound("자산을 찾을 수 없습니다. assetId=" + assetId);
+        }
+        if (!userId.equals(asset.getUserId())) {
+            return ReturnData.fail("F403", "본인 자산만 수정할 수 있습니다.");
+        }
+
+        try {
+            String frontKey = imageStorageService.store(
+                    "uploads/asset/" + assetId,
+                    frontImage.getOriginalFilename(),
+                    frontImage
+            );
+            String backKey = imageStorageService.store(
+                    "uploads/asset/" + assetId,
+                    backImage.getOriginalFilename(),
+                    backImage
+            );
+
+            assetImageRepository.deleteByAssetIdAndImageType(assetId, "FRONT");
+            assetImageRepository.deleteByAssetIdAndImageType(assetId, "BACK");
+            assetImageRepository.save(AssetImage.of(assetId, "FRONT", frontKey));
+            assetImageRepository.save(AssetImage.of(assetId, "BACK", backKey));
+
+            return ReturnData.success(Map.of(
+                    "frontUrl", StorageKeyUrls.toProxyUrl(frontKey),
+                    "backUrl", StorageKeyUrls.toProxyUrl(backKey)
+            ));
+        } catch (IOException e) {
+            return ReturnData.fail("F500", "이미지 저장 실패: " + e.getMessage());
+        }
     }
 
     @Override
@@ -443,9 +524,13 @@ public class AssetServiceImpl implements AssetService {
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new IOException("자산을 찾을 수 없습니다. assetId=" + assetId));
 
-        String filename = "slab_" + assetId + "_" + System.currentTimeMillis() + getExtension(file.getOriginalFilename());
-        saveImage(file, filename);
-        assetImageRepository.save(AssetImage.of(asset.getAssetId(), "SLAB", "/images/asset-grading/" + filename));
+        // Phase 1-7: ImageStorageService 사용 (slab도 동일 prefix).
+        String key = imageStorageService.store(
+                "uploads/asset/" + assetId,
+                file.getOriginalFilename(),
+                file
+        );
+        assetImageRepository.save(AssetImage.of(asset.getAssetId(), "SLAB", key));
     }
 
     private String getExtension(String filename) {
@@ -464,7 +549,7 @@ public class AssetServiceImpl implements AssetService {
                 .map(img -> Map.of(
                         "imageId", img.getImageId(),
                         "imageType", img.getImageType(),
-                        "imageUrl", img.getImageUrl()
+                        "imageUrl", StorageKeyUrls.toProxyUrl(img.getImageUrl())
                 ))
                 .toList();
         return ReturnData.success(result);

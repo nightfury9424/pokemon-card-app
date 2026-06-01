@@ -1,7 +1,7 @@
 name: front
 description: "포켓몬 카드 자산관리 앱"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.11.1
@@ -44,12 +44,33 @@ dependencies:
   # WebSocket (STOMP 채팅)
   stomp_dart_client: ^2.1.0
 
+  # 카드 이미지 캐싱 — S3 immutable 마스터 이미지 디스크 캐시
+  cached_network_image: ^3.4.1
+
+  # mailto 등 외부 URL launcher (고객지원 화면)
+  url_launcher: ^6.3.0
+
+  # 고객지원 문의 — 카테고리별 폼 + 사진 첨부 후 네이티브 메일 composer 호출.
+  # mailto 자체는 첨부 미지원이라 iOS MFMailComposeViewController / Android Intent 래퍼 필요.
+  flutter_email_sender: ^6.0.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
   assets:
     - assets/balls/
+    - assets/app_icon/
+
+# 앱 아이콘 일괄 생성 — dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/app_icon/logo.png"
+  remove_alpha_ios: true
+  background_color_ios: "#ffffff"
+  min_sdk_android: 21

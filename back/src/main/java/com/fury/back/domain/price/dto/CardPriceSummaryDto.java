@@ -16,7 +16,10 @@ public record CardPriceSummaryDto(
             String basis,       // "NAVER_CAFE" or "FORMULA"
             String confidence,  // "A" / "B" / "C" / "D"
             int domesticCount,
-            String asOfDate
+            String asOfDate,
+            // 표시 라벨 (PriceLabelType): DOMESTIC_REAL / DOMESTIC_FEW / ESTIMATED / OVERSEAS_REF.
+            // 가격값과 무관한 display-layer 필드. 현재 프론트는 OVERSEAS_REF만 "해외 참고가" 칩으로 노출.
+            String koPriceLabelType
     ) {}
 
     public record PsaPrices(

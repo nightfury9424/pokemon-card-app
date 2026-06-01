@@ -71,6 +71,22 @@ public class TradePost {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    // Bundle 2-A.7 (2026-05-22): soft delete 추적. status='DELETED'와 짝으로 set.
+    // 분쟁/감사용 타임스탬프. NULL = 활성, NOT NULL = 삭제됨.
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    /**
+     * 거래중("RESERVED") 상태 시 선택된 채팅방 id. 선택된 buyer 와 판매자만 채팅 가능,
+     * 나머지 buyer 는 isExcludedFromActiveTrade=true 로 입력 비활성.
+     * - RESERVED + NOT NULL: 거래중 + 상대 지정
+     * - RESERVED + NULL: 기존 데이터 (backfill X) — 거래중 상대 미지정
+     * - OPEN 복귀 시 clear
+     * - COMPLETED: 유지 (후속 대화 가능)
+     */
+    @Column(name = "active_chat_room_id", length = 50)
+    private String activeChatRoomId;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -100,7 +116,27 @@ public class TradePost {
         this.status = status;
     }
 
+    /** 거래중 상대 지정 — RESERVED 상태 변경 시 active_chat_room_id set. */
+    public void setActiveChatRoom(String chatRoomId) {
+        this.activeChatRoomId = chatRoomId;
+    }
+
+    /** OPEN 복귀 시 active_chat_room_id NULL clear — 모든 상대 다시 채팅 가능. */
+    public void clearActiveChatRoom() {
+        this.activeChatRoomId = null;
+    }
+
     public void incrementViewCount() {
         this.viewCount++;
+    }
+
+    /**
+     * Bundle 2-A.7: soft delete — status='DELETED' + deletedAt=now.
+     * 기존 hard delete (tradePostRepository.delete) 대체.
+     * 채팅방은 status 무관 메시지/미니카드 유지 — 분쟁/신고 근거 보존.
+     */
+    public void markDeleted() {
+        this.status = "DELETED";
+        this.deletedAt = LocalDateTime.now();
     }
 }

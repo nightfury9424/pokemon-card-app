@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/feature_flags.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/user_avatar.dart';
 import '../auth/auth_service.dart';
+import '../../core/widgets/app_info_toast.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -78,28 +81,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _logout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('로그아웃', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
-        content: const Text('로그아웃 하시겠습니까?', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context, rootNavigator: true).pop(false),
-            child: const Text('취소', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context, rootNavigator: true).pop(true),
-            child: const Text('로그아웃', style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
+    final confirm = await AppConfirmDialog.show(
+      context,
+      title: '로그아웃',
+      message: '로그아웃 하시겠습니까?',
+      confirmLabel: '로그아웃',
+      destructive: true,
     );
     if (confirm == true && mounted) {
       await AuthService.logout();
       if (mounted) context.go('/login');
+    }
+  }
+
+  /// 계정 탈퇴. App Review 5.1.1 대응. docs/DELETION_POLICY.md 참조.
+  /// 흐름: confirm → DELETE /api/users/me → AuthService.logout → /login redirect.
+  /// 백엔드는 PII 마스킹 + OPEN 매수/매도 자동 취소. 거래/채팅/신고/차단 기록은 보존.
+  Future<void> _deleteAccount() async {
+    final confirm = await AppConfirmDialog.show(
+      context,
+      title: '정말 탈퇴하시겠어요?',
+      message:
+          '거래/채팅 기록은 분쟁 대응을 위해 보존되며 다른 사용자에게는 "탈퇴한 사용자"로 표시됩니다. '
+          '진행 중인 매수/매도 호가는 자동 취소되고, 계정은 복구할 수 없어요.',
+      confirmLabel: '탈퇴하기',
+      destructive: true,
+    );
+    if (confirm != true || !mounted) return;
+    try {
+      final res = await ApiClient.delete('/api/users/me');
+      // 백엔드 envelope 체크 (HTTP 200 + {status:'fail'} 패턴 대응)
+      if (res['status'] != 'success') {
+        if (!mounted) return;
+        AppInfoToast.show(context, res['message']?.toString() ?? '탈퇴 처리에 실패했어요. 잠시 후 다시 시도해주세요.');
+        return;
+      }
+      await AuthService.logout();
+      if (!mounted) return;
+      context.go('/login');
+    } catch (e) {
+      if (!mounted) return;
+      AppInfoToast.show(context, '탈퇴 처리에 실패했어요. 잠시 후 다시 시도해주세요.');
     }
   }
 
@@ -158,7 +180,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             iconColor: const Color(0xFF10B981),
                             label: '내 판매 내역',
                             sub: _activeTrades > 0 ? '진행 중 $_activeTrades건' : null,
-                            onTap: () => context.push('/my-trades', extra: {'sellerId': _userId}),
+                            onTap: () {
+                              // _userId null이면 sellerId 누락 → trade_list가 메인 거래 화면으로 잘못 진입.
+                              if (_userId == null) return;
+                              context.push('/my-trades', extra: {'sellerId': _userId});
+                            },
                           ),
                           _MenuItem(
                             icon: Icons.favorite_rounded,
@@ -167,11 +193,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onTap: () => context.push('/favorites'),
                           ),
                           _MenuItem(
+                            icon: Icons.person_off_rounded,
+                            iconColor: AppColors.textMuted,
+                            label: '차단한 사용자',
+                            onTap: () => context.push('/profile/blocked-users'),
+                          ),
+                          _MenuItem(
                             icon: Icons.qr_code_scanner_rounded,
                             iconColor: const Color(0xFF8B5CF6),
                             label: '카드 스캔',
                             onTap: () => context.push('/scanner'),
                           ),
+                          // Hotfix 10-1: AI 그레이딩 beta 1.0 메뉴 자체 숨김.
+                          // 코드/route 보존. 직접 /grading 진입 시에만 _GradingDisabledScreen.
+                          if (FeatureFlags.enableAiGrading)
+                            _MenuItem(
+                              icon: Icons.auto_awesome_rounded,
+                              iconColor: const Color(0xFFFFD700),
+                              label: 'AI 그레이딩',
+                              onTap: () => context.push('/grading'),
+                            ),
                         ]),
                         const SizedBox(height: 20),
                         _buildSectionLabel('고객 지원'),
@@ -181,13 +222,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             icon: Icons.flag_rounded,
                             iconColor: const Color(0xFFF59E0B),
                             label: '신고 진행 상황',
-                            onTap: () => _showComingSoon('신고 진행 상황'),
+                            onTap: () => context.push('/profile/reports'),
                           ),
                           _MenuItem(
                             icon: Icons.chat_bubble_outline_rounded,
                             iconColor: AppColors.blueLight,
                             label: '문의하기',
-                            onTap: () => _showComingSoon('문의하기'),
+                            onTap: () => context.push('/support'),
+                          ),
+                          _MenuItem(
+                            icon: Icons.description_outlined,
+                            iconColor: AppColors.textSecondary,
+                            label: '이용약관',
+                            onTap: () => context.push('/legal/terms'),
+                          ),
+                          _MenuItem(
+                            icon: Icons.privacy_tip_outlined,
+                            iconColor: AppColors.textSecondary,
+                            label: '개인정보처리방침',
+                            onTap: () => context.push('/legal/privacy'),
                           ),
                           _MenuItem(
                             icon: Icons.info_outline_rounded,
@@ -205,6 +258,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             label: '로그아웃',
                             labelColor: AppColors.red,
                             onTap: _logout,
+                          ),
+                          _MenuItem(
+                            icon: Icons.delete_forever_outlined,
+                            iconColor: AppColors.red,
+                            label: '계정 삭제',
+                            labelColor: AppColors.red,
+                            onTap: _deleteAccount,
                           ),
                         ]),
                       ],
@@ -307,17 +367,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final isLast = i == items.length - 1;
           return _MenuRow(item: item, isLast: isLast);
         }),
-      ),
-    );
-  }
-
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature 기능은 준비 중입니다.'),
-        backgroundColor: AppColors.surfaceCard,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

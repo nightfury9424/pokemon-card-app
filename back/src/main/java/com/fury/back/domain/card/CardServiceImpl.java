@@ -4,6 +4,7 @@ import com.fury.back.common.ParameterData;
 import com.fury.back.common.ReturnData;
 import com.fury.back.domain.card.dto.CardDto;
 import com.fury.back.domain.card.dto.CardSearchDto;
+import com.fury.back.domain.interest.CardInterestRepository;
 import com.fury.back.domain.price.CoefficientCache;
 import com.fury.back.domain.price.ExchangeRateClient;
 import com.fury.back.domain.price.GlobalPriceService;
@@ -11,6 +12,8 @@ import com.fury.back.domain.price.PriceSnapshot;
 import com.fury.back.domain.price.PriceSnapshotRepository;
 import com.fury.back.domain.price.dto.MarketCoefficientDto;
 import com.fury.back.domain.product.ProductRepository;
+import com.fury.back.domain.trade.BuyOrderRepository;
+import com.fury.back.domain.trade.TradePostRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -51,6 +54,10 @@ public class CardServiceImpl implements CardService {
     private final GlobalPriceService globalPriceService;
     private final ExchangeRateClient exchangeRateClient;
     private final com.fury.back.domain.price.RawPsa10RatioCalculator rawPsa10RatioCalculator;
+    // Phase 1 — 거래 리스트 row engagement 카운트(매도/매수/관심) batch enrichment 용.
+    private final TradePostRepository tradePostRepository;
+    private final BuyOrderRepository buyOrderRepository;
+    private final CardInterestRepository cardInterestRepository;
 
     private static final Duration MARKET_COUNT_CACHE_TTL = Duration.ofMinutes(5);
     private final Map<String, CountCacheEntry> marketCountCache = new ConcurrentHashMap<>();
@@ -416,7 +423,7 @@ public class CardServiceImpl implements CardService {
         Map<String, Card> cardsById = cardRepository.findAllById(infoByCardId.keySet())
                 .stream()
                 .collect(Collectors.toMap(Card::getCardId, card -> card));
-        return infoByCardId.entrySet().stream()
+        return enrichEngagementCounts(infoByCardId.entrySet().stream()
                 .map(entry -> {
                     Card card = cardsById.get(entry.getKey());
                     if (card == null) return null;
@@ -434,7 +441,7 @@ public class CardServiceImpl implements CardService {
                             .build();
                 })
                 .filter(java.util.Objects::nonNull)
-                .toList();
+                .toList());
     }
 
     private int clampDays(int days) {
@@ -456,6 +463,37 @@ public class CardServiceImpl implements CardService {
         return Math.max(1, Math.min(size, 50));
     }
 
+    /**
+     * Phase 1 — 거래 리스트 row에 매도/매수/관심 카운트를 batch query 3개로 enrich.
+     * mapGainerRows, mapRecentRows, buildNativeResult 끝에서 호출. 정렬·페이징 무관 (read-only aggregate).
+     * 응답 contract = ADD-ONLY (CardDto에 필드 3개 추가). 가격값 변경 0.
+     */
+    private List<CardDto> enrichEngagementCounts(List<CardDto> dtos) {
+        if (dtos == null || dtos.isEmpty()) return dtos;
+        List<String> cardIds = dtos.stream()
+                .map(CardDto::getCardId)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        if (cardIds.isEmpty()) return dtos;
+        Map<String, Integer> sellCounts = aggregateCounts(tradePostRepository.countActiveByCardIds(cardIds));
+        Map<String, Integer> buyCounts = aggregateCounts(buyOrderRepository.countOpenByCardIds(cardIds));
+        Map<String, Integer> interestCounts = aggregateCounts(cardInterestRepository.countByCardIds(cardIds));
+        return dtos.stream()
+                .map(dto -> dto.toBuilder()
+                        .activeSellCount(sellCounts.getOrDefault(dto.getCardId(), 0))
+                        .activeBuyCount(buyCounts.getOrDefault(dto.getCardId(), 0))
+                        .interestCount(interestCounts.getOrDefault(dto.getCardId(), 0))
+                        .build())
+                .toList();
+    }
+
+    private Map<String, Integer> aggregateCounts(List<Object[]> rows) {
+        return rows.stream().collect(Collectors.toMap(
+                r -> (String) r[0],
+                r -> ((Number) r[1]).intValue(),
+                (a, b) -> a));
+    }
+
     private List<CardDto> mapGainerRows(List<Object[]> rows) {
         if (rows.isEmpty()) return List.of();
         record GainRow(int today, int yesterday, double pct) {}
@@ -470,7 +508,7 @@ public class CardServiceImpl implements CardService {
         Map<String, Card> cardsById = cardRepository.findAllById(infoByCardId.keySet())
                 .stream()
                 .collect(Collectors.toMap(Card::getCardId, card -> card));
-        return infoByCardId.entrySet().stream()
+        return enrichEngagementCounts(infoByCardId.entrySet().stream()
                 .map(entry -> {
                     Card card = cardsById.get(entry.getKey());
                     if (card == null) return null;
@@ -483,7 +521,7 @@ public class CardServiceImpl implements CardService {
                             .build();
                 })
                 .filter(java.util.Objects::nonNull)
-                .toList();
+                .toList());
     }
 
     private long getCachedMarketCount(List<String> rarityCodes, String name) {
@@ -556,8 +594,9 @@ public class CardServiceImpl implements CardService {
                 .collect(Collectors.toMap(Card::getCardId,
                         c -> c.getRarityCode() != null ? c.getRarityCode() : ""));
 
-        return Map.of(
-                "content", cards.stream()
+        // Phase 1 — content list 빌드 후 enrich (매도/매수/관심 카운트). 인라인으로 enrich
+        // 못 박으므로 List<CardDto> 변수로 받아서 처리.
+        List<CardDto> content = cards.stream()
                         .map(c -> {
                             String cid = c.getCardId();
                             PriceSnapshot dtoSnap = scrydexJpMap.containsKey(cid)
@@ -628,7 +667,9 @@ public class CardServiceImpl implements CardService {
                             }
                             return dto;
                         })
-                        .toList(),
+                        .toList();
+        return Map.of(
+                "content", enrichEngagementCounts(content),
                 "totalElements", total,
                 "totalPages", (int) Math.ceil((double) total / size),
                 "page", page

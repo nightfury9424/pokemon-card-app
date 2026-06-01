@@ -3,14 +3,17 @@ package com.fury.back.domain.grading;
 import com.fury.back.common.ReturnData;
 import com.fury.back.domain.grading.dto.GradingAnalysisDto;
 import com.fury.back.domain.grading.dto.GradingResultDto;
+import com.fury.back.domain.grading.dto.PrecheckResultDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -30,9 +33,47 @@ public class GradingServiceImpl implements GradingService {
     private String scannerBaseUrl;
 
     @Override
-    public ReturnData<GradingResultDto> analyze(Map<String, MultipartFile> photos, String cardId) {
+    public ReturnData<PrecheckResultDto> precheck(
+            MultipartFile image, String side,
+            Double frameX, Double frameY, Double frameW, Double frameH) {
+        if (image == null || image.isEmpty()) {
+            return ReturnData.badRequest("image는 필수입니다.");
+        }
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            ByteArrayResource resource = new ByteArrayResource(image.getBytes()) {
+                @Override public String getFilename() { return image.getOriginalFilename(); }
+            };
+            body.add("image", resource);
+            body.add("side", side != null ? side : "front");
+            if (frameX != null && frameY != null && frameW != null && frameH != null) {
+                body.add("frame_x", frameX.toString());
+                body.add("frame_y", frameY.toString());
+                body.add("frame_w", frameW.toString());
+                body.add("frame_h", frameH.toString());
+            }
+            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+            factory.setConnectTimeout(5_000);
+            factory.setReadTimeout(15_000);
+            RestTemplate rt = new RestTemplate(factory);
+            ResponseEntity<PrecheckResultDto> response = rt.postForEntity(
+                    gradingServiceUrl + "/precheck",
+                    new HttpEntity<>(body, headers),
+                    PrecheckResultDto.class);
+            return ReturnData.success(response.getBody());
+        } catch (IOException e) {
+            return ReturnData.fail("F500", "이미지 읽기 실패: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public ReturnData<GradingResultDto> analyze(
+            Map<String, MultipartFile> photos, String cardId,
+            Double frameX, Double frameY, Double frameW, Double frameH) {
         boolean identityVerified = verifyIdentity(photos.get("front_image"), cardId);
-        GradingAnalysisDto analysis = callPythonService(photos);
+        GradingAnalysisDto analysis = callPythonService(photos, frameX, frameY, frameW, frameH);
         analysis.setIdentityVerified(identityVerified);
         return ReturnData.success(GradingResultDto.builder()
                 .centeringScore(analysis.getCenteringScore())
@@ -48,6 +89,28 @@ public class GradingServiceImpl implements GradingService {
                 .surfaceDetail(analysis.getSurfaceDetail())
                 .whiteningDetail(analysis.getWhiteningDetail())
                 .identityVerified(analysis.isIdentityVerified())
+                .edgeScore(analysis.getEdgeScore())
+                .edgeDetail(analysis.getEdgeDetail())
+                .weightedScore(analysis.getWeightedScore())
+                .totalScoreDisplay(analysis.getTotalScoreDisplay())
+                .grade(analysis.getGrade())
+                .gradeColor(analysis.getGradeColor())
+                .deductionReasons(analysis.getDeductionReasons())
+                .defectRegions(analysis.getDefectRegions())
+                .hasMajorDefect(analysis.isHasMajorDefect())
+                .retakeRequired(analysis.isRetakeRequired())
+                .retakeReason(analysis.getRetakeReason())
+                .captureQuality(analysis.getCaptureQuality())
+                .screenSuspected(analysis.isScreenSuspected())
+                .screenSuspectReason(analysis.getScreenSuspectReason())
+                // === P0-1 evidence layer (Phase 2-C) ===
+                .cardBbox(analysis.getCardBbox())
+                .centeringLines(analysis.getCenteringLines())
+                .centeringConfidence(analysis.getCenteringConfidence())
+                .centeringSource(analysis.getCenteringSource())
+                .cornerRegions(analysis.getCornerRegions())
+                .gradeDecisionTrace(analysis.getGradeDecisionTrace())
+                .extra(analysis.getExtra())
                 .build());
     }
 
@@ -98,7 +161,31 @@ public class GradingServiceImpl implements GradingService {
         }
     }
 
-    private GradingAnalysisDto callPythonService(Map<String, MultipartFile> photos) {
+    @Override
+    public Resource fetchEvidence(String sessionId, String layer) {
+        // P0-C: grading container 의 /evidence/{sessionId}/{layer} JPEG file forward.
+        // sessionId / layer 정합성은 grading 측에서 검증.
+        try {
+            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+            factory.setConnectTimeout(5_000);
+            factory.setReadTimeout(10_000);
+            RestTemplate rt = new RestTemplate(factory);
+            ResponseEntity<byte[]> response = rt.getForEntity(
+                    gradingServiceUrl + "/evidence/" + sessionId + "/" + layer,
+                    byte[].class);
+            byte[] body = response.getBody();
+            if (body == null || body.length == 0) {
+                return null;
+            }
+            return new ByteArrayResource(body);
+        } catch (RestClientException e) {
+            return null;
+        }
+    }
+
+    private GradingAnalysisDto callPythonService(
+            Map<String, MultipartFile> photos,
+            Double frameX, Double frameY, Double frameW, Double frameH) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
@@ -112,6 +199,12 @@ public class GradingServiceImpl implements GradingService {
                 throw new RuntimeException("사진 읽기 실패: " + name, e);
             }
         });
+        if (frameX != null && frameY != null && frameW != null && frameH != null) {
+            body.add("frame_x", frameX.toString());
+            body.add("frame_y", frameY.toString());
+            body.add("frame_w", frameW.toString());
+            body.add("frame_h", frameH.toString());
+        }
         HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(5_000);

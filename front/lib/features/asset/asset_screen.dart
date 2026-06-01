@@ -3,16 +3,25 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../core/constants/feature_flags.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/rarity.dart';
 import '../../core/widgets/animated_counter.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pressable.dart';
 import '../../core/widgets/rarity_aura.dart';
+import '../../core/widgets/app_error_toast.dart';
+import '../../core/widgets/app_info_toast.dart';
+import 'dex/dex_view.dart';
+
+/// 2026-05-29 Phase B (fix): GlobalKey 로 DexView 의 reload() 호출.
+/// 외부 RefreshIndicator 가 portfolio + 도감 동시 갱신 (사용자 시각 통일 명시).
+final GlobalKey<DexViewState> _dexKey = GlobalKey<DexViewState>();
 
 class AssetScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -33,7 +42,7 @@ class _AssetScreenState extends State<AssetScreen> {
   List<Map<String, dynamic>> _myBuyOrders = [];
   bool _loading = true;
   String? _userId;
-  late int _tabIndex = widget.initialTabIndex; // 0=전체 1=판매중 2=내 매수
+  late int _tabIndex = widget.initialTabIndex; // 0=전체 1=판매중 2=내 매수 3=도감 (2026-05-29 Phase B)
 
   _SortMode _sortMode = _SortMode.rarity;
   bool _sortAscending = true;
@@ -207,9 +216,7 @@ class _AssetScreenState extends State<AssetScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('삭제 실패')));
+        AppErrorToast.show(context, '삭제 실패');
       }
     }
   }
@@ -234,22 +241,39 @@ class _AssetScreenState extends State<AssetScreen> {
       return;
     }
 
-    if (estimatedGrade == null) {
+    // Hotfix 10-2 (Plan D): RAW 카드 판매 진입 전 앞/뒷면 실사진 확인.
+    // Hotfix 10-2 v2 (Plan E): card_verify mode (rename from sell_photo).
+    // 실 sell 진입은 card_detail._onSellTap 에서 처리 (Step A/B/C). 이 dead path 는 호환 유지.
+    final hasPhotos = await _hasSellPhotos(assetId);
+    if (!mounted) return;
+    if (!hasPhotos) {
+      final captured = await context.push<Map?>('/grading/capture', extra: {
+        'mode': 'card_verify',
+        'assetId': assetId,
+        'cardId': cardId,
+        'cardName': cardName,
+      });
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('판매 전 앱 등급 분석이 필요합니다')));
-      final graded = await context.push<bool>(
-        '/grading/capture',
-        extra: {'assetId': assetId, 'cardId': cardId, 'cardName': cardName},
-      );
-      if (graded == true && mounted) {
-        _loadData();
-      }
-      return;
+      if (captured == null) return; // 사용자 취소 / 권한 거부
     }
 
-    await _showRawSellPriceSheet(asset, cardName, estimatedGrade);
+    await _showRawSellPriceSheet(asset, cardName, estimatedGrade ?? 0.0);
+  }
+
+  // Hotfix 10-2 (Plan D): GET /api/assets/{assetId}/images 로 FRONT+BACK 둘 다 있나 확인.
+  // imageRepository 가 user-uploaded AssetImage 만 return (카탈로그 X) — backend 확인 완료.
+  Future<bool> _hasSellPhotos(String assetId) async {
+    if (assetId.isEmpty) return false;
+    try {
+      final res = await ApiClient.get(ApiConstants.assetImages(assetId));
+      final list = (res['data'] is List) ? res['data'] as List : const [];
+      final hasFront = list.any((i) => i is Map && i['imageType'] == 'FRONT');
+      final hasBack = list.any((i) => i is Map && i['imageType'] == 'BACK');
+      return hasFront && hasBack;
+    } catch (_) {
+      // 네트워크 실패 = 없음 처리 (안전). 사용자 다시 시도 가능.
+      return false;
+    }
   }
 
   Future<void> _showRawSellPriceSheet(
@@ -264,6 +288,8 @@ class _AssetScreenState extends State<AssetScreen> {
 
     await showModalBottomSheet(
       context: context,
+      // ShellRoute child(/assets) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
@@ -293,12 +319,7 @@ class _AssetScreenState extends State<AssetScreen> {
             } catch (_) {
               setModal(() => submitting = false);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('판매 등록 실패'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                AppErrorToast.show(context, '판매 등록 실패');
               }
             }
           }
@@ -335,7 +356,10 @@ class _AssetScreenState extends State<AssetScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$cardName  ·  앱 분석 ${estimatedGrade.toStringAsFixed(1)}점',
+                  // Hotfix 10-1: AI 등급 표시 hide. estimatedGrade > 0 일 때만 표시 (기존 데이터 호환).
+                  FeatureFlags.enableAiGrading && estimatedGrade > 0
+                      ? '$cardName  ·  앱 분석 ${estimatedGrade.toStringAsFixed(1)}점'
+                      : cardName,
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13,
@@ -438,12 +462,7 @@ class _AssetScreenState extends State<AssetScreen> {
       if (mounted) _loadData();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('판매 내리기 실패'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppErrorToast.show(context, '판매 내리기 실패');
       }
     }
   }
@@ -466,6 +485,8 @@ class _AssetScreenState extends State<AssetScreen> {
     try {
       await showModalBottomSheet(
         context: context,
+        // ShellRoute child(/assets) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+        useRootNavigator: true,
         isScrollControlled: true,
         backgroundColor: AppColors.surfaceCard,
         shape: const RoundedRectangleBorder(
@@ -526,12 +547,7 @@ class _AssetScreenState extends State<AssetScreen> {
               } catch (_) {
                 setModal(() => submitting = false);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('판매 등록 실패'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  AppErrorToast.show(context, '판매 등록 실패');
                 }
               }
             }
@@ -784,23 +800,34 @@ class _AssetScreenState extends State<AssetScreen> {
         backgroundColor: AppColors.bg,
         foregroundColor: Colors.white,
         title: const Text('내 자산'),
-        actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: _showAddOptions),
-        ],
+        // Polish: 상단 + 버튼 제거. 자산 등록 동선은 하단 스캐너 버튼(FAB) 단일화 (feedback_scanner_only_asset_entry).
       ),
       body: _loading
           ? const Center(
               child: CircularProgressIndicator(color: Colors.white30),
             )
           : RefreshIndicator(
-              onRefresh: _loadData,
+              onRefresh: () async {
+                await _loadData();
+                // 도감 탭이면 도감 데이터도 같이 갱신.
+                if (_tabIndex == 3) {
+                  await _dexKey.currentState?.reload();
+                }
+              },
               child: CustomScrollView(
                 slivers: [
                   SliverToBoxAdapter(child: _buildPortfolioSummary()),
-                  SliverToBoxAdapter(child: _buildSortRow()),
-                  SliverToBoxAdapter(child: _buildTabRow()),
+                  SliverToBoxAdapter(child: _buildTabAndSortRow()),
+                  // 2026-05-29 Phase B (fix): 도감 탭 (index 3) — SliverFillRemaining 안에 DexView.
+                  //   외부 RefreshIndicator + CustomScrollView 공유 → portfolio summary
+                  //   시각 일관성 확보 (사용자 명시 — 탭마다 다르게 보이면 안 됨).
+                  if (_tabIndex == 3)
+                    SliverFillRemaining(
+                      hasScrollBody: true,
+                      child: DexView(key: _dexKey, onParentRefresh: _loadData),
+                    )
                   // 내 매수 주문 탭 (index 2)
-                  if (_tabIndex == 2) ...[
+                  else if (_tabIndex == 2) ...[
                     if (_myBuyOrders.isEmpty)
                       const SliverFillRemaining(
                         hasScrollBody: false,
@@ -893,60 +920,172 @@ class _AssetScreenState extends State<AssetScreen> {
     final totalRate = hasRate
         ? (totalCurrent - totalPurchase) / totalPurchase * 100
         : 0.0;
-    final isPos = totalRate >= 0;
+    // 색상 정책: 양(>0)=빨강, 음(<0)=파랑, 변동 없음(=0)=회색.
+    // 0.0%일 때 red 표시는 의미 충돌 (변동 없음 = neutral).
+    final isFlat = totalRate.abs() < 0.05;  // -0.05 ~ 0.05% 는 변동 없음으로 처리
+    final isPos = totalRate > 0;
+    final rateColor = isFlat
+        ? AppColors.textMuted
+        : (isPos ? AppColors.red : AppColors.blue);
 
+    // Polish Step 1 (2026-05-19): summary card 축소.
+    // - margin top 8 → 6, padding 18 → (20,16,20,14), height ~144 → ~100
+    // - radius 20 → 18 (살짝 sharp)
+    // - "총 평가 자산" 12 → 13px, letterSpacing -0.2 (한글 가독)
+    // - 금액 32 w900 → 30 w800 (덜 강조, 그러나 임팩트 유지)
+    // - 수익률 + 보유 종수 → RichText 한 줄 (dot separator)
+    // - 박스/border 유지 (보수)
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 0),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.divider),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
               '총 평가 자산',
               style: TextStyle(
                 color: AppColors.textSecondary,
-                fontSize: 12,
-                letterSpacing: 0.2,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                letterSpacing: -0.2,
               ),
             ),
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: 4),
             // 4차-Round1: TweenedCounter — 자산 추가/삭제 시 부드러운 보간
             TweenedCounter(
               value: totalMarketValue,
               formatter: (v) => _formatPrice(v.toDouble()),
               style: const TextStyle(
                 color: AppColors.textPrimary,
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1.2,
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1.0,
                 height: 1.05,
               ),
             ),
-            const SizedBox(height: 4),
-            if (hasRate) ...[
-              Text(
-                () {
-                  final diff = totalCurrent - totalPurchase;
-                  final sign = isPos ? '+' : '';
-                  return '$sign${_formatPrice(diff)} (${isPos ? '+' : ''}${totalRate.toStringAsFixed(1)}%)';
-                }(),
+            const SizedBox(height: 6),
+            // 수익률 + 보유 종수 한 줄. hasRate 없으면 보유 종수만.
+            hasRate
+                ? RichText(
+                    text: TextSpan(
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
+                      children: [
+                        TextSpan(
+                          text: () {
+                            final diff = totalCurrent - totalPurchase;
+                            final sign = isFlat ? '' : (isPos ? '+' : '');
+                            return '$sign${_formatPrice(diff)} ($sign${totalRate.toStringAsFixed(1)}%)';
+                          }(),
+                          // 색상 정책: >0 빨강, <0 파랑, =0 회색(변동 없음)
+                          style: TextStyle(color: rateColor),
+                        ),
+                        const TextSpan(
+                          text: '  ·  ',
+                          style: TextStyle(color: AppColors.textMuted),
+                        ),
+                        TextSpan(
+                          text: '$distinctCount종 보유',
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : Text(
+                    '$distinctCount종 보유',
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Polish Step 2 (2026-05-20): tab + sort 한 row 통합.
+  /// - tab = text + underline (primary navigation, 토스/Apple HIG)
+  /// - sort = 우측 dropdown trigger (secondary, BottomSheet popup)
+  /// - 기존 chip pill 두 row (sort row 40 + tab row 56)을 한 row로
+  Widget _buildTabAndSortRow() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _tabText('전체', 0),
+          const SizedBox(width: 18),
+          _tabText('판매중', 1),
+          const SizedBox(width: 18),
+          _tabText('내 매수', 2),
+          const SizedBox(width: 18),
+          _tabText('도감', 3),
+          const Spacer(),
+          // 2026-05-29 Phase B: 도감 탭은 정렬 기준이 다르므로 sort dropdown 숨김.
+          if (_tabIndex != 3) _sortDropdown(),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabText(String label, int index) {
+    final selected = _tabIndex == index;
+    // fixed height + strutStyle 로 w500/w700 baseline 미세 어긋남 방지.
+    return GestureDetector(
+      onTap: () {
+        setState(() => _tabIndex = index);
+        if (index == 2 && _myBuyOrders.isEmpty) _loadMyBuyOrders();
+        // 2026-05-30 stale fix — 도감 탭 진입 시 reload (자산 변경이 외부에서 일어났을 수 있음).
+        if (index == 3) _dexKey.currentState?.reload();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        height: 38,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                label,
+                strutStyle: const StrutStyle(
+                  forceStrutHeight: true,
+                  fontSize: 15,
+                  height: 1.2,
+                ),
                 style: TextStyle(
-                  color: isPos ? AppColors.green : Colors.redAccent,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+                  fontSize: 15,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  letterSpacing: -0.2,
+                  height: 1.2,
                 ),
               ),
-              const SizedBox(height: 4),
-            ],
-            Text(
-              '$distinctCount종 보유',
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            ),
+            Container(
+              height: 2.5,
+              width: 22,
+              decoration: BoxDecoration(
+                color: selected ? AppColors.blue : Colors.transparent,
+                borderRadius: BorderRadius.circular(1.5),
+              ),
             ),
           ],
         ),
@@ -954,62 +1093,132 @@ class _AssetScreenState extends State<AssetScreen> {
     );
   }
 
-  Widget _buildSortRow() {
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        physics: const ClampingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        children: [
-          Center(child: _buildSortChip('등급순', _SortMode.rarity)),
-          const SizedBox(width: 6),
-          Center(child: _buildSortChip('가격순', _SortMode.price)),
-          const SizedBox(width: 6),
-          Center(child: _buildSortChip('이름순', _SortMode.name)),
-        ],
-      ),
-    );
+  String _sortLabel() {
+    switch (_sortMode) {
+      case _SortMode.rarity:
+        return '등급순';
+      case _SortMode.price:
+        return '가격순';
+      case _SortMode.name:
+        return '이름순';
+      case _SortMode.quantity:
+        return '수량순';
+    }
   }
 
-  Widget _buildSortChip(String label, _SortMode mode) {
-    final selected = _sortMode == mode;
-    final arrow = selected ? (_sortAscending ? ' ↑' : ' ↓') : '';
+  Widget _sortDropdown() {
     return GestureDetector(
-      onTap: () => _onSortTap(mode),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-        decoration: BoxDecoration(
-          // 4차 디자인: selected = brand blue (이전엔 green이라 손익 시그널과 의미 충돌)
-          color: selected ? AppColors.blueDeep : AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          border: Border.all(
-            color: selected ? AppColors.blue : AppColors.divider,
-          ),
-        ),
-        child: Text(
-          '$label$arrow',
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.white54,
-            fontSize: 12,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-          ),
+      onTap: _showSortSheet,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _sortLabel(),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              _sortAscending ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+              color: AppColors.textSecondary,
+              size: 18,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildTabRow() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Row(
-        children: [
-          _tabChip('전체', 0),
-          const SizedBox(width: 8),
-          _tabChip('판매중', 1),
-          const SizedBox(width: 8),
-          _tabChip('내 매수', 2),
-        ],
+  Future<void> _showSortSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      // ShellRoute child(/assets) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+      useRootNavigator: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '정렬 기준',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _sortOption(ctx, '등급순', _SortMode.rarity),
+            _sortOption(ctx, '가격순', _SortMode.price),
+            _sortOption(ctx, '이름순', _SortMode.name),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sortOption(BuildContext ctx, String label, _SortMode mode) {
+    final selected = _sortMode == mode;
+    return InkWell(
+      onTap: () {
+        _onSortTap(mode);
+        Navigator.pop(ctx);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? AppColors.blue : AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                letterSpacing: -0.2,
+              ),
+            ),
+            if (selected) ...[
+              const SizedBox(width: 6),
+              Icon(
+                _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                color: AppColors.blue,
+                size: 14,
+              ),
+            ],
+            const Spacer(),
+            if (selected)
+              const Icon(Icons.check, color: AppColors.blue, size: 18),
+          ],
+        ),
       ),
     );
   }
@@ -1022,36 +1231,6 @@ class _AssetScreenState extends State<AssetScreen> {
         _myBuyOrders = List<Map<String, dynamic>>.from(res['data'] ?? []);
       });
     } catch (_) {}
-  }
-
-  Widget _tabChip(String label, int index) {
-    final selected = _tabIndex == index;
-    return GestureDetector(
-      onTap: () {
-        setState(() => _tabIndex = index);
-        if (index == 2 && _myBuyOrders.isEmpty) _loadMyBuyOrders();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.blue : AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppColors.blue : AppColors.divider,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : AppColors.textSecondary,
-            fontSize: 12,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
   }
 
   /// 4차-Round4-4 Phase 5: 내 매수 호가 한 줄 row
@@ -1071,9 +1250,9 @@ class _AssetScreenState extends State<AssetScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.green.withValues(alpha: 0.06),
+        color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.green.withValues(alpha: 0.18)),
+        border: Border.all(color: AppColors.divider),
       ),
       child: Row(
         children: [
@@ -1082,7 +1261,6 @@ class _AssetScreenState extends State<AssetScreen> {
             borderRadius: BorderRadius.circular(8),
             child: CardImage(
               imageUrl: imageUrl,
-              cdnFallbackUrl: imageUrl,
               width: 44, height: 60,
               fit: BoxFit.cover,
             ),
@@ -1143,20 +1321,12 @@ class _AssetScreenState extends State<AssetScreen> {
   }
 
   Future<void> _confirmCancelBuyOrder(String orderId, String cardId) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text('매수 호가 취소', style: TextStyle(color: Colors.white)),
-        content: const Text('이 매수 호가를 취소하시겠어요?', style: TextStyle(color: AppColors.textSecondary)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('아니오')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('취소하기', style: TextStyle(color: AppColors.red)),
-          ),
-        ],
-      ),
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '매수 호가 취소',
+      message: '이 매수 호가를 취소하시겠어요?',
+      confirmLabel: '취소하기',
+      destructive: true,
     );
     if (ok != true) return;
     try {
@@ -1228,7 +1398,6 @@ class _AssetScreenState extends State<AssetScreen> {
                       borderRadius: BorderRadius.circular(AppRadius.md),
                       child: CardImage(
                         imageUrl: imageUrl,
-                        cdnFallbackUrl: resolveCdnImageUrl(cardData),
                         width: 96,
                         height: 134,
                         fit: BoxFit.cover,
@@ -1301,7 +1470,8 @@ class _AssetScreenState extends State<AssetScreen> {
                           Text(
                             '${diff >= 0 ? '+' : ''}${_formatPrice(diff)} (${diff >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%)',
                             style: TextStyle(
-                              color: diff >= 0 ? AppColors.green : AppColors.red,
+                              // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+                              color: diff >= 0 ? AppColors.red : AppColors.blue,
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1331,23 +1501,25 @@ class _AssetScreenState extends State<AssetScreen> {
     final gradeValue = asset['gradeValue'] as String?;
     final estimatedGrade = (asset['estimatedGrade'] as num?)?.toDouble();
     final isSelling = asset['isSelling'] == true;
+    // Hotfix 10-3: grid X 삭제 버튼 제거됨 — assetId 직접 호출처 사라짐.
+    // 코드 보존: 향후 long-press 등 보조 진입점 추가 시 재활용 위해 유지.
+    // ignore: unused_local_variable
     final assetId = asset['assetId'] as String? ?? '';
     final cardData = asset['card'] as Map<String, dynamic>? ?? {};
     final cardName = cardData['name'] as String? ?? cardId;
     final rarity = cardData['rarityCode'] as String? ?? '';
     final imageUrl = resolveCardImageUrl(cardData);
 
+    // badgeLabel만 사용 (하단 정보 line의 'KO · RAW 6.5'). badge 컬러는
+    // 90d94f3e badge 재배치 이후 미사용 → 제거.
     late final String badgeLabel;
-    late final Color badgeColor;
     if (cardStatus == 'GRADED' && gradingCompany != null) {
       badgeLabel = '$gradingCompany${gradeValue != null ? " $gradeValue" : ""}';
-      badgeColor = AppColors.gold;
-    } else if (estimatedGrade != null) {
+    } else if (FeatureFlags.enableAiGrading && estimatedGrade != null) {
+      // Hotfix 10-1: AI 비활성 시 "RAW X.X" 배지 hide. 단순 "RAW" 만.
       badgeLabel = 'RAW ${estimatedGrade.toStringAsFixed(1)}';
-      badgeColor = AppColors.blue;
     } else {
       badgeLabel = 'RAW';
-      badgeColor = AppColors.textMuted;
     }
 
     // 4차-Round4: 풀 오버레이 디자인 — 카드 이미지 풀 + 하단 그라데이션 위 정보 (NFT 갤러리 패턴)
@@ -1399,7 +1571,6 @@ class _AssetScreenState extends State<AssetScreen> {
               // 카드 이미지 — 풀 채움
               CardImage(
                 imageUrl: imageUrl,
-                cdnFallbackUrl: resolveCdnImageUrl(cardData),
                 width: double.infinity,
                 height: double.infinity,
                 fit: BoxFit.cover,
@@ -1422,107 +1593,83 @@ class _AssetScreenState extends State<AssetScreen> {
                   ),
                 ),
               ),
-              // 좌상단: 레어도 + 등급 배지 (스택)
-              Positioned(
-                top: 6,
-                left: 6,
-                right: 6,
-                child: Row(
-                  children: [
-                    if (rarity.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.55),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          border: Border.all(
-                            color: rarityColor.withValues(alpha: 0.6),
-                            width: 0.6,
-                          ),
-                        ),
-                        child: Text(
-                          rarity,
-                          style: TextStyle(
-                            color: rarityColor,
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ),
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(AppRadius.sm),
-                        border: Border.all(color: Colors.white24, width: 0.5),
-                      ),
-                      child: Text(
-                        language,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 7.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.3,
-                        ),
+              // 좌상단: 레어도 단일 chip (KO/등급은 하단 정보 line으로 이동 — 잘림 해소)
+              if (rarity.isNotEmpty)
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      border: Border.all(
+                        color: rarityColor.withValues(alpha: 0.6),
+                        width: 0.6,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    if (badgeLabel != 'RAW')
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: badgeColor.withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                        ),
-                        child: Text(
-                          badgeLabel,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 7.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
+                    child: Text(
+                      rarity,
+                      style: TextStyle(
+                        color: rarityColor,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.4,
                       ),
-                    const Spacer(),
-                    if (!isSelling)
-                      GestureDetector(
-                        onTap: () => _confirmDelete(assetId),
-                        child: Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(AppRadius.pill),
-                          ),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            color: Colors.white60,
-                            size: 11,
-                          ),
-                        ),
-                      ),
-                  ],
+                    ),
+                  ),
                 ),
-              ),
-              // 판매중 indicator (있을 때만)
+              // Hotfix 10-3: 우상단 매트릭스
+              //   isSelling=true                            → '판매중' chip (녹색)
+              //   isSelling=false && cardVerified=true      → 블랙 골드 인증 badge (실카드 검증 완료)
+              //   isSelling=false && cardVerified=false     → 표시 없음
+              // 기존 close X (자산 삭제) 제거. 삭제는 card_detail._confirmDeleteAsset 에서 처리.
               if (isSelling)
                 Positioned(
                   top: 6,
                   right: 6,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppColors.green.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      color: AppColors.green.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                     ),
                     child: const Text(
                       '판매중',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 8,
+                        fontSize: 9,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                )
+              else if (asset['cardVerified'] == true)
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  // Codex 사후 (Item 6 P1) fix: Tooltip 만 사용 — Tooltip.message 가 자체 Semantics 제공.
+                  // 외부 Semantics wrapper 중복 → TalkBack/VoiceOver 2회 read 방지.
+                  child: Tooltip(
+                    message: '실물 사진 등록 완료',
+                    child: Container(
+                      width: 20, height: 20,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF15110A),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFD4AF37), width: 1.2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFD4AF37).withValues(alpha: 0.25),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        size: 12,
+                        color: Color(0xFFFFD86B),
                       ),
                     ),
                   ),
@@ -1552,6 +1699,23 @@ class _AssetScreenState extends State<AssetScreen> {
                       ),
                     ),
                     const SizedBox(height: 2),
+                    // 정보 line — KO · RAW 6.5 (좌상단에서 이동)
+                    Text(
+                      '$language · $badgeLabel',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                        height: 1.0,
+                        shadows: const [
+                          Shadow(color: Colors.black, blurRadius: 3),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 3),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
@@ -1598,7 +1762,8 @@ class _AssetScreenState extends State<AssetScreen> {
                           Text(
                             '${rate >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%',
                             style: TextStyle(
-                              color: rate >= 0 ? AppColors.green : AppColors.red,
+                              // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+                              color: rate >= 0 ? AppColors.red : AppColors.blue,
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                               shadows: const [
@@ -1618,9 +1783,13 @@ class _AssetScreenState extends State<AssetScreen> {
     );
   }
 
+  // 자산 추가 옵션 sheet — 상단 + 제거 후 일시 unused. 다음 Step (ghost tile)에서 재사용 예정.
+  // ignore: unused_element
   void _showAddOptions() {
     showModalBottomSheet(
       context: context,
+      // ShellRoute child(/assets) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+      useRootNavigator: true,
       backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -1725,15 +1894,15 @@ class _AssetScreenState extends State<AssetScreen> {
       } catch (_) {
         setModal(() => searching = false);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('등록 실패'), backgroundColor: Colors.red),
-          );
+          AppErrorToast.show(context, '등록 실패');
         }
       }
     }
 
     await showModalBottomSheet(
       context: context,
+      // ShellRoute child(/assets) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
@@ -1838,12 +2007,10 @@ class _AssetScreenState extends State<AssetScreen> {
                       final name = card['name'] as String? ?? '';
                       final rarity = card['rarityCode'] as String? ?? '';
                       final imageUrl = resolveCardImageUrl(card);
-                      final cdnUrl = resolveCdnImageUrl(card);
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                         leading: CardImage(
                           imageUrl: imageUrl,
-                          cdnFallbackUrl: cdnUrl,
                           width: 36,
                           height: 50,
                           fit: BoxFit.cover,
@@ -1911,6 +2078,8 @@ class _AssetScreenState extends State<AssetScreen> {
 
     await showModalBottomSheet(
       context: context,
+      // ShellRoute child(/assets) 안에서 호출되어 MainShell FAB가 시트를 가리는 문제 방지.
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
@@ -1965,9 +2134,7 @@ class _AssetScreenState extends State<AssetScreen> {
             } catch (_) {
               setModal(() => submitting = false);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('등록 실패'), backgroundColor: Colors.red),
-                );
+                AppErrorToast.show(context, '등록 실패');
               }
             }
           }
@@ -2023,7 +2190,6 @@ class _AssetScreenState extends State<AssetScreen> {
                           children: [
                             CardImage(
                               imageUrl: resolveCardImageUrl(selectedCard!),
-                              cdnFallbackUrl: resolveCdnImageUrl(selectedCard!),
                               width: 32, height: 44,
                               fit: BoxFit.cover,
                               borderRadius: BorderRadius.circular(4),
@@ -2092,7 +2258,6 @@ class _AssetScreenState extends State<AssetScreen> {
                               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                               leading: CardImage(
                                 imageUrl: resolveCardImageUrl(card),
-                                cdnFallbackUrl: resolveCdnImageUrl(card),
                                 width: 28, height: 38,
                                 fit: BoxFit.cover,
                                 borderRadius: BorderRadius.circular(3),
@@ -2413,6 +2578,8 @@ class _AssetScreenState extends State<AssetScreen> {
     );
   }
 
+  // Hotfix 10-3: grid X 제거 후 dead path. 향후 보조 진입점 추가 시 재활용 위해 보존.
+  // ignore: unused_element
   Future<void> _confirmDelete(String assetId) async {
     final asset = _assets.firstWhere(
       (a) => a['assetId'] == assetId,
@@ -2420,39 +2587,16 @@ class _AssetScreenState extends State<AssetScreen> {
     );
     if (asset['isSelling'] == true) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('판매 중인 카드는 삭제할 수 없습니다. 먼저 판매를 내려주세요.'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
+        AppInfoToast.show(context, '판매 중인 카드는 삭제할 수 없습니다. 먼저 판매를 내려주세요.');
       }
       return;
     }
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text(
-          '자산 삭제',
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
-        content: const Text(
-          '이 카드를 자산에서 삭제할까요?',
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text('삭제', style: TextStyle(color: Colors.red)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('취소'),
-          ),
-        ],
-      ),
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '자산 삭제',
+      message: '이 카드를 자산에서 삭제할까요?',
+      confirmLabel: '삭제',
+      destructive: true,
     );
     if (ok == true) await _deleteAsset(assetId);
   }

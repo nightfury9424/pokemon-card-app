@@ -34,6 +34,14 @@ public class Product {
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
+    /**
+     * 도감 힛카드 CSV override (CRD_xxx,CRD_yyy,...). 순서 = display 순서. NULL = 자동 fallback.
+     * DexService 가 NULL/blank 시 기존 rarity priority + collection_number top 4 산출.
+     * 2026-05-30 Cycle 2 — 컬렉션형 시리즈 (VSTAR/테라스탈/151/VMAX 클라이맥스) max 6장 허용.
+     */
+    @Column(name = "dex_hit_card_ids", columnDefinition = "text")
+    private String dexHitCardIds;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

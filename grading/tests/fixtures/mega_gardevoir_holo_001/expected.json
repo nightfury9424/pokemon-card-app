@@ -1,0 +1,21 @@
+{
+  "card_id": "mega_gardevoir_holo_001",
+  "card_name": "메가가디안 ex (홀로/반사 강함)",
+  "shots": [
+    {
+      "front": "1.jpg",
+      "back": "2.jpg",
+      "expected_total": 8.5,
+      "tolerance": 0.5,
+      "notes": "정상 촬영. hotfix 8 (confidence threshold) 후 baseline.",
+      "frame_hint": [0.179, 0.105, 0.672, 0.699]
+    },
+    {
+      "front": "3.jpg",
+      "back": "4.jpg",
+      "expected_retake": true,
+      "notes": "카드 큰 회전 — backend frame_hint quality gate 가 retake 강제",
+      "frame_hint": [0.0, 0.172, 0.919, 0.705]
+    }
+  ]
+}

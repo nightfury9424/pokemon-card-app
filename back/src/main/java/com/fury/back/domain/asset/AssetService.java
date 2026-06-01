@@ -19,6 +19,8 @@ public interface AssetService {
     ReturnData<PortfolioSummaryDto> getPortfolioSummary(String userId);
     ReturnData<List<String>> saveGradingResult(String assetId, AssetDto.GradingResultRequest req,
                                                MultipartFile frontImage, MultipartFile backImage);
+    ReturnData<java.util.Map<String, String>> saveSellPhotos(String assetId, MultipartFile frontImage,
+                                                              MultipartFile backImage, String userId);
     void uploadSlabImage(Long assetId, MultipartFile file) throws IOException;
     void uploadSlabImage(String assetId, MultipartFile file) throws IOException;
     ReturnData<List<java.util.Map<String, String>>> getAssetImages(String assetId);

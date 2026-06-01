@@ -37,6 +37,12 @@ public class AssetDto {
     private LocalDateTime updatedAt;
     private Boolean isSelling;
     private String activeTradeId;
+    /**
+     * Hotfix 10-3: 실카드 검증 완료 여부 (AssetImage FRONT + BACK 둘 다 존재).
+     * Plan E sell-photos 통과한 자산 → true. UI 자산 grid 인증 badge 표시 기준.
+     * computed field — DB 컬럼 없음.
+     */
+    private Boolean cardVerified;
     /** asset.language 기준 환산 가격(KRW). KO=koEstimated, EN/JP=scrydex raw × 환율. */
     private Integer displayPrice;
     /**

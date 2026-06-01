@@ -43,13 +43,14 @@ public class BuyOrderController {
         return buyOrderService.getByCardPaged(cardId, page, size);
     }
 
-    @Operation(summary = "내 매수 호가 list", description = "JWT 인증 필요. status 기본 OPEN.")
+    @Operation(summary = "내 매수 호가 list", description = "JWT 인증 필요. status 기본 OPEN. cardId 필터(optional).")
     @GetMapping("/me")
     public ReturnData<List<BuyOrderDto>> getMyOrders(
             HttpServletRequest request,
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String cardId) {
         String buyerId = extractUserId(request);
-        return buyOrderService.getMyOrders(buyerId, status);
+        return buyOrderService.getMyOrders(buyerId, status, cardId);
     }
 
     @Operation(summary = "전체 OPEN 매수 호가 페이징", description = "거래 탭 매수 list용 — bid 높은 순.")

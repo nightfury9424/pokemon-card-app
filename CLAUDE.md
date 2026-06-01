@@ -49,8 +49,10 @@ cd front && flutter run
 - 백엔드에서 `koEstimatedPrice`로 계산해서 반환
 - 가격 포맷: 1의 자리 반올림 + 콤마 + "원"
 
-**DB**: 9,728장 (KO 기준, C/U/R 삭제됨), ddl-auto: validate
+**DB**: KO 노출 3,425 / 감춤 270 / KO 전체 3,695 (`@SQLRestriction is_visible=true`). ddl-auto: validate
 - `nightfury` 유저, `pokemon_card_db` DB
+- 감춤 270 = S rarity 258 + K rarity 12 (베이직 포켓몬 commons). C/U/R rarity 는 row 자체 삭제 (legacy)
+- 2026-05-29 prod 기준 — Card.java `@SQLRestriction("is_visible = true")` 적용 후 JPQL 카운트가 visible 만 반환
 
 ## 상세 문서
 | 문서 | 내용 |

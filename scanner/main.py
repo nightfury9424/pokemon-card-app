@@ -858,6 +858,52 @@ async def admin_review_list(
         return {"error": str(e)}
 
 
+def _append_datachip(source, source_id, card_id, raw_title, raw_price, raw_url, image_path):
+    """DAANGN 검수 verify 시 DINOv2 스캐너 학습 데이터칩으로 적재.
+
+    - 이미지 외부 URL이면 로컬 다운로드
+    - JSONL append (라인 단위 — concurrent verify 안전, append-only)
+    - DAANGN 외 source는 적재 안 함 (NAVER 등 정책)
+    """
+    if source != 'DAANGN':
+        return
+    try:
+        import json as _json, urllib.request as _urlreq
+        from pathlib import Path as _Path
+        from datetime import datetime as _dt
+        BASE = _Path("/Users/fury/pokemon-card-app/scanner/training/data")
+        IMG_DIR = BASE / "datachips_daangn_img"
+        IMG_DIR.mkdir(parents=True, exist_ok=True)
+        JSONL = BASE / "datachips_daangn.jsonl"
+
+        img_local = None
+        if image_path and image_path.startswith('http'):
+            ext = 'webp' if '.webp' in image_path else 'jpg'
+            local_path = IMG_DIR / f"{source_id}.{ext}"
+            if not local_path.exists():
+                req = _urlreq.Request(image_path, headers={'User-Agent': 'Mozilla/5.0'})
+                with _urlreq.urlopen(req, timeout=15) as r:
+                    local_path.write_bytes(r.read())
+            img_local = str(local_path.relative_to(BASE))
+
+        entry = {
+            "image_path": img_local,
+            "image_url": image_path,
+            "card_id": card_id,
+            "source": source,
+            "source_id": source_id,
+            "raw_title": raw_title,
+            "raw_price": int(raw_price) if raw_price else None,
+            "raw_url": raw_url,
+            "labeled_at": _dt.now().isoformat(),
+        }
+        with open(JSONL, 'a', encoding='utf-8') as f:
+            f.write(_json.dumps(entry, ensure_ascii=False) + '\n')
+    except Exception as e:
+        # 데이터칩 실패는 verify 자체를 막지 않게 — log만 출력
+        print(f"[datachip] append failed for {source_id}: {e}", flush=True)
+
+
 @app.post("/admin/review/{review_id}/verify")
 async def admin_review_verify(review_id: str, payload: dict):
     """검수 통과 → price_snapshots insert + queue status='verified'"""
@@ -884,20 +930,55 @@ async def admin_review_verify(review_id: str, payload: dict):
             return {"error": "review not found"}
         source, source_id, raw_url, raw_title, _img = row
 
-        # price_snapshots insert
+        # NAVER_CAFE: 수집 단계에서 이미 source_item_id로 적재된 PENDING row를 VALID로 UPDATE.
+        # 그 외 source (DAANGN 등): 기존 동작 — 신규 INSERT.
+        # 2026-05-19 보강: NAVER 중복 row 방지 (price_naver_cafe.py와 정합성).
         import uuid as _uuid
-        sid = _uuid.uuid4().hex
-        cur.execute("""
-            INSERT INTO price_snapshots
-              (price_snapshot_id, card_id, source, source_item_id, source_url,
-               price, raw_price, raw_currency, card_status,
-               grading_company, grade_value, traded_at, collected_at, title)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s)
-        """, (
-            sid, card_id, source, source_id, raw_url,
-            int(price), int(price), currency, card_status,
-            grade_company, grade_value, raw_title,
-        ))
+        sid = None
+        if source == 'NAVER_CAFE':
+            cur.execute("""
+                UPDATE price_snapshots
+                SET validation_status='VALID',
+                    invalid_reason=NULL,
+                    card_id=%s,
+                    price=%s,
+                    card_status=%s,
+                    grading_company=%s,
+                    grade_value=%s
+                WHERE source='NAVER_CAFE' AND source_item_id=%s
+                RETURNING price_snapshot_id
+            """, (card_id, int(price), card_status, grade_company, grade_value, source_id))
+            row2 = cur.fetchone()
+            if row2:
+                sid = row2[0]
+            else:
+                # 폴백 — 큐에는 있는데 snapshots에 없으면 신규 INSERT (race 또는 수동 큐 등록)
+                sid = _uuid.uuid4().hex
+                cur.execute("""
+                    INSERT INTO price_snapshots
+                      (price_snapshot_id, card_id, source, source_item_id, source_url,
+                       price, raw_price, raw_currency, card_status,
+                       grading_company, grade_value, traded_at, collected_at, title,
+                       validation_status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s, 'VALID')
+                """, (
+                    sid, card_id, source, source_id, raw_url,
+                    int(price), int(price), currency, card_status,
+                    grade_company, grade_value, raw_title,
+                ))
+        else:
+            sid = _uuid.uuid4().hex
+            cur.execute("""
+                INSERT INTO price_snapshots
+                  (price_snapshot_id, card_id, source, source_item_id, source_url,
+                   price, raw_price, raw_currency, card_status,
+                   grading_company, grade_value, traded_at, collected_at, title)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s)
+            """, (
+                sid, card_id, source, source_id, raw_url,
+                int(price), int(price), currency, card_status,
+                grade_company, grade_value, raw_title,
+            ))
         # 큐 update
         cur.execute("""
             UPDATE price_review_queue SET
@@ -912,6 +993,8 @@ async def admin_review_verify(review_id: str, payload: dict):
         ))
         conn.commit()
         conn.close()
+        # DAANGN 데이터칩 적재 — 검수 1회 = 시세 + 스캐너 학습 라벨 동시 확정
+        _append_datachip(source, source_id, card_id, raw_title, int(price), raw_url, _img)
         return {"ok": True, "price_snapshot_id": sid}
     except Exception as e:
         return {"error": str(e)}
@@ -969,18 +1052,51 @@ async def admin_review_single_auto(review_id: str, payload: dict):
             conn.close()
             return {"error": "no price"}
 
-        # price_snapshots insert (RAW, KRW, KO default)
+        # 2026-05-19 보강: NAVER_CAFE는 수집 단계에서 이미 source_item_id로 PENDING row 적재됨.
+        # 기존 row UPDATE — 중복 row 방지 + price_snapshots.validation_status='VALID' 정합성.
         import uuid as _uuid
-        sid = _uuid.uuid4().hex
-        cur.execute("""
-            INSERT INTO price_snapshots
-              (price_snapshot_id, card_id, source, source_item_id, source_url,
-               price, raw_price, raw_currency, card_status,
-               grading_company, grade_value, traded_at, collected_at, title)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, 'KRW', 'RAW',
-                    NULL, NULL, %s, NOW(), %s)
-        """, (sid, card_id, source, source_id, raw_url,
-              int(price), int(price), traded_at or _psycopg2.extensions.AsIs("NOW()"), raw_title))
+        sid = None
+        if source == 'NAVER_CAFE':
+            cur.execute("""
+                UPDATE price_snapshots
+                SET validation_status='VALID',
+                    invalid_reason=NULL,
+                    card_id=%s,
+                    price=%s,
+                    raw_price=%s,
+                    card_status='RAW',
+                    grading_company=NULL,
+                    grade_value=NULL
+                WHERE source='NAVER_CAFE' AND source_item_id=%s
+                RETURNING price_snapshot_id
+            """, (card_id, int(price), int(price), source_id))
+            r2 = cur.fetchone()
+            if r2:
+                sid = r2[0]
+            else:
+                # 폴백 — 큐에는 있는데 snapshots에 없으면 신규 INSERT (race 케이스)
+                sid = _uuid.uuid4().hex
+                cur.execute("""
+                    INSERT INTO price_snapshots
+                      (price_snapshot_id, card_id, source, source_item_id, source_url,
+                       price, raw_price, raw_currency, card_status,
+                       grading_company, grade_value, traded_at, collected_at, title,
+                       validation_status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 'KRW', 'RAW',
+                            NULL, NULL, %s, NOW(), %s, 'VALID')
+                """, (sid, card_id, source, source_id, raw_url,
+                      int(price), int(price), traded_at or _psycopg2.extensions.AsIs("NOW()"), raw_title))
+        else:
+            sid = _uuid.uuid4().hex
+            cur.execute("""
+                INSERT INTO price_snapshots
+                  (price_snapshot_id, card_id, source, source_item_id, source_url,
+                   price, raw_price, raw_currency, card_status,
+                   grading_company, grade_value, traded_at, collected_at, title)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'KRW', 'RAW',
+                        NULL, NULL, %s, NOW(), %s)
+            """, (sid, card_id, source, source_id, raw_url,
+                  int(price), int(price), traded_at or _psycopg2.extensions.AsIs("NOW()"), raw_title))
 
         # 큐 verified
         cur.execute("""
@@ -993,6 +1109,8 @@ async def admin_review_single_auto(review_id: str, payload: dict):
         """, (card_id, int(price), review_id))
         conn.commit()
         conn.close()
+        # DAANGN 데이터칩 적재 — 검수 1회 = 시세 + 스캐너 학습 라벨 동시 확정
+        _append_datachip(source, source_id, card_id, raw_title, int(price), raw_url, image_path)
         return {"ok": True, "card_id": card_id, "price": int(price), "snapshot_id": sid}
     except Exception as e:
         return {"error": str(e)}
@@ -1000,11 +1118,27 @@ async def admin_review_single_auto(review_id: str, payload: dict):
 
 @app.post("/admin/review/{review_id}/reject")
 async def admin_review_reject(review_id: str, payload: dict):
-    """검수 reject (묶음/굿즈/오인식 등). price_snapshots 저장 X."""
+    """검수 reject (묶음/굿즈/오인식 등).
+
+    2026-05-19 보강 — NAVER_CAFE는 price_snapshots PENDING row도 INVALID로 같이 UPDATE.
+    그래야 substrate(VALID only)에서 자동 제외되어 정합성 유지.
+    """
     reason = payload.get("reason") or "unclear"
     try:
         conn = _psycopg2.connect(**_DB_CFG)
         cur = conn.cursor()
+        # source/source_id 조회 — NAVER_CAFE는 price_snapshots도 INVALID 처리
+        cur.execute("SELECT source, source_id FROM price_review_queue WHERE id=%s", (review_id,))
+        row = cur.fetchone()
+        if row:
+            src, sid = row
+            if src == 'NAVER_CAFE':
+                cur.execute("""
+                    UPDATE price_snapshots
+                    SET validation_status='INVALID',
+                        invalid_reason=%s
+                    WHERE source='NAVER_CAFE' AND source_item_id=%s
+                """, (f'user-rejected:{reason}', sid))
         cur.execute("""
             UPDATE price_review_queue SET
               status='rejected', reviewed_at=NOW(), rejection_reason=%s

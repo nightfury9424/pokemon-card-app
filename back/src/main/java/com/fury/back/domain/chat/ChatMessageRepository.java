@@ -13,7 +13,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, String
 
     long countByChatRoomIdAndIsReadFalseAndSenderUserIdNot(String chatRoomId, String userId);
 
+    /** affected rows return — Bundle 1 G1: 실제 read 갱신 시에만 STOMP broadcast 분기용. */
     @Modifying
     @Query("UPDATE ChatMessage m SET m.isRead = true WHERE m.chatRoomId = :roomId AND m.senderUserId != :userId AND m.isRead = false")
-    void markAllAsRead(@Param("roomId") String roomId, @Param("userId") String userId);
+    int markAllAsRead(@Param("roomId") String roomId, @Param("userId") String userId);
 }

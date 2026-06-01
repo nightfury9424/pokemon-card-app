@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_success_toast.dart';
 
 class EditNicknameScreen extends StatefulWidget {
   const EditNicknameScreen({super.key});
@@ -97,9 +99,7 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
     try {
       await ApiClient.put('/api/users/nickname', {'nickname': nickname});
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('닉네임이 변경되었습니다')),
-      );
+      AppSuccessToast.show(context, '닉네임이 변경되었습니다');
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
@@ -111,7 +111,16 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
     }
   }
 
+  /// 백엔드 envelope의 specific 사유 노출. NicknameValidator의 "닉네임은 2~15자여야 합니다"/
+  /// "사용할 수 없는 닉네임입니다" 등을 사용자에게 그대로 노출. DioException 정공법 + toString fallback.
   String _extractMessage(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map && data['message'] is String) {
+        final msg = (data['message'] as String).trim();
+        if (msg.isNotEmpty) return msg;
+      }
+    }
     final s = e.toString();
     final idx = s.indexOf('"message"');
     if (idx >= 0) {

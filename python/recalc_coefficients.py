@@ -23,7 +23,8 @@ import requests
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 log = logging.getLogger(__name__)
 
-DB_DSN = 'host=localhost port=5432 dbname=pokemon_card_db user=nightfury'
+from config import get_db_dsn  # Phase 1-4: env 기반 DSN
+DB_DSN = get_db_dsn()
 # 외부 API 호출은 price_scrydex.py 또는 Java ExchangeRateClient가 처음 호출하면서 DB에 저장.
 # recalc_coefficients.py는 DB 조회만 — 단일 환율 보장(REFACTOR_2026-05-12.md 2-①).
 EXCHANGE_API_FALLBACK = 'https://open.er-api.com/v6/latest/USD'

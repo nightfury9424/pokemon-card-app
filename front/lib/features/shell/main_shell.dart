@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/notifiers/asset_notifier.dart';
+import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/theme/app_colors.dart';
 
 class MainShell extends StatefulWidget {
@@ -116,6 +117,15 @@ class _BottomNavState extends State<_BottomNav> {
   void initState() {
     super.initState();
     _loadUnread();
+    // 채팅방 read 처리(markRead/active markAsRead/dispose) 시 즉시 badge 갱신.
+    // didUpdateWidget만으론 chat tab 안에서 룸 ↔ 목록 왕복 시 currentIndex 동일 → 미감지.
+    ChatUnreadNotifier.instance.addListener(_loadUnread);
+  }
+
+  @override
+  void dispose() {
+    ChatUnreadNotifier.instance.removeListener(_loadUnread);
+    super.dispose();
   }
 
   @override
@@ -234,7 +244,18 @@ class _NavItem extends StatelessWidget {
     final selected = index == currentIndex;
     return Expanded(
       child: GestureDetector(
-        onTap: () => context.go(route),
+        onTap: () {
+          // 챗 탭 진입/재선택 모두 reload 신호.
+          // - 재선택: GoRouter same-location noop → initState 재호출 X
+          // - 다른 탭→챗: shell child state가 유지되는 구조면 initState 재호출 X 가능
+          // chat_screen이 ChatUnreadNotifier listener라서 _loadRooms 발동.
+          if (route == '/chat-list') {
+            ChatUnreadNotifier.instance.notifyChanged();
+            if (!selected) context.go(route);
+            return;
+          }
+          context.go(route);
+        },
         behavior: HitTestBehavior.opaque,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

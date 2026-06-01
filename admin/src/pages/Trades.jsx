@@ -1,6 +1,22 @@
 import { useEffect, useState } from 'react'
-import { Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import api from '../api'
+
+// 2026-05-29 admin Stage 0 — admin 거래글 삭제 inline action.
+async function adminDeleteTrade(tradeId) {
+  const reason = prompt(`거래글 ${tradeId} 삭제 사유 (audit log):`)
+  if (!reason || !reason.trim()) return false
+  if (!confirm(`${tradeId} soft delete + 양쪽 채팅방 SYSTEM 알림 진행할까요?`)) return false
+  try {
+    await api.delete(`/admin/trade-posts/${tradeId}`, { data: { reason: reason.trim() } })
+    return true
+  } catch (e) {
+    const msg = e.response?.data?.message ?? '삭제 처리 실패'
+    if (msg.includes('TRADE_NOT_FOUND')) alert('거래글을 찾을 수 없어요')
+    else alert(msg)
+    return false
+  }
+}
 
 const S = {
   page:   { padding: '32px 36px', minHeight: '100%', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
@@ -93,38 +109,64 @@ export default function Trades() {
       </div>
 
       <div style={S.card}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        {/* 2026-05-29 P-1: 9개 컬럼 + 사이드바 폭 합치면 자주 좁아져서 글자 세로 쪼개짐 ("유 형", "진 행 중").
+            wrapper overflow-x:auto + table min-width 로 가로 스크롤 허용. */}
+        <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', minWidth: 1100, borderCollapse: 'collapse', tableLayout: 'auto' }}>
           <thead>
             <tr>
-              {['ID', '제목', '작성자', '유형', '희망 카드', '제안 카드', '등록일', '상태'].map(h => (
-                <th key={h} style={S.th}>{h}</th>
+              {['ID', '제목', '작성자', '유형', '희망 카드', '제안 카드', '등록일', '상태', '액션'].map(h => (
+                <th key={h} style={{ ...S.th, whiteSpace: 'nowrap' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>불러오는 중...</td></tr>
+              <tr><td colSpan={9} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>불러오는 중...</td></tr>
             ) : trades.length === 0 ? (
-              <tr><td colSpan={8} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>거래글이 없습니다</td></tr>
-            ) : trades.map(t => (
-              <tr key={t.id}
+              <tr><td colSpan={9} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>거래글이 없습니다</td></tr>
+            ) : trades.map(t => {
+              const tradeId = t.id || t.tradeId
+              const isDeleted = t.status === 'DELETED' || t.status === 'CANCELLED'
+              return (
+              <tr key={tradeId}
                 onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
-                <td style={{ ...S.td, color: '#94a3b8', fontSize: 12 }}>{t.id}</td>
+                <td style={{ ...S.td, color: '#94a3b8', fontSize: 12 }}>{tradeId}</td>
                 <td style={{ ...S.td, fontWeight: 600, color: '#1e293b', maxWidth: 180 }}>
                   <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title ?? '-'}</span>
                 </td>
                 <td style={S.td}>{t.authorNickname ?? '-'}</td>
-                <td style={S.td}>{t.tradeType === 'EXCHANGE' ? '교환' : t.tradeType === 'SELL' ? '판매' : '-'}</td>
-                <td style={{ ...S.td, fontSize: 12 }}>{t.wantCardName ?? '-'}</td>
-                <td style={{ ...S.td, fontSize: 12 }}>{t.offerCardName ?? '-'}</td>
-                <td style={{ ...S.td, fontSize: 12 }}>{t.createdAt ? t.createdAt.slice(0, 10) : '-'}</td>
-                <td style={S.td}><StatusBadge status={t.status} /></td>
+                <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{t.tradeType === 'EXCHANGE' ? '교환' : t.tradeType === 'SELL' ? '판매' : '-'}</td>
+                <td style={{ ...S.td, fontSize: 12, whiteSpace: 'nowrap' }}>{t.wantCardName ?? '-'}</td>
+                <td style={{ ...S.td, fontSize: 12, whiteSpace: 'nowrap' }}>{t.offerCardName ?? '-'}</td>
+                <td style={{ ...S.td, fontSize: 12, whiteSpace: 'nowrap' }}>{t.createdAt ? t.createdAt.slice(0, 10) : '-'}</td>
+                <td style={{ ...S.td, whiteSpace: 'nowrap' }}><StatusBadge status={t.status} /></td>
+                <td style={{ ...S.td, whiteSpace: 'nowrap' }}>
+                  {isDeleted ? (
+                    <span style={{ color: '#cbd5e1', fontSize: 11 }}>삭제됨</span>
+                  ) : (
+                    <button onClick={async () => {
+                      const ok = await adminDeleteTrade(tradeId)
+                      if (ok) {
+                        api.get('/admin/trades', { params: { page, size, status: TAB_STATUS[tab], search: search || undefined } })
+                          .then(r => { setTrades(r.data?.data?.content ?? []); setTotal(r.data?.data?.totalElements ?? 0) })
+                      }
+                    }} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '4px 10px', borderRadius: 6,
+                      background: '#fff', border: '1px solid #dc2626',
+                      color: '#dc2626', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    }}><Trash2 size={12} /> admin 삭제</button>
+                  )}
+                </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
+        </div>
 
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, padding: '12px 16px', borderTop: '1px solid #f1f5f9' }}>

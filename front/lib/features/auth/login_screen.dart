@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import 'auth_service.dart';
+import '../../core/widgets/app_error_toast.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,9 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('구글 로그인 실패: $e'), duration: const Duration(seconds: 4)),
-      );
+      AppErrorToast.show(context, '구글 로그인 실패: $e');
     }
   }
 
@@ -34,9 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
     if (requiresOnboarding == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('개발 로그인 실패')),
-      );
+      AppErrorToast.show(context, '개발 로그인 실패');
       return;
     }
     context.go(requiresOnboarding ? '/onboarding' : '/home');

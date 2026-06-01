@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.CAMERA"/>
 
     <application
-        android:label="포켓몬 카드"
+        android:label="포켓폴리오"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -25,6 +25,16 @@ public class UserController {
 
     private final UserRepository userRepository;
     private final NicknameValidator nicknameValidator;
+    private final UserService userService;
+
+    @Operation(summary = "계정 탈퇴 (App Review 5.1.1)",
+            description = "현재 로그인한 사용자만 자기 계정 삭제 가능 — userId는 JWT subject에서만 추출, " +
+                    "request param/body로 받지 않음. PII(nickname/email/profileImageUrl) 마스킹 + " +
+                    "deletedAt 설정 + OPEN 매수/매도 자동 취소. 거래/채팅/신고/차단 기록은 보존 (분쟁·운영 증거).")
+    @DeleteMapping("/me")
+    public ReturnData<Map<String, Object>> deleteMyAccount(@AuthenticationPrincipal String userId) {
+        return userService.deleteAccount(userId);
+    }
 
     @Operation(summary = "내 정보 조회")
     @GetMapping("/me")
@@ -41,12 +51,13 @@ public class UserController {
         return ReturnData.success(data);
     }
 
-    @Operation(summary = "닉네임 사용 가능 여부 확인 (안내용, 최종 방어는 저장 시 409)")
+    @Operation(summary = "닉네임 사용 가능 여부 확인 (안내용, 최종 방어는 저장 시 409 + DB partial unique)")
     @GetMapping("/nickname/check")
     public ReturnData<Map<String, Object>> checkNickname(@RequestParam("value") String value) {
         String normalized = nicknameValidator.normalize(value);
         nicknameValidator.validate(normalized);
-        boolean taken = userRepository.existsByNicknameIgnoreCase(normalized);
+        // 활성 사용자(deleted_at IS NULL)만 중복 체크. 탈퇴자 마스킹 닉네임은 무관.
+        boolean taken = userRepository.existsByNicknameIgnoreCaseAndDeletedAtIsNull(normalized);
         return ReturnData.success(Map.of("available", !taken));
     }
 
@@ -63,6 +74,11 @@ public class UserController {
         }
         String normalized = nicknameValidator.normalize(body.get("nickname"));
         nicknameValidator.validate(normalized);
+        // race fix: check API ↔ submit 사이 다른 사용자가 같은 닉네임 등록한 케이스 차단.
+        // 최종 방어선은 DB partial unique index — DataIntegrityViolation은 saveOrConflict가 catch.
+        if (userRepository.existsByNicknameIgnoreCaseAndDeletedAtIsNull(normalized)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다");
+        }
 
         String profileImageUrl = body.get("profileImageUrl");
         User updated = User.builder()
@@ -98,6 +114,10 @@ public class UserController {
         nicknameValidator.validate(normalized);
         if (normalized.equalsIgnoreCase(user.getNickname())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "현재 닉네임과 동일합니다");
+        }
+        // race fix (위 completeOnboarding과 동일 사양).
+        if (userRepository.existsByNicknameIgnoreCaseAndDeletedAtIsNull(normalized)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다");
         }
 
         User updated = User.builder()

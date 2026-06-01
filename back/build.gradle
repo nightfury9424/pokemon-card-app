@@ -52,6 +52,11 @@ dependencies {
     // HTML parsing (card lookup from pokemoncard.co.kr / scrydex)
     implementation 'org.jsoup:jsoup:1.18.1'
 
+    // AWS S3 (Phase 1-7) — image storage (trade/asset/grading/scan uploads + postgres backup prefix)
+    // local profile: LocalImageStorageService (disk), prod: S3ImageStorageService (toggle by app.image-storage.type)
+    implementation platform('software.amazon.awssdk:bom:2.30.10')
+    implementation 'software.amazon.awssdk:s3'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
