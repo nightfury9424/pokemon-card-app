@@ -222,7 +222,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             icon: Icons.flag_rounded,
                             iconColor: const Color(0xFFF59E0B),
                             label: '신고 진행 상황',
-                            onTap: () => _showComingSoon('신고 진행 상황'),
+                            onTap: () => context.push('/profile/reports'),
                           ),
                           _MenuItem(
                             icon: Icons.chat_bubble_outline_rounded,
@@ -369,10 +369,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }),
       ),
     );
-  }
-
-  void _showComingSoon(String feature) {
-    AppInfoToast.show(context, '$feature 기능은 준비 중입니다.');
   }
 }
 

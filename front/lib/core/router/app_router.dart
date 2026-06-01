@@ -23,6 +23,7 @@ import '../../features/profile/profile_screen.dart';
 import '../../features/profile/favorites_screen.dart';
 import '../../features/profile/edit_nickname_screen.dart';
 import '../../features/profile/blocked_users_screen.dart';
+import '../../features/profile/report_history_screen.dart';
 import '../../features/chat/chat_screen.dart';
 import '../../features/chat/chat_room_screen.dart';
 import '../../features/legal/terms_of_service_screen.dart';
@@ -64,6 +65,7 @@ final appRouter = GoRouter(
     GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
     GoRoute(path: '/profile/edit-nickname', builder: (_, _) => const EditNicknameScreen()),
     GoRoute(path: '/profile/blocked-users', builder: (_, _) => const BlockedUsersScreen()),
+    GoRoute(path: '/profile/reports', builder: (_, _) => const ReportHistoryScreen()),
     GoRoute(path: '/legal/terms', builder: (_, _) => const TermsOfServiceScreen()),
     GoRoute(path: '/legal/privacy', builder: (_, _) => const PrivacyPolicyScreen()),
     GoRoute(path: '/support', builder: (_, _) => const CustomerSupportScreen()),
