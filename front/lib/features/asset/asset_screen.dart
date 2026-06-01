@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../core/constants/feature_flags.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
@@ -240,20 +241,10 @@ class _AssetScreenState extends State<AssetScreen> {
       return;
     }
 
-    if (estimatedGrade == null) {
-      if (!mounted) return;
-      AppInfoToast.show(context, '판매 전 앱 등급 분석이 필요합니다');
-      final graded = await context.push<bool>(
-        '/grading/capture',
-        extra: {'assetId': assetId, 'cardId': cardId, 'cardName': cardName},
-      );
-      if (graded == true && mounted) {
-        _loadData();
-      }
-      return;
-    }
-
-    await _showRawSellPriceSheet(asset, cardName, estimatedGrade);
+    // Hotfix 10-1: AI 그레이딩 강제 의존 제거 (beta 1.0).
+    // estimatedGrade null 라도 판매 진입 가능. RAW 카드 = 실사진 + 사용자 상태 (10-2 cycle).
+    // 베타 1.0 = 기존 sell sheet 진입 (estimatedGrade 0.0 = 표시 hide).
+    await _showRawSellPriceSheet(asset, cardName, estimatedGrade ?? 0.0);
   }
 
   Future<void> _showRawSellPriceSheet(
@@ -336,7 +327,10 @@ class _AssetScreenState extends State<AssetScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$cardName  ·  앱 분석 ${estimatedGrade.toStringAsFixed(1)}점',
+                  // Hotfix 10-1: AI 등급 표시 hide. estimatedGrade > 0 일 때만 표시 (기존 데이터 호환).
+                  FeatureFlags.enableAiGrading && estimatedGrade > 0
+                      ? '$cardName  ·  앱 분석 ${estimatedGrade.toStringAsFixed(1)}점'
+                      : cardName,
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13,
@@ -1489,7 +1483,8 @@ class _AssetScreenState extends State<AssetScreen> {
     late final String badgeLabel;
     if (cardStatus == 'GRADED' && gradingCompany != null) {
       badgeLabel = '$gradingCompany${gradeValue != null ? " $gradeValue" : ""}';
-    } else if (estimatedGrade != null) {
+    } else if (FeatureFlags.enableAiGrading && estimatedGrade != null) {
+      // Hotfix 10-1: AI 비활성 시 "RAW X.X" 배지 hide. 단순 "RAW" 만.
       badgeLabel = 'RAW ${estimatedGrade.toStringAsFixed(1)}';
     } else {
       badgeLabel = 'RAW';

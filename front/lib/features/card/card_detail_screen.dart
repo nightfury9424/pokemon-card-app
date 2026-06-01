@@ -8,6 +8,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../core/network/api_client.dart';
 import '../../core/widgets/app_success_toast.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/constants/feature_flags.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/auth_image.dart';
@@ -3861,10 +3862,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       }
       return;
     }
-    // RAW + 자체 그레이딩 분석 결과 없음 → 판매 차단 (가드레일 10).
+    // Hotfix 10-1: AI 그레이딩 비활성 시 RAW + estimatedGrade null 라도 판매 진입 가능.
+    // (이전: AI 그레이딩 필수 sheet 강제. 베타 1.0 = 실사진 + 상태 = Hotfix 10-2)
     final cardStatus = asset['cardStatus'] as String?;
     final estimatedGrade = asset['estimatedGrade'];
-    if (cardStatus == 'RAW' && estimatedGrade == null) {
+    if (FeatureFlags.enableAiGrading && cardStatus == 'RAW' && estimatedGrade == null) {
       await _showGradingRequiredSheet(asset: asset, cardName: cardName);
       return;
     }
@@ -4073,7 +4075,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       );
     }
 
-    if (estimatedGrade != null) {
+    // Hotfix 10-1: AI 비활성 시 "앱 분석 등급" 카드 hide.
+    if (FeatureFlags.enableAiGrading && estimatedGrade != null) {
       Color gradeColor = estimatedGrade >= 9.0
           ? AppColors.green
           : estimatedGrade >= 7.0
@@ -4242,6 +4245,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final asset = _localAsset;
     if (asset == null) return;
 
+    // Hotfix 10-1: AI 비활성 시 등급 sheet 진입 차단.
+    if (!FeatureFlags.enableAiGrading) return;
     final estimatedGrade = (asset['estimatedGrade'] as num?)?.toDouble();
     if (estimatedGrade == null) return;
 

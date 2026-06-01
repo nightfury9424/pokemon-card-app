@@ -8,6 +8,8 @@ import '../../features/grading/grading_capture_screen.dart';
 import '../../features/grading/grading_result_screen.dart';
 import '../../features/grading/grading_asset_select_screen.dart';
 import '../../features/grading/asset_grading_detail_screen.dart';
+import '../constants/feature_flags.dart';
+import '../theme/app_colors.dart';
 import '../../features/shell/main_shell.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/scanner/scanner_screen.dart';
@@ -197,19 +199,30 @@ final appRouter = GoRouter(
         );
       },
     ),
-    GoRoute(path: '/grading', builder: (_, _) => const GradingScreen()),
+    // Hotfix 10-1: AI 그레이딩 5 route 모두 feature flag 가드.
+    // enableAiGrading=false → _GradingDisabledScreen 으로 redirect.
+    // route 자체 보존 (deep link / 직접 navigate 안전).
+    GoRoute(
+        path: '/grading',
+        builder: (_, _) => FeatureFlags.enableAiGrading
+            ? const GradingScreen()
+            : const _GradingDisabledScreen()),
     GoRoute(
       path: '/grading/select-asset',
-      builder: (_, _) => const GradingAssetSelectScreen(),
+      builder: (_, _) => FeatureFlags.enableAiGrading
+          ? const GradingAssetSelectScreen()
+          : const _GradingDisabledScreen(),
     ),
     GoRoute(
       path: '/grading/saved/:assetId',
-      builder: (context, state) =>
-          AssetGradingDetailScreen(assetId: state.pathParameters['assetId']!),
+      builder: (context, state) => FeatureFlags.enableAiGrading
+          ? AssetGradingDetailScreen(assetId: state.pathParameters['assetId']!)
+          : const _GradingDisabledScreen(),
     ),
     GoRoute(
       path: '/grading/capture',
       builder: (context, state) {
+        if (!FeatureFlags.enableAiGrading) return const _GradingDisabledScreen();
         final extra = state.extra is Map
             ? Map<String, dynamic>.from(state.extra as Map)
             : <String, dynamic>{};
@@ -223,6 +236,7 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/grading/result',
       builder: (context, state) {
+        if (!FeatureFlags.enableAiGrading) return const _GradingDisabledScreen();
         final extra = state.extra is Map
             ? Map<String, dynamic>.from(state.extra as Map)
             : <String, dynamic>{};
@@ -266,3 +280,46 @@ final appRouter = GoRouter(
     ),
   ],
 );
+
+// Hotfix 10-1: AI 그레이딩 비활성 시 5 route 모두 진입 차단 placeholder.
+// 신고 진행상황 처럼 "준비 중" 안내. 코드/route 보존, 진입만 막음.
+class _GradingDisabledScreen extends StatelessWidget {
+  const _GradingDisabledScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(
+        backgroundColor: AppColors.bg,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: const Text('AI 그레이딩',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16,
+                fontWeight: FontWeight.w600)),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: const [
+            Icon(Icons.auto_awesome_rounded, color: AppColors.textMuted, size: 48),
+            SizedBox(height: 16),
+            Text('AI 그레이딩은 현재 준비 중입니다',
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 16,
+                    fontWeight: FontWeight.w600)),
+            SizedBox(height: 8),
+            Text(
+              '더 정확한 카드 상태 분석을 위해 개선 중입니다.\n'
+              '베타 사용자 피드백을 바탕으로 빠르게 출시할 예정입니다.',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12, height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}

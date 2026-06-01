@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/feature_flags.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
@@ -203,12 +204,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             label: '카드 스캔',
                             onTap: () => context.push('/scanner'),
                           ),
-                          _MenuItem(
-                            icon: Icons.auto_awesome_rounded,
-                            iconColor: const Color(0xFFFFD700),
-                            label: 'AI 그레이딩',
-                            onTap: () => context.push('/grading'),
-                          ),
+                          // Hotfix 10-1: AI 그레이딩 beta 1.0 메뉴 자체 숨김.
+                          // 코드/route 보존. 직접 /grading 진입 시에만 _GradingDisabledScreen.
+                          if (FeatureFlags.enableAiGrading)
+                            _MenuItem(
+                              icon: Icons.auto_awesome_rounded,
+                              iconColor: const Color(0xFFFFD700),
+                              label: 'AI 그레이딩',
+                              onTap: () => context.push('/grading'),
+                            ),
                         ]),
                         const SizedBox(height: 20),
                         _buildSectionLabel('고객 지원'),

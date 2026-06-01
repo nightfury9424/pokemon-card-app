@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/constants/feature_flags.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/thousands_comma_formatter.dart';
 import '../../core/widgets/card_image.dart';
@@ -665,8 +666,9 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
       );
     }
 
+    // Hotfix 10-1: AI 비활성 시 RAW estimatedGrade chip hide. GRADED (PSA) 만 표시.
     final condition = _condition;
-    if (condition != null && widget.estimatedGrade != null) {
+    if (FeatureFlags.enableAiGrading && condition != null && widget.estimatedGrade != null) {
       final grade = widget.estimatedGrade!;
       final color = grade >= 9.0
           ? AppColors.green
