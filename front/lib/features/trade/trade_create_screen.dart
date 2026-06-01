@@ -292,6 +292,46 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
         }
         return;
       }
+      // 말도 안 되는 가격 차단 (시장 교란 방지). 백엔드도 동일 강제(우회 방지).
+      //  - GRADED: 예상가가 RAW 기준이라 부정확 → 검증 skip.
+      //  - RAW + 예상가 >= 1000: ±50% 범위 밖이면 차단 (양방향).
+      //  - 예상가 없음/저가: 절대 상한(1천만)만.
+      if (_cardStatus != 'GRADED') {
+        const ceiling = 10000000;
+        final est = widget.defaultPrice;
+        final bandable = est != null && est >= 1000;
+        final lower = bandable ? (est * 0.5).round() : 0;
+        final upper = bandable ? (est * 1.5).round() : ceiling;
+        if (price < lower || price > upper) {
+          if (mounted) {
+            setState(() => _submitting = false);
+            final msg = bandable
+                ? '예상 시세 ${formatThousands(est)}원 기준 ±50%\n'
+                    '(${formatThousands(lower)} ~ ${formatThousands(upper)}원) 범위로 등록해 주세요.\n\n'
+                    '시세와 크게 동떨어진 가격은 시장 교란 방지를 위해 등록할 수 없어요.'
+                : '${formatThousands(ceiling)}원 이하로 등록해 주세요.\n\n'
+                    '비정상적으로 높은 가격은 등록할 수 없어요.';
+            await showDialog<void>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: AppColors.surfaceCard,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                title: const Text('등록할 수 없는 가격',
+                    style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w800)),
+                content: Text(msg,
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.5)),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('확인', style: TextStyle(color: AppColors.blue, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          }
+          return;
+        }
+      }
       final memo = _memoCtrl.text.trim();
       final cardName = widget.cardName ?? widget.cardId;
       final description = memo.isNotEmpty
