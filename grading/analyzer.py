@@ -1165,8 +1165,9 @@ class GradingAnalyzer:
         self._warped_back = self._find_card_rect(back, frame_hint=frame_hint)
         detection = self.detect_card_confidence(front, frame_hint=frame_hint)
 
-        # ── Debug session 시작 ──
-        session_id = self._new_session_id() if debug else None
+        # ── Session 발급 (P0-C: prod 도 항상 evidence 위해 발급) ──
+        # debug=True 면 풀 debug 파일 저장. debug=False 면 evidence 4종만 저장.
+        session_id = self._new_session_id()
         debug_paths: dict = {}
         if debug:
             debug_paths["front_roi"] = self._debug_save_image(
@@ -1459,18 +1460,9 @@ class GradingAnalyzer:
             capture_quality = "good"
         retake_reason = " / ".join(retake_reasons_text)
 
-        # ── Debug 단계별 save + JSON ──
-        if debug and session_id is not None:
-            corner_names = [
-                "front_corner_top_left", "front_corner_top_right",
-                "front_corner_bottom_left", "front_corner_bottom_right",
-                "back_corner_top_left", "back_corner_top_right",
-                "back_corner_bottom_left", "back_corner_bottom_right",
-            ]
-            for i, c_img in enumerate(corners or []):
-                if i < len(corner_names):
-                    debug_paths[corner_names[i]] = self._debug_save_image(
-                        session_id, f"{corner_names[i]}.jpg", c_img)
+        # P0-C: evidence 4종 (warped + CLAHE + mask) 은 prod 도 항상 저장.
+        # 사용자 결과 상세 sheet 의 토글 view 용. /grading/evidence/{session_id} 로 lazy fetch.
+        if session_id is not None:
             debug_paths["surface_clahe_front"] = self._debug_save_image(
                 session_id, "surface_clahe_front.jpg",
                 self._build_clahe_visual(warped_front))
@@ -1483,6 +1475,25 @@ class GradingAnalyzer:
             debug_paths["whitening_mask_back"] = self._debug_save_image(
                 session_id, "whitening_mask_back.jpg",
                 self._build_whitening_mask_visual(warped_back))
+            if self._warped_front is not None:
+                debug_paths["warped_front"] = self._debug_save_image(
+                    session_id, "warped_front.jpg", warped_front)
+            if self._warped_back is not None:
+                debug_paths["warped_back"] = self._debug_save_image(
+                    session_id, "warped_back.jpg", warped_back)
+
+        # ── Debug 추가 단계별 save + JSON (debug=True 시만) ──
+        if debug and session_id is not None:
+            corner_names = [
+                "front_corner_top_left", "front_corner_top_right",
+                "front_corner_bottom_left", "front_corner_bottom_right",
+                "back_corner_top_left", "back_corner_top_right",
+                "back_corner_bottom_left", "back_corner_bottom_right",
+            ]
+            for i, c_img in enumerate(corners or []):
+                if i < len(corner_names):
+                    debug_paths[corner_names[i]] = self._debug_save_image(
+                        session_id, f"{corner_names[i]}.jpg", c_img)
 
             self._write_debug_json(session_id, {
                 "session_id": session_id,
@@ -1550,5 +1561,6 @@ class GradingAnalyzer:
             centering_source=centering_source,
             corner_regions=corner_regions,
             grade_decision_trace=grade_trace,
-            extra={},
+            # P0-C: evidence_session_id 를 Flutter 가 /grading/evidence/{id}/{layer} 호출 시 사용
+            extra={"evidence_session_id": session_id} if session_id else {},
         )

@@ -6,6 +6,10 @@ import com.fury.back.domain.grading.dto.PrecheckResultDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -44,5 +48,21 @@ public class GradingController {
             @RequestParam(value = "frame_w", required = false) Double frameW,
             @RequestParam(value = "frame_h", required = false) Double frameH) {
         return gradingService.analyze(photos, cardId, frameX, frameY, frameW, frameH);
+    }
+
+    @Operation(summary = "분석 근거 이미지 (lazy fetch)",
+            description = "P0-C: 결과 상세 sheet 의 토글 view 가 호출. " +
+                    "layer: front_original/back_original/front_surface/back_surface/front_whitening/back_whitening")
+    @GetMapping("/evidence/{sessionId}/{layer}")
+    public ResponseEntity<Resource> evidence(
+            @PathVariable String sessionId,
+            @PathVariable String layer) {
+        Resource body = gradingService.fetchEvidence(sessionId, layer);
+        if (body == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_JPEG)
+                .body(body);
     }
 }

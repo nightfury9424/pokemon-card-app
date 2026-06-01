@@ -11,6 +11,8 @@ import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_error_toast.dart';
+import '../../core/widgets/app_segmented_toggle.dart';
+import '../../core/widgets/auth_image.dart';
 import 'grading_models.dart';
 
 class GradingResultScreen extends StatefulWidget {
@@ -40,6 +42,8 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
   // P0-fix-1: front + back 각각 측정 (back overlay aspect mismatch 방지).
   double? _frontImageAspect;
   double? _backImageAspect;
+  // P0-C: surface/whitening 토글 view index (0=원본, 1=후보 강조, 2=후보 위치).
+  final Map<String, int> _evidenceViewIndex = {'surface': 0, 'whitening': 0};
 
   static const _photoKeys = ['front_image', 'back_image'];
 
@@ -1229,26 +1233,92 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     final frontReasons = reasons.where((r) => r.side == 'front').toList();
     final backReasons = reasons.where((r) => r.side == 'back').toList();
     final showFront = metric != 'whitening';
+    // P0-C: 토글 (원본 / 후보 강조 / 후보 위치) + evidence view.
+    final viewIdx = _evidenceViewIndex[metric] ?? 0;
+    final sessionId = _parsed?.extra?['evidence_session_id']?.toString();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (sessionId != null && sessionId.isNotEmpty) ...[
+        AppSegmentedToggle(
+          labels: const ['원본 보기', '후보 강조 보기', '후보 위치 표시'],
+          selectedIndex: viewIdx,
+          onChanged: (i) => setState(() => _evidenceViewIndex[metric] = i),
+        ),
+        const SizedBox(height: 10),
+      ],
       Row(children: [
         if (showFront) ...[
-          Expanded(child: _buildPhotoWithBoxes('앞면', 'front', frontReasons)),
+          Expanded(child: _buildEvidenceImage(metric, 'front', frontReasons, viewIdx, sessionId)),
           const SizedBox(width: 10),
         ],
-        Expanded(child: _buildPhotoWithBoxes('뒷면', 'back', backReasons)),
+        Expanded(child: _buildEvidenceImage(metric, 'back', backReasons, viewIdx, sessionId)),
       ]),
       const SizedBox(height: 8),
-      _buildAnalysisBasisLabel(metric),
+      _buildAnalysisBasisLabel(metric, viewIdx),
     ]);
   }
 
-  // P0-fix-1: surface/whitening 분석 근거 라벨 (P1 mask UI 진입 전 최소 표시).
-  Widget _buildAnalysisBasisLabel(String metric) {
+  // P0-C: 토글 index 기반 evidence image (원본/강조/위치) — side 별.
+  Widget _buildEvidenceImage(String metric, String side, List<DeductionReason> reasons,
+      int viewIdx, String? sessionId) {
+    if (viewIdx == 2 || sessionId == null || sessionId.isEmpty) {
+      // 후보 위치 표시 = 기존 원본 + bbox overlay (P0-fix-1)
+      return _buildPhotoWithBoxes(side == 'front' ? '앞면' : '뒷면', side, reasons);
+    }
+    // 원본/강조 = backend evidence URL fetch
+    final layerName = viewIdx == 0
+        ? '${side}_original'
+        : '${side}_$metric';   // ${side}_surface or ${side}_whitening
+    final url = '${ApiConstants.baseUrl}${ApiConstants.gradingEvidence(sessionId, layerName)}';
+    final aspect = (side == 'front' ? _frontImageAspect : _backImageAspect) ?? 3.0 / 4.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AspectRatio(
+          aspectRatio: aspect,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: AuthImage(
+              url: url,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Container(
+                color: AppColors.divider,
+                alignment: Alignment.center,
+                child: const Text('이미지 준비 중',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(children: [
+          Text(side == 'front' ? '앞면' : '뒷면',
+              style: const TextStyle(
+                  color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 6),
+          Text('${reasons.length}건',
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+        ]),
+      ],
+    );
+  }
+
+  // P0-C: 토글 view 별 자연어 설명 (사용자 친화 — 기술명 노출 X).
+  Widget _buildAnalysisBasisLabel(String metric, int viewIdx) {
     String? text;
     if (metric == 'surface') {
-      text = '분석 기준: CLAHE 대비 강화 + 선형/점형 패턴 검출';
+      text = switch (viewIdx) {
+        0 => '카드 표면을 그대로 보여줍니다.',
+        1 => '표면의 얇은 선형·점형 패턴 후보를 강조했습니다.',
+        2 => '후보로 감지된 위치를 표시했습니다.',
+        _ => null,
+      };
     } else if (metric == 'whitening') {
-      text = '분석 기준: HSV 채도/명도 분석 + 흰 영역 비율';
+      text = switch (viewIdx) {
+        0 => '카드 뒷면을 그대로 보여줍니다.',
+        1 => '테두리 주변의 밝기와 색 빠짐 후보를 강조했습니다.',
+        2 => '후보로 감지된 위치를 표시했습니다.',
+        _ => null,
+      };
     }
     if (text == null) return const SizedBox.shrink();
     return Container(

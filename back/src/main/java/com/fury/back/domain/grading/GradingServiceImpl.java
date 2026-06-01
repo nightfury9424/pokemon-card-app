@@ -7,11 +7,13 @@ import com.fury.back.domain.grading.dto.PrecheckResultDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -156,6 +158,28 @@ public class GradingServiceImpl implements GradingService {
             return confidence > 0.7 && assetCardId.equals(scannedCardId);
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    @Override
+    public Resource fetchEvidence(String sessionId, String layer) {
+        // P0-C: grading container 의 /evidence/{sessionId}/{layer} JPEG file forward.
+        // sessionId / layer 정합성은 grading 측에서 검증.
+        try {
+            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+            factory.setConnectTimeout(5_000);
+            factory.setReadTimeout(10_000);
+            RestTemplate rt = new RestTemplate(factory);
+            ResponseEntity<byte[]> response = rt.getForEntity(
+                    gradingServiceUrl + "/evidence/" + sessionId + "/" + layer,
+                    byte[].class);
+            byte[] body = response.getBody();
+            if (body == null || body.length == 0) {
+                return null;
+            }
+            return new ByteArrayResource(body);
+        } catch (RestClientException e) {
+            return null;
         }
     }
 

@@ -36,6 +36,10 @@ class ApiConstants {
   static const String gradingAnalyze = '/api/grading/analyze';
   static const String gradingPrecheck = '/api/grading/precheck';
   static const String gradingHistory = '/api/grading/history';
+  // P0-C: 결과 상세 토글 view 의 분석 근거 이미지 lazy fetch.
+  // layer: front_original / back_original / front_surface / back_surface / front_whitening / back_whitening
+  static String gradingEvidence(String sessionId, String layer) =>
+      '/api/grading/evidence/$sessionId/$layer';
   static const String scannerIdentify = '/api/scanner/identify';
   static const String scannerDetect   = '/api/scanner/detect';
 
