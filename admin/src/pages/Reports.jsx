@@ -43,6 +43,7 @@ export default function Reports() {
   const [targetFilter, setTargetFilter] = useState('ALL')
   const [loading, setLoading] = useState(true)
   const [modalRow, setModalRow] = useState(null)
+  const [chatRoomId, setChatRoomId] = useState(null)
   const size = 20
 
   useEffect(() => {
@@ -168,16 +169,25 @@ export default function Reports() {
                   )}
                 </td>
                 <td style={S.td}>
-                  <button
-                    onClick={() => setModalRow(r)}
-                    style={{
-                      ...S.btnSm,
-                      background: r.status === 'PENDING' ? '#4f46e5' : '#fff',
-                      color: r.status === 'PENDING' ? '#fff' : '#475569',
-                      border: r.status === 'PENDING' ? 'none' : '1px solid #e2e8f0',
-                    }}>
-                    {r.status === 'PENDING' ? '처리' : '상세'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {r.targetType === 'CHAT' && (
+                      <button
+                        onClick={() => setChatRoomId(r.targetId)}
+                        style={{ ...S.btnSm, background: '#fff', color: '#4f46e5', border: '1px solid #c7d2fe' }}>
+                        챗방
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setModalRow(r)}
+                      style={{
+                        ...S.btnSm,
+                        background: r.status === 'PENDING' ? '#4f46e5' : '#fff',
+                        color: r.status === 'PENDING' ? '#fff' : '#475569',
+                        border: r.status === 'PENDING' ? 'none' : '1px solid #e2e8f0',
+                      }}>
+                      {r.status === 'PENDING' ? '처리' : '상세'}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -203,6 +213,65 @@ export default function Reports() {
           onDone={() => { setModalRow(null); load() }}
         />
       )}
+
+      {chatRoomId && (
+        <ChatViewModal roomId={chatRoomId} onClose={() => setChatRoomId(null)} />
+      )}
+    </div>
+  )
+}
+
+// 신고 증거 — 챗방 메시지 조회 (GET /api/admin/chat-rooms/{roomId}/messages).
+function ChatViewModal({ roomId, onClose }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    api.get(`/admin/chat-rooms/${roomId}/messages`)
+      .then(r => { if (alive) setData(r.data?.data ?? {}) })
+      .catch(() => { if (alive) setData({ messages: [] }) })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [roomId])
+
+  const seller = data?.sellerUserId
+  const messages = data?.messages ?? []
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={onClose}>
+      <div style={{ width: 520, maxWidth: '92vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 16, padding: 20 }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>신고된 채팅 내용</div>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 14, fontFamily: 'monospace' }}>{roomId}</div>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {loading ? (
+            <div style={{ color: '#94a3b8', fontSize: 13 }}>불러오는 중...</div>
+          ) : messages.length === 0 ? (
+            <div style={{ color: '#94a3b8', fontSize: 13 }}>메시지가 없습니다.</div>
+          ) : messages.map(m => {
+            const isSeller = m.senderUserId === seller
+            const isSystem = m.messageType === 'SYSTEM'
+            return (
+              <div key={m.chatMessageId} style={{ alignSelf: isSystem ? 'center' : (isSeller ? 'flex-start' : 'flex-end'), maxWidth: '78%' }}>
+                {!isSystem && (
+                  <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 2, textAlign: isSeller ? 'left' : 'right' }}>
+                    {isSeller ? '판매자' : '구매자'} · {String(m.createdAt ?? '').split('.')[0].replace('T', ' ').slice(5)}
+                  </div>
+                )}
+                <div style={{
+                  fontSize: 13, padding: '8px 12px', borderRadius: 12, lineHeight: 1.4,
+                  background: isSystem ? '#f1f5f9' : (isSeller ? '#eef2ff' : '#dbeafe'),
+                  color: isSystem ? '#94a3b8' : '#1e293b',
+                  fontStyle: isSystem ? 'italic' : 'normal',
+                }}>{m.message}</div>
+              </div>
+            )
+          })}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+          <button onClick={onClose} style={{ fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' }}>닫기</button>
+        </div>
+      </div>
     </div>
   )
 }

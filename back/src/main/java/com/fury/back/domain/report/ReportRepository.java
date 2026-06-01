@@ -20,14 +20,25 @@ public interface ReportRepository extends JpaRepository<Report, String> {
      *   default sort: status=PENDING newest first (idx_reports_status_created 활용).
      *   reporter / target 정보는 service 단에서 batch lookup (N+1 회피).
      */
-    @Query("""
-            SELECT r FROM Report r
-            WHERE (:status IS NULL OR r.status = :status)
-              AND (:targetType IS NULL OR r.targetType = :targetType)
-              AND (:createdFrom IS NULL OR r.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR r.createdAt < :createdTo)
-            ORDER BY r.createdAt DESC
-            """)
+    // 2026-06-02 fix: JPQL nullable param → PostgreSQL 42P18 (could not determine data type
+    //   of parameter). 전부 null(ALL 필터) 시 admin 신고 0건으로 보이던 버그. native + CAST 로
+    //   null param 타입 명시 (memory feedback_hibernate_native_param_types).
+    @Query(value = """
+            SELECT * FROM reports r
+            WHERE (CAST(:status AS text) IS NULL OR r.status = :status)
+              AND (CAST(:targetType AS text) IS NULL OR r.target_type = :targetType)
+              AND (CAST(:createdFrom AS timestamp) IS NULL OR r.created_at >= :createdFrom)
+              AND (CAST(:createdTo AS timestamp) IS NULL OR r.created_at < :createdTo)
+            ORDER BY r.created_at DESC
+            """,
+            countQuery = """
+            SELECT count(*) FROM reports r
+            WHERE (CAST(:status AS text) IS NULL OR r.status = :status)
+              AND (CAST(:targetType AS text) IS NULL OR r.target_type = :targetType)
+              AND (CAST(:createdFrom AS timestamp) IS NULL OR r.created_at >= :createdFrom)
+              AND (CAST(:createdTo AS timestamp) IS NULL OR r.created_at < :createdTo)
+            """,
+            nativeQuery = true)
     Page<Report> findAdminList(
             @Param("status") String status,
             @Param("targetType") String targetType,
