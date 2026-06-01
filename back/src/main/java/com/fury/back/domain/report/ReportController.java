@@ -66,11 +66,21 @@ public class ReportController {
             return ReturnData.badRequest("reason은 " + VALID_REASONS + " 중 하나여야 합니다.");
         }
 
-        // 같은 사용자가 같은 대상에 PENDING 신고 1번 제한 (중복 방지)
-        long existing = reportRepository.countByReporterIdAndTargetTypeAndTargetIdAndStatus(
-                reporterId, targetType, targetId, "PENDING");
-        if (existing > 0) {
-            return ReturnData.badRequest("이미 신고하신 항목입니다. 검토 중이에요.");
+        // 신고 대상 사용자 해석 (1회 제한 + 자동 차단 공용).
+        String targetUserId = resolveBlockTarget(targetType, targetId, reporterId);
+
+        // 1회 제한 — 같은 사용자를 이미 신고했으면 차단 (차단 풀고 재신고 방지).
+        if (targetUserId != null && !targetUserId.equals(reporterId)
+                && reportRepository.existsByReporterIdAndTargetUserId(reporterId, targetUserId)) {
+            return ReturnData.badRequest("이미 신고한 사용자입니다.");
+        }
+        // 대상 유저 해석 불가(BUY_ORDER 등) 시 기존 PENDING 중복 가드 유지.
+        if (targetUserId == null) {
+            long existing = reportRepository.countByReporterIdAndTargetTypeAndTargetIdAndStatus(
+                    reporterId, targetType, targetId, "PENDING");
+            if (existing > 0) {
+                return ReturnData.badRequest("이미 신고하신 항목입니다. 검토 중이에요.");
+            }
         }
 
         Report report = Report.builder()
@@ -78,21 +88,21 @@ public class ReportController {
                 .reporterId(reporterId)
                 .targetType(targetType)
                 .targetId(targetId)
+                .targetUserId(targetUserId)
                 .reason(reason)
                 .detail(detail)
                 .status("PENDING")
                 .build();
         Report saved = reportRepository.save(report);
 
-        // 신고 시 대상 사용자 자동 차단 (front 에서 "차단됩니다" 안내). 차단 실패해도 신고는 접수.
+        // 신고 시 대상 사용자 자동 차단. 차단 실패해도 신고는 접수.
         try {
-            String blockTargetId = resolveBlockTarget(targetType, targetId, reporterId);
-            if (blockTargetId != null && !blockTargetId.equals(reporterId)
-                    && blockRepository.findByBlockerIdAndBlockedId(reporterId, blockTargetId).isEmpty()) {
+            if (targetUserId != null && !targetUserId.equals(reporterId)
+                    && blockRepository.findByBlockerIdAndBlockedId(reporterId, targetUserId).isEmpty()) {
                 blockRepository.save(Block.builder()
                         .blockId(IdGenerator.generate())
                         .blockerId(reporterId)
-                        .blockedId(blockTargetId)
+                        .blockedId(targetUserId)
                         .build());
             }
         } catch (Exception ignored) {

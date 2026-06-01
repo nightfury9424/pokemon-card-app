@@ -27,6 +27,10 @@ public class Report {
     @Column(name = "target_id", nullable = false, length = 50)
     private String targetId;
 
+    /** 신고된 사용자 id (1회 제한 dedup용). CHAT=상대, TRADE=판매자, USER=대상. null=해석불가. */
+    @Column(name = "target_user_id", length = 50)
+    private String targetUserId;
+
     /** FRAUD / FAKE / ABUSIVE_PRICE / INSULT / SPAM / OTHER */
     @Column(name = "reason", nullable = false, length = 40)
     private String reason;
