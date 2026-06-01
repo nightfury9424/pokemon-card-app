@@ -221,14 +221,15 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/grading/capture',
-      // Hotfix 10-2 (Plan D): mode='sell_photo' 는 enableAiGrading=false 여도 허용.
+      // Hotfix 10-2 v2 (Plan E): mode='card_verify' (또는 legacy 'sell_photo') 는 enableAiGrading=false 여도 허용.
       // 그 외 (analyze legacy) 는 enableAiGrading=true 일 때만 허용.
       builder: (context, state) {
         final extra = state.extra is Map
             ? Map<String, dynamic>.from(state.extra as Map)
             : <String, dynamic>{};
         final mode = extra['mode'] as String? ?? 'analyze';
-        if (mode != 'sell_photo' && !FeatureFlags.enableAiGrading) {
+        final isCardVerify = mode == 'card_verify' || mode == 'sell_photo';
+        if (!isCardVerify && !FeatureFlags.enableAiGrading) {
           return const _GradingDisabledScreen();
         }
         return GradingCaptureScreen(

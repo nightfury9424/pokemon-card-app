@@ -242,12 +242,13 @@ class _AssetScreenState extends State<AssetScreen> {
     }
 
     // Hotfix 10-2 (Plan D): RAW 카드 판매 진입 전 앞/뒷면 실사진 확인.
-    // 없으면 capture (mode=sell_photo) 강제. 카탈로그 이미지만으로 판매 불가.
+    // Hotfix 10-2 v2 (Plan E): card_verify mode (rename from sell_photo).
+    // 실 sell 진입은 card_detail._onSellTap 에서 처리 (Step A/B/C). 이 dead path 는 호환 유지.
     final hasPhotos = await _hasSellPhotos(assetId);
     if (!mounted) return;
     if (!hasPhotos) {
       final captured = await context.push<Map?>('/grading/capture', extra: {
-        'mode': 'sell_photo',
+        'mode': 'card_verify',
         'assetId': assetId,
         'cardId': cardId,
         'cardName': cardName,

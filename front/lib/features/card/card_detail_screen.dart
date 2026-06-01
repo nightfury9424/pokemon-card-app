@@ -3887,21 +3887,32 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       await _showGradingRequiredSheet(asset: asset, cardName: cardName);
       return;
     }
-    // Hotfix 10-2 (Plan D): RAW 카드 판매 전 앞/뒷면 실사진 게이트.
-    // 없으면 sell_photo capture 강제. 카탈로그 이미지만으로 판매 차단.
+    // Hotfix 10-2 v2 (Plan E): RAW 카드 판매 전 "실카드 검증" 게이트.
+    // Step A: 안내 sheet → Step B: capture (scanner identify cardId 매칭) → Step C: 완료 sheet.
     final assetIdForPhotos = asset['assetId'] as String?;
     if (cardStatus == 'RAW' && assetIdForPhotos != null && assetIdForPhotos.isNotEmpty) {
       final hasPhotos = await _hasSellPhotosForAsset(assetIdForPhotos);
       if (!mounted) return;
       if (!hasPhotos) {
+        // Step A: 실카드 검증 안내 sheet
+        final startVerify = await _showCardVerifyRequiredSheet(cardName: cardName);
+        if (!mounted) return;
+        if (startVerify != true) return; // 사용자 취소
+
+        // Step B: capture (mode=card_verify)
         final captured = await context.push<Map?>('/grading/capture', extra: {
-          'mode': 'sell_photo',
+          'mode': 'card_verify',
           'assetId': assetIdForPhotos,
           'cardId': widget.cardId,
           'cardName': cardName,
         });
         if (!mounted) return;
-        if (captured == null) return; // 사용자 취소 / 권한 거부
+        if (captured == null) return; // capture 취소
+
+        // Step C: 검증 완료 sheet — 판매글 작성 / 완료 선택
+        final next = await _showCardVerifyDoneSheet(cardName: cardName);
+        if (!mounted) return;
+        if (next != 'trade_create') return; // '완료' → 자산 화면 복귀
       }
     }
 
@@ -3934,6 +3945,144 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         _showSuccessBanner('판매글이 등록되었습니다');
       }
     });
+  }
+
+  // Hotfix 10-2 v2 (Plan E) Step A: 실카드 검증 안내 sheet.
+  // 사용자가 [검증 시작] 누르면 true, 취소/dismiss → null/false.
+  Future<bool?> _showCardVerifyRequiredSheet({required String cardName}) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 4, bottom: 14),
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const Text(
+                '실카드 검증이 필요합니다',
+                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '등록한 카드($cardName)와 실제 보유 카드가 같은지 확인합니다.\n'
+                '앞면과 뒷면을 차례로 촬영해 주세요.',
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(sheetCtx).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.blue,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                  ),
+                  child: const Text('검증 시작'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Hotfix 10-2 v2 (Plan E) Step C: 검증 완료 후 사용자 선택 sheet.
+  // 'trade_create' = 판매글 작성하러 가기 / null = 완료 (자산 화면 복귀).
+  // Codex 사후 (Item 7 FAIL P1) fix: PopScope 로 Android system back 우회 차단.
+  Future<String?> _showCardVerifyDoneSheet({required String cardName}) {
+    return showModalBottomSheet<String>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => PopScope(
+        canPop: false,
+        child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 4, bottom: 14),
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(children: [
+                const Icon(Icons.check_circle, color: AppColors.green, size: 22),
+                const SizedBox(width: 8),
+                const Expanded(child: Text(
+                  '실카드 검증이 완료되었습니다',
+                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
+                )),
+              ]),
+              const SizedBox(height: 8),
+              Text(
+                '$cardName 카드의 앞면/뒷면 실사진이 저장되었어요.\n이제 판매글을 작성할 수 있어요.',
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(sheetCtx).pop('trade_create'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.blue,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                  ),
+                  child: const Text('판매글 작성하러 가기'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: TextButton(
+                  onPressed: () => Navigator.of(sheetCtx).pop(null),
+                  child: const Text('완료',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        ),
+      ),
+    );
   }
 
   // Hotfix 10-2 (Plan D): GET /api/assets/{assetId}/images 로 FRONT+BACK 둘 다 있나 확인.

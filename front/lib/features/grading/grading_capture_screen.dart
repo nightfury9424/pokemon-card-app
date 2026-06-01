@@ -19,8 +19,9 @@ class GradingCaptureScreen extends StatefulWidget {
   final String? assetId;
   final String? cardId;
   final String? cardName;
-  // Hotfix 10-2 (Plan D): 'analyze' = AI 그레이딩 (legacy, FeatureFlags.enableAiGrading 시),
-  // 'sell_photo' = 판매 사진 등록 (점수/등급 산정 X, /api/assets/{id}/sell-photos 로 업로드).
+  // Hotfix 10-2 v2 (Plan E): 'analyze' = AI 그레이딩 (legacy, FeatureFlags.enableAiGrading 시),
+  // 'card_verify' = 실카드 검증 (앞면 scanner identify → asset.cardId 매칭 → sell-photos 저장).
+  // 'sell_photo' = Plan D legacy alias (rename — 호환 유지, card_verify 와 동일 동작).
   final String mode;
   const GradingCaptureScreen({
     super.key,
@@ -30,7 +31,8 @@ class GradingCaptureScreen extends StatefulWidget {
     this.mode = 'analyze',
   });
 
-  bool get isSellPhotoMode => mode == 'sell_photo';
+  // 실카드 검증 모드 (Plan E). sell_photo (Plan D) 도 동일 처리 — backward compat.
+  bool get isCardVerifyMode => mode == 'card_verify' || mode == 'sell_photo';
 
   @override
   State<GradingCaptureScreen> createState() => _GradingCaptureScreenState();
@@ -219,16 +221,29 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
         return;
       }
 
+      // Hotfix 10-2 v2 (Plan E): card_verify 모드 + 앞면(_step==0) 시 scanner identify 로 실카드 매칭 검증.
+      // 통과 조건: top-1.cardId == widget.cardId AND score >= 0.75.
+      // 불일치 또는 낮은 score → 차단 + 재촬영 안내. 사진 저장하지 않음.
+      if (widget.isCardVerifyMode && _step == 0 && widget.cardId != null) {
+        final verify = await _verifyCardIdentity(shotFile, widget.cardId!);
+        if (!mounted) return;
+        if (!verify) {
+          try { if (shotFile.existsSync()) shotFile.deleteSync(); } catch (_) {}
+          setState(() => _isCapturing = false);
+          return;
+        }
+      }
+
       _photos.add(shotFile);
 
       if (_step < 1) {
         if (mounted) {
           setState(() { _step++; _isCapturing = false; });
-          AppInfoToast.show(context, '앞면 촬영 완료 · 이제 뒷면을 촬영해 주세요');
+          AppInfoToast.show(context, '앞면 검증 완료 · 이제 뒷면을 촬영해 주세요');
         }
       } else {
         // Hotfix 10-2 (Plan D): 뒷면 끝 — mode 별 분기.
-        if (widget.isSellPhotoMode) {
+        if (widget.isCardVerifyMode) {
           await _finishSellPhotoUpload();
         } else {
           // legacy analyze flow — FeatureFlags.enableAiGrading=true 일 때만 도달 (router gate).
@@ -312,6 +327,71 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
       AppErrorToast.show(context, '판매 사진 등록 실패: $e');
       setState(() => _isCapturing = false);
     }
+  }
+
+  // Hotfix 10-2 v2 (Plan E): scanner /identify 호출 → top-1.cardId == expectedCardId AND score >= 0.75 검증.
+  // 실패 시 dialog 표시 + false return. 통과 시 true.
+  // - status 'no_card' / 'not_found' → 차단 (카드 미검출)
+  // - top-1 cardId mismatch → 차단 ("등록한 카드와 일치하지 않습니다")
+  // - score < 0.75 → 차단 (저신뢰 매칭)
+  Future<bool> _verifyCardIdentity(File frontFile, String expectedCardId) async {
+    const double scoreThreshold = 0.75;
+    try {
+      final res = await ApiClient.uploadFile(
+        ApiConstants.scannerIdentify,
+        frontFile.path,
+        field: 'image',
+      );
+      if (!mounted) return false;
+      final data = (res['data'] is Map)
+          ? Map<String, dynamic>.from(res['data'] as Map)
+          : <String, dynamic>{};
+      final status = data['status'] as String?;
+      if (status == 'no_card' || status == 'not_found' || data['card'] == null) {
+        await _showVerifyFailDialog('카드를 인식하지 못했어요',
+            '카드가 프레임 안에 선명하게 보이도록 다시 촬영해 주세요.');
+        return false;
+      }
+      final card = (data['card'] is Map)
+          ? Map<String, dynamic>.from(data['card'] as Map)
+          : <String, dynamic>{};
+      final identifiedCardId = card['cardId'] as String?;
+      final score = (data['score'] as num?)?.toDouble() ?? 0.0;
+
+      if (identifiedCardId != expectedCardId) {
+        await _showVerifyFailDialog('등록한 카드와 일치하지 않습니다',
+            '같은 카드의 앞면을 다시 촬영해 주세요.');
+        return false;
+      }
+      if (score < scoreThreshold) {
+        await _showVerifyFailDialog('카드 확인이 어려워요',
+            '조명이 균일한 곳에서 카드 전체가 잘 보이도록 다시 촬영해 주세요.');
+        return false;
+      }
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      await _showVerifyFailDialog('확인 중 오류가 발생했어요',
+          '잠시 후 다시 시도해 주세요.\n($e)');
+      return false;
+    }
+  }
+
+  Future<void> _showVerifyFailDialog(String title, String msg) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(msg),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('다시 촬영'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<bool> _filesIdentical(File a, File b) async {
