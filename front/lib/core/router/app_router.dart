@@ -155,26 +155,37 @@ final appRouter = GoRouter(
     GoRoute(path: '/packs', builder: (_, _) => const PacksScreen()),
     GoRoute(
       path: '/trades/create',
-      builder: (context, state) {
+      // 판매글 등록 = 아래서 위로 슬라이드업 모달 (UX 간소화).
+      pageBuilder: (context, state) {
         final extra = state.extra is Map
             ? Map<String, dynamic>.from(state.extra as Map)
             : <String, dynamic>{};
-        return TradeCreateScreen(
-          cardId: extra['cardId'] as String? ?? '',
-          cardName: extra['cardName'] as String?,
-          rarity: extra['rarity'] as String?,
-          imageUrl: extra['imageUrl'] as String?,
-          assetId: extra['assetId'] as String?,
-          cardStatus: extra['cardStatus'] as String?,
-          estimatedGrade: extra['estimatedGrade'] is num
-              ? (extra['estimatedGrade'] as num).toDouble()
-              : double.tryParse('${extra['estimatedGrade'] ?? ''}'),
-          gradingCompany: extra['gradingCompany'] as String?,
-          gradeValue: extra['gradeValue'] as String?,
-          certNumber: extra['certNumber'] as String?,
-          defaultPrice: extra['defaultPrice'] is num
-              ? (extra['defaultPrice'] as num).toInt()
-              : int.tryParse('${extra['defaultPrice'] ?? ''}'),
+        return CustomTransitionPage<void>(
+          key: state.pageKey,
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 240),
+          transitionsBuilder: (context, animation, _, child) => SlideTransition(
+            position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+                .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+            child: child,
+          ),
+          child: TradeCreateScreen(
+            cardId: extra['cardId'] as String? ?? '',
+            cardName: extra['cardName'] as String?,
+            rarity: extra['rarity'] as String?,
+            imageUrl: extra['imageUrl'] as String?,
+            assetId: extra['assetId'] as String?,
+            cardStatus: extra['cardStatus'] as String?,
+            estimatedGrade: extra['estimatedGrade'] is num
+                ? (extra['estimatedGrade'] as num).toDouble()
+                : double.tryParse('${extra['estimatedGrade'] ?? ''}'),
+            gradingCompany: extra['gradingCompany'] as String?,
+            gradeValue: extra['gradeValue'] as String?,
+            certNumber: extra['certNumber'] as String?,
+            defaultPrice: extra['defaultPrice'] is num
+                ? (extra['defaultPrice'] as num).toInt()
+                : int.tryParse('${extra['defaultPrice'] ?? ''}'),
+          ),
         );
       },
     ),

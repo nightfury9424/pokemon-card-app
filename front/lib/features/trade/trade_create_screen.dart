@@ -428,6 +428,11 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
         backgroundColor: AppColors.bg,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
+        // 슬라이드업 모달 — 닫기는 아래 방향 chevron.
+        leading: IconButton(
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 28),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
         title: const Text(
           '판매글 등록',
           style: TextStyle(
