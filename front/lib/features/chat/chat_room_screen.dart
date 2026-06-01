@@ -540,6 +540,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               if (_blockNotice != null) _buildBlockBanner(_blockNotice!),
               // 거래 상품 배너
               _buildTradeBanner(),
+              // 안전/억제 배너 (욕설·사기 경고)
+              _buildSafetyBanner(),
           // 메시지 리스트
           Expanded(
             child: _loading
@@ -803,8 +805,22 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: () async {
+                        final detailText = detailController.text.trim();
                         Navigator.pop(ctx);
-                        await _submitReport(selected, detailController.text.trim());
+                        if (!mounted) return;
+                        final ok = await AppConfirmDialog.show(
+                          context,
+                          icon: Icons.report_gmailerrorred_rounded,
+                          iconColor: AppColors.red,
+                          title: '신고하고 차단할까요?',
+                          message: '신고하면 해당 사용자가 자동으로 차단되어\n'
+                              '더 이상 대화할 수 없어요.\n'
+                              '욕설·사기 등 악의적 행위는 수사기관 정보제공 등으로 대응합니다.',
+                          cancelLabel: '취소',
+                          confirmLabel: '신고하고 차단',
+                        );
+                        if (ok != true || !mounted) return;
+                        await _submitReport(selected, detailText);
                       },
                       child: const Text('신고 접수'),
                     ),
@@ -830,6 +846,34 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     } catch (_) {
       if (mounted) AppErrorToast.show(context, '신고 접수에 실패했습니다');
     }
+  }
+
+  // 안전/억제 배너 — 욕설·사기 경고 + 관리자 적극 협조. 채팅방 상단 상시 노출.
+  Widget _buildSafetyBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      color: AppColors.gold.withValues(alpha: 0.08),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.gavel_rounded, color: AppColors.gold, size: 14),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              '욕설·사기·비매너 행위는 자동 차단되며, 수사기관 정보제공 등 가능한 모든 조치로 대응합니다. '
+              '외부 송금·개인정보 요구에 주의하세요.',
+              style: TextStyle(
+                color: AppColors.gold.withValues(alpha: 0.92),
+                fontSize: 11,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildTradeBanner() {
