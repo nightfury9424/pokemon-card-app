@@ -1501,6 +1501,9 @@ class _AssetScreenState extends State<AssetScreen> {
     final gradeValue = asset['gradeValue'] as String?;
     final estimatedGrade = (asset['estimatedGrade'] as num?)?.toDouble();
     final isSelling = asset['isSelling'] == true;
+    // Hotfix 10-3: grid X 삭제 버튼 제거됨 — assetId 직접 호출처 사라짐.
+    // 코드 보존: 향후 long-press 등 보조 진입점 추가 시 재활용 위해 유지.
+    // ignore: unused_local_variable
     final assetId = asset['assetId'] as String? ?? '';
     final cardData = asset['card'] as Map<String, dynamic>? ?? {};
     final cardName = cardData['name'] as String? ?? cardId;
@@ -1616,7 +1619,11 @@ class _AssetScreenState extends State<AssetScreen> {
                     ),
                   ),
                 ),
-              // 우상단: isSelling=true → '판매중' chip, false → close X (중복 X)
+              // Hotfix 10-3: 우상단 매트릭스
+              //   isSelling=true                            → '판매중' chip (녹색)
+              //   isSelling=false && cardVerified=true      → 블랙 골드 인증 badge (실카드 검증 완료)
+              //   isSelling=false && cardVerified=false     → 표시 없음
+              // 기존 close X (자산 삭제) 제거. 삭제는 card_detail._confirmDeleteAsset 에서 처리.
               if (isSelling)
                 Positioned(
                   top: 6,
@@ -1638,23 +1645,31 @@ class _AssetScreenState extends State<AssetScreen> {
                     ),
                   ),
                 )
-              else
-                // 판매중 X → 우상단 close X (자산 삭제)
+              else if (asset['cardVerified'] == true)
                 Positioned(
                   top: 6,
                   right: 6,
-                  child: GestureDetector(
-                    onTap: () => _confirmDelete(assetId),
+                  // Codex 사후 (Item 6 P1) fix: Tooltip 만 사용 — Tooltip.message 가 자체 Semantics 제공.
+                  // 외부 Semantics wrapper 중복 → TalkBack/VoiceOver 2회 read 방지.
+                  child: Tooltip(
+                    message: '실카드 검증 완료',
                     child: Container(
-                      padding: const EdgeInsets.all(3),
+                      width: 20, height: 20,
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        color: const Color(0xFF15110A),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFD4AF37), width: 1.2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFD4AF37).withValues(alpha: 0.25),
+                            blurRadius: 4,
+                          ),
+                        ],
                       ),
                       child: const Icon(
-                        Icons.close_rounded,
-                        color: Colors.white60,
+                        Icons.check_rounded,
                         size: 12,
+                        color: Color(0xFFFFD86B),
                       ),
                     ),
                   ),
@@ -2563,6 +2578,8 @@ class _AssetScreenState extends State<AssetScreen> {
     );
   }
 
+  // Hotfix 10-3: grid X 제거 후 dead path. 향후 보조 진입점 추가 시 재활용 위해 보존.
+  // ignore: unused_element
   Future<void> _confirmDelete(String assetId) async {
     final asset = _assets.firstWhere(
       (a) => a['assetId'] == assetId,

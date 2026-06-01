@@ -50,6 +50,10 @@ class PokemonCardApp extends StatelessWidget {
           centerTitle: true,
           backgroundColor: AppColors.bg,
           elevation: 0,
+          // Hotfix 10-3: Material3 의 scroll-under tint 비활성 — 전 화면 AppBar 가
+          // 스크롤 시 surfaceTint overlay 로 색이 살짝 변하는 버그 차단.
+          surfaceTintColor: Colors.transparent,
+          scrolledUnderElevation: 0,
           titleTextStyle: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 18,

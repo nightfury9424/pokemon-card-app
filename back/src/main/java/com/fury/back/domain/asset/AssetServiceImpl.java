@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -67,13 +68,30 @@ public class AssetServiceImpl implements AssetService {
 
         DisplayPriceContext priceCtx = buildDisplayPriceContext(cardIds);
 
+        // Hotfix 10-3: cardVerified 계산용 — FRONT/BACK 둘 다 존재 시 검증 완료.
+        // N+1 방지 위해 자산 image 전체를 1회 batch fetch.
+        List<String> assetIds = assets.stream().map(Asset::getAssetId).toList();
+        Map<String, Set<String>> imageTypeByAssetId = assetIds.isEmpty()
+                ? Map.of()
+                : assetImageRepository.findByAssetIdIn(assetIds).stream()
+                        .collect(Collectors.groupingBy(
+                                AssetImage::getAssetId,
+                                Collectors.mapping(AssetImage::getImageType, Collectors.toSet())
+                        ));
+
         List<AssetDto> result = assets.stream()
                 .map(a -> {
                     DisplayPriceResult dp = resolveDisplayPrice(a, priceCtx);
+                    Set<String> types = imageTypeByAssetId.getOrDefault(a.getAssetId(), Set.of());
+                    // Codex 사후 (Item 12 FAIL) fix: GRADED 자산 (PSA/BRG 외부 인증) 은 자동 verified.
+                    // RAW 만 FRONT + BACK 실사진 게이트 적용.
+                    boolean verified = "GRADED".equals(a.getCardStatus())
+                            || (types.contains("FRONT") && types.contains("BACK"));
                     return AssetDto.fromWithCardAndSelling(a, cardMap.get(a.getCardId()), openTradeMap.get(a.getAssetId()))
                             .toBuilder()
                             .displayPrice(dp.price())
                             .displayPriceBasis(dp.basis())
+                            .cardVerified(verified)
                             .build();
                 })
                 .toList();
@@ -94,11 +112,19 @@ public class AssetServiceImpl implements AssetService {
                             .orElse(null);
                     DisplayPriceContext priceCtx = buildDisplayPriceContext(List.of(a.getCardId()));
                     DisplayPriceResult dp = resolveDisplayPrice(a, priceCtx);
+                    // Hotfix 10-3: 단건도 동일 기준 cardVerified 계산.
+                    // Codex 사후 (Item 12) fix: GRADED 외부 인증 자동 verified.
+                    Set<String> types = assetImageRepository.findByAssetId(a.getAssetId()).stream()
+                            .map(AssetImage::getImageType)
+                            .collect(Collectors.toSet());
+                    boolean verified = "GRADED".equals(a.getCardStatus())
+                            || (types.contains("FRONT") && types.contains("BACK"));
                     return ReturnData.success(AssetDto.from(a).toBuilder()
                             .isSelling(activeTradeId != null)
                             .activeTradeId(activeTradeId)
                             .displayPrice(dp.price())
                             .displayPriceBasis(dp.basis())
+                            .cardVerified(verified)
                             .build());
                 })
                 .orElseGet(() -> ReturnData.notFound("자산을 찾을 수 없습니다. assetId=" + assetId));
