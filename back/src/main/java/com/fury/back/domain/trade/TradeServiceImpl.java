@@ -56,6 +56,7 @@ public class TradeServiceImpl implements TradeService {
     // 1인 1조회 정책 — viewerUserId != sellerId면 INSERT, UNIQUE 충돌 시 무시.
     private final TradePostViewRepository tradePostViewRepository;
     private final BlockRepository blockRepository;
+    private final com.fury.back.domain.price.PriceSnapshotRepository priceSnapshotRepository;
 
     @Value("${trade.image.dir}")
     private String tradeImageDir;  // Phase 1-7: legacy static handler 호환용 (신규 업로드는 ImageStorageService 사용)
@@ -168,6 +169,31 @@ public class TradeServiceImpl implements TradeService {
         return ReturnData.success(dto);
     }
 
+    /**
+     * 매물 가격 sanity 검증 — 시장 교란 방지. 범위 밖이면 에러 메시지 반환(null=정상).
+     *  - GRADED: KO 예상가가 RAW 기준이라 부정확 → skip.
+     *  - 예상가(KO_ESTIMATED) >= 1000원: ±50% 범위 밖 차단(양방향).
+     *  - 예상가 없음/저가: 절대 상한(1천만)만.
+     */
+    private String validateListingPrice(String cardId, String cardStatus, int price) {
+        if ("GRADED".equals(cardStatus)) return null;
+        final int ceiling = 10_000_000;
+        Integer est = priceSnapshotRepository
+                .findFirstByCardIdAndSourceOrderByTradedAtDesc(cardId, "KO_ESTIMATED")
+                .map(com.fury.back.domain.price.PriceSnapshot::getPrice)
+                .orElse(null);
+        if (est != null && est >= 1000) {
+            long lower = Math.round(est * 0.5);
+            long upper = Math.round(est * 1.5);
+            if (price < lower || price > upper) {
+                return "시세와 크게 동떨어진 가격은 등록할 수 없습니다. (예상 시세의 ±50% 범위로 등록해 주세요)";
+            }
+        } else if (price > ceiling) {
+            return "비정상적으로 높은 가격은 등록할 수 없습니다.";
+        }
+        return null;
+    }
+
     @Override
     @Transactional
     public ReturnData<TradePostDto> createTrade(String sellerId, ParameterData parameterData) {
@@ -230,6 +256,9 @@ public class TradeServiceImpl implements TradeService {
         if (condition == null && asset != null && asset.getEstimatedGrade() != null) {
             condition = String.format("%.1f", asset.getEstimatedGrade().doubleValue());
         }
+        // 가격 sanity 검증 (시장 교란 방지) — front 우회 방지용 서버측 가드.
+        String priceErr = validateListingPrice(cardId, cardStatus, price);
+        if (priceErr != null) return ReturnData.badRequest(priceErr);
         String effectiveGradingCompany = gradingCompany != null
                 ? gradingCompany
                 : asset != null ? asset.getGradingCompany() : null;
@@ -321,6 +350,10 @@ public class TradeServiceImpl implements TradeService {
             return ReturnData.success(TradePostDto.fromWithDetails(activePost, seller, card));
         }
 
+        // 가격 sanity 검증 (시장 교란 방지).
+        String priceErr = validateListingPrice(asset.getCardId(), asset.getCardStatus(), price);
+        if (priceErr != null) return ReturnData.badRequest(priceErr);
+
         String rarity = card.getRarityCode() != null && !card.getRarityCode().isBlank()
                 ? card.getRarityCode()
                 : "-";
@@ -369,8 +402,14 @@ public class TradeServiceImpl implements TradeService {
         if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
         if (!post.getSellerId().equals(userId)) return ReturnData.fail("F403", "권한이 없습니다.");
 
+        // 수정 시 가격도 sanity 검증 (정상 등록 후 99.9M 으로 변경 차단).
+        Integer newPrice = parameterData.getInteger("price");
+        if (newPrice != null && newPrice > 0) {
+            String updErr = validateListingPrice(post.getCardId(), post.getCardStatus(), newPrice);
+            if (updErr != null) return ReturnData.badRequest(updErr);
+        }
         post.update(parameterData.getString("title"), parameterData.getString("description"),
-                parameterData.getInteger("price"));
+                newPrice);
         String condition = parameterData.getString("condition");
         if (condition != null) {
             // 3차-C: EntityManager 직접 UPDATE + refresh → setter + dirty checking으로 단순화
