@@ -426,6 +426,57 @@ public class AssetServiceImpl implements AssetService {
         }
     }
 
+    // Hotfix 10-2 (Plan D): AI 분석 없이 판매용 앞/뒷면 실사진만 저장.
+    // 기존 saveGradingResult 와 분리 — score 필드 없음, AI 결과 저장 없음.
+    // owner 검증 + 기존 FRONT/BACK row delete-then-insert 로 중복 누적 방지.
+    @Override
+    @Transactional
+    public ReturnData<Map<String, String>> saveSellPhotos(String assetId, MultipartFile frontImage,
+                                                           MultipartFile backImage, String userId) {
+        if (assetId == null || assetId.isBlank()) {
+            return ReturnData.badRequest("assetId는 필수입니다.");
+        }
+        if (userId == null || userId.isBlank()) {
+            return ReturnData.fail("F401", "인증이 필요합니다.");
+        }
+        if (frontImage == null || frontImage.isEmpty() || backImage == null || backImage.isEmpty()) {
+            return ReturnData.badRequest("front_image, back_image는 필수입니다.");
+        }
+
+        Asset asset = assetRepository.findById(assetId).orElse(null);
+        if (asset == null) {
+            return ReturnData.notFound("자산을 찾을 수 없습니다. assetId=" + assetId);
+        }
+        if (!userId.equals(asset.getUserId())) {
+            return ReturnData.fail("F403", "본인 자산만 수정할 수 있습니다.");
+        }
+
+        try {
+            String frontKey = imageStorageService.store(
+                    "uploads/asset/" + assetId,
+                    frontImage.getOriginalFilename(),
+                    frontImage
+            );
+            String backKey = imageStorageService.store(
+                    "uploads/asset/" + assetId,
+                    backImage.getOriginalFilename(),
+                    backImage
+            );
+
+            assetImageRepository.deleteByAssetIdAndImageType(assetId, "FRONT");
+            assetImageRepository.deleteByAssetIdAndImageType(assetId, "BACK");
+            assetImageRepository.save(AssetImage.of(assetId, "FRONT", frontKey));
+            assetImageRepository.save(AssetImage.of(assetId, "BACK", backKey));
+
+            return ReturnData.success(Map.of(
+                    "frontUrl", StorageKeyUrls.toProxyUrl(frontKey),
+                    "backUrl", StorageKeyUrls.toProxyUrl(backKey)
+            ));
+        } catch (IOException e) {
+            return ReturnData.fail("F500", "이미지 저장 실패: " + e.getMessage());
+        }
+    }
+
     @Override
     @Transactional
     public void uploadSlabImage(Long assetId, MultipartFile file) throws IOException {

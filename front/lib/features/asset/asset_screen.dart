@@ -241,10 +241,38 @@ class _AssetScreenState extends State<AssetScreen> {
       return;
     }
 
-    // Hotfix 10-1: AI 그레이딩 강제 의존 제거 (beta 1.0).
-    // estimatedGrade null 라도 판매 진입 가능. RAW 카드 = 실사진 + 사용자 상태 (10-2 cycle).
-    // 베타 1.0 = 기존 sell sheet 진입 (estimatedGrade 0.0 = 표시 hide).
+    // Hotfix 10-2 (Plan D): RAW 카드 판매 진입 전 앞/뒷면 실사진 확인.
+    // 없으면 capture (mode=sell_photo) 강제. 카탈로그 이미지만으로 판매 불가.
+    final hasPhotos = await _hasSellPhotos(assetId);
+    if (!mounted) return;
+    if (!hasPhotos) {
+      final captured = await context.push<Map?>('/grading/capture', extra: {
+        'mode': 'sell_photo',
+        'assetId': assetId,
+        'cardId': cardId,
+        'cardName': cardName,
+      });
+      if (!mounted) return;
+      if (captured == null) return; // 사용자 취소 / 권한 거부
+    }
+
     await _showRawSellPriceSheet(asset, cardName, estimatedGrade ?? 0.0);
+  }
+
+  // Hotfix 10-2 (Plan D): GET /api/assets/{assetId}/images 로 FRONT+BACK 둘 다 있나 확인.
+  // imageRepository 가 user-uploaded AssetImage 만 return (카탈로그 X) — backend 확인 완료.
+  Future<bool> _hasSellPhotos(String assetId) async {
+    if (assetId.isEmpty) return false;
+    try {
+      final res = await ApiClient.get(ApiConstants.assetImages(assetId));
+      final list = (res['data'] is List) ? res['data'] as List : const [];
+      final hasFront = list.any((i) => i is Map && i['imageType'] == 'FRONT');
+      final hasBack = list.any((i) => i is Map && i['imageType'] == 'BACK');
+      return hasFront && hasBack;
+    } catch (_) {
+      // 네트워크 실패 = 없음 처리 (안전). 사용자 다시 시도 가능.
+      return false;
+    }
   }
 
   Future<void> _showRawSellPriceSheet(

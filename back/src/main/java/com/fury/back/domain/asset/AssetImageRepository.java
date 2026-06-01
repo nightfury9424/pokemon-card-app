@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface AssetImageRepository extends JpaRepository<AssetImage, String> {
     List<AssetImage> findByAssetId(String assetId);
+
+    void deleteByAssetIdAndImageType(String assetId, String imageType);
 }

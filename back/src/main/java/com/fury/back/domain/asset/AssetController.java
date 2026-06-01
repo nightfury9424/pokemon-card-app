@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -258,6 +259,19 @@ public class AssetController {
                 frontImage,
                 backImage
         );
+    }
+
+    // Hotfix 10-2 (Plan D): AI 분석 없이 판매용 앞/뒷면 실사진만 저장하는 신규 endpoint.
+    // 기존 /grading endpoint 는 손대지 않음 — score 6 필드 required 라서 sell flow 에서 호출 불가.
+    @Operation(summary = "판매 사진 등록", description = "AI 분석 없이 자산에 앞/뒤 실사진만 저장합니다. (Plan D — sell flow)")
+    @PostMapping(value = "/{assetId}/sell-photos", consumes = "multipart/form-data")
+    public ReturnData<Map<String, String>> saveSellPhotos(
+            @Parameter(description = "자산 ID", example = "ASSET_001")
+            @PathVariable String assetId,
+            @RequestParam("front_image") MultipartFile frontImage,
+            @RequestParam("back_image") MultipartFile backImage,
+            @AuthenticationPrincipal String userId) {
+        return assetService.saveSellPhotos(assetId, frontImage, backImage, userId);
     }
 
     @Operation(summary = "외부 감정 슬랩 이미지 업로드", description = "외부 감정 카드의 슬랩 사진을 업로드합니다.")

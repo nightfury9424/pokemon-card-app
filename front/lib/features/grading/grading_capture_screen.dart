@@ -19,7 +19,18 @@ class GradingCaptureScreen extends StatefulWidget {
   final String? assetId;
   final String? cardId;
   final String? cardName;
-  const GradingCaptureScreen({super.key, this.assetId, this.cardId, this.cardName});
+  // Hotfix 10-2 (Plan D): 'analyze' = AI 그레이딩 (legacy, FeatureFlags.enableAiGrading 시),
+  // 'sell_photo' = 판매 사진 등록 (점수/등급 산정 X, /api/assets/{id}/sell-photos 로 업로드).
+  final String mode;
+  const GradingCaptureScreen({
+    super.key,
+    this.assetId,
+    this.cardId,
+    this.cardName,
+    this.mode = 'analyze',
+  });
+
+  bool get isSellPhotoMode => mode == 'sell_photo';
 
   @override
   State<GradingCaptureScreen> createState() => _GradingCaptureScreenState();
@@ -216,25 +227,31 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
           AppInfoToast.show(context, '앞면 촬영 완료 · 이제 뒷면을 촬영해 주세요');
         }
       } else {
-        if (mounted) {
-          setState(() => _isCapturing = false);
-          final frameRect = _normalizedFrameRect();
-          final result = await context.push<dynamic>('/grading/result', extra: {
-            'photos': List<File>.from(_photos),
-            'assetId': widget.assetId,
-            'cardId': widget.cardId,
-            'cardName': widget.cardName,
-            'frameRect': frameRect,
-          });
-          if (!mounted) return;
-          if (result == 'retake') {
-            setState(() {
-              _step = 0;
-              _photos.clear();
-              _frameState = _FrameState.basic;
+        // Hotfix 10-2 (Plan D): 뒷면 끝 — mode 별 분기.
+        if (widget.isSellPhotoMode) {
+          await _finishSellPhotoUpload();
+        } else {
+          // legacy analyze flow — FeatureFlags.enableAiGrading=true 일 때만 도달 (router gate).
+          if (mounted) {
+            setState(() => _isCapturing = false);
+            final frameRect = _normalizedFrameRect();
+            final result = await context.push<dynamic>('/grading/result', extra: {
+              'photos': List<File>.from(_photos),
+              'assetId': widget.assetId,
+              'cardId': widget.cardId,
+              'cardName': widget.cardName,
+              'frameRect': frameRect,
             });
-          } else if (result == true) {
-            context.pop(true);
+            if (!mounted) return;
+            if (result == 'retake') {
+              setState(() {
+                _step = 0;
+                _photos.clear();
+                _frameState = _FrameState.basic;
+              });
+            } else if (result == true) {
+              context.pop(true);
+            }
           }
         }
       }
@@ -247,6 +264,65 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
         AppErrorToast.show(context, '촬영 실패: $e');
       }
     }
+  }
+
+  // Hotfix 10-2 (Plan D): 뒷면 촬영 완료 후 sell_photo mode 전용 업로드 + pop.
+  // /grading/result 진입 X, /grading/analyze 호출 X.
+  Future<void> _finishSellPhotoUpload() async {
+    if (!mounted) return;
+    final assetId = widget.assetId;
+    if (assetId == null || assetId.isEmpty) {
+      AppErrorToast.show(context, '자산 정보를 확인할 수 없어요. 다시 시도해 주세요.');
+      // Codex 사후 (a) WARN: _shutter 의 _isCapturing=true 가 남아있음 → reset 보장.
+      setState(() => _isCapturing = false);
+      return;
+    }
+    final front = _photos[0];
+    final back = _photos[1];
+
+    // dedupe: 같은 byte 면 차단 (Codex P1 #5). camera shot 사이 byte 충돌은 사실상 0 이지만 안전장치.
+    if (await _filesIdentical(front, back)) {
+      if (!mounted) return;
+      AppErrorToast.show(context, '앞면과 뒷면은 서로 다른 사진이어야 합니다.');
+      setState(() {
+        _step = 0;
+        _photos.clear();
+        _frameState = _FrameState.basic;
+        _isCapturing = false;
+      });
+      return;
+    }
+
+    setState(() => _isCapturing = true);
+    try {
+      final res = await ApiClient.postMultipart(
+        ApiConstants.assetSellPhotos(assetId),
+        files: {'front_image': front, 'back_image': back},
+      );
+      if (!mounted) return;
+      final data = (res['data'] is Map)
+          ? Map<String, dynamic>.from(res['data'] as Map)
+          : <String, dynamic>{};
+      context.pop({
+        'frontUrl': data['frontUrl'],
+        'backUrl': data['backUrl'],
+      });
+    } catch (e) {
+      if (!mounted) return;
+      AppErrorToast.show(context, '판매 사진 등록 실패: $e');
+      setState(() => _isCapturing = false);
+    }
+  }
+
+  Future<bool> _filesIdentical(File a, File b) async {
+    final al = a.lengthSync();
+    if (al != b.lengthSync()) return false;
+    final ab = await a.readAsBytes();
+    final bb = await b.readAsBytes();
+    for (var i = 0; i < ab.length; i++) {
+      if (ab[i] != bb[i]) return false;
+    }
+    return true;
   }
 
   Future<Map<String, dynamic>?> _runPrecheck(File file, String side) async {

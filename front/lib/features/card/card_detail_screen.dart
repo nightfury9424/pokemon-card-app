@@ -3825,7 +3825,24 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   // 정책: feedback_hoga_design_invariants.md
   // ─────────────────────────────────────────────
 
+  // Hotfix 10-2 (Plan D) Codex 사후 (n) WARN: double-tap 가드 — 중복 capture push 차단.
+  bool _isSellTapping = false;
+
   Future<void> _onSellTap(
+    String cardName,
+    String rarity,
+    String? imageUrl,
+  ) async {
+    if (_isSellTapping) return;
+    _isSellTapping = true;
+    try {
+      await _onSellTapImpl(cardName, rarity, imageUrl);
+    } finally {
+      if (mounted) _isSellTapping = false;
+    }
+  }
+
+  Future<void> _onSellTapImpl(
     String cardName,
     String rarity,
     String? imageUrl,
@@ -3870,6 +3887,24 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       await _showGradingRequiredSheet(asset: asset, cardName: cardName);
       return;
     }
+    // Hotfix 10-2 (Plan D): RAW 카드 판매 전 앞/뒷면 실사진 게이트.
+    // 없으면 sell_photo capture 강제. 카탈로그 이미지만으로 판매 차단.
+    final assetIdForPhotos = asset['assetId'] as String?;
+    if (cardStatus == 'RAW' && assetIdForPhotos != null && assetIdForPhotos.isNotEmpty) {
+      final hasPhotos = await _hasSellPhotosForAsset(assetIdForPhotos);
+      if (!mounted) return;
+      if (!hasPhotos) {
+        final captured = await context.push<Map?>('/grading/capture', extra: {
+          'mode': 'sell_photo',
+          'assetId': assetIdForPhotos,
+          'cardId': widget.cardId,
+          'cardName': cardName,
+        });
+        if (!mounted) return;
+        if (captured == null) return; // 사용자 취소 / 권한 거부
+      }
+    }
+
     // 자산 보유 + 비활성 + 판매 가능 — 거래 탭 이동 + 바로 /trades/create push.
     // 판매 상태 확인 sheet 폐기 (사용자 정책 2026-05-18): 카드당 자산 1개, 판매는 등록된 자산 상태 그대로.
     if (_tabController.index != 1) {
@@ -3899,6 +3934,21 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         _showSuccessBanner('판매글이 등록되었습니다');
       }
     });
+  }
+
+  // Hotfix 10-2 (Plan D): GET /api/assets/{assetId}/images 로 FRONT+BACK 둘 다 있나 확인.
+  // imageRepository 가 user-uploaded AssetImage 만 return (카탈로그 X) — backend 확인 완료.
+  Future<bool> _hasSellPhotosForAsset(String assetId) async {
+    if (assetId.isEmpty) return false;
+    try {
+      final res = await ApiClient.get(ApiConstants.assetImages(assetId));
+      final list = (res['data'] is List) ? res['data'] as List : const [];
+      final hasFront = list.any((i) => i is Map && i['imageType'] == 'FRONT');
+      final hasBack = list.any((i) => i is Map && i['imageType'] == 'BACK');
+      return hasFront && hasBack;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// RAW 자산 + 자체 그레이딩 미완료 → 판매 전 분석 안내 sheet.

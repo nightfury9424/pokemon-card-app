@@ -33,6 +33,9 @@ class ApiConstants {
   static const String cards = '/api/cards';
   static const String prices = '/api/prices/cards';
   static const String assets = '/api/assets';
+  // Hotfix 10-2 (Plan D): AI 분석 없이 판매용 앞/뒷면 실사진 저장.
+  static String assetSellPhotos(String assetId) => '/api/assets/$assetId/sell-photos';
+  static String assetImages(String assetId) => '/api/assets/$assetId/images';
   static const String gradingAnalyze = '/api/grading/analyze';
   static const String gradingPrecheck = '/api/grading/precheck';
   static const String gradingHistory = '/api/grading/history';
