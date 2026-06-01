@@ -560,7 +560,6 @@ class _ScannerScreenState extends State<ScannerScreen>
                     selectedIndex: selectedType == null
                         ? -1
                         : (selectedType == 'RAW' ? 0 : 1),
-                    height: 42,
                     onChanged: (i) => setModal(() {
                       if (i == 0) {
                         selectedType = 'RAW';
