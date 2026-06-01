@@ -1652,7 +1652,7 @@ class _AssetScreenState extends State<AssetScreen> {
                   // Codex 사후 (Item 6 P1) fix: Tooltip 만 사용 — Tooltip.message 가 자체 Semantics 제공.
                   // 외부 Semantics wrapper 중복 → TalkBack/VoiceOver 2회 read 방지.
                   child: Tooltip(
-                    message: '실카드 검증 완료',
+                    message: '실물 사진 등록 완료',
                     child: Container(
                       width: 20, height: 20,
                       decoration: BoxDecoration(

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -23,18 +22,7 @@ import '../../core/widgets/app_error_toast.dart';
 class ScannerScreen extends StatefulWidget {
   /// 카드 상세에서 진입 시 전달. 스캔 결과가 이 cardId와 다르면 등록 차단.
   final String? expectedCardId;
-
-  /// Hotfix 10-5 실카드 검증 모드. true 면 expectedCardId 와 일치(top-1.cardId ==
-  /// expectedCardId && score >= 0.75) 시 자산 등록 시트를 띄우지 않고, 검증을 통과한
-  /// 바로 그 stream frame JPEG 를 임시파일로 저장해 그 경로(String)로 pop 한다.
-  /// 불일치 시 기존 mismatch 오버레이로 재스캔 유도. 일반 등록 흐름과 완전 분리.
-  final bool verifyMode;
-
-  const ScannerScreen({
-    super.key,
-    this.expectedCardId,
-    this.verifyMode = false,
-  });
+  const ScannerScreen({super.key, this.expectedCardId});
 
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
@@ -241,49 +229,6 @@ class _ScannerScreenState extends State<ScannerScreen>
       // expectedCardId가 지정되어 있으면, matchedCardId가 null이거나 다를 때 모두 mismatch로 차단.
       // 비정상 응답으로 null이 와도 등록 UI가 열리지 않도록 가드.
       final mismatched = expected != null && matchedCardId != expected;
-      final scoreVal = (score as num?)?.toDouble() ?? 0.0;
-
-      // Hotfix 10-5: 실카드 검증 모드 — 정책 top-1.cardId == expectedCardId && score >= 0.75.
-      // threshold 낮추기 / top-5 통과 금지. 통과한 바로 그 stream frame 을 FRONT 사진으로 저장 후
-      // 그 경로(String)로 pop. 일반 등록 시트(_addToAsset)는 띄우지 않음.
-      if (widget.verifyMode && expected != null) {
-        if (!mounted) return; // postBytes await 사이 dispose 가드 (Codex P0).
-        if (matchedCardId == expected && scoreVal >= 0.75) {
-          await _camera?.stopImageStream();
-          final path = await _saveVerifiedFrame(jpegBytes);
-          if (!mounted) return;
-          if (path == null) {
-            // 저장 실패 — 스캔 재개 (검증 통과 처리하지 않음).
-            if (_camera != null &&
-                _camera!.value.isInitialized &&
-                !_camera!.value.isStreamingImages) {
-              await _camera!.startImageStream(_onFrame);
-            }
-            return;
-          }
-          // 뒷면 카메라(grading_capture)와 AVCaptureSession 충돌을 막기 위해
-          // pop 전에 scanner 카메라를 확실히 dispose (Codex P1 — 350ms 타이밍 의존 제거).
-          await _camera?.dispose();
-          _camera = null;
-          if (!mounted) return;
-          context.pop(path);
-          return;
-        }
-        if (matchedCardId != null && mismatched) {
-          setState(() {
-            _foundCard = card;
-            _candidates = const [];
-            _resultShowing = true;
-            _mismatch = true;
-            _resultStatus = status;
-            _debugText = '';
-          });
-          await _camera?.stopImageStream();
-          return;
-        }
-        // 같은 카드지만 score < 0.75 (low_confidence) 또는 모호 — 계속 스캔(정렬 유도).
-        return;
-      }
 
       if (mounted) {
         setState(() {
@@ -302,21 +247,6 @@ class _ScannerScreenState extends State<ScannerScreen>
       if (mounted) setState(() => _debugText = 'error: $e');
     } finally {
       _isProcessing = false;
-    }
-  }
-
-  // Hotfix 10-5: 실카드 검증 통과 frame 을 임시파일로 저장 → FRONT 사진 경로 반환.
-  // takePicture 고해상 대신 검증을 통과한 "바로 그 프레임"을 그대로 사용 (mismatch 재유입 방지).
-  Future<String?> _saveVerifiedFrame(List<int> bytes) async {
-    try {
-      final f = File(
-        '${Directory.systemTemp.path}/verify_front_'
-        '${DateTime.now().millisecondsSinceEpoch}.jpg',
-      );
-      await f.writeAsBytes(bytes, flush: true);
-      return f.path;
-    } catch (_) {
-      return null;
     }
   }
 
@@ -914,12 +844,10 @@ class _ScannerScreenState extends State<ScannerScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                widget.verifyMode
-                    ? '검증하려는 카드와 일치하지 않습니다.\n같은 카드의 앞면을 다시 촬영해 주세요.'
-                    : '카드 상세에서 진입한 카드와 일치하지 않아\n등록할 수 없습니다.',
+              const Text(
+                '카드 상세에서 진입한 카드와 일치하지 않아\n등록할 수 없습니다.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white60, fontSize: 13),
+                style: TextStyle(color: Colors.white60, fontSize: 13),
               ),
               const SizedBox(height: 24),
               Container(

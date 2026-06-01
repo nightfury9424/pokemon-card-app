@@ -47,9 +47,6 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
   Future<void>? _initFuture;
   int _step = 0;
   final List<File> _photos = [];
-  // Hotfix 10-5: card_verify 모드에서 앞면은 scanner_screen delegate 검증 결과(임시 JPEG)로
-  // 채워진다. front 확보 전에는 자체 (뒷면용) 카메라를 켜지 않는다.
-  bool _frontVerified = false;
   bool _isCapturing = false;
   String? _initError;
   _FrameState _frameState = _FrameState.basic;
@@ -77,14 +74,9 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     SystemChrome.setPreferredOrientations(const [
       DeviceOrientation.portraitUp,
     ]);
-    // Hotfix 10-5: card_verify 는 앞면을 scanner_screen delegate 로 검증한다.
-    // 통과(top-1.cardId == cardId && score >= 0.75) 후에만 뒷면 카메라를 켠다.
-    // (앞면 takePicture 자체 crop identify 폐기 — wrong cardId 의 원인.)
-    if (widget.isCardVerifyMode) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _startFrontVerify());
-    } else {
-      _initCamera();
-    }
+    // Hotfix 10-6: 실사진 등록 단순화 — 앞면/뒷면 모두 같은 촬영 UI(takePicture).
+    // scan-identify hard gate 폐기 (동일 일러스트 false block + 앞스캔/뒤사진 UX 모순 제거).
+    _initCamera();
   }
 
   @override
@@ -110,8 +102,6 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     if (state == AppLifecycleState.inactive) {
       c.dispose();
     } else if (state == AppLifecycleState.resumed) {
-      // card_verify 앞면 검증(scanner) 진행 중에는 뒷면 카메라를 켜지 않는다.
-      if (widget.isCardVerifyMode && !_frontVerified) return;
       _initCamera();
     }
   }
@@ -139,43 +129,6 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) setState(() => _initError = e.toString());
-    }
-  }
-
-  // Hotfix 10-5: 앞면 실카드 검증 = scanner_screen delegate.
-  // scanner_screen 의 검증된 stream frame(JPEG 임시파일 경로)을 받아 FRONT 사진으로 사용한다.
-  // 통과 정책은 scanner_screen 내부: top-1.cardId == cardId && score >= 0.75 (threshold/top-1 유지).
-  // 여기서는 직접 identify 하지 않는다 — 자체 crop 방식은 wrong cardId 원인이라 폐기.
-  Future<void> _startFrontVerify() async {
-    if (!mounted) return;
-    final cardId = widget.cardId;
-    if (cardId == null || cardId.isEmpty) {
-      AppErrorToast.show(context, '카드 정보를 확인할 수 없어요.');
-      context.pop();
-      return;
-    }
-    final frontPath = await context.push<String>(
-      '/scanner?expectedCardId=${Uri.encodeComponent(cardId)}&verify=true',
-    );
-    if (!mounted) return;
-    if (frontPath == null || frontPath.isEmpty) {
-      // 사용자가 앞면 검증을 취소(뒤로) — 판매 플로우 중단.
-      context.pop();
-      return;
-    }
-    _photos
-      ..clear()
-      ..add(File(frontPath));
-    setState(() {
-      _frontVerified = true;
-      _step = 1; // 앞면 검증 완료 → 뒷면 촬영 단계.
-    });
-    // scanner stream 카메라가 dispose 될 시간을 준 뒤 뒷면 카메라 init (iOS AVCaptureSession 충돌 방지).
-    await Future.delayed(const Duration(milliseconds: 350));
-    if (!mounted) return;
-    await _initCamera();
-    if (mounted) {
-      AppInfoToast.show(context, '앞면 검증 완료 · 이제 뒷면을 촬영해 주세요');
     }
   }
 
@@ -271,14 +224,13 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
         return;
       }
 
-      // Hotfix 10-5: card_verify 의 앞면 검증은 scanner_screen delegate(_startFrontVerify)에서
-      // 이미 끝났다. 이 화면의 takePicture 는 뒷면(_step==1)만 담당 — 여기서 identify 하지 않는다.
+      // Hotfix 10-6: 앞면/뒷면 모두 takePicture + precheck 품질검사. identify/cardId 게이트 없음.
       _photos.add(shotFile);
 
       if (_step < 1) {
         if (mounted) {
           setState(() { _step++; _isCapturing = false; });
-          AppInfoToast.show(context, '앞면 검증 완료 · 이제 뒷면을 촬영해 주세요');
+          AppInfoToast.show(context, '앞면 촬영 완료 · 이제 뒷면을 촬영해 주세요');
         }
       } else {
         // Hotfix 10-2 (Plan D): 뒷면 끝 — mode 별 분기.

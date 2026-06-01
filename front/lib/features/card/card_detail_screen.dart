@@ -3981,13 +3981,13 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 ),
               ),
               const Text(
-                '실카드 검증이 필요합니다',
+                '판매용 실사진 등록',
                 style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
               Text(
-                '등록한 카드($cardName)와 실제 보유 카드가 같은지 확인합니다.\n'
-                '앞면과 뒷면을 차례로 촬영해 주세요.',
+                '$cardName 실물의 앞면과 뒷면을 차례로 촬영해 주세요.\n'
+                '구매자가 실제 카드 상태를 확인할 수 있어요.',
                 style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5),
               ),
               const SizedBox(height: 20),
@@ -4002,7 +4002,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
                   ),
-                  child: const Text('검증 시작'),
+                  child: const Text('촬영 시작'),
                 ),
               ),
             ],
@@ -4048,7 +4048,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 const Icon(Icons.check_circle, color: AppColors.green, size: 22),
                 const SizedBox(width: 8),
                 const Expanded(child: Text(
-                  '실카드 검증이 완료되었습니다',
+                  '실물 사진이 등록되었습니다',
                   style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
                 )),
               ]),
@@ -4396,7 +4396,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('실카드 검증 완료',
+                    const Text('실물 사진 등록 완료',
                         style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 2),
                     Text(
@@ -4453,10 +4453,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('실카드 검증이 필요합니다',
+                  Text('판매용 실사진 등록이 필요합니다',
                       style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w800)),
                   SizedBox(height: 2),
-                  Text('판매 전 등록한 카드와 실제 보유 카드가 같은지 확인해 주세요.',
+                  Text('판매 전 앞면/뒷면 실물 사진을 등록해 주세요.',
                       style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
                 ],
               ),
@@ -4507,7 +4507,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                '실카드 검증 사진',
+                '등록한 실물 사진',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
