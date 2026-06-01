@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
@@ -12,7 +13,6 @@ import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_segmented_toggle.dart';
-import '../../core/widgets/auth_image.dart';
 import 'grading_models.dart';
 
 class GradingResultScreen extends StatefulWidget {
@@ -44,6 +44,9 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
   double? _backImageAspect;
   // P0-C: surface/whitening 토글 view index (0=원본, 1=후보 강조, 2=후보 위치).
   final Map<String, int> _evidenceViewIndex = {'surface': 0, 'whitening': 0};
+  // hotfix 9: evidence preload cache — 결과 화면 진입 시 6 image 미리 fetch.
+  // 사용자가 토글 누를 때 즉시 표시 (re-fetch X).
+  final Map<String, Future<List<int>?>> _evidenceCache = {};
 
   static const _photoKeys = ['front_image', 'back_image'];
 
@@ -153,9 +156,27 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
         });
         _loadImageAspect('front');
         _loadImageAspect('back');
+        // hotfix 9: evidence 6 image preload (병렬 background)
+        _preloadEvidence();
       }
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  // hotfix 9: evidence 6 image (warped + CLAHE + mask × front/back) 미리 fetch.
+  // 사용자 결과 화면 토글 클릭 시 즉시 표시 (네트워크 wait X).
+  void _preloadEvidence() {
+    final sessionId = _parsed?.extra?['evidence_session_id']?.toString();
+    if (sessionId == null || sessionId.isEmpty) return;
+    const layers = [
+      'front_original', 'back_original',
+      'front_surface', 'back_surface',
+      'front_whitening', 'back_whitening',
+    ];
+    for (final layer in layers) {
+      final url = '${ApiConstants.baseUrl}${ApiConstants.gradingEvidence(sessionId, layer)}';
+      _evidenceCache.putIfAbsent(url, () => ApiClient.downloadBytes(url));
     }
   }
 
@@ -1023,7 +1044,19 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     return groups;
   }
 
+  // hotfix 9: allReasons / visibleReasons 분리.
+  //   allReasons = backend 의 모든 후보 (debug/내부 분석 보존)
+  //   visibleReasons = penalty > 0 만 (사용자 화면 노출)
+  //   centering 은 점수 source 분리 안 됨 → 그대로 표시
   List<DeductionReason> _filterReasonsByMetric(String metric) {
+    final all = _allReasonsByMetric(metric);
+    // hotfix 9: 사용자 화면 = penalty > 0 만 (centering 예외 — 단일 후보이고 점수 직접)
+    if (metric == 'centering') return all;
+    return all.where((r) => r.penalty > 0).toList();
+  }
+
+  // hotfix 9: 내부 debug / preload 등에 필요한 전체 reasons.
+  List<DeductionReason> _allReasonsByMetric(String metric) {
     final p = _parsed;
     if (p == null) return const [];
     bool match(DeductionReason r) {
@@ -1050,32 +1083,12 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     return list.length > cap ? list.sublist(0, cap) : list;
   }
 
-  int _rawReasonCountForMetric(String metric) {
-    final p = _parsed;
-    if (p == null) return 0;
-    return p.deductionReasons.where((r) {
-      switch (metric) {
-        case 'centering': return r.type == 'centering';
-        case 'corner':    return r.type == 'corner';
-        case 'surface':   return r.type == 'surface' || r.type == 'scratch' || r.type == 'dent';
-        case 'whitening': return r.type == 'whitening';
-        case 'edge':      return r.type == 'edge';
-        default: return false;
-      }
-    }).length;
-  }
-
   void _showMetricDetailSheet(String metric, String label, double score, Color color) {
+    // hotfix 9: visible = penalty>0 만 (centering 예외 = centering 자체 점수 source).
+    // 참고 후보 (penalty=0) 는 사용자 화면 노출 X (debug 보관은 _allReasonsByMetric).
     final reasons = _filterReasonsByMetric(metric);
-    final rawCount = _rawReasonCountForMetric(metric);
-    final hiddenCount = rawCount - reasons.length;
-    // hotfix 8 보정: 감점 후보 / 참고 후보 분리.
     final scoredReasons = reasons.where((r) => r.penalty > 0).toList();
-    final referenceReasons = reasons.where((r) => r.penalty == 0).toList();
     final totalPenalty = scoredReasons.fold<double>(0, (s, r) => s + r.penalty);
-    final avgConfidence = reasons.isEmpty
-        ? 0.0
-        : reasons.fold<double>(0, (s, r) => s + r.confidence) / reasons.length;
 
     showModalBottomSheet(
       context: context,
@@ -1129,57 +1142,61 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: AppColors.divider),
                   ),
+                  // hotfix 9: 평균 신뢰도 % 제거. 사용자 화면 = 감점 후보 / 총 감점 만.
+                  // 디버그 metric (신뢰도 33%) 같은 숫자 노출 X.
                   child: Row(children: [
-                    // hotfix 8 보정: 감점 N건 / 참고 M건 분리. "주요 후보" 표현 X.
                     Expanded(child: _summaryItem(
-                      '감지 후보',
-                      referenceReasons.isEmpty
-                          ? '${reasons.length}건'
-                          : '감점 ${scoredReasons.length}건 / 참고 ${referenceReasons.length}건')),
+                      '감점 후보',
+                      scoredReasons.isEmpty ? '0건' : '${scoredReasons.length}건')),
                     Container(width: 1, height: 24, color: AppColors.divider),
                     Expanded(child: _summaryItem('총 감점',
                       totalPenalty > 0
                           ? '${totalPenalty.toStringAsFixed(1)}점'
                           : '없음')),
                     Container(width: 1, height: 24, color: AppColors.divider),
-                    Expanded(child: _summaryItem('평균 신뢰도', '${(avgConfidence * 100).round()}%')),
+                    // 사용자 친화 안내 — 숫자 신뢰도 대신 분석 성격 안내
+                    Expanded(child: _summaryItem('분석 안내', '참고용')),
                   ]),
                 ),
               ),
-              if (hiddenCount > 0)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-                  child: Text(
-                    '신뢰도 낮은 참고 후보 $hiddenCount건은 숨김',
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+              // hotfix 9: "신뢰도 낮은 참고 후보 X건 숨김" 안내 제거.
+              // 사용자 화면 = 실제 감점 후보만 보여줌 (참고/신뢰도 노출 X).
               const SizedBox(height: 12),
               Expanded(
-                // P0-C hotfix issue 3: corner 만점 case 도 ListView 분기 진입.
-                // (이전: reasons empty 면 "감지된 감점 사유 없어요" 만 표시 → _buildCornerEvidence X)
-                child: (reasons.isEmpty && metric != 'corner' && metric != 'centering')
-                    ? const Center(
-                        child: Text('감지된 감점 사유가 없어요',
-                            style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                      )
-                    : ListView(
-                        controller: scrollCtrl,
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                        children: [
-                          _buildMetricImageSection(metric, reasons, sheetSetState),
-                          const SizedBox(height: 16),
-                          _buildGroupSummary(reasons),
-                          const SizedBox(height: 8),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 4),
-                            child: Text('세부 감점 사유',
-                                style: TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600)),
-                          ),
+                // hotfix 9 보정: empty state 가 이미지 영역 대체 X.
+                // visible=0 (감점 0건) 라도 항상 이미지/토글 표시. "없습니다" 는 그 아래.
+                child: ListView(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  children: [
+                    _buildMetricImageSection(metric, reasons, sheetSetState),
+                    const SizedBox(height: 16),
+                    if (reasons.isEmpty) ...[
+                      // visible 0건 = 감점 후보 없음. 이미지 영역은 위에서 보임.
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.bg,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.divider),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          '감지된 감점 후보가 없습니다',
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                        ),
+                      ),
+                    ] else ...[
+                      _buildGroupSummary(reasons),
+                      const SizedBox(height: 8),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 4),
+                        child: Text('세부 감점 사유',
+                            style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
+                      ),
                           ...reasons.asMap().entries.map((e) {
                             final i = e.key;
                             final r = e.value;
@@ -1220,12 +1237,10 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                                             maxLines: 2, overflow: TextOverflow.ellipsis),
                                       ],
                                       const SizedBox(height: 2),
-                                      // hotfix 8: penalty 0 = 참고 후보 (점수 영향 X).
-                                      // "-0.0점" 모순 표시 금지.
+                                      // hotfix 9: 신뢰도 % 사용자 화면 노출 X. 감점만 표시.
+                                      // (참고 후보 = visibleReasons 에서 제외 — 여기 도달 X)
                                       Text(
-                                        r.penalty > 0
-                                            ? '-${r.penalty.toStringAsFixed(1)}점 · 신뢰도 ${(r.confidence * 100).round()}%'
-                                            : '참고 후보 · 점수 영향 없음 · 신뢰도 ${(r.confidence * 100).round()}%',
+                                        '-${r.penalty.toStringAsFixed(1)}점',
                                         style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                                       ),
                                     ],
@@ -1235,9 +1250,10 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                               ]),
                             );
                           }),
-                        ],
-                      ),
-              ),
+                    ],  // hotfix 9: else 분기 닫기 (reasons.isNotEmpty)
+                  ],    // ListView children 닫기
+                ),     // ListView 닫기
+              ),       // Expanded 닫기
             ]);
               },  // StatefulBuilder builder 닫기
             );
@@ -1300,12 +1316,13 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
       // 후보 위치 표시 = 기존 원본 + bbox overlay (P0-fix-1)
       return _buildPhotoWithBoxes(side == 'front' ? '앞면' : '뒷면', side, reasons);
     }
-    // 원본/강조 = backend evidence URL fetch
+    // 원본/강조 = backend evidence URL fetch (hotfix 9: preload cache 사용 — 즉시 표시)
     final layerName = viewIdx == 0
         ? '${side}_original'
         : '${side}_$metric';   // ${side}_surface or ${side}_whitening
     final url = '${ApiConstants.baseUrl}${ApiConstants.gradingEvidence(sessionId, layerName)}';
     final aspect = (side == 'front' ? _frontImageAspect : _backImageAspect) ?? 3.0 / 4.0;
+    final future = _evidenceCache.putIfAbsent(url, () => ApiClient.downloadBytes(url));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1313,15 +1330,49 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           aspectRatio: aspect,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: AuthImage(
-              url: url,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
-                color: AppColors.divider,
-                alignment: Alignment.center,
-                child: const Text('이미지 준비 중',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-              ),
+            child: FutureBuilder<List<int>?>(
+              future: future,
+              builder: (ctx, snap) {
+                if (snap.connectionState != ConnectionState.done) {
+                  // hotfix 9: 로딩 명확 표시
+                  return Container(
+                    color: AppColors.bg,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(12),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: const [
+                      SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation(AppColors.textMuted))),
+                      SizedBox(height: 8),
+                      Text('분석 이미지를 불러오는 중입니다',
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                          textAlign: TextAlign.center),
+                    ]),
+                  );
+                }
+                final bytes = snap.data;
+                if (bytes == null || bytes.isEmpty) {
+                  // hotfix 9: 실패 명확 (조용히 원본 X)
+                  return Container(
+                    color: AppColors.bg,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(12),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: const [
+                      Icon(Icons.image_not_supported_outlined,
+                          color: AppColors.textMuted, size: 24),
+                      SizedBox(height: 6),
+                      Text('분석 이미지를 불러오지 못했습니다',
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                          textAlign: TextAlign.center),
+                    ]),
+                  );
+                }
+                return Image.memory(
+                  Uint8List.fromList(bytes),
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                );
+              },
             ),
           ),
         ),
