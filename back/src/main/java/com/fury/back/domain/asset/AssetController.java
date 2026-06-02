@@ -49,8 +49,8 @@ public class AssetController {
     })
     @GetMapping
     public ReturnData<List<AssetDto>> getMyAssets(
-        @Parameter(description = "사용자 ID", example = "USR_ABC")
-        @RequestParam String userId) {
+        @AuthenticationPrincipal String userId) {
+        // IDOR fix: 임의 userId 파라미터 제거 → 인증된 본인 자산만.
         return assetService.getMyAssets(userId);
     }
 
@@ -154,8 +154,9 @@ public class AssetController {
                     "purchasedAt": "2026-03-20"
                   }
                 }""")))
-        ParameterData parameterData) {
-        return assetService.updateAsset(assetId, parameterData);
+        ParameterData parameterData,
+        @AuthenticationPrincipal String userId) {
+        return assetService.updateAsset(assetId, userId, parameterData);
     }
 
     @Operation(summary = "외부 감정 정보 저장", description = "자산에 외부 감정사와 등급 값을 저장합니다.")
@@ -164,6 +165,7 @@ public class AssetController {
     public ReturnData<Void> updateGradingInfo(
             @Parameter(description = "자산 ID", example = "ASSET_001")
             @PathVariable String assetId,
+            @AuthenticationPrincipal String userId,
             @RequestBody Map<String, Object> body) {
         Map<String, Object> data = body.get("data") instanceof Map<?, ?> nested
                 ? (Map<String, Object>) nested
@@ -171,6 +173,7 @@ public class AssetController {
         try {
             assetService.updateGradingInfo(
                     assetId,
+                    userId,
                     data.get("gradingCompany") == null ? null : String.valueOf(data.get("gradingCompany")),
                     data.get("gradeValue") == null ? null : String.valueOf(data.get("gradeValue"))
             );
@@ -190,8 +193,9 @@ public class AssetController {
     @DeleteMapping("/{assetId}")
     public ReturnData<Void> deleteAsset(
         @Parameter(description = "자산 ID", example = "ASSET_001")
-        @PathVariable String assetId) {
-        return assetService.deleteAsset(assetId);
+        @PathVariable String assetId,
+        @AuthenticationPrincipal String userId) {
+        return assetService.deleteAsset(assetId, userId);
     }
 
     @Operation(summary = "포트폴리오 요약 조회", description = """
@@ -215,8 +219,8 @@ public class AssetController {
     })
     @GetMapping("/portfolio")
     public ReturnData<PortfolioSummaryDto> getPortfolioSummary(
-        @Parameter(description = "사용자 ID", example = "USR_ABC")
-        @RequestParam String userId) {
+        @AuthenticationPrincipal String userId) {
+        // IDOR fix: 인증된 본인 포트폴리오만.
         return assetService.getPortfolioSummary(userId);
     }
 

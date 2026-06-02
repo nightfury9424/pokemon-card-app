@@ -47,7 +47,10 @@ public class FcmTokenController {
     public ReturnData<Map<String, Object>> unregister(
             @AuthenticationPrincipal String userId,
             @RequestParam String token) {
-        fcmTokenRepository.deleteByToken(token);
+        // IDOR fix: 토큰 소유자 본인일 때만 삭제 (타인 토큰 값으로 푸시 차단 방지).
+        fcmTokenRepository.findByToken(token)
+                .filter(t -> userId != null && userId.equals(t.getUserId()))
+                .ifPresent(fcmTokenRepository::delete);
         return ReturnData.success(Map.of("ok", true));
     }
 }

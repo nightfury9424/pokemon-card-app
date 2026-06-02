@@ -302,13 +302,17 @@ public class AssetServiceImpl implements AssetService {
 
     @Override
     @Transactional
-    public ReturnData<AssetDto> updateAsset(String assetId, ParameterData parameterData) {
+    public ReturnData<AssetDto> updateAsset(String assetId, String userId, ParameterData parameterData) {
         if (assetId == null || assetId.isBlank()) {
             return ReturnData.badRequest("assetId는 필수입니다.");
         }
         Optional<Asset> optAsset = assetRepository.findById(assetId);
         if (optAsset.isEmpty()) {
             return ReturnData.notFound("자산을 찾을 수 없습니다. assetId=" + assetId);
+        }
+        Asset asset0 = optAsset.get();
+        if (userId == null || !userId.equals(asset0.getUserId())) {
+            return ReturnData.fail("F403", "본인 자산만 수정할 수 있습니다.");
         }
 
         Asset asset = optAsset.get();
@@ -326,7 +330,7 @@ public class AssetServiceImpl implements AssetService {
 
     @Override
     @Transactional
-    public void updateGradingInfo(String assetId, String gradingCompany, String gradeValue) {
+    public void updateGradingInfo(String assetId, String userId, String gradingCompany, String gradeValue) {
         if (assetId == null || assetId.isBlank()) {
             throw new IllegalArgumentException("assetId는 필수입니다.");
         }
@@ -338,6 +342,9 @@ public class AssetServiceImpl implements AssetService {
         }
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new IllegalArgumentException("자산을 찾을 수 없습니다. assetId=" + assetId));
+        if (userId == null || !userId.equals(asset.getUserId())) {
+            throw new IllegalArgumentException("본인 자산만 수정할 수 있습니다.");
+        }
         asset.setGradingCompany(gradingCompany);
         asset.setGradeValue(gradeValue);
         assetRepository.save(asset);
@@ -345,13 +352,16 @@ public class AssetServiceImpl implements AssetService {
 
     @Override
     @Transactional
-    public ReturnData<Void> deleteAsset(String assetId) {
+    public ReturnData<Void> deleteAsset(String assetId, String userId) {
         if (assetId == null || assetId.isBlank()) {
             return ReturnData.badRequest("assetId는 필수입니다.");
         }
         Optional<Asset> optAsset = assetRepository.findById(assetId);
         if (optAsset.isEmpty()) {
             return ReturnData.notFound("자산을 찾을 수 없습니다. assetId=" + assetId);
+        }
+        if (userId == null || !userId.equals(optAsset.get().getUserId())) {
+            return ReturnData.fail("F403", "본인 자산만 삭제할 수 있습니다.");
         }
         boolean hasActiveTrade = tradePostRepository.existsByAssetIdAndStatusIn(assetId, List.of("OPEN", "RESERVED"));
         if (hasActiveTrade) {

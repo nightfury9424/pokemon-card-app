@@ -13,9 +13,9 @@ public interface AssetService {
     ReturnData<List<AssetDto>> getMyAssets(String userId);
     ReturnData<AssetDto> getAsset(String assetId);
     ReturnData<AssetDto> registerAsset(ParameterData parameterData);
-    ReturnData<AssetDto> updateAsset(String assetId, ParameterData parameterData);
-    void updateGradingInfo(String assetId, String gradingCompany, String gradeValue);
-    ReturnData<Void> deleteAsset(String assetId);
+    ReturnData<AssetDto> updateAsset(String assetId, String userId, ParameterData parameterData);
+    void updateGradingInfo(String assetId, String userId, String gradingCompany, String gradeValue);
+    ReturnData<Void> deleteAsset(String assetId, String userId);
     ReturnData<PortfolioSummaryDto> getPortfolioSummary(String userId);
     ReturnData<List<String>> saveGradingResult(String assetId, AssetDto.GradingResultRequest req,
                                                MultipartFile frontImage, MultipartFile backImage);
