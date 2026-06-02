@@ -71,6 +71,26 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
             @Param("gradeValue") String gradeValue,
             @Param("price") Integer price);
 
+    /**
+     * 전 가격 활성 매수 호가 top-N (판매 전 매칭 시트용) — 높은 가격 먼저, 동가는 오래된 순.
+     * Pageable 로 limit.
+     */
+    @Query("""
+            SELECT bo FROM BuyOrder bo
+            WHERE bo.cardId = :cardId
+              AND bo.status = 'OPEN'
+              AND bo.cardStatus = :cardStatus
+              AND ((:gradingCompany IS NULL) OR bo.gradingCompany = :gradingCompany)
+              AND ((:gradeValue IS NULL) OR bo.gradeValue = :gradeValue)
+            ORDER BY bo.bidPrice DESC, bo.createdAt ASC
+            """)
+    List<BuyOrder> findTopHogaBidListings(
+            @Param("cardId") String cardId,
+            @Param("cardStatus") String cardStatus,
+            @Param("gradingCompany") String gradingCompany,
+            @Param("gradeValue") String gradeValue,
+            Pageable pageable);
+
     /** 사용자 OPEN 매수 호가 (5개 한도 체크 + 내 주문 목록) */
     List<BuyOrder> findByBuyerIdAndStatusOrderByCreatedAtDesc(String buyerId, String status);
 

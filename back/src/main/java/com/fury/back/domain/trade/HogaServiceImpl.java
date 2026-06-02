@@ -100,62 +100,87 @@ public class HogaServiceImpl implements HogaService {
         String gradeValue = status.requiresGrade() ? grade : null;
         Integer priceI = Math.toIntExact(price);
 
-        List<HogaListingResponse> listings;
-        if (side == HogaSide.ASK) {
-            List<TradePost> rows =
-                    tradePostRepository.findHogaListings(
-                            cardId, cardStatus, gradingCompany, gradeValue, priceI);
-            Map<String, String> nicks = nicknames(rows.stream().map(TradePost::getSellerId).collect(Collectors.toSet()));
-            // ASK batch count — chat_rooms / post_interests N+1 방지.
-            List<String> tradeIds = rows.stream().map(TradePost::getTradeId).distinct().toList();
-            Map<String, Long> chatCountMap = tradeIds.isEmpty()
-                    ? Map.of()
-                    : chatRoomRepository.countBySaleListingIdIn(tradeIds).stream()
-                            .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
-            Map<String, Long> favoriteCountMap = tradeIds.isEmpty()
-                    ? Map.of()
-                    : postInterestRepository.countByTradeIdIn(tradeIds).stream()
-                            .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
-            listings = rows.stream()
-                    .map(t -> new HogaListingResponse(
-                            t.getSellerId(),
-                            nicks.get(t.getSellerId()),
-                            t.getPrice() == null ? 0L : t.getPrice().longValue(),
-                            t.getDescription(),
-                            t.getCreatedAt(),
-                            t.getAssetId(),
-                            t.getTradeId(),
-                            null,
-                            // Phase 1-7: storage key → /api/images/secure/{key} proxy URL 변환 (첫 사진만).
-                            StorageKeyUrls.firstProxyUrl(t.getImageUrl()),
-                            t.getStatus(),
-                            chatCountMap.getOrDefault(t.getTradeId(), 0L),
-                            favoriteCountMap.getOrDefault(t.getTradeId(), 0L)))
-                    .toList();
-        } else {
-            List<BuyOrder> rows =
-                    buyOrderRepository.findHogaListings(
-                            cardId, cardStatus, gradingCompany, gradeValue, priceI);
-            Map<String, String> nicks = nicknames(rows.stream().map(BuyOrder::getBuyerId).collect(Collectors.toSet()));
-            listings = rows.stream()
-                    .map(b -> new HogaListingResponse(
-                            b.getBuyerId(),
-                            nicks.get(b.getBuyerId()),
-                            b.getBidPrice().longValue(),
-                            b.getMemo(),
-                            b.getCreatedAt(),
-                            null,
-                            null,
-                            b.getBuyOrderId(),
-                            null,
-                            null,
-                            null,
-                            null))
-                    .toList();
-        }
+        List<HogaListingResponse> listings = (side == HogaSide.ASK)
+                ? buildAskListings(tradePostRepository.findHogaListings(
+                        cardId, cardStatus, gradingCompany, gradeValue, priceI))
+                : buildBidListings(buyOrderRepository.findHogaListings(
+                        cardId, cardStatus, gradingCompany, gradeValue, priceI));
 
         return new HogaListingsResponse(
                 cardId, status.name(), side.name(), price, listings.size(), listings);
+    }
+
+    @Override
+    public HogaListingsResponse getTopListings(
+            String cardId, HogaStatus status, String grade, HogaSide side, int limit) {
+        String cardStatus = status.dbCardStatus();
+        String gradingCompany = status.dbGradingCompany();
+        String gradeValue = status.requiresGrade() ? grade : null;
+        org.springframework.data.domain.Pageable page =
+                org.springframework.data.domain.PageRequest.of(0, limit);
+
+        List<HogaListingResponse> listings = (side == HogaSide.ASK)
+                ? buildAskListings(tradePostRepository.findTopHogaAskListings(
+                        cardId, cardStatus, gradingCompany, gradeValue, page))
+                : buildBidListings(buyOrderRepository.findTopHogaBidListings(
+                        cardId, cardStatus, gradingCompany, gradeValue, page));
+
+        // price=0: 전 가격 flat — 각 listing 의 자체 price 사용.
+        return new HogaListingsResponse(
+                cardId, status.name(), side.name(), 0L, listings.size(), listings);
+    }
+
+    /** 매도 TradePost rows → 응답 listing (닉네임 + chat/favorite batch count). */
+    private List<HogaListingResponse> buildAskListings(List<TradePost> rows) {
+        if (rows.isEmpty()) return List.of();
+        Map<String, String> nicks = nicknames(rows.stream().map(TradePost::getSellerId).collect(Collectors.toSet()));
+        // ASK batch count — chat_rooms / post_interests N+1 방지.
+        List<String> tradeIds = rows.stream().map(TradePost::getTradeId).distinct().toList();
+        Map<String, Long> chatCountMap = tradeIds.isEmpty()
+                ? Map.of()
+                : chatRoomRepository.countBySaleListingIdIn(tradeIds).stream()
+                        .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
+        Map<String, Long> favoriteCountMap = tradeIds.isEmpty()
+                ? Map.of()
+                : postInterestRepository.countByTradeIdIn(tradeIds).stream()
+                        .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
+        return rows.stream()
+                .map(t -> new HogaListingResponse(
+                        t.getSellerId(),
+                        nicks.get(t.getSellerId()),
+                        t.getPrice() == null ? 0L : t.getPrice().longValue(),
+                        t.getDescription(),
+                        t.getCreatedAt(),
+                        t.getAssetId(),
+                        t.getTradeId(),
+                        null,
+                        // Phase 1-7: storage key → /api/images/secure/{key} proxy URL 변환 (첫 사진만).
+                        StorageKeyUrls.firstProxyUrl(t.getImageUrl()),
+                        t.getStatus(),
+                        chatCountMap.getOrDefault(t.getTradeId(), 0L),
+                        favoriteCountMap.getOrDefault(t.getTradeId(), 0L)))
+                .toList();
+    }
+
+    /** 매수 BuyOrder rows → 응답 listing. */
+    private List<HogaListingResponse> buildBidListings(List<BuyOrder> rows) {
+        if (rows.isEmpty()) return List.of();
+        Map<String, String> nicks = nicknames(rows.stream().map(BuyOrder::getBuyerId).collect(Collectors.toSet()));
+        return rows.stream()
+                .map(b -> new HogaListingResponse(
+                        b.getBuyerId(),
+                        nicks.get(b.getBuyerId()),
+                        b.getBidPrice().longValue(),
+                        b.getMemo(),
+                        b.getCreatedAt(),
+                        null,
+                        null,
+                        b.getBuyOrderId(),
+                        null,
+                        null,
+                        null,
+                        null))
+                .toList();
     }
 
     /** group-by 결과를 응답 row + bar ratio로 변환. */

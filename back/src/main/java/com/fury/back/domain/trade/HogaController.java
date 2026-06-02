@@ -81,6 +81,25 @@ public class HogaController {
         return hogaService.getListingsAtPrice(cardId, parsedStatus, parsedGrade, parsedSide, price);
     }
 
+    /**
+     * 전 가격 매도/매수 top-N (주문 전 매칭 시트). ASK=낮은가 먼저, BID=높은가 먼저.
+     * GET /api/cards/{cardId}/hoga/listings?status=RAW&side=ASK&limit=10
+     * ("listings" 리터럴이 {price} 보다 우선 매칭).
+     */
+    @GetMapping("/{cardId}/hoga/listings")
+    public HogaListingsResponse getTopListings(
+            @PathVariable String cardId,
+            @RequestParam(defaultValue = "RAW") String status,
+            @RequestParam(required = false) String grade,
+            @RequestParam String side,
+            @RequestParam(defaultValue = "10") int limit) {
+        HogaStatus parsedStatus = parseStatus(status);
+        String parsedGrade = parseGrade(parsedStatus, grade);
+        HogaSide parsedSide = parseSide(side);
+        int bound = Math.max(1, Math.min(limit, MAX_LIMIT));
+        return hogaService.getTopListings(cardId, parsedStatus, parsedGrade, parsedSide, bound);
+    }
+
     private HogaStatus parseStatus(String raw) {
         if (raw == null) return HogaStatus.RAW;
         try {

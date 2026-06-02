@@ -54,4 +54,28 @@ class HogaApi {
     );
     return HogaListings.fromJson(res);
   }
+
+  /// 전 가격 매도/매수 top-N (주문 전 매칭 시트 — PreOrderMatchSheet).
+  /// ASK=낮은가 먼저, BID=높은가 먼저.
+  static Future<HogaListings> fetchTopListings(
+    String cardId, {
+    HogaStatus status = HogaStatus.raw,
+    HogaGrade? grade,
+    required HogaSide side,
+    int limit = 10,
+  }) async {
+    final params = <String, dynamic>{
+      'status': status.wire,
+      'side': side.wire,
+      'limit': '$limit',
+    };
+    if (status.requiresGrade && grade != null) {
+      params['grade'] = grade.wire;
+    }
+    final res = await ApiClient.get(
+      '${ApiConstants.cards}/$cardId/hoga/listings',
+      params: params,
+    );
+    return HogaListings.fromJson(res);
+  }
 }

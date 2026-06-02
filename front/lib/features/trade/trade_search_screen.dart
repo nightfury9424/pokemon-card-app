@@ -243,11 +243,10 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
                             textInputAction: TextInputAction.search,
                             onChanged: _onChanged,
                             onSubmitted: (v) {
-                              // ↵ 누르면: 자동완성 첫 항목 있으면 그걸로, 없으면 입력 그대로 검색.
-                              final picked = _suggestions.isNotEmpty
-                                  ? _suggestions.first
-                                  : v.trim();
-                              if (picked.isNotEmpty) _runCardSearch(picked);
+                              // ↵ = 입력한 그대로 검색 (자동완성 최상위로 치환 X).
+                              // 연관검색어는 탭했을 때만 적용 — "피카" Enter → "피카" 검색.
+                              final q = v.trim();
+                              if (q.isNotEmpty) _runCardSearch(q);
                             },
                           ),
                         ),

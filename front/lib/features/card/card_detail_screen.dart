@@ -21,6 +21,7 @@ import '../../core/utils/price_display_policy.dart';
 import '../../core/utils/price_label.dart';
 import 'hoga/hoga_board.dart';
 import 'hoga/hoga_row_detail_sheet.dart';
+import 'hoga/pre_order_match_sheet.dart';
 import 'hoga/models/hoga_board_model.dart' show HogaSide;
 import '../../core/widgets/app_info_toast.dart';
 
@@ -3882,6 +3883,34 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       }
       return;
     }
+    // 거래 UX (2026-06-03): 판매 전 "사려는 사람(매수 호가)" 먼저 보여주기.
+    // 탭 → 그 buyer와 채팅(판매 협상) / 없거나 원하면 → 아래 판매글 등록 플로우 계속.
+    final preSell = await PreOrderMatchSheet.show(
+      context,
+      cardId: widget.cardId,
+      cardName: cardName,
+      side: HogaSide.bid, // 판매 → 매수 호가(사려는 사람)
+      myUserId: _myUserId,
+    );
+    if (!mounted) return;
+    if (preSell == null) return; // 닫힘 = 취소
+    if (preSell['action'] == 'open') {
+      final buyOrderId = preSell['id'] as String?;
+      if (buyOrderId == null) return;
+      try {
+        final res = await ApiClient.post(
+          '/api/chat/rooms/from-buy-order',
+          {'buyOrderId': buyOrderId},
+        );
+        final room = (res['data'] as Map?)?.cast<String, dynamic>();
+        if (room == null || !mounted) return;
+        await context.push('/chat/${room['chatRoomId']}', extra: room);
+      } catch (_) {
+        // 실패 시 ApiClient 전역 핸들러가 에러 토스트 표시.
+      }
+      return;
+    }
+    // preSell['action'] == 'register' → 아래 기존 판매 등록 플로우 계속.
     // Hotfix 10-1: AI 그레이딩 비활성 시 RAW + estimatedGrade null 라도 판매 진입 가능.
     // (이전: AI 그레이딩 필수 sheet 강제. 베타 1.0 = 실사진 + 상태 = Hotfix 10-2)
     final cardStatus = asset['cardStatus'] as String?;
@@ -4201,28 +4230,26 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     );
   }
 
-  void _onBuyTap() {
-    // P0-B 진입 UX 분기 (기존 컴포넌트 재활용, 새 화면 X):
-    // - 매도 호가 ≥ 1 AND 시세/자산 탭에 있음 → 거래 탭으로 자동 전환 + 안내 banner.
-    //   사용자가 호가창 ASK 둘러보고 마음에 들면 row tap → trade detail.
-    //   없으면 다시 [구매하기] 누르면(이때는 거래 탭에 이미 있음) 등록 sheet 직접 띄움.
-    // - 매도 호가 0 OR 이미 거래 탭에 있음 → 기존 흐름: 거래 탭 + 등록 sheet 직접.
-    final ask = _hogaAskCount ?? _listings.length;
-    final isOnTradeTab = _tabController.index == 1;
-
-    if (ask >= 1 && !isOnTradeTab) {
-      _tabController.animateTo(1);
-      _showSuccessBanner('현재 판매글 $ask건 — 마음에 들면 호가를 탭하세요. 원하는 가격이 없으면 [구매하기]를 다시 눌러 매수 호가 등록');
-      return;
-    }
-    // 매물 0건 또는 사용자가 두 번째 클릭 (거래 탭 이미 본 상태) → 등록 sheet 진입.
-    if (!isOnTradeTab) {
-      _tabController.animateTo(1);
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+  Future<void> _onBuyTap() async {
+    // 거래 UX (2026-06-03): 구매 전 "이미 파는 사람" 먼저 보여주기.
+    // 탭하면 그 거래로(즉시 구매) / 없거나 원하는 가격 없으면 → 매수 희망가 등록(삽니다).
+    final cardName = (_cardDetail?['name'] as String?) ?? widget.cardId;
+    final result = await PreOrderMatchSheet.show(
+      context,
+      cardId: widget.cardId,
+      cardName: cardName,
+      side: HogaSide.ask, // 구매 → 매도 호가(파는 사람)
+      myUserId: _myUserId,
+    );
+    if (!mounted || result == null) return;
+    if (result['action'] == 'open') {
+      final tradeId = result['id'] as String?;
+      if (tradeId == null) return;
+      final changed = await context.push<bool>('/trades/$tradeId');
+      if (changed == true && mounted) await _refreshAfterOrderMutation();
+    } else if (result['action'] == 'register') {
       _showBuyOrderRegisterSheet();
-    });
+    }
   }
 
   Widget _buildAssetGradeSection() {

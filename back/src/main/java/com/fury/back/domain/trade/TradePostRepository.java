@@ -144,4 +144,25 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
             @Param("gradingCompany") String gradingCompany,
             @Param("gradeValue") String gradeValue,
             @Param("price") Integer price);
+
+    /**
+     * 전 가격 활성 매도 호가 top-N (구매 전 매칭 시트용) — 낮은 가격 먼저, 동가는 오래된 순.
+     * Pageable 로 limit. 가격 IS NOT NULL.
+     */
+    @Query("""
+            SELECT t FROM TradePost t
+            WHERE t.cardId = :cardId
+              AND t.status IN ('OPEN', 'RESERVED')
+              AND t.price IS NOT NULL
+              AND t.cardStatus = :cardStatus
+              AND ((:gradingCompany IS NULL) OR t.gradingCompany = :gradingCompany)
+              AND ((:gradeValue IS NULL) OR t.gradeValue = :gradeValue)
+            ORDER BY t.price ASC, t.createdAt ASC
+            """)
+    List<TradePost> findTopHogaAskListings(
+            @Param("cardId") String cardId,
+            @Param("cardStatus") String cardStatus,
+            @Param("gradingCompany") String gradingCompany,
+            @Param("gradeValue") String gradeValue,
+            Pageable pageable);
 }
