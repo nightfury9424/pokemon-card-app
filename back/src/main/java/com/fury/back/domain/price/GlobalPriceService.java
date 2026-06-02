@@ -1725,10 +1725,14 @@ public class GlobalPriceService {
             if (!rawLine.isEmpty()) {
                 koLine = rawLine;
             }
-            koPsa10Line = mapKreamGradedSeries(
-                    priceSnapshotRepository.findKreamGradedSeries(cardId, "PSA", "10", chartCutoff));
-            koPsa9Line = mapKreamGradedSeries(
-                    priceSnapshotRepository.findKreamGradedSeries(cardId, "PSA", "9", chartCutoff));
+            // 2026-06-03: PSA10/9 line·tile 은 의도적으로 비움(데이터는 DB 보존, 표시만 제외).
+            //   RAW(~19만)와 PSA10(~53만) 스케일 차이로 한 축에 같이 그리면 KO(RAW) 선이
+            //   PSA10에 가려 안 보임(사용자 지적). KREAM graded 데이터는 그대로 두고 UI 노출만 차단.
+            //   되살리려면 아래 두 줄 복구.
+            // koPsa10Line = mapKreamGradedSeries(
+            //         priceSnapshotRepository.findKreamGradedSeries(cardId, "PSA", "10", chartCutoff));
+            // koPsa9Line = mapKreamGradedSeries(
+            //         priceSnapshotRepository.findKreamGradedSeries(cardId, "PSA", "9", chartCutoff));
         }
 
         // scrydex 데이터 부족 시 formulaPrice로 평탄선 합성 — 항상 차트 표시
