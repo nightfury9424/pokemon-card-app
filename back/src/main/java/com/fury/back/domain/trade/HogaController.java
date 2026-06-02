@@ -67,6 +67,7 @@ public class HogaController {
 
     @GetMapping("/{cardId}/hoga/{price}")
     public HogaListingsResponse getListings(
+            HttpServletRequest request,
             @PathVariable String cardId,
             @PathVariable long price,
             @RequestParam(defaultValue = "RAW") String status,
@@ -78,7 +79,8 @@ public class HogaController {
         if (price <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "price must be positive");
         }
-        return hogaService.getListingsAtPrice(cardId, parsedStatus, parsedGrade, parsedSide, price);
+        return hogaService.getListingsAtPrice(
+                cardId, parsedStatus, parsedGrade, parsedSide, price, extractUserId(request));
     }
 
     /**
@@ -88,6 +90,7 @@ public class HogaController {
      */
     @GetMapping("/{cardId}/hoga/listings")
     public HogaListingsResponse getTopListings(
+            HttpServletRequest request,
             @PathVariable String cardId,
             @RequestParam(defaultValue = "RAW") String status,
             @RequestParam(required = false) String grade,
@@ -97,7 +100,8 @@ public class HogaController {
         String parsedGrade = parseGrade(parsedStatus, grade);
         HogaSide parsedSide = parseSide(side);
         int bound = Math.max(1, Math.min(limit, MAX_LIMIT));
-        return hogaService.getTopListings(cardId, parsedStatus, parsedGrade, parsedSide, bound);
+        return hogaService.getTopListings(
+                cardId, parsedStatus, parsedGrade, parsedSide, bound, extractUserId(request));
     }
 
     private HogaStatus parseStatus(String raw) {

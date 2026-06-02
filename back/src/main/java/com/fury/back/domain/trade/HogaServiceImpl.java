@@ -6,6 +6,8 @@ import com.fury.back.domain.trade.dto.HogaLevelDto;
 import com.fury.back.domain.trade.dto.HogaLevelResponse;
 import com.fury.back.domain.trade.dto.HogaListingResponse;
 import com.fury.back.domain.trade.dto.HogaListingsResponse;
+import com.fury.back.domain.block.Block;
+import com.fury.back.domain.block.BlockRepository;
 import com.fury.back.domain.chat.ChatRoomRepository;
 import com.fury.back.domain.interest.PostInterestRepository;
 import com.fury.back.domain.user.User;
@@ -34,6 +36,8 @@ public class HogaServiceImpl implements HogaService {
     // ASK listing engagement (chatCount / favoriteCount) batch count용.
     private final ChatRoomRepository chatRoomRepository;
     private final PostInterestRepository postInterestRepository;
+    // 차단 사용자 호가 제외용.
+    private final BlockRepository blockRepository;
 
     @Override
     public HogaBoardResponse getBoard(String cardId, HogaStatus status, String grade, int limit, String viewerUserId) {
@@ -94,17 +98,18 @@ public class HogaServiceImpl implements HogaService {
 
     @Override
     public HogaListingsResponse getListingsAtPrice(
-            String cardId, HogaStatus status, String grade, HogaSide side, long price) {
+            String cardId, HogaStatus status, String grade, HogaSide side, long price, String viewerUserId) {
         String cardStatus = status.dbCardStatus();
         String gradingCompany = status.dbGradingCompany();
         String gradeValue = status.requiresGrade() ? grade : null;
         Integer priceI = Math.toIntExact(price);
+        Set<String> blocked = blockedIds(viewerUserId);
 
         List<HogaListingResponse> listings = (side == HogaSide.ASK)
                 ? buildAskListings(tradePostRepository.findHogaListings(
-                        cardId, cardStatus, gradingCompany, gradeValue, priceI))
+                        cardId, cardStatus, gradingCompany, gradeValue, priceI), blocked)
                 : buildBidListings(buyOrderRepository.findHogaListings(
-                        cardId, cardStatus, gradingCompany, gradeValue, priceI));
+                        cardId, cardStatus, gradingCompany, gradeValue, priceI), blocked);
 
         return new HogaListingsResponse(
                 cardId, status.name(), side.name(), price, listings.size(), listings);
@@ -112,26 +117,37 @@ public class HogaServiceImpl implements HogaService {
 
     @Override
     public HogaListingsResponse getTopListings(
-            String cardId, HogaStatus status, String grade, HogaSide side, int limit) {
+            String cardId, HogaStatus status, String grade, HogaSide side, int limit, String viewerUserId) {
         String cardStatus = status.dbCardStatus();
         String gradingCompany = status.dbGradingCompany();
         String gradeValue = status.requiresGrade() ? grade : null;
         org.springframework.data.domain.Pageable page =
                 org.springframework.data.domain.PageRequest.of(0, limit);
+        Set<String> blocked = blockedIds(viewerUserId);
 
         List<HogaListingResponse> listings = (side == HogaSide.ASK)
                 ? buildAskListings(tradePostRepository.findTopHogaAskListings(
-                        cardId, cardStatus, gradingCompany, gradeValue, page))
+                        cardId, cardStatus, gradingCompany, gradeValue, page), blocked)
                 : buildBidListings(buyOrderRepository.findTopHogaBidListings(
-                        cardId, cardStatus, gradingCompany, gradeValue, page));
+                        cardId, cardStatus, gradingCompany, gradeValue, page), blocked);
 
         // price=0: 전 가격 flat — 각 listing 의 자체 price 사용.
         return new HogaListingsResponse(
                 cardId, status.name(), side.name(), 0L, listings.size(), listings);
     }
 
-    /** 매도 TradePost rows → 응답 listing (닉네임 + chat/favorite batch count). */
-    private List<HogaListingResponse> buildAskListings(List<TradePost> rows) {
+    /** viewer 가 차단한 사용자 id 집합 (one-directional, TradeServiceImpl 과 동일 정책). */
+    private Set<String> blockedIds(String viewerUserId) {
+        if (viewerUserId == null || viewerUserId.isBlank()) return Set.of();
+        return blockRepository.findAllByBlockerId(viewerUserId).stream()
+                .map(Block::getBlockedId)
+                .collect(Collectors.toSet());
+    }
+
+    /** 매도 TradePost rows → 응답 listing (닉네임 + chat/favorite batch count). 차단 사용자 제외. */
+    private List<HogaListingResponse> buildAskListings(List<TradePost> rowsIn, Set<String> blocked) {
+        List<TradePost> rows = blocked.isEmpty() ? rowsIn
+                : rowsIn.stream().filter(t -> !blocked.contains(t.getSellerId())).toList();
         if (rows.isEmpty()) return List.of();
         Map<String, String> nicks = nicknames(rows.stream().map(TradePost::getSellerId).collect(Collectors.toSet()));
         // ASK batch count — chat_rooms / post_interests N+1 방지.
@@ -162,8 +178,10 @@ public class HogaServiceImpl implements HogaService {
                 .toList();
     }
 
-    /** 매수 BuyOrder rows → 응답 listing. */
-    private List<HogaListingResponse> buildBidListings(List<BuyOrder> rows) {
+    /** 매수 BuyOrder rows → 응답 listing. 차단 사용자 제외. */
+    private List<HogaListingResponse> buildBidListings(List<BuyOrder> rowsIn, Set<String> blocked) {
+        List<BuyOrder> rows = blocked.isEmpty() ? rowsIn
+                : rowsIn.stream().filter(b -> !blocked.contains(b.getBuyerId())).toList();
         if (rows.isEmpty()) return List.of();
         Map<String, String> nicks = nicknames(rows.stream().map(BuyOrder::getBuyerId).collect(Collectors.toSet()));
         return rows.stream()
