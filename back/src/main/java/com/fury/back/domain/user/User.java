@@ -72,6 +72,14 @@ public class User {
     @Column(name = "unsuspended_at")
     private LocalDateTime unsuspendedAt;
 
+    // ── 2026-06-02 만 14세 self-declared 게이트 (한국 PIPA). 생년월일 미저장 — 확인값만. ──
+    /** 만 14세 이상 자가확인. null = 미확인(레거시), true = 확인됨. */
+    @Column(name = "is_over_14")
+    private Boolean isOver14;
+
+    @Column(name = "age_checked_at")
+    private LocalDateTime ageCheckedAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -113,5 +121,27 @@ public class User {
         this.email = null;
         this.profileImageUrl = null;
         this.deletedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 온보딩 완료 — 로드된 엔티티를 직접 변경(재조립 금지: appleId/정지/탈퇴 필드 NULL 덮어쓰기 방지).
+     * 만 14세 자가확인 필수 (한국 PIPA). 생년월일은 저장하지 않음 — 확인값만.
+     */
+    public void completeOnboarding(String nickname, String profileImageUrl, Boolean isOver14, LocalDateTime now) {
+        if (!Boolean.TRUE.equals(isOver14)) {
+            throw new IllegalArgumentException("만 14세 이상만 가입할 수 있습니다");
+        }
+        this.nickname = nickname;
+        this.profileImageUrl = profileImageUrl;
+        this.onboarded = true;
+        this.nicknameChangedAt = now;
+        this.isOver14 = Boolean.TRUE;
+        this.ageCheckedAt = now;
+    }
+
+    /** 닉네임 변경 — 로드된 엔티티 직접 변경(재조립 금지). */
+    public void changeNickname(String nickname, LocalDateTime now) {
+        this.nickname = nickname;
+        this.nicknameChangedAt = now;
     }
 }

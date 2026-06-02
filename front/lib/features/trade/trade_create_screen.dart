@@ -11,6 +11,7 @@ import '../../core/constants/feature_flags.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/thousands_comma_formatter.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/trade_safety_notice.dart';
 
 class _TradePhoto {
   final File file;
@@ -475,6 +476,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const TradeSafetyNotice(margin: EdgeInsets.only(bottom: 14)),
             // 등록 실패 / 사진 누락 inline error (SnackBar 금지).
             if (_submitError != null) ...[
               Container(

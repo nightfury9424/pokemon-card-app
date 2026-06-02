@@ -861,6 +861,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           const SizedBox(width: 7),
           Expanded(
             child: Text(
+              '포켓폴리오는 직거래 연결 서비스로 거래 당사자가 아닙니다. 거래 전 상대방·카드 상태를 직접 확인하세요. '
               '욕설·사기·비매너 행위는 자동 차단되며, 수사기관 정보제공 등 가능한 모든 조치로 대응합니다. '
               '외부 송금·개인정보 요구에 주의하세요.',
               style: TextStyle(

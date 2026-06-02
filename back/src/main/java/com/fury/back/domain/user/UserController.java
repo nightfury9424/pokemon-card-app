@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -26,6 +27,10 @@ public class UserController {
     private final UserRepository userRepository;
     private final NicknameValidator nicknameValidator;
     private final UserService userService;
+
+    /** 온보딩 요청 — 만 14세 확인(필수) + 닉네임 + 선택 프로필 이미지. */
+    private record OnboardingRequest(String nickname, String profileImageUrl, Boolean isOver14) {}
+    private record NicknameRequest(String nickname) {}
 
     @Operation(summary = "계정 탈퇴 (App Review 5.1.1)",
             description = "현재 로그인한 사용자만 자기 계정 삭제 가능 — userId는 JWT subject에서만 추출, " +
@@ -47,6 +52,7 @@ public class UserController {
         data.put("email", user.getEmail() != null ? user.getEmail() : "");
         data.put("profileImageUrl", user.getProfileImageUrl() != null ? user.getProfileImageUrl() : "");
         data.put("onboarded", user.isOnboarded());
+        data.put("isOver14", user.getIsOver14());
         data.put("nicknameCooldownDaysLeft", nicknameCooldownDaysLeft(user.getNicknameChangedAt()));
         return ReturnData.success(data);
     }
@@ -61,18 +67,23 @@ public class UserController {
         return ReturnData.success(Map.of("available", !taken));
     }
 
-    @Operation(summary = "온보딩 완료 (닉네임 + 선택적 프로필 이미지)")
+    @Operation(summary = "온보딩 완료 (닉네임 + 만 14세 확인 + 선택적 프로필 이미지)")
+    @Transactional
     @PutMapping("/onboarding")
     public ReturnData<Map<String, Object>> completeOnboarding(
             @AuthenticationPrincipal String userId,
-            @RequestBody Map<String, String> body
+            @RequestBody OnboardingRequest body
     ) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자 없음"));
         if (user.isOnboarded()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미 온보딩이 완료되었습니다");
         }
-        String normalized = nicknameValidator.normalize(body.get("nickname"));
+        // 만 14세 self-declared 게이트 (한국 PIPA) — 미만/미확인은 가입 차단.
+        if (!Boolean.TRUE.equals(body.isOver14())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "만 14세 이상만 가입할 수 있습니다");
+        }
+        String normalized = nicknameValidator.normalize(body.nickname());
         nicknameValidator.validate(normalized);
         // race fix: check API ↔ submit 사이 다른 사용자가 같은 닉네임 등록한 케이스 차단.
         // 최종 방어선은 DB partial unique index — DataIntegrityViolation은 saveOrConflict가 catch.
@@ -80,37 +91,43 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다");
         }
 
-        String profileImageUrl = body.get("profileImageUrl");
-        User updated = User.builder()
-                .userId(user.getUserId())
-                .googleId(user.getGoogleId())
-                .nickname(normalized)
-                .email(user.getEmail())
-                .profileImageUrl(profileImageUrl != null && !profileImageUrl.isBlank() ? profileImageUrl : null)
-                .onboarded(true)
-                .nicknameChangedAt(LocalDateTime.now())
-                .build();
-        return ReturnData.success(saveOrConflict(updated));
+        String profileImageUrl = body.profileImageUrl();
+        // 재조립 금지 — 로드된 엔티티 직접 변경(appleId/정지/탈퇴 필드 보존).
+        user.completeOnboarding(
+                normalized,
+                profileImageUrl != null && !profileImageUrl.isBlank() ? profileImageUrl : null,
+                body.isOver14(),
+                LocalDateTime.now()
+        );
+        return ReturnData.success(saveOrConflict(user));
     }
 
     @Operation(summary = "닉네임 변경 (30일 cooldown)")
+    @Transactional
     @PutMapping("/nickname")
     public ReturnData<Map<String, Object>> changeNickname(
             @AuthenticationPrincipal String userId,
-            @RequestBody Map<String, String> body
+            @RequestBody NicknameRequest body
     ) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자 없음"));
         if (!user.isOnboarded()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "온보딩이 필요합니다");
         }
+        if (user.isSuspended()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "정지된 사용자는 닉네임을 변경할 수 없습니다");
+        }
+        if (!Boolean.TRUE.equals(user.getIsOver14())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "만 14세 이상 확인이 필요합니다");
+        }
+        LocalDateTime now = LocalDateTime.now();
         LocalDateTime cooldownEnd = cooldownEnd(user.getNicknameChangedAt());
-        if (cooldownEnd != null && LocalDateTime.now().isBefore(cooldownEnd)) {
+        if (cooldownEnd != null && now.isBefore(cooldownEnd)) {
             long daysLeft = nicknameCooldownDaysLeft(user.getNicknameChangedAt());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "닉네임 변경은 " + daysLeft + "일 후 가능합니다");
         }
-        String normalized = nicknameValidator.normalize(body.get("nickname"));
+        String normalized = nicknameValidator.normalize(body.nickname());
         nicknameValidator.validate(normalized);
         if (normalized.equalsIgnoreCase(user.getNickname())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "현재 닉네임과 동일합니다");
@@ -120,16 +137,8 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다");
         }
 
-        User updated = User.builder()
-                .userId(user.getUserId())
-                .googleId(user.getGoogleId())
-                .nickname(normalized)
-                .email(user.getEmail())
-                .profileImageUrl(user.getProfileImageUrl())
-                .onboarded(true)
-                .nicknameChangedAt(LocalDateTime.now())
-                .build();
-        return ReturnData.success(saveOrConflict(updated));
+        user.changeNickname(normalized, now);
+        return ReturnData.success(saveOrConflict(user));
     }
 
     private Map<String, Object> saveOrConflict(User user) {

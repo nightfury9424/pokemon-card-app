@@ -273,6 +273,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onTap: _deleteAccount,
                           ),
                         ]),
+                        const SizedBox(height: 28),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            "본 앱은 비공식 팬 서비스로, The Pokémon Company / Nintendo / Creatures Inc. / GAME FREAK inc.와 제휴·후원 관계가 없습니다. 'Pokémon', '포켓몬' 및 관련 명칭·캐릭터·이미지의 저작권 및 상표권은 각 권리자에게 있습니다.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 11, color: AppColors.textMuted, height: 1.5),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
