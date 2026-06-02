@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -16,6 +17,7 @@ import java.util.List;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final FcmService fcmService;
 
     @Value("${app.ops.admin-user-id:}")
     private String adminUserId;
@@ -64,6 +66,7 @@ public class NotificationService {
                 .isRead(false)
                 .build();
         notificationRepository.save(n);
+        fcmService.sendToUser(adminUserId, n.getTitle(), n.getBody(), Map.of("type", n.getType()));
         log.warn("[Ops] 알림 row 생성: {} exit={}", scriptName, exitCode);
     }
 
@@ -90,6 +93,8 @@ public class NotificationService {
                     .isRead(false)
                     .build();
             notificationRepository.save(n);
+            fcmService.sendToUser(userId, n.getTitle(), n.getBody(),
+                    Map.of("type", n.getType(), "cardId", cardId == null ? "" : cardId));
         }
     }
 
@@ -116,6 +121,8 @@ public class NotificationService {
                     .isRead(false)
                     .build();
             notificationRepository.save(n);
+            fcmService.sendToUser(userId, n.getTitle(), n.getBody(),
+                    Map.of("type", n.getType(), "cardId", cardId == null ? "" : cardId));
         }
     }
 }
