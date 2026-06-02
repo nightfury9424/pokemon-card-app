@@ -108,6 +108,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const Spacer(flex: 2),
                   // 가치 제안
+                  _feature(Icons.document_scanner_rounded, '카메라로 카드 스캔·자동 인식'),
+                  const SizedBox(height: 14),
                   _feature(Icons.trending_up_rounded, '실시간 카드 시세 추적'),
                   const SizedBox(height: 14),
                   _feature(Icons.donut_large_rounded, '내 컬렉션 포트폴리오 관리'),

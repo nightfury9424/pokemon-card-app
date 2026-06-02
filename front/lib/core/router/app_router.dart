@@ -37,11 +37,38 @@ import '../../features/trade/trade_detail_screen.dart';
 import '../../features/trade/trade_create_screen.dart';
 import '../auth/auth_state.dart';
 
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
+// 인앱 푸시 배너 OverlayEntry 주입 등 BuildContext 없는 전역 접근용으로 공개.
+final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
+// 탭 전환 방향성 슬라이드 — 오른쪽 탭으로 가면 오른쪽에서, 왼쪽 탭으로 가면 왼쪽에서 들어옴.
+// ShellRoute child 교체는 go_router 기본이 방향 무관(균일)이라, 탭 위치(index) 기준으로
+// 방향을 직접 부여. index 순서 = 바텀냅 좌→우 시각 순서(home<assets<거래<챗<MY).
+int _lastShellIndex = 0;
+
+CustomTransitionPage<void> _shellPage(LocalKey key, Widget child, int index) {
+  final int dir = index == _lastShellIndex ? 0 : (index > _lastShellIndex ? 1 : -1);
+  _lastShellIndex = index;
+  return CustomTransitionPage<void>(
+    key: key,
+    transitionDuration: Duration(milliseconds: dir == 0 ? 0 : 240),
+    reverseTransitionDuration: Duration.zero,
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      if (dir == 0) return child;
+      return SlideTransition(
+        position: Tween<Offset>(
+          begin: Offset(dir.toDouble(), 0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+        child: child,
+      );
+    },
+  );
+}
+
 final appRouter = GoRouter(
-  navigatorKey: _rootNavigatorKey,
+  navigatorKey: rootNavigatorKey,
   initialLocation: '/home',
   refreshListenable: AuthState.instance,
   redirect: (context, state) {
@@ -294,25 +321,36 @@ final appRouter = GoRouter(
       navigatorKey: _shellNavigatorKey,
       builder: (context, state, child) => MainShell(child: child),
       routes: [
-        GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
+        GoRoute(
+            path: '/home',
+            pageBuilder: (_, state) =>
+                _shellPage(state.pageKey, const HomeScreen(), 0)),
         GoRoute(
           path: '/assets',
-          builder: (_, state) {
+          pageBuilder: (_, state) {
             final tab = state.uri.queryParameters['tab'];
             final idx = switch (tab) {
               'buy' => 2,
               'selling' => 1,
               _ => 0,
             };
-            return AssetScreen(initialTabIndex: idx);
+            return _shellPage(
+                state.pageKey, AssetScreen(initialTabIndex: idx), 1);
           },
         ),
         GoRoute(
           path: '/trade-list',
-          builder: (_, _) => const TradeListScreen(),
+          pageBuilder: (_, state) =>
+              _shellPage(state.pageKey, const TradeListScreen(), 2),
         ),
-        GoRoute(path: '/chat-list', builder: (_, _) => const ChatScreen()),
-        GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
+        GoRoute(
+            path: '/chat-list',
+            pageBuilder: (_, state) =>
+                _shellPage(state.pageKey, const ChatScreen(), 3)),
+        GoRoute(
+            path: '/profile',
+            pageBuilder: (_, state) =>
+                _shellPage(state.pageKey, const ProfileScreen(), 4)),
       ],
     ),
   ],

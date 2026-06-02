@@ -46,10 +46,20 @@ class _AssetScreenState extends State<AssetScreen> {
 
   _SortMode _sortMode = _SortMode.rarity;
   bool _sortAscending = true;
+  String? _langFilter; // null=전체, 'KO'/'JP'/'EN' — 언어별 필터(다국어 보유 시만 노출)
 
-  List<Map<String, dynamic>> get _filteredAssets => _tabIndex == 1
-      ? _assets.where((a) => a['isSelling'] == true).toList()
-      : _assets;
+  List<Map<String, dynamic>> get _filteredAssets {
+    Iterable<Map<String, dynamic>> list = _assets;
+    if (_tabIndex == 1) list = list.where((a) => a['isSelling'] == true);
+    if (_langFilter != null) {
+      list = list.where((a) => ((a['language'] as String?) ?? 'KO') == _langFilter);
+    }
+    return list.toList();
+  }
+
+  // 보유 자산의 언어 종류 — 2개 이상일 때만 언어 필터 노출(단일 언어 사용자 clutter 방지).
+  Set<String> get _availableLangs =>
+      _assets.map((a) => (a['language'] as String?) ?? 'KO').toSet();
 
   // 레어도 hierarchy는 AppRarity로 통일 — 한국 포카 시세 기준 (MUR > SSR > SAR > PR > ...)
   // REFACTOR_2026-05-12.md 4차 디자인 시스템.
@@ -818,6 +828,8 @@ class _AssetScreenState extends State<AssetScreen> {
                 slivers: [
                   SliverToBoxAdapter(child: _buildPortfolioSummary()),
                   SliverToBoxAdapter(child: _buildTabAndSortRow()),
+                  if (_tabIndex == 0 || _tabIndex == 1)
+                    SliverToBoxAdapter(child: _buildLangFilter()),
                   // 2026-05-29 Phase B (fix): 도감 탭 (index 3) — SliverFillRemaining 안에 DexView.
                   //   외부 RefreshIndicator + CustomScrollView 공유 → portfolio summary
                   //   시각 일관성 확보 (사용자 명시 — 탭마다 다르게 보이면 안 됨).
@@ -1023,6 +1035,50 @@ class _AssetScreenState extends State<AssetScreen> {
   /// - tab = text + underline (primary navigation, 토스/Apple HIG)
   /// - sort = 우측 dropdown trigger (secondary, BottomSheet popup)
   /// - 기존 chip pill 두 row (sort row 40 + tab row 56)을 한 row로
+  /// 언어별 필터 — KO/JP/EN 혼합 보유 시만 노출. 단일 언어면 SizedBox.shrink (clutter 방지).
+  Widget _buildLangFilter() {
+    final langs = _availableLangs;
+    if (langs.length < 2) return const SizedBox.shrink();
+    final ordered = ['KO', 'JP', 'EN'].where(langs.contains).toList();
+    Widget chip(String? value, String label) {
+      final sel = _langFilter == value;
+      return GestureDetector(
+        onTap: () => setState(() => _langFilter = value),
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: sel ? AppColors.blueDeep : AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+                color: sel ? AppColors.blue : AppColors.divider, width: 1),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: sel ? AppColors.textPrimary : AppColors.textSecondary,
+              fontSize: 13,
+              fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: [
+          chip(null, '전체'),
+          ...ordered.map((l) => chip(l, l)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTabAndSortRow() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),

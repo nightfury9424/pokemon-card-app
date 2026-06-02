@@ -30,7 +30,13 @@ Future<void> main() async {
 
   await AuthState.instance.bootstrap();
   // FCM 푸시 init (GoogleService-Info.plist 없으면 guard로 무해). 권한 요청 비동기 — runApp 블록 X.
-  PushNotificationService.init();
+  // init 완료(Firebase+권한+APNs) 후, 이미 로그인 상태면 토큰 등록(앱 재시작 케이스).
+  // 미로그인이면 로그인 흐름(auth_service)에서 registerToken 호출.
+  PushNotificationService.init().then((_) {
+    if (AuthState.instance.loggedIn) {
+      PushNotificationService.registerToken();
+    }
+  });
   runApp(const PokemonCardApp());
 }
 
