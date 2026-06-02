@@ -376,12 +376,13 @@ public class CardServiceImpl implements CardService {
 
     @Override
     public List<CardDto> getTopGainerCards(int size) {
-        return mapGainerRows(cardRepository.findTopGainersByKoEstimatedPrice(clamp(size)));
+        // 급변동 = JP/EN 7일 window 기반 (KO 차트 투영과 동일 basis). day-over-day(findTop*)는 KO 평탄화로 비어서 폐기.
+        return mapRecentRows(cardRepository.findRecentGainersByKoEstimatedPrice(7, clampRecent(size)));
     }
 
     @Override
     public List<CardDto> getTopLoserCards(int size) {
-        return mapGainerRows(cardRepository.findTopLosersByKoEstimatedPrice(clamp(size)));
+        return mapRecentRows(cardRepository.findRecentLosersByKoEstimatedPrice(7, clampRecent(size)));
     }
 
     @Override

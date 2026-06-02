@@ -431,91 +431,84 @@ public interface CardRepository extends JpaRepository<Card, String> {
             """)
     List<Object[]> findTopLosersByKoEstimatedPrice(@Param("size") int size);
 
-    // Turn D-2/D-3 (2026-05-17): 최근 N일 ranking_eligible=true 중 카드당 가장 큰 +% 1건만 dedup.
-    // days=N = 오늘 포함 최근 N일 (CURRENT_DATE - (:days - 1) 기준).
-    // 응답 7 col: cardId, currentPrice, moveDatePrice, prevPrice, changeAmount, changePct, moveDate
+    // 2026-06-03 급변동 재설계: KO 차트 투영과 동일 basis = JP(메인)/EN(브릿지) raw 시장 움직임.
+    //   ko_estimation_audit(coef보정/FX/anomaly 섞임) 대신 SCRYDEX raw % 변동(N일 window).
+    //   sanity band [3%, 40%] = raw outlier(0값/스파이크) 제외. 현재 KO 표시, prev = KO/(1+frac).
+    //   응답 7 col: cardId, currentPrice, moveDatePrice, prevPrice, changeAmount, changePct, moveDate
     @Query(nativeQuery = true, value = """
-            WITH ranking_rows AS (
-                SELECT a.card_id, a.estimated_date, a.ko_price,
-                       prev_ps.price AS prev_price,
-                       ((a.ko_price - prev_ps.price) * 100.0 / NULLIF(prev_ps.price, 0)) AS change_pct
-                FROM ko_estimation_audit a
-                JOIN price_snapshots prev_ps ON prev_ps.price_snapshot_id = a.prev_ko_snapshot_id
-                WHERE a.estimated_date >= CURRENT_DATE - (:days - 1)
-                  AND a.ranking_eligible = true
-                  AND a.is_anomaly = false
-                  AND a.ko_price > prev_ps.price
-            ),
-            deduped AS (
-                SELECT DISTINCT ON (card_id) card_id, estimated_date, ko_price, prev_price, change_pct
-                FROM ranking_rows
-                ORDER BY card_id, change_pct DESC, estimated_date DESC
-            ),
-            current_ko AS (
-                SELECT DISTINCT ON (ps.card_id) ps.card_id, ps.price AS current_price
-                FROM price_snapshots ps
-                JOIN deduped d ON d.card_id = ps.card_id
-                WHERE ps.source = 'KO_ESTIMATED'
-                ORDER BY ps.card_id, ps.traded_at DESC, ps.collected_at DESC
-            )
-            SELECT d.card_id,
-                   cur.current_price,
-                   d.ko_price AS move_date_price,
-                   d.prev_price,
-                   (d.ko_price - d.prev_price) AS change_amount,
-                   d.change_pct,
-                   d.estimated_date AS move_date
-            FROM deduped d
-            JOIN cards c ON c.card_id = d.card_id
-            JOIN current_ko cur ON cur.card_id = d.card_id
-            WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
-              AND d.ko_price >= 5000
-              AND d.prev_price >= 5000
-              AND ABS(d.ko_price - d.prev_price) >= 100
-            ORDER BY d.change_pct DESC, d.ko_price DESC
+            WITH jc AS (SELECT DISTINCT ON (card_id) card_id, raw_price AS rp FROM price_snapshots
+                        WHERE source = 'SCRYDEX_JP' AND card_status = 'RAW' AND raw_price > 0
+                        ORDER BY card_id, traded_at DESC),
+                 jp AS (SELECT DISTINCT ON (card_id) card_id, raw_price AS rp FROM price_snapshots
+                        WHERE source = 'SCRYDEX_JP' AND card_status = 'RAW' AND raw_price > 0
+                          AND traded_at <= CURRENT_DATE - CAST(:days AS integer)
+                        ORDER BY card_id, traded_at DESC),
+                 ec AS (SELECT DISTINCT ON (card_id) card_id, raw_price AS rp FROM price_snapshots
+                        WHERE source = 'SCRYDEX_EN' AND card_status = 'RAW' AND raw_price > 0
+                        ORDER BY card_id, traded_at DESC),
+                 ep AS (SELECT DISTINCT ON (card_id) card_id, raw_price AS rp FROM price_snapshots
+                        WHERE source = 'SCRYDEX_EN' AND card_status = 'RAW' AND raw_price > 0
+                          AND traded_at <= CURRENT_DATE - CAST(:days AS integer)
+                        ORDER BY card_id, traded_at DESC),
+                 ko AS (SELECT DISTINCT ON (card_id) card_id, price AS kp FROM price_snapshots
+                        WHERE source = 'KO_ESTIMATED' ORDER BY card_id, traded_at DESC),
+                 m AS (
+                    SELECT c.card_id, ko.kp AS ck,
+                           COALESCE((jc.rp - jp.rp) / NULLIF(jp.rp, 0), (ec.rp - ep.rp) / NULLIF(ep.rp, 0)) AS frac
+                    FROM cards c JOIN ko ON ko.card_id = c.card_id
+                    LEFT JOIN jc ON jc.card_id = c.card_id LEFT JOIN jp ON jp.card_id = c.card_id
+                    LEFT JOIN ec ON ec.card_id = c.card_id LEFT JOIN ep ON ep.card_id = c.card_id
+                    WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE) AND ko.kp >= 5000
+                 )
+            SELECT card_id,
+                   ck AS current_price,
+                   ck AS move_date_price,
+                   round(ck / (1 + frac)) AS prev_price,
+                   round(ck - ck / (1 + frac)) AS change_amount,
+                   round(frac * 100, 1) AS change_pct,
+                   CURRENT_DATE AS move_date
+            FROM m
+            WHERE frac BETWEEN 0.03 AND 0.40 AND ABS(ck * frac) >= 100
+            ORDER BY frac DESC, ck DESC
             LIMIT :size
             """)
     List<Object[]> findRecentGainersByKoEstimatedPrice(@Param("days") int days, @Param("size") int size);
 
     @Query(nativeQuery = true, value = """
-            WITH ranking_rows AS (
-                SELECT a.card_id, a.estimated_date, a.ko_price,
-                       prev_ps.price AS prev_price,
-                       ((a.ko_price - prev_ps.price) * 100.0 / NULLIF(prev_ps.price, 0)) AS change_pct
-                FROM ko_estimation_audit a
-                JOIN price_snapshots prev_ps ON prev_ps.price_snapshot_id = a.prev_ko_snapshot_id
-                WHERE a.estimated_date >= CURRENT_DATE - (:days - 1)
-                  AND a.ranking_eligible = true
-                  AND a.is_anomaly = false
-                  AND a.ko_price < prev_ps.price
-            ),
-            deduped AS (
-                SELECT DISTINCT ON (card_id) card_id, estimated_date, ko_price, prev_price, change_pct
-                FROM ranking_rows
-                ORDER BY card_id, change_pct ASC, estimated_date DESC
-            ),
-            current_ko AS (
-                SELECT DISTINCT ON (ps.card_id) ps.card_id, ps.price AS current_price
-                FROM price_snapshots ps
-                JOIN deduped d ON d.card_id = ps.card_id
-                WHERE ps.source = 'KO_ESTIMATED'
-                ORDER BY ps.card_id, ps.traded_at DESC, ps.collected_at DESC
-            )
-            SELECT d.card_id,
-                   cur.current_price,
-                   d.ko_price AS move_date_price,
-                   d.prev_price,
-                   (d.ko_price - d.prev_price) AS change_amount,
-                   d.change_pct,
-                   d.estimated_date AS move_date
-            FROM deduped d
-            JOIN cards c ON c.card_id = d.card_id
-            JOIN current_ko cur ON cur.card_id = d.card_id
-            WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
-              AND d.ko_price >= 5000
-              AND d.prev_price >= 5000
-              AND ABS(d.ko_price - d.prev_price) >= 100
-            ORDER BY d.change_pct ASC, d.ko_price DESC
+            WITH jc AS (SELECT DISTINCT ON (card_id) card_id, raw_price AS rp FROM price_snapshots
+                        WHERE source = 'SCRYDEX_JP' AND card_status = 'RAW' AND raw_price > 0
+                        ORDER BY card_id, traded_at DESC),
+                 jp AS (SELECT DISTINCT ON (card_id) card_id, raw_price AS rp FROM price_snapshots
+                        WHERE source = 'SCRYDEX_JP' AND card_status = 'RAW' AND raw_price > 0
+                          AND traded_at <= CURRENT_DATE - CAST(:days AS integer)
+                        ORDER BY card_id, traded_at DESC),
+                 ec AS (SELECT DISTINCT ON (card_id) card_id, raw_price AS rp FROM price_snapshots
+                        WHERE source = 'SCRYDEX_EN' AND card_status = 'RAW' AND raw_price > 0
+                        ORDER BY card_id, traded_at DESC),
+                 ep AS (SELECT DISTINCT ON (card_id) card_id, raw_price AS rp FROM price_snapshots
+                        WHERE source = 'SCRYDEX_EN' AND card_status = 'RAW' AND raw_price > 0
+                          AND traded_at <= CURRENT_DATE - CAST(:days AS integer)
+                        ORDER BY card_id, traded_at DESC),
+                 ko AS (SELECT DISTINCT ON (card_id) card_id, price AS kp FROM price_snapshots
+                        WHERE source = 'KO_ESTIMATED' ORDER BY card_id, traded_at DESC),
+                 m AS (
+                    SELECT c.card_id, ko.kp AS ck,
+                           COALESCE((jc.rp - jp.rp) / NULLIF(jp.rp, 0), (ec.rp - ep.rp) / NULLIF(ep.rp, 0)) AS frac
+                    FROM cards c JOIN ko ON ko.card_id = c.card_id
+                    LEFT JOIN jc ON jc.card_id = c.card_id LEFT JOIN jp ON jp.card_id = c.card_id
+                    LEFT JOIN ec ON ec.card_id = c.card_id LEFT JOIN ep ON ep.card_id = c.card_id
+                    WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE) AND ko.kp >= 5000
+                 )
+            SELECT card_id,
+                   ck AS current_price,
+                   ck AS move_date_price,
+                   round(ck / (1 + frac)) AS prev_price,
+                   round(ck - ck / (1 + frac)) AS change_amount,
+                   round(frac * 100, 1) AS change_pct,
+                   CURRENT_DATE AS move_date
+            FROM m
+            WHERE frac BETWEEN -0.40 AND -0.03 AND ABS(ck * frac) >= 100
+            ORDER BY frac ASC, ck DESC
             LIMIT :size
             """)
     List<Object[]> findRecentLosersByKoEstimatedPrice(@Param("days") int days, @Param("size") int size);
