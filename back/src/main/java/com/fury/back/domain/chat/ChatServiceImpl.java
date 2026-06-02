@@ -589,6 +589,7 @@ public class ChatServiceImpl implements ChatService {
      * iOS foreground 에서 FCM onMessage 미발화 우회용. 실패는 메시지 저장/FCM 흐름과 무관 → 무시.
      */
     private void notifyInbox(String roomId, String recipientId, User sender, String senderName, String preview) {
+        if (recipientId == null || recipientId.isBlank()) return; // self-chat 등 수신자 없으면 skip(NPE 방지)
         try {
             java.util.Map<String, String> inbox = new java.util.HashMap<>();
             inbox.put("type", "CHAT");
@@ -599,7 +600,8 @@ public class ChatServiceImpl implements ChatService {
                 inbox.put("senderImage", sender.getProfileImageUrl());
             }
             messagingTemplate.convertAndSendToUser(recipientId, "/queue/inbox", inbox);
-        } catch (Exception ignore) {
+        } catch (Exception e) {
+            log.warn("[ChatInbox] STOMP inbox 발행 실패 room={} recipient={}: {}", roomId, recipientId, e.getMessage());
         }
     }
 

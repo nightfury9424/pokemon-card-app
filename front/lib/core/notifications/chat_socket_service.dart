@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/widgets.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 
 import '../constants/api_constants.dart';
@@ -19,6 +20,8 @@ import 'in_app_notification.dart';
 /// 백그라운드/종료 알림은 FCM 이 담당(이건 foreground 전용). 로그아웃 시 disconnect.
 class ChatSocketService {
   static StompClient? _client;
+  static final _LifecycleObserver _lifecycle = _LifecycleObserver();
+  static bool _observing = false;
 
   static Future<void> connect() async {
     if (_client != null) return;
@@ -36,6 +39,23 @@ class ChatSocketService {
       ),
     );
     _client?.activate();
+    if (!_observing) {
+      WidgetsBinding.instance.addObserver(_lifecycle);
+      _observing = true;
+    }
+  }
+
+  /// 앱 복귀(resumed) — iOS 가 백그라운드에서 TCP 소켓을 조용히 끊어도 라이브러리가
+  /// 한참 감지 못 할 수 있어, 강제로 새 핸드셰이크. + 백그라운드 동안 FCM 으로만 도착한
+  /// 메시지가 목록에 반영되도록 unread 갱신.
+  static void _onResume() {
+    if (_client == null) return; // 로그인/연결된 적 없으면 skip
+    try {
+      _client?.deactivate();
+    } catch (_) {}
+    _client = null;
+    connect();
+    ChatUnreadNotifier.instance.notifyChanged();
   }
 
   static void _onConnect(StompFrame frame) {
@@ -77,9 +97,22 @@ class ChatSocketService {
   }
 
   static void disconnect() {
+    if (_observing) {
+      WidgetsBinding.instance.removeObserver(_lifecycle);
+      _observing = false;
+    }
     try {
       _client?.deactivate();
     } catch (_) {}
     _client = null;
+  }
+}
+
+class _LifecycleObserver with WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ChatSocketService._onResume();
+    }
   }
 }
