@@ -162,6 +162,9 @@ final appRouter = GoRouter(
             : <String, dynamic>{};
         return CustomTransitionPage<void>(
           key: state.pageKey,
+          opaque: false,
+          barrierColor: Colors.black54,
+          barrierDismissible: true,
           transitionDuration: const Duration(milliseconds: 300),
           reverseTransitionDuration: const Duration(milliseconds: 240),
           transitionsBuilder: (context, animation, _, child) => SlideTransition(
@@ -169,22 +172,34 @@ final appRouter = GoRouter(
                 .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
             child: child,
           ),
-          child: TradeCreateScreen(
-            cardId: extra['cardId'] as String? ?? '',
-            cardName: extra['cardName'] as String?,
-            rarity: extra['rarity'] as String?,
-            imageUrl: extra['imageUrl'] as String?,
-            assetId: extra['assetId'] as String?,
-            cardStatus: extra['cardStatus'] as String?,
-            estimatedGrade: extra['estimatedGrade'] is num
-                ? (extra['estimatedGrade'] as num).toDouble()
-                : double.tryParse('${extra['estimatedGrade'] ?? ''}'),
-            gradingCompany: extra['gradingCompany'] as String?,
-            gradeValue: extra['gradeValue'] as String?,
-            certNumber: extra['certNumber'] as String?,
-            defaultPrice: extra['defaultPrice'] is num
-                ? (extra['defaultPrice'] as num).toInt()
-                : int.tryParse('${extra['defaultPrice'] ?? ''}'),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.82,
+            minChildSize: 0.55,
+            maxChildSize: 0.97,
+            expand: false,
+            snap: true,
+            snapSizes: const [0.82, 0.97],
+            builder: (context, scrollController) => ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              child: TradeCreateScreen(
+                cardId: extra['cardId'] as String? ?? '',
+                cardName: extra['cardName'] as String?,
+                rarity: extra['rarity'] as String?,
+                imageUrl: extra['imageUrl'] as String?,
+                assetId: extra['assetId'] as String?,
+                cardStatus: extra['cardStatus'] as String?,
+                estimatedGrade: extra['estimatedGrade'] is num
+                    ? (extra['estimatedGrade'] as num).toDouble()
+                    : double.tryParse('${extra['estimatedGrade'] ?? ''}'),
+                gradingCompany: extra['gradingCompany'] as String?,
+                gradeValue: extra['gradeValue'] as String?,
+                certNumber: extra['certNumber'] as String?,
+                defaultPrice: extra['defaultPrice'] is num
+                    ? (extra['defaultPrice'] as num).toInt()
+                    : int.tryParse('${extra['defaultPrice'] ?? ''}'),
+                sheetScrollController: scrollController,
+              ),
+            ),
           ),
         );
       },

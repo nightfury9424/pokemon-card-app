@@ -281,7 +281,10 @@ class _TradeListScreenState extends State<TradeListScreen> {
     final tabs = ['시세', '인기', '급상승', '급하락'];
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-      child: SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
@@ -319,6 +322,14 @@ class _TradeListScreenState extends State<TradeListScreen> {
             if (_sortTab == 0) _buildRarityChip(),
           ],
         ),
+          ),
+          if (_sortTab >= 2)
+            const Padding(
+              padding: EdgeInsets.only(top: 8, left: 2),
+              child: Text('최근 7일 가격 변동 기준',
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+            ),
+        ],
       ),
     );
   }
