@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
@@ -12,142 +13,237 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  bool _loading = false;
+  /// null = idle, 'apple' / 'google' = 해당 provider 진행 중.
+  String? _busy;
+  bool get _loading => _busy != null;
 
   Future<void> _onGoogleLogin() async {
-    setState(() => _loading = true);
+    setState(() => _busy = 'google');
     try {
       final requiresOnboarding = await AuthService.loginWithGoogle();
       if (!mounted) return;
       context.go(requiresOnboarding ? '/onboarding' : '/home');
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() => _busy = null);
       AppErrorToast.show(context, '구글 로그인 실패: $e');
     }
   }
 
   Future<void> _onAppleLogin() async {
-    setState(() => _loading = true);
+    setState(() => _busy = 'apple');
     try {
       final requiresOnboarding = await AuthService.loginWithApple();
       if (!mounted) return;
       context.go(requiresOnboarding ? '/onboarding' : '/home');
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() => _busy = null);
       // 취소는 조용히 무시.
       if (e.toString().contains('취소')) return;
       AppErrorToast.show(context, 'Apple 로그인 실패: $e');
     }
   }
 
-  Future<void> _onDevLogin() async {
-    setState(() => _loading = true);
-    final requiresOnboarding = await AuthService.devLogin();
-    if (!mounted) return;
-    setState(() => _loading = false);
-    if (requiresOnboarding == null) {
-      AppErrorToast.show(context, '개발 로그인 실패');
-      return;
-    }
-    context.go(requiresOnboarding ? '/onboarding' : '/home');
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(flex: 2),
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.blue, Color(0xFF1040A0)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(Icons.catching_pokemon, color: Colors.white, size: 40),
-              ),
-              const SizedBox(height: 20),
-              const Text('포켓몬 카드',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-              const SizedBox(height: 6),
-              const Text('자산 관리',
-                  style: TextStyle(fontSize: 16, color: AppColors.textSecondary, fontWeight: FontWeight.w400)),
-              const Spacer(flex: 3),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _onAppleLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    elevation: 0,
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.apple, size: 22, color: Colors.white),
-                      SizedBox(width: 8),
-                      Text('Apple로 시작하기',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
+      body: Stack(
+        children: [
+          // 앰비언트 그라데이션 (위쪽 살짝 푸른 빛 → 딥 다크)
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF0B1628), AppColors.bg, AppColors.bg],
+                  stops: [0.0, 0.45, 1.0],
                 ),
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _onGoogleLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black87,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    elevation: 0,
+            ),
+          ),
+          // 블러 글로우 blob — 깊이감
+          Positioned(top: -100, right: -80, child: _glow(AppColors.blue.withValues(alpha: 0.22), 280)),
+          Positioned(bottom: 60, left: -90, child: _glow(AppColors.blueLight.withValues(alpha: 0.10), 240)),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Column(
+                children: [
+                  const Spacer(flex: 3),
+                  // 히어로 로고
+                  Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: AppShadows.glow(AppColors.blue),
+                    ),
+                    child: Image.asset(
+                      'assets/app_icon/logo.png',
+                      width: 96,
+                      height: 96,
+                    ),
                   ),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 20, height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.blue))
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Image.network(
-                              'https://www.google.com/favicon.ico',
-                              width: 20, height: 20,
-                              errorBuilder: (_, __, ___) => const Icon(Icons.login, size: 20),
-                            ),
-                            const SizedBox(width: 10),
-                            const Text('Google로 시작하기',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    '포켓폴리오',
+                    style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.8,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    '내 포켓몬 카드 자산을 한눈에',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const Spacer(flex: 2),
+                  // 가치 제안
+                  _feature(Icons.trending_up_rounded, '실시간 카드 시세 추적'),
+                  const SizedBox(height: 14),
+                  _feature(Icons.donut_large_rounded, '내 컬렉션 포트폴리오 관리'),
+                  const SizedBox(height: 14),
+                  _feature(Icons.swap_horiz_rounded, '안전한 카드 거래'),
+                  const Spacer(flex: 3),
+                  // Apple — 다크모드 HIG: 흰색 솔리드 (primary)
+                  _socialButton(
+                    onPressed: _onAppleLogin,
+                    busy: _busy == 'apple',
+                    background: Colors.white,
+                    foreground: Colors.black,
+                    border: null,
+                    icon: const Icon(Icons.apple, size: 22, color: Colors.black),
+                    label: 'Apple로 시작하기',
+                  ),
+                  const SizedBox(height: 12),
+                  // Google — 다크 surface (secondary)
+                  _socialButton(
+                    onPressed: _onGoogleLogin,
+                    busy: _busy == 'google',
+                    background: AppColors.surfaceElevated,
+                    foreground: AppColors.textPrimary,
+                    border: AppColors.divider,
+                    icon: Image.network(
+                      'https://www.google.com/favicon.ico',
+                      width: 20,
+                      height: 20,
+                      errorBuilder: (context, error, stack) =>
+                          const Icon(Icons.g_mobiledata, size: 24, color: Colors.white),
+                    ),
+                    label: 'Google로 시작하기',
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    '본 앱은 비공식 팬 앱이며, 모든 포켓몬 관련 권리는 각 권리자에게 있습니다',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted, height: 1.4),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '로그인하면 이용약관 및 개인정보처리방침에 동의하게 됩니다',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted, height: 1.4),
+                  ),
+                  const Spacer(flex: 1),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: _loading ? null : _onDevLogin,
-                child: const Text('[DEV] 테스트 로그인',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-              ),
-              const Spacer(),
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 블러 처리된 원형 글로우 (배경 깊이감).
+  Widget _glow(Color color, double size) => IgnorePointer(
+        child: ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: 70, sigmaY: 70),
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
           ),
         ),
+      );
+
+  Widget _feature(IconData icon, String text) => Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceElevated,
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(color: AppColors.divider, width: 1),
+            ),
+            child: Icon(icon, size: 19, color: AppColors.blueLight),
+          ),
+          const SizedBox(width: 14),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ],
+      );
+
+  Widget _socialButton({
+    required Future<void> Function() onPressed,
+    required bool busy,
+    required Color background,
+    required Color foreground,
+    required Color? border,
+    required Widget icon,
+    required String label,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: ElevatedButton(
+        onPressed: _loading ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: background,
+          foregroundColor: foreground,
+          disabledBackgroundColor: background,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+            side: border != null ? BorderSide(color: border, width: 1) : BorderSide.none,
+          ),
+          elevation: 0,
+        ),
+        child: busy
+            ? SizedBox(
+                width: 21,
+                height: 21,
+                child: CircularProgressIndicator(strokeWidth: 2.2, color: foreground),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  icon,
+                  const SizedBox(width: 10),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: foreground,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

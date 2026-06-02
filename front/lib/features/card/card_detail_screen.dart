@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/network/api_client.dart';
 import '../../core/widgets/app_success_toast.dart';
+import '../../core/widgets/trade_safety_notice.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/constants/feature_flags.dart';
 import '../../core/notifiers/asset_notifier.dart';
@@ -1975,6 +1976,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     '매수 호가를 등록하면 판매자가 보고 채팅으로 연락해요.',
                     style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.5),
                   ),
+                  const SizedBox(height: 14),
+                  const TradeSafetyNotice(),
                   const SizedBox(height: 20),
                   // 상태 선택
                   const Text('카드 상태', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),

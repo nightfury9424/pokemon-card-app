@@ -9,6 +9,7 @@ import '../../core/network/api_client.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/user_avatar.dart';
+import 'auth_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -29,6 +30,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // MVP는 프론트 체크박스만 (체크 전엔 "시작하기" 비활성). 백엔드 동의 시각 기록은 v1.1.
   bool _agreedTos = false;
   bool _agreedPrivacy = false;
+  // 만 14세 self-declared 게이트 (한국 PIPA). null=미응답, true=14세 이상, false=미만(차단).
+  bool? _ageOver14;
 
   @override
   void dispose() {
@@ -78,7 +81,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (nickname.isEmpty || _available != true) return;
     setState(() => _submitting = true);
     try {
-      await ApiClient.put('/api/users/onboarding', {'nickname': nickname});
+      await ApiClient.put('/api/users/onboarding', {'nickname': nickname, 'isOver14': true});
       await TokenStorage.setOnboarded(true);
       AuthState.instance.markOnboarded();
       if (!mounted) return;
@@ -114,17 +117,131 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return '잠시 후 다시 시도해주세요';
   }
 
+  Future<void> _onBlockedLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
+    context.go('/login');
+  }
+
   @override
   Widget build(BuildContext context) {
-    final canSubmit = _available == true && !_submitting && _agreedTos && _agreedPrivacy;
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+          child: _ageOver14 == null
+              ? _buildAgeGate()
+              : _ageOver14 == false
+                  ? _buildBlocked()
+                  : _buildNicknameForm(),
+        ),
+      ),
+    );
+  }
+
+  /// 만 14세 이상 자가확인 — 미만 선택 시 차단 화면으로.
+  Widget _buildAgeGate() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 72),
+        const Icon(Icons.verified_user_outlined, color: AppColors.blueLight, size: 48),
+        const SizedBox(height: 24),
+        const Text(
+          '만 14세 이상이신가요?',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          '관련 법령에 따라 가입 시 연령 확인이 필요해요.\n생년월일은 저장하지 않으며, 확인 여부만 기록됩니다.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
+        ),
+        const Spacer(),
+        SizedBox(
+          height: 54,
+          child: ElevatedButton(
+            onPressed: () => setState(() => _ageOver14 = true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.blue,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: const Text('만 14세 이상입니다',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: () => setState(() => _ageOver14 = false),
+          child: const Text('만 14세 미만입니다',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w600)),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  /// 만 14세 미만 차단 — 법정대리인 동의 플로우는 이번 버전 미제공.
+  Widget _buildBlocked() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 72),
+        const Icon(Icons.lock_outline_rounded, color: AppColors.textSecondary, size: 48),
+        const SizedBox(height: 24),
+        const Text(
+          '만 14세 미만은\n이용할 수 없어요',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            height: 1.3,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          '관련 법령에 따라 만 14세 미만은 현재 서비스를 이용할 수 없습니다. 법정대리인 동의 절차는 추후 제공될 예정입니다.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
+        ),
+        const Spacer(),
+        SizedBox(
+          height: 54,
+          child: ElevatedButton(
+            onPressed: _onBlockedLogout,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.surfaceCard,
+              foregroundColor: AppColors.textPrimary,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: const Text('로그아웃',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: () => setState(() => _ageOver14 = null),
+          child: const Text('다시 선택',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildNicknameForm() {
+    final canSubmit = _available == true && !_submitting && _agreedTos && _agreedPrivacy;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
               const SizedBox(height: 48),
               const Text(
                 '닉네임을 정해주세요',
@@ -247,9 +364,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               const SizedBox(height: 24),
             ],
-          ),
-        ),
-      ),
     );
   }
 }
