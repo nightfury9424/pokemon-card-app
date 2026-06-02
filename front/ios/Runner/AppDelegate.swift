@@ -12,7 +12,10 @@ import FirebaseAuth
   ) -> Bool {
     // Firebase 는 다른 Firebase 호출 전에 반드시 먼저 설정.
     FirebaseApp.configure()
-    // SceneDelegate 환경에서 swizzling 타이밍에 의존하지 않도록 명시적으로 APNs 등록.
+    // FirebaseAppDelegateProxyEnabled=NO (proxy/swizzling 비활성) — 알림 수동 배선.
+    // proxy 가 UNUserNotificationCenter delegate 를 안 잡아주므로 명시 set →
+    // FlutterAppDelegate 가 willPresent/didReceive 를 등록 플러그인(FCM)으로 forward.
+    UNUserNotificationCenter.current().delegate = self
     application.registerForRemoteNotifications()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
@@ -54,6 +57,18 @@ import FirebaseAuth
   ) {
     print("[FCM] APNs 등록 실패: \(error)")
     super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
+  }
+
+  // reCAPTCHA(Phone Auth) / OAuth callback URL — proxy 비활성 시 Auth 로 수동 전달.
+  override func application(
+    _ app: UIApplication,
+    open url: URL,
+    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+  ) -> Bool {
+    if Auth.auth().canHandle(url) {
+      return true
+    }
+    return super.application(app, open: url, options: options)
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {

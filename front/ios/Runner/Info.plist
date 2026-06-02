@@ -30,13 +30,14 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.googleusercontent.apps.794742614446-qbli798g6l3v3ik4m0mv06imlst1ugjm</string>
+				<string>com.googleusercontent.apps.389670144815-8m1et1a1mc8q1hg32dmub2g1jgud7gtn</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>FirebaseAppDelegateProxyEnabled</key>
-	<true/>
+	<false/>
 	<key>GIDClientID</key>
 	<string>389670144815-8m1et1a1mc8q1hg32dmub2g1jgud7gtn.apps.googleusercontent.com</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
