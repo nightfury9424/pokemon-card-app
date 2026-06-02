@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import Firebase
 import FirebaseMessaging
+import FirebaseAuth
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -22,7 +23,25 @@ import FirebaseMessaging
     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
   ) {
     Messaging.messaging().apnsToken = deviceToken
+    // Firebase Phone Auth 도 APNs 토큰 필요 — verifyPhoneNumber 의 silent push 앱 검증용.
+    // 누락 시 reCAPTCHA fallback 으로 빠지고, URL scheme 불일치로 native assertion 크래시 발생.
+    // type .unknown = SDK 가 sandbox/prod 자동 판별 (debug=sandbox, TestFlight/배포=prod).
+    Auth.auth().setAPNSToken(deviceToken, type: .unknown)
     super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+  }
+
+  // Phone Auth 의 silent 검증 push 를 Auth 가 먼저 가로채도록 — FCM 플러그인이 먼저 삼키면
+  // 앱 검증이 실패해 reCAPTCHA fallback→(잘못된 URL scheme)→크래시. Auth push 가 아니면 super 로 위임.
+  override func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    if Auth.auth().canHandleNotification(userInfo) {
+      completionHandler(.noData)
+      return
+    }
+    super.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
   }
 
   override func application(
