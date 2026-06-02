@@ -80,6 +80,11 @@ public class KreamFetchController {
             @RequestHeader(value = "X-Kream-Agent-Token", required = false) String token,
             @RequestBody IngestRequest body) {
         requireAgent(token);
+        // agent 가 크롤 실패를 보고한 경우 → status FAILED.
+        if (body.error() != null && !body.error().isBlank()) {
+            state.fail(body.error());
+            return Map.<String, Object>of("ok", false);
+        }
         try {
             LocalDateTime maxExisting = priceSnapshotRepository
                     .findFirstByCardIdAndSourceOrderByTradedAtDesc(cardId, "KREAM")
@@ -124,7 +129,7 @@ public class KreamFetchController {
         }
     }
 
-    public record IngestRequest(List<Sale> sales) {}
+    public record IngestRequest(List<Sale> sales, String error) {}
 
     /** 맥북 agent 가 크롤한 KREAM 체결 1건. tradedAt 은 ISO LocalDateTime 문자열. */
     public record Sale(String cardStatus, String gradingCompany, String gradeValue,

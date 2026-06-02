@@ -40,6 +40,71 @@ function SourceBadge({ source }) {
   )
 }
 
+// 메타몽 KREAM 수집 — admin 버튼 → prod flag → 맥북 agent 크롤 → ingest. 상태 폴링 표시.
+function KreamFetchCard() {
+  const [st, setSt] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const loadStatus = async () => {
+    try { const { data } = await api.get('/admin/kream/status'); setSt(data) } catch { /* noop */ }
+  }
+  useEffect(() => { loadStatus() }, [])
+
+  const trigger = async () => {
+    setBusy(true)
+    try {
+      await api.post('/admin/kream/request')
+      for (let i = 0; i < 60; i++) {            // 최대 2분 폴링
+        await new Promise(r => setTimeout(r, 2000))
+        try {
+          const { data } = await api.get('/admin/kream/status')
+          setSt(data)
+          if (data.status === 'DONE' || data.status === 'FAILED') break
+        } catch { /* keep polling */ }
+      }
+    } catch { /* noop */ }
+    setBusy(false)
+  }
+
+  const status = st?.status || 'IDLE'
+  const tone = status === 'DONE' ? { c: '#15803d', bg: '#f0fdf4', b: '#bbf7d0' }
+    : status === 'FAILED' ? { c: '#dc2626', bg: '#fef2f2', b: '#fecaca' }
+    : (status === 'RUNNING' || status === 'REQUESTED') ? { c: '#b45309', bg: '#fffbeb', b: '#fde68a' }
+    : { c: '#64748b', bg: '#f8fafc', b: '#e2e8f0' }
+  const label = { IDLE: '대기', REQUESTED: '요청됨 — 맥북 agent 대기', RUNNING: '수집 중', DONE: '완료', FAILED: '실패' }[status] || status
+
+  return (
+    <div style={{ ...S.card, padding: 20, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#1e293b' }}>메타몽 KREAM 시세 수집</div>
+          <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 3 }}>
+            버튼 → 내 맥북 agent 가 KREAM 에서 그날 가격을 가져옵니다 (맥북 켜짐 + agent 실행 중이어야 함)
+          </div>
+        </div>
+        <button onClick={trigger} disabled={busy}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
+            background: busy ? '#cbd5e1' : '#6d28d9', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700,
+            cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit',
+          }}>
+          <RefreshCw size={15} style={{ animation: busy ? 'spin 1s linear infinite' : 'none' }} />
+          {busy ? '가져오는 중...' : '메타몽 시세 가져오기'}
+        </button>
+      </div>
+      <div style={{
+        marginTop: 14, padding: '10px 14px', borderRadius: 10, background: tone.bg, border: `1px solid ${tone.b}`,
+        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 800, color: tone.c }}>{label}</span>
+        {st?.message && <span style={{ fontSize: 12, color: '#475569' }}>{st.message}</span>}
+        {st?.lastCount > 0 && <span style={{ fontSize: 12, color: '#475569' }}>· 최근 반영 <b>{st.lastCount}</b>건</span>}
+        {st?.updatedAt && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 'auto' }}>{new Date(st.updatedAt).toLocaleString('ko-KR')}</span>}
+      </div>
+    </div>
+  )
+}
+
 export default function Price() {
   const [coeff, setCoeff]             = useState(null)
   const [coeffLoading, setCoeffLoading] = useState(true)
@@ -186,6 +251,8 @@ export default function Price() {
       <div style={{ fontSize: 11, color: calcAt ? '#10b981' : '#94a3b8', marginBottom: syncResult ? 12 : 24, fontWeight: 500 }}>
         {calcAt ? `마지막 계산: ${calcAt}` : '아직 계산된 데이터 없음'}
       </div>
+
+      <KreamFetchCard />
 
       {/* 동기화 결과 */}
       {syncResult && (
