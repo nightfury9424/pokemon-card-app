@@ -37,6 +37,9 @@ class _TradeListScreenState extends State<TradeListScreen> {
   // 다른 탭으로 이동해도 값은 유지 (시세 복귀 시 자동 재적용); chip 자체는 시세에서만 노출.
   String? _selectedRarity;
   bool _loadingMarket = false;
+  // 탭 빠르게 전환 시 out-of-order 응답이 현재 탭을 덮어쓰는 race 방지용 시퀀스 토큰.
+  // _loadMarketCards 시작마다 ++ 하고, 응답 도착 시 자기 seq != 최신이면 결과 폐기.
+  int _marketReqSeq = 0;
   bool _loading = true;
   int _page = 0;
   bool _hasMore = true;
@@ -66,6 +69,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
   }
 
   Future<void> _loadMarketCards() async {
+    final int seq = ++_marketReqSeq;
     setState(() => _loadingMarket = true);
     try {
       List<Map<String, dynamic>> result;
@@ -95,7 +99,8 @@ class _TradeListScreenState extends State<TradeListScreen> {
         final data = res['data'] as Map<String, dynamic>?;
         result = List<Map<String, dynamic>>.from(data?['content'] ?? []);
       }
-      if (!mounted) return;
+      // stale 응답(뒤늦게 도착한 이전 탭 요청) 폐기 — 현재 탭 데이터 보존.
+      if (!mounted || seq != _marketReqSeq) return;
       setState(() {
         _marketCards = result;
         _loadingMarket = false;
@@ -103,12 +108,15 @@ class _TradeListScreenState extends State<TradeListScreen> {
       });
       _loadLikedStatuses();
     } catch (_) {
-      if (mounted) setState(() { _loadingMarket = false; _loading = false; });
+      if (mounted && seq == _marketReqSeq) setState(() { _loadingMarket = false; _loading = false; });
     }
   }
 
   /// 현재 list의 카드들에 대해 찜 여부 batch 조회 → _likedCardIds 갱신.
   Future<void> _loadLikedStatuses() async {
+    // 이 찜 조회를 유발한 market 요청의 seq. 응답 도착 시 더 새 요청이 떴으면(seq 불일치)
+    // 다른 카드셋 기준 하트가 덮어써지는 것 방지.
+    final int seq = _marketReqSeq;
     final cardIds = _marketCards
         .map((c) => c['cardId'] as String?)
         .whereType<String>()
@@ -120,7 +128,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
         params: {'cardIds': cardIds.join(',')},
       );
       final data = (res['data'] as Map?) ?? const {};
-      if (!mounted) return;
+      if (!mounted || seq != _marketReqSeq) return;
       setState(() {
         _likedCardIds.clear();
         data.forEach((k, v) {
@@ -294,7 +302,14 @@ class _TradeListScreenState extends State<TradeListScreen> {
                 padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
                   onTap: () {
-                    setState(() => _sortTab = i);
+                    if (_sortTab == i) return;
+                    // _sortTab 변경과 동시에 spinner 진입 + 이전 탭 list 즉시 비움 →
+                    // 1프레임 잔상 + (요청 에러 시) 이전 탭 데이터 잔존 둘 다 차단.
+                    setState(() {
+                      _sortTab = i;
+                      _loadingMarket = true;
+                      _marketCards = const [];
+                    });
                     _loadMarketCards();
                   },
                   child: AnimatedContainer(
@@ -475,7 +490,11 @@ class _TradeListScreenState extends State<TradeListScreen> {
       onTap: () {
         Navigator.pop(sheetCtx);
         if (_selectedRarity != value) {
-          setState(() => _selectedRarity = value);
+          setState(() {
+            _selectedRarity = value;
+            _loadingMarket = true;
+            _marketCards = const [];
+          });
           _loadMarketCards();
         }
       },
@@ -570,7 +589,11 @@ class _TradeListScreenState extends State<TradeListScreen> {
               const SizedBox(height: 16),
               TextButton(
                 onPressed: () {
-                  setState(() => _selectedRarity = null);
+                  setState(() {
+                    _selectedRarity = null;
+                    _loadingMarket = true;
+                    _marketCards = const [];
+                  });
                   _loadMarketCards();
                 },
                 child: const Text(
