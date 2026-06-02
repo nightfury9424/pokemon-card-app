@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
 import '../network/api_client.dart';
+import '../notifiers/chat_unread_notifier.dart';
 import '../router/app_router.dart';
 import 'in_app_notification.dart';
 
@@ -102,12 +103,17 @@ class PushNotificationService {
     final n = message.notification;
     final title = n?.title ?? '';
     final body = n?.body ?? '';
+    // 채팅 수신 → 배너 표시 여부와 무관하게 목록/하단탭 unread 즉시 갱신 (foreground 잔존 버그 fix).
+    if (message.data['type'] == 'CHAT') {
+      ChatUnreadNotifier.instance.notifyChanged();
+    }
     if (title.isEmpty && body.isEmpty) return;
     final target = _routePathFor(message.data);
     if (target != null && _isCurrentLocation(target)) return; // 이미 그 채팅방 등
     InAppNotification.show(
       title: title,
       body: body,
+      imageUrl: message.data['senderImage'] as String?, // 카톡식 상대 프사
       onTap: () => _handleTap(message),
     );
   }

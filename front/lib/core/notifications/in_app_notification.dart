@@ -23,6 +23,7 @@ class InAppNotification {
     required String title,
     required String body,
     VoidCallback? onTap,
+    String? imageUrl,
   }) {
     if (title.isEmpty && body.isEmpty) return;
     // 중복 제거 — 큐 + "현재 표시 중" 배너에 동일 title+body 가 있으면 skip.
@@ -30,7 +31,8 @@ class InAppNotification {
     bool sameContent(_BannerData? d) =>
         d != null && d.title == title && d.body == body;
     if (sameContent(_showingData) || _queue.any(sameContent)) return;
-    _queue.add(_BannerData(title: title, body: body, onTap: onTap));
+    _queue.add(_BannerData(
+        title: title, body: body, onTap: onTap, imageUrl: imageUrl));
     // 큐 폭주 방지 — 최대 3개 보관(오래된 것부터 폐기).
     while (_queue.length > 3) {
       _queue.removeFirst();
@@ -68,7 +70,9 @@ class _BannerData {
   final String title;
   final String body;
   final VoidCallback? onTap;
-  const _BannerData({required this.title, required this.body, this.onTap});
+  final String? imageUrl; // 카톡식 — 상대 프사 (없으면 이니셜/아이콘 fallback)
+  const _BannerData(
+      {required this.title, required this.body, this.onTap, this.imageUrl});
 }
 
 class _BannerBody extends StatefulWidget {
@@ -122,6 +126,39 @@ class _BannerBodyState extends State<_BannerBody>
     super.dispose();
   }
 
+  /// 카톡식 아바타 — 상대 프사(둥근 사각형), 없거나 로드 실패 시 이니셜/사람 아이콘.
+  Widget _avatar() {
+    final url = widget.data.imageUrl;
+    final initial =
+        widget.data.title.isNotEmpty ? widget.data.title.substring(0, 1) : '';
+    final Widget fallback = Container(
+      color: AppColors.blue.withValues(alpha: 0.18),
+      alignment: Alignment.center,
+      child: initial.isNotEmpty
+          ? Text(initial,
+              style: const TextStyle(
+                  color: AppColors.blueLight,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800))
+          : const Icon(Icons.person_rounded,
+              color: AppColors.blueLight, size: 22),
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(13),
+      child: SizedBox(
+        width: 42,
+        height: 42,
+        child: (url != null && url.startsWith('http'))
+            ? Image.network(url,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => fallback,
+                loadingBuilder: (c, child, p) => p == null ? child : fallback)
+            : fallback,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Positioned(
@@ -162,16 +199,7 @@ class _BannerBodyState extends State<_BannerBody>
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Row(
                     children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: AppColors.blue.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.notifications_rounded,
-                            color: AppColors.blueLight, size: 20),
-                      ),
+                      _avatar(),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(

@@ -511,7 +511,7 @@ public class ChatServiceImpl implements ChatService {
         // 채팅 이미지 푸시 — 텍스트와 동일(카톡식). body 는 "사진" placeholder. @Async 비차단.
         fcmService.sendToUser(otherUserOf(room, senderUserId),
                 sender != null && sender.getNickname() != null ? sender.getNickname() : "새 메시지",
-                "사진을 보냈어요", java.util.Map.of("type", "CHAT", "roomId", roomId));
+                "사진을 보냈어요", chatPushData(roomId, sender));
         return ChatMessageDto.from(saved,
                 sender != null ? sender.getNickname() : "",
                 sender != null ? sender.getProfileImageUrl() : "");
@@ -567,6 +567,17 @@ public class ChatServiceImpl implements ChatService {
                 .orElse(false);
     }
 
+    /** 채팅 푸시 data — type/roomId + (있으면) 상대 프사 URL(카톡식 인앱 배너 아바타용). FCM data 는 null 불가. */
+    private java.util.Map<String, String> chatPushData(String roomId, User sender) {
+        java.util.Map<String, String> d = new java.util.HashMap<>();
+        d.put("type", "CHAT");
+        d.put("roomId", roomId);
+        if (sender != null && sender.getProfileImageUrl() != null && !sender.getProfileImageUrl().isBlank()) {
+            d.put("senderImage", sender.getProfileImageUrl());
+        }
+        return d;
+    }
+
     @Override
     @Transactional
     public ChatMessageDto sendMessage(String roomId, String senderUserId, String message) {
@@ -594,7 +605,7 @@ public class ChatServiceImpl implements ChatService {
         String preview = message == null ? "" : (message.length() > 50 ? message.substring(0, 50) + "…" : message);
         fcmService.sendToUser(otherUserOf(room, senderUserId),
                 sender != null && sender.getNickname() != null ? sender.getNickname() : "새 메시지",
-                preview, java.util.Map.of("type", "CHAT", "roomId", roomId));
+                preview, chatPushData(roomId, sender));
         return ChatMessageDto.from(saved,
                 sender != null ? sender.getNickname() : "",
                 sender != null ? sender.getProfileImageUrl() : "");

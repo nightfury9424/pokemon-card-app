@@ -33,12 +33,13 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadRooms() async {
     try {
       final res = await ApiClient.get('/api/chat/rooms');
+      if (!mounted) return;
       setState(() {
         _rooms = res['data'] ?? [];
         _loading = false;
       });
     } catch (_) {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
