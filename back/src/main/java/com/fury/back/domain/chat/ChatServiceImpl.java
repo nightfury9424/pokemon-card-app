@@ -42,6 +42,7 @@ public class ChatServiceImpl implements ChatService {
     // 2026-05-28 BUY chat — BuyOrder context 조회 (가격/상태/cardId) + getOrCreateRoomFromBuyOrder.
     private final BuyOrderRepository buyOrderRepository;
     private final UserRepository userRepository;
+    private final com.fury.back.domain.notification.FcmService fcmService;
     private final ApplicationEventPublisher eventPublisher;
     // Bundle 2-A: 거래 미니카드용 카드 마스터 이미지 조립 (#62 CardCdnUrls 재활용).
     private final CardRepository cardRepository;
@@ -585,6 +586,11 @@ public class ChatServiceImpl implements ChatService {
         chatRoomRepository.save(room);
 
         User sender = userRepository.findById(senderUserId).orElse(null);
+        // 채팅 푸시 — 수신자(상대방)에게 (카톡식). @Async라 전송 비차단.
+        String preview = message == null ? "" : (message.length() > 50 ? message.substring(0, 50) + "…" : message);
+        fcmService.sendToUser(otherUserOf(room, senderUserId),
+                sender != null && sender.getNickname() != null ? sender.getNickname() : "새 메시지",
+                preview, java.util.Map.of("type", "CHAT", "roomId", roomId));
         return ChatMessageDto.from(saved,
                 sender != null ? sender.getNickname() : "",
                 sender != null ? sender.getProfileImageUrl() : "");

@@ -9,6 +9,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.FileInputStream;
@@ -52,7 +53,8 @@ public class FcmService {
         }
     }
 
-    /** userId 의 모든 등록 기기에 푸시. 미설정/오류는 조용히 skip (best-effort). */
+    /** userId 의 모든 등록 기기에 푸시. 미설정/오류는 조용히 skip. @Async — 채팅/거래 흐름 비차단. */
+    @Async
     public void sendToUser(String userId, String title, String body, Map<String, String> data) {
         if (messaging == null) return;
         for (FcmToken t : fcmTokenRepository.findByUserId(userId)) {
