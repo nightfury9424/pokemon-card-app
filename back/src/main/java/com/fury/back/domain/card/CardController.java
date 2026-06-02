@@ -113,6 +113,14 @@ public class CardController {
         return ResponseEntity.ok(cardService.getPopularCards(size));
     }
 
+    @Operation(summary = "호가 카드 (실제 활성 매물 기준)",
+            description = "활성 매도(OPEN/RESERVED)+매수(OPEN) 호가 수 desc. 호가 0개 카드 제외.")
+    @GetMapping("/market/active")
+    public ResponseEntity<List<CardDto>> getActiveOrderCards(
+            @RequestParam(defaultValue = "50") int size) {
+        return ResponseEntity.ok(cardService.getActiveOrderCards(size));
+    }
+
     @Operation(summary = "프로모 카드 목록 조회", description = "is_promo_exclusive=true 카드 목록 (JP/EN scrydex 가격 직접 사용).")
     @GetMapping("/market/promos")
     public ReturnData<Map<String, Object>> getPromoCards(

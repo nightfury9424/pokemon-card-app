@@ -574,4 +574,61 @@ public interface CardRepository extends JpaRepository<Card, String> {
             LIMIT :size
             """)
     List<Object[]> findPopularByInterestCount(@Param("size") int size);
+
+    /**
+     * 호가 탭 — 실제 활성 호가(매도 OPEN/RESERVED + 매수 OPEN)가 많은 카드 순.
+     * order_counts INNER JOIN 이라 호가 0개 카드는 자동 제외. row 형식은 popular 와 동일
+     * (card_id, today_price, yesterday_price, gain_pct, interest_count) → mapGainerRows 재사용.
+     * interest_count 슬롯은 enrichEngagementCounts 가 실값으로 덮으므로 무의미.
+     */
+    @Query(nativeQuery = true, value = """
+            WITH order_counts AS (
+                SELECT card_id, COUNT(*) AS cnt FROM (
+                    SELECT card_id FROM trade_posts WHERE status IN ('OPEN','RESERVED')
+                    UNION ALL
+                    SELECT card_id FROM buy_orders WHERE status = 'OPEN'
+                ) o GROUP BY card_id
+            ),
+            ko_dates AS (
+                SELECT DISTINCT DATE(traded_at) AS d
+                FROM price_snapshots
+                WHERE source = 'KO_ESTIMATED' AND DATE(traded_at) <= CURRENT_DATE
+                ORDER BY d DESC LIMIT 2
+            ),
+            date_pair AS (
+                SELECT
+                    (SELECT d FROM ko_dates ORDER BY d DESC LIMIT 1) AS latest_day,
+                    (SELECT d FROM ko_dates ORDER BY d DESC OFFSET 1 LIMIT 1) AS prev_day
+            ),
+            today AS (
+                SELECT DISTINCT ON (ps.card_id) ps.card_id, ps.price
+                FROM price_snapshots ps, date_pair
+                WHERE ps.source = 'KO_ESTIMATED' AND DATE(ps.traded_at) = date_pair.latest_day
+                ORDER BY ps.card_id, ps.traded_at DESC
+            ),
+            yesterday AS (
+                SELECT DISTINCT ON (ps.card_id) ps.card_id, ps.price
+                FROM price_snapshots ps, date_pair
+                WHERE ps.source = 'KO_ESTIMATED' AND DATE(ps.traded_at) = date_pair.prev_day
+                ORDER BY ps.card_id, ps.traded_at DESC
+            )
+            SELECT
+                c.card_id,
+                COALESCE(today.price, 0) AS today_price,
+                COALESCE(yesterday.price, 0) AS yesterday_price,
+                CASE
+                    WHEN yesterday.price IS NULL OR yesterday.price = 0 THEN 0
+                    ELSE ((today.price - yesterday.price) * 100.0 / yesterday.price)
+                END AS gain_pct,
+                oc.cnt AS interest_count
+            FROM cards c
+            JOIN order_counts oc ON oc.card_id = c.card_id
+            JOIN today ON today.card_id = c.card_id
+            LEFT JOIN yesterday ON yesterday.card_id = c.card_id
+            WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+              AND today.price > 0
+            ORDER BY oc.cnt DESC, today.price DESC
+            LIMIT :size
+            """)
+    List<Object[]> findByActiveOrderCount(@Param("size") int size);
 }

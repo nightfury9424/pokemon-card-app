@@ -74,14 +74,26 @@ class _TradeListScreenState extends State<TradeListScreen> {
     try {
       List<Map<String, dynamic>> result;
       // 탭별 endpoint 분기 — 모두 백엔드가 정렬 보장.
-      // 0=시세(가격 desc), 1=인기(관심수 desc), 2=급상승(gain_pct desc), 3=급하락(gain_pct asc)
+      // 0=시세(가격 desc), 1=호가(활성 매도+매수), 2=힛카드(고레어), 3=급상승, 4=급하락
       if (_sortTab == 1) {
-        final list = await ApiClient.getList('/api/cards/market/popular', params: {'size': 50});
+        // 호가 — 실제 활성 매물(매도+매수) 많은 순. 호가 0개 카드는 백엔드가 제외.
+        final list = await ApiClient.getList('/api/cards/market/active', params: {'size': 50});
         result = list.whereType<Map>().map((c) => Map<String, dynamic>.from(c)).toList();
       } else if (_sortTab == 2) {
+        // 힛카드 — 고레어(체이스) 카드 가격순. 큐레이션성 (관심/호가 데이터 sparse 대체).
+        final res = await ApiClient.get('/api/cards/market', params: {
+          'rarities': 'SSR,SAR,CSR,CHR,UR,BWR',
+          'sortBy': 'price',
+          'sortDir': 'desc',
+          'page': 0,
+          'size': 50,
+        });
+        final data = res['data'] as Map<String, dynamic>?;
+        result = List<Map<String, dynamic>>.from(data?['content'] ?? []);
+      } else if (_sortTab == 3) {
         final list = await ApiClient.getList('/api/cards/market/top-gainers', params: {'size': 50});
         result = list.whereType<Map>().map((c) => Map<String, dynamic>.from(c)).toList();
-      } else if (_sortTab == 3) {
+      } else if (_sortTab == 4) {
         final list = await ApiClient.getList('/api/cards/market/top-losers', params: {'size': 50});
         result = list.whereType<Map>().map((c) => Map<String, dynamic>.from(c)).toList();
       } else {
@@ -286,7 +298,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
 
   // 정렬 sub-tab (시세/인기/급상승/급하락) + 시세 탭에서만 레어도 dropdown chip
   Widget _buildSortTabs() {
-    final tabs = ['시세', '인기', '급상승', '급하락'];
+    final tabs = ['시세', '호가', '힛카드', '급상승', '급하락'];
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       child: Column(
@@ -621,7 +633,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
     final pct = (card['gainPct'] as num?)?.toDouble();
     final liked = _likedCardIds.contains(cardId);
     // 시세 정렬일 때만 랭킹 번호 (다른 정렬은 misleading)
-    final showRank = _sortTab == 0;
+    const showRank = true; // 전 탭 랭킹 1,2,3 표시 (시세/호가/힛카드/급상승/급하락)
 
     // PriceDisplayPolicy (2026-05-16): 저가 카드 % 숨김/Stage B 전체 숨김/Stage C 변동 적음
     // API에 prevPrice가 없어서 price + pct로 역산 후 정책 판단

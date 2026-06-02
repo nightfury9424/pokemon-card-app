@@ -460,6 +460,12 @@ public class CardServiceImpl implements CardService {
         return mapGainerRows(cardRepository.findPopularByInterestCount(clamp(size)));
     }
 
+    @Override
+    public List<CardDto> getActiveOrderCards(int size) {
+        // 호가 탭 — 활성 매도+매수 많은 순. mapGainerRows 가 enrichEngagementCounts 로 실 카운트 채움.
+        return mapGainerRows(cardRepository.findByActiveOrderCount(clamp(size)));
+    }
+
     private int clamp(int size) {
         return Math.max(1, Math.min(size, 50));
     }

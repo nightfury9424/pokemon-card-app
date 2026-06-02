@@ -26,6 +26,7 @@ public interface CardService {
     List<CardDto> getRecentGainerCards(int days, int size);
     List<CardDto> getRecentLoserCards(int days, int size);
     List<CardDto> getPopularCards(int size);
+    List<CardDto> getActiveOrderCards(int size);
     Map<String, Object> getPromoCards(String name, int page, int size);
     ReturnData<List<CardDto>> getCardsByProduct(String productId);
     ReturnData<List<CardDto>> getCardsByCollectionNumber(String collectionNumber, String language);
