@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'core/auth/auth_state.dart';
 import 'core/network/api_client.dart';
+import 'core/notifications/push_notification_service.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/token_storage.dart';
 import 'core/theme/app_colors.dart';
@@ -28,6 +29,8 @@ Future<void> main() async {
   });
 
   await AuthState.instance.bootstrap();
+  // FCM 푸시 init (GoogleService-Info.plist 없으면 guard로 무해). 권한 요청 비동기 — runApp 블록 X.
+  PushNotificationService.init();
   runApp(const PokemonCardApp());
 }
 

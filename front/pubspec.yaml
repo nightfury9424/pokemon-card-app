@@ -16,6 +16,10 @@ dependencies:
   # Apple 로그인 (App Store 정식심사 4.8 필수)
   sign_in_with_apple: ^6.1.4
 
+  # 푸시 알림 (FCM) — GoogleService-Info.plist 추가 후 활성. 없으면 init guard로 무해.
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
+
   # 카메라 + OCR
   camera: ^0.11.1
   google_mlkit_text_recognition: ^0.15.1

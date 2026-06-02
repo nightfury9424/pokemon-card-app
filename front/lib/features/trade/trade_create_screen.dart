@@ -37,6 +37,9 @@ class TradeCreateScreen extends StatefulWidget {
   final String? gradeValue;
   final String? certNumber;
   final int? defaultPrice;
+  /// DraggableScrollableSheet로 띄울 때 sheet 스크롤 컨트롤러 (부분→스크롤 시 full 확장).
+  /// null = 기존 풀스크린 라우트 모드.
+  final ScrollController? sheetScrollController;
 
   const TradeCreateScreen({
     super.key,
@@ -51,6 +54,7 @@ class TradeCreateScreen extends StatefulWidget {
     this.gradeValue,
     this.certNumber,
     this.defaultPrice,
+    this.sheetScrollController,
   });
 
   @override
@@ -425,6 +429,8 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
+      // sheet 모드: 키보드 시 Scaffold resize 대신 스크롤뷰가 입력칸 노출 (sheet 높이 깨짐 방지).
+      resizeToAvoidBottomInset: widget.sheetScrollController == null,
       appBar: AppBar(
         backgroundColor: AppColors.bg,
         elevation: 0,
@@ -471,7 +477,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        controller: _scrollCtrl,
+        controller: widget.sheetScrollController ?? _scrollCtrl,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

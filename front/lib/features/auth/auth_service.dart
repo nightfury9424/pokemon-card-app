@@ -2,6 +2,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/network/api_client.dart';
+import '../../core/notifications/push_notification_service.dart';
 import '../../core/storage/token_storage.dart';
 
 final _googleSignIn = GoogleSignIn(
@@ -28,6 +29,7 @@ class AuthService {
     await TokenStorage.save(jwt);
     await TokenStorage.setOnboarded(!requiresOnboarding);
     AuthState.instance.markLoggedIn(onboarded: !requiresOnboarding);
+    PushNotificationService.registerToken(); // FCM 토큰 등록 (guard로 무해)
     return requiresOnboarding;
   }
 
@@ -59,6 +61,7 @@ class AuthService {
     await TokenStorage.save(jwt);
     await TokenStorage.setOnboarded(!requiresOnboarding);
     AuthState.instance.markLoggedIn(onboarded: !requiresOnboarding);
+    PushNotificationService.registerToken(); // FCM 토큰 등록 (guard로 무해)
     return requiresOnboarding;
   }
 
@@ -79,6 +82,7 @@ class AuthService {
   }
 
   static Future<void> logout() async {
+    await PushNotificationService.unregister();
     await _googleSignIn.signOut();
     await TokenStorage.delete();
     AuthState.instance.markLoggedOut();
