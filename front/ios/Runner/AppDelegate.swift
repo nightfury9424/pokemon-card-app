@@ -26,14 +26,10 @@ import FirebaseAuth
     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
   ) {
     Messaging.messaging().apnsToken = deviceToken
-    // Firebase Phone Auth 도 APNs 토큰 필요 — verifyPhoneNumber 의 silent push 앱 검증용.
-    // 누락 시 reCAPTCHA fallback 으로 빠지고, URL scheme 불일치로 native assertion 크래시 발생.
-    // .unknown 자동판별이 TestFlight(prod APNs)에서 silent push 실패 유발 → 환경 명시.
-    #if DEBUG
-    Auth.auth().setAPNSToken(deviceToken, type: .sandbox)
-    #else
-    Auth.auth().setAPNSToken(deviceToken, type: .prod)
-    #endif
+    // Auth 에는 APNs 토큰을 일부러 안 넘긴다 — silent push 앱검증이 proxy off + 수동 canHandleNotification
+    // 에도 notification-not-forwarded 로 계속 실패. 토큰이 없으면 Auth 는 silent push 를 시도조차
+    // 안 하고 곧장 reCAPTCHA fallback 을 쓴다. reCAPTCHA URL scheme(REVERSED_CLIENT_ID 794742…)은
+    // 이미 유효하므로 정상 동작 (web 인증 1회). FCM 은 Messaging.apnsToken 으로 그대로 유지.
     super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
   }
 
