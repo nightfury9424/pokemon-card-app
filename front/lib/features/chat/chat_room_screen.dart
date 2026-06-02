@@ -10,6 +10,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/storage/token_storage.dart';
+import '../../core/notifications/chat_socket_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/app_error_toast.dart';
@@ -75,6 +76,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   @override
   void initState() {
     super.initState();
+    // 이 방을 보는 동안 전역 inbox 배너 억제 (방 안에선 메시지 bubble 로 보임).
+    ChatSocketService.activeRoomId = widget.roomId;
     _init();
   }
 
@@ -454,6 +457,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   @override
   void dispose() {
+    if (ChatSocketService.activeRoomId == widget.roomId) {
+      ChatSocketService.activeRoomId = null;
+    }
     _stompClient?.deactivate();
     _inputController.dispose();
     _scrollController.dispose();

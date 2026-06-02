@@ -23,19 +23,21 @@ class ChatSocketService {
   static final _LifecycleObserver _lifecycle = _LifecycleObserver();
   static bool _observing = false;
 
+  /// 현재 열려있는 채팅방 id — 그 방의 메시지면 inbox 배너 억제(방 안에선 bubble 로 보임).
+  /// chat_room_screen 의 initState 에서 set, dispose 에서 clear.
+  static String? activeRoomId;
+
   static Future<void> connect() async {
     if (_client != null) return;
     final token = await TokenStorage.get();
     if (token == null || token.isEmpty) return;
     if (_client != null) return; // await 사이 재진입 가드
-    print('POKEFOLIO_STOMP connect → ${ApiConstants.baseUrl}/ws (tokenLen=${token.length})');
     _client = StompClient(
       config: StompConfig.sockJS(
         url: '${ApiConstants.baseUrl}/ws',
         onConnect: _onConnect,
-        onDisconnect: (_) => print('POKEFOLIO_STOMP disconnected'),
-        onWebSocketError: (e) => print('POKEFOLIO_STOMP wsError: $e'),
-        onStompError: (f) => print('POKEFOLIO_STOMP stompError: ${f.body}'),
+        onDisconnect: (_) {},
+        onWebSocketError: (_) {},
         reconnectDelay: const Duration(seconds: 5),
         stompConnectHeaders: {'Authorization': 'Bearer $token'},
       ),
@@ -61,28 +63,25 @@ class ChatSocketService {
   }
 
   static void _onConnect(StompFrame frame) {
-    print('POKEFOLIO_STOMP CONNECTED → subscribe /user/queue/inbox');
     _client?.subscribe(
       destination: '/user/queue/inbox',
       callback: (f) {
-        print('POKEFOLIO_STOMP inbox recv: ${f.body}');
         if (f.body == null) return;
         try {
           final m = jsonDecode(f.body!) as Map<String, dynamic>;
           // 목록/하단탭 unread 즉시 갱신 (배너 표시 여부와 무관).
           ChatUnreadNotifier.instance.notifyChanged();
           final roomId = m['roomId']?.toString();
-          final target = (roomId != null && roomId.isNotEmpty) ? '/chat/$roomId' : null;
           // 이미 그 방을 보고 있으면 배너 억제 (방 안에서는 bubble 로 보임).
-          if (target != null && _isCurrentLocation(target)) return;
+          if (roomId != null && roomId == activeRoomId) return;
           InAppNotification.show(
             title: (m['senderName'] ?? '새 메시지').toString(),
             body: (m['preview'] ?? '').toString(),
             imageUrl: m['senderImage']?.toString(),
             onTap: () {
-              if (target != null) {
+              if (roomId != null && roomId.isNotEmpty) {
                 try {
-                  appRouter.push(target);
+                  appRouter.push('/chat/$roomId');
                 } catch (_) {}
               }
             },
@@ -90,14 +89,6 @@ class ChatSocketService {
         } catch (_) {}
       },
     );
-  }
-
-  static bool _isCurrentLocation(String path) {
-    try {
-      return appRouter.routerDelegate.currentConfiguration.uri.toString() == path;
-    } catch (_) {
-      return false;
-    }
   }
 
   static void disconnect() {
