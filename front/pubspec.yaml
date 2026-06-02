@@ -52,6 +52,9 @@ dependencies:
   # WebSocket (STOMP 채팅)
   stomp_dart_client: ^2.1.0
 
+  # 채팅 목록 스와이프 액션 (알람끄기/나가기) — Dart 전용, native 없음
+  flutter_slidable: ^3.1.1
+
   # 카드 이미지 캐싱 — S3 immutable 마스터 이미지 디스크 캐시
   cached_network_image: ^3.4.1
 

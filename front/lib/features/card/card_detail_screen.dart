@@ -1121,7 +1121,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           SliverOverlapInjector(handle: handle),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(32),
+              // 좌우 16 — 아래 "대기 중인 주문" 영역(fromLTRB 16)과 폭/인덴트 정렬.
+              padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
               child: Column(
                 children: [
                   const SizedBox(height: 24),

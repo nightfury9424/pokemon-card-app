@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../core/network/api_client.dart';
 import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/theme/app_colors.dart';
@@ -92,6 +93,39 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// 스와이프 → 나가기. 백엔드 hidden_at set(상대방은 방 유지) → 내 목록에서 제거.
+  Future<void> _leaveRoom(Map<String, dynamic> room) async {
+    final roomId = room['chatRoomId'] as String?;
+    if (roomId == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('채팅방 나가기',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+        content: const Text('나가면 이 대화가 목록에서 사라져요.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소',
+                  style: TextStyle(color: AppColors.textSecondary))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('나가기', style: TextStyle(color: AppColors.red))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ApiClient.post('/api/chat/rooms/$roomId/leave', {});
+      if (!mounted) return;
+      setState(() => _rooms.removeWhere((r) => r['chatRoomId'] == roomId));
+    } catch (_) {
+      if (mounted) _loadRooms();
+    }
+  }
+
   Widget _buildRoomTile(Map<String, dynamic> room) {
     final unread = (room['unreadCount'] ?? 0) as int;
     final lastMsg = room['lastMessage'] as String?;
@@ -108,7 +142,22 @@ class _ChatScreenState extends State<ChatScreen> {
     final isBuy = contextType == 'BUY';
     final showTradeRow = cardImageUrl != null && tradeTitle.isNotEmpty;
 
-    return InkWell(
+    return Slidable(
+      key: ValueKey(room['chatRoomId']),
+      endActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.24,
+        children: [
+          SlidableAction(
+            onPressed: (_) => _leaveRoom(room),
+            backgroundColor: AppColors.red,
+            foregroundColor: Colors.white,
+            icon: Icons.exit_to_app_rounded,
+            label: '나가기',
+          ),
+        ],
+      ),
+      child: InkWell(
       onTap: () => context.push('/chat/${room['chatRoomId']}', extra: room),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -220,6 +269,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           ],
         ),
+      ),
       ),
     );
   }
