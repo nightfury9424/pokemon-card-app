@@ -39,6 +39,13 @@ public class UserService {
     private final UserRepository userRepository;
     private final BuyOrderRepository buyOrderRepository;
     private final TradePostRepository tradePostRepository;
+    private final PhoneVerifyAttemptRepository phoneVerifyAttemptRepository;
+
+    // 휴대폰 OTP 발송 strict 가드 — Firebase quota 보강(우리 측 영속 추적).
+    private static final int OTP_COOLDOWN_SECONDS = 60;
+    private static final int OTP_MAX_PER_PHONE_DAY = 5;
+    private static final int OTP_MAX_PER_IP_DAY = 15;
+    private static final int OTP_MAX_PER_USER_DAY = 5;
 
     @Transactional
     public ReturnData<Map<String, Object>> deleteAccount(String userId) {
@@ -108,6 +115,9 @@ public class UserService {
         if (phoneE164 == null || phoneE164.isBlank()) {
             return ReturnData.fail("F_PHONE_TOKEN", "휴대폰 번호 정보를 확인할 수 없습니다.");
         }
+        if (!phoneE164.startsWith("+82")) {
+            return ReturnData.fail("F_PHONE_KR", "한국 휴대폰 번호만 인증할 수 있어요.");
+        }
         // 번호당 인증계정 1개 — 본인 외 다른 계정이 이미 인증했으면 차단.
         var existing = userRepository.findByPhoneE164AndPhoneVerifiedTrue(phoneE164);
         if (existing.isPresent() && !existing.get().getUserId().equals(userId)) {
@@ -121,6 +131,49 @@ public class UserService {
         userRepository.save(user);
         log.info("[Phone] user={} 휴대폰 인증 완료", userId);
         return ReturnData.success(Map.of("phoneVerified", true, "phoneE164", phoneE164));
+    }
+
+    /**
+     * OTP 발송 전 strict 가드 — 클라가 Firebase verifyPhoneNumber 호출 전에 먼저 호출.
+     * 휴대폰/IP/계정별 횟수+쿨타임을 DB(영속)로 차단. 통과 시에만 클라가 발송 진행.
+     * (앱 밖 우회는 Firebase quota + App Check 가 보강.)
+     */
+    @Transactional
+    public ReturnData<Map<String, Object>> requestOtp(String userId, String phone, String ip) {
+        if (userId == null || userId.isBlank()) {
+            return ReturnData.fail("F403", "인증이 필요합니다.");
+        }
+        String e164 = normalizeKr(phone);
+        if (e164 == null) {
+            return ReturnData.fail("F_PHONE_KR", "올바른 한국 휴대폰 번호를 입력해주세요.");
+        }
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        if (phoneVerifyAttemptRepository.countByPhoneE164AndCreatedAtAfter(e164, now.minusSeconds(OTP_COOLDOWN_SECONDS)) >= 1) {
+            return ReturnData.fail("F_PHONE_COOLDOWN", "잠시 후 다시 시도해주세요.");
+        }
+        if (phoneVerifyAttemptRepository.countByPhoneE164AndCreatedAtAfter(e164, now.minusDays(1)) >= OTP_MAX_PER_PHONE_DAY) {
+            return ReturnData.fail("F_PHONE_LIMIT", "이 번호의 오늘 인증 가능 횟수를 초과했어요.");
+        }
+        if (ip != null && !ip.isBlank()
+                && phoneVerifyAttemptRepository.countByIpAndCreatedAtAfter(ip, now.minusDays(1)) >= OTP_MAX_PER_IP_DAY) {
+            return ReturnData.fail("F_PHONE_LIMIT", "요청이 많아 잠시 후 다시 시도해주세요.");
+        }
+        if (phoneVerifyAttemptRepository.countByUserIdAndCreatedAtAfter(userId, now.minusDays(1)) >= OTP_MAX_PER_USER_DAY) {
+            return ReturnData.fail("F_PHONE_LIMIT", "오늘 인증 가능 횟수를 초과했어요.");
+        }
+        phoneVerifyAttemptRepository.save(PhoneVerifyAttempt.builder()
+                .attemptId(com.fury.back.common.IdGenerator.generate())
+                .phoneE164(e164).userId(userId).ip(ip).build());
+        return ReturnData.success(Map.of("allowed", true, "phoneE164", e164));
+    }
+
+    /** 한국 휴대폰만 → +82 E.164. 형식 안 맞으면 null. */
+    private String normalizeKr(String raw) {
+        if (raw == null) return null;
+        String d = raw.replaceAll("[^0-9]", "");
+        if (d.startsWith("82")) d = "0" + d.substring(2);
+        if (!d.matches("^01[016789]\\d{7,8}$")) return null;
+        return "+82" + d.substring(1);
     }
 
     /** userId → SHA-256[0:3] = 6 hex chars uppercase. 비가역, 짧고 같은 userId면 항상 같은 값. */

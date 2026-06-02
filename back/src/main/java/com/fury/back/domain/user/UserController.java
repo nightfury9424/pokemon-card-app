@@ -1,6 +1,7 @@
 package com.fury.back.domain.user;
 
 import com.fury.back.common.ReturnData;
+import jakarta.servlet.http.HttpServletRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -56,6 +57,17 @@ public class UserController {
         data.put("phoneVerified", user.isPhoneVerified());
         data.put("nicknameCooldownDaysLeft", nicknameCooldownDaysLeft(user.getNicknameChangedAt()));
         return ReturnData.success(data);
+    }
+
+    @Operation(summary = "OTP 발송 전 rate limit 체크", description = "Firebase 발송 전 호출 — 휴대폰/IP/계정별 횟수·쿨타임 strict 가드.")
+    @PostMapping("/phone/request-otp")
+    public ReturnData<Map<String, Object>> requestOtp(
+            HttpServletRequest request,
+            @AuthenticationPrincipal String userId,
+            @RequestBody Map<String, String> body) {
+        String ip = request.getHeader("X-Real-IP");
+        if (ip == null || ip.isBlank()) ip = request.getRemoteAddr();
+        return userService.requestOtp(userId, body == null ? null : body.get("phone"), ip);
     }
 
     @Operation(summary = "휴대폰 OTP 인증", description = "Flutter Firebase Phone Auth ID 토큰 검증 → phoneVerified 저장.")
