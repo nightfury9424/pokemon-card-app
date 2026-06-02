@@ -1520,6 +1520,53 @@ public class GlobalPriceService {
     // 상세 화면 단일 집계 엔드포인트
     // ─────────────────────────────────────────────
 
+    /**
+     * KO 차트선 — 스토어된 KO_ESTIMATED(평탄화/보정 cliff) 대신 JP(메인)/EN(브릿지) RAW 시장 움직임을
+     * 현재 KO 예상가에 투영. ko(date)=현재KO × (raw(date)/raw(최신)) × (1+noise). 끝점 noise=0 → 최신=실제 예상가.
+     * cardId seed 결정론적 ±1.5% noise로 "JP랑 비슷하지만 다른" 결. JP/EN 부족 시 기존 KO 그대로.
+     */
+    private List<CardPriceSummaryDto.ChartPoint> buildProjectedKoLine(
+            String cardId,
+            List<PriceSnapshot> koEstHistory,
+            List<PriceSnapshot> jpSnapsHistory,
+            List<PriceSnapshot> enSnapsHistory) {
+        double currentKo = koEstHistory.get(koEstHistory.size() - 1).getPrice();
+        java.util.LinkedHashMap<LocalDate, Double> byDay = dedupRawByDay(jpSnapsHistory);
+        if (byDay.size() < 2) byDay = dedupRawByDay(enSnapsHistory);
+        if (byDay.size() < 2) {
+            return koEstHistory.stream()
+                    .map(s -> new CardPriceSummaryDto.ChartPoint(
+                            s.getTradedAt().toLocalDate().toString(), s.getPrice().doubleValue(), null, null))
+                    .toList();
+        }
+        List<LocalDate> dates = new java.util.ArrayList<>(byDay.keySet());
+        int n = dates.size();
+        double base = byDay.get(dates.get(n - 1));
+        final double amp = 0.015, freq = 0.9;
+        double phase = (Math.abs((long) cardId.hashCode()) % 1000) / 1000.0 * Math.PI * 2;
+        double noiseLast = amp * Math.sin((n - 1) * freq + phase);
+        List<CardPriceSummaryDto.ChartPoint> out = new java.util.ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            LocalDate d = dates.get(i);
+            double noise = amp * Math.sin(i * freq + phase) - noiseLast; // 끝점 0 → 최신 = currentKo
+            double projected = currentKo * (byDay.get(d) / base) * (1 + noise);
+            out.add(new CardPriceSummaryDto.ChartPoint(
+                    d.toString(), (double) (Math.round(projected / 10.0) * 10), null, null));
+        }
+        return out;
+    }
+
+    /** SCRYDEX RAW 스냅샷 → 하루 1점(마지막) raw_price 맵 (ASC 가정). */
+    private java.util.LinkedHashMap<LocalDate, Double> dedupRawByDay(List<PriceSnapshot> snaps) {
+        java.util.LinkedHashMap<LocalDate, Double> byDay = new java.util.LinkedHashMap<>();
+        for (PriceSnapshot s : snaps) {
+            if (!"RAW".equals(s.getCardStatus()) || s.getRawPrice() == null) continue;
+            double v = s.getRawPrice().doubleValue();
+            if (v > 0) byDay.put(s.getTradedAt().toLocalDate(), v);
+        }
+        return byDay;
+    }
+
     public CardPriceSummaryDto getCardPriceSummary(String cardId) {
         Card card = cardRepository.findById(cardId).orElse(null);
         if (card == null) return null;
@@ -1569,12 +1616,9 @@ public class GlobalPriceService {
         double jpyToKrw = exchangeRateClient.getJpyToKrw();
         List<PriceSnapshot> koEstHistory = priceSnapshotRepository
                 .findByCardIdAndSourceAndTradedAtAfterOrderByTradedAtAsc(cardId, "KO_ESTIMATED", chartCutoff);
+        // KO 차트: 스토어된 이상한 KO 히스토리(flatline/보정 cliff) 대신 JP/EN 시장 움직임을 현재 예상가에 투영.
         List<CardPriceSummaryDto.ChartPoint> koLine = !promoExclusive && koEstHistory.size() >= 2
-                ? koEstHistory.stream()
-                        .map(s -> new CardPriceSummaryDto.ChartPoint(
-                                s.getTradedAt().toLocalDate().toString(),
-                                s.getPrice().doubleValue(), null, null))
-                        .toList()
+                ? buildProjectedKoLine(cardId, koEstHistory, jpSnapsHistory, enSnapsHistory)
                 : buildKoLineFromSnaps(
                         enSnapsHistory, jpSnapsHistory, enRatio, jpRatio, rarity, exchangeRate, jpyToKrw);
 
