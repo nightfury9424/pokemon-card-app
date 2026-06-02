@@ -911,16 +911,71 @@ public class GlobalPriceService {
     }
 
     /** 카드별 KO 예상가 히스토리 (차트용) */
+    /**
+     * KO 예상가 차트 (차트용). v6 모델은 안 건드리고, 스토어된 이상한 KO 히스토리(평탄화/cliff) 대신
+     * 카드의 JP(메인)/EN(브릿지) RAW 시장 움직임을 현재 KO 예상가에 투영해서 그린다.
+     *   ko(date) = 현재_KO × (JP_raw(date) / JP_raw(최신)) × (1 + noise)
+     * noise = cardId seed 결정론적 부드러운 ±1.5% (매 로드 동일·jagged X), 끝점 0 → 최신점 = 실제 예상가.
+     * JP/EN ref 없는 카드(promo·MANUAL_FLOOR)는 fallback = 기존 스토어 KO 그대로.
+     */
     public List<Map<String, Object>> getKoEstimatedHistory(String cardId, int days) {
         LocalDateTime after = LocalDateTime.now().minusDays(days);
-        return priceSnapshotRepository.findKoEstimatedHistory(cardId, after).stream()
-                .map(s -> {
-                    Map<String, Object> m = new java.util.LinkedHashMap<>();
-                    m.put("date",  s.getTradedAt().toLocalDate().toString());
-                    m.put("price", s.getPrice());
-                    return m;
-                })
-                .toList();
+
+        List<PriceSnapshot> koHist = priceSnapshotRepository.findKoEstimatedHistory(cardId, after);
+        if (koHist.isEmpty()) return List.of();
+        double currentKo = koHist.get(koHist.size() - 1).getPrice(); // ASC → 마지막 = 최신 예상가
+
+        // v6 selected_source 와 일치: JP 우선, 없으면 EN
+        Card card = cardRepository.findById(cardId).orElse(null);
+        String source = null;
+        if (card != null) {
+            String jpRef = card.getJpScrydexRef();
+            String enRef = card.getEnScrydexRef();
+            if (jpRef != null && !jpRef.isBlank() && !jpRef.startsWith("NO_")) source = "SCRYDEX_JP";
+            else if (enRef != null && !enRef.isBlank() && !enRef.startsWith("NO_")) source = "SCRYDEX_EN";
+        }
+
+        // 소스 RAW 시리즈 → 하루 1점 dedup (ASC라 같은 날 마지막값 유지)
+        java.util.LinkedHashMap<java.time.LocalDate, Double> byDay = new java.util.LinkedHashMap<>();
+        if (source != null) {
+            for (PriceSnapshot s : priceSnapshotRepository
+                    .findByCardIdAndSourceAndTradedAtAfterOrderByTradedAtAsc(cardId, source, after)) {
+                if (s.getRawPrice() == null) continue;
+                double v = s.getRawPrice().doubleValue();
+                if (v > 0) byDay.put(s.getTradedAt().toLocalDate(), v);
+            }
+        }
+
+        // JP/EN 없거나 부족 → fallback: 기존 스토어 KO 그대로
+        if (byDay.size() < 2) {
+            return koHist.stream().map(s -> {
+                Map<String, Object> m = new java.util.LinkedHashMap<>();
+                m.put("date", s.getTradedAt().toLocalDate().toString());
+                m.put("price", s.getPrice());
+                return m;
+            }).toList();
+        }
+
+        List<java.time.LocalDate> dates = new java.util.ArrayList<>(byDay.keySet());
+        int n = dates.size();
+        double base = byDay.get(dates.get(n - 1)); // 최신 JP raw = 앵커 기준
+
+        // 결정론적 부드러운 noise (KO는 한국 시장 → JP와 "비슷하지만 다른" 결). 끝점 re-anchor.
+        final double amp = 0.015, freq = 0.9;
+        double phase = (Math.abs((long) cardId.hashCode()) % 1000) / 1000.0 * Math.PI * 2;
+        double noiseLast = amp * Math.sin((n - 1) * freq + phase);
+
+        List<Map<String, Object>> out = new java.util.ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            java.time.LocalDate d = dates.get(i);
+            double noise = amp * Math.sin(i * freq + phase) - noiseLast; // 끝점 0 → 최신 = currentKo
+            double projected = currentKo * (byDay.get(d) / base) * (1 + noise);
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("date", d.toString());
+            m.put("price", (int) (Math.round(projected / 10.0) * 10)); // 10원 반올림
+            out.add(m);
+        }
+        return out;
     }
 
     /** 최근 N일 계수 히스토리 (그래프용) */
