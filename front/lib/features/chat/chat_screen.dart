@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/network/api_client.dart';
 import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/theme/app_colors.dart';
@@ -97,24 +98,12 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _leaveRoom(Map<String, dynamic> room) async {
     final roomId = room['chatRoomId'] as String?;
     if (roomId == null) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('채팅방 나가기',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
-        content: const Text('나가면 이 대화가 목록에서 사라져요.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('취소',
-                  style: TextStyle(color: AppColors.textSecondary))),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('나가기', style: TextStyle(color: AppColors.red))),
-        ],
-      ),
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '채팅방 나가기',
+      message: '나가면 이 대화가 목록에서 사라져요.',
+      confirmLabel: '나가기',
+      destructive: true,
     );
     if (ok != true) return;
     try {

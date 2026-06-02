@@ -128,7 +128,7 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
     } catch (e) {
       if (mounted) setState(() {
             _busy = false;
-            _error = '인증 요청에 실패했어요. 잠시 후 다시 시도해주세요';
+            _error = '요청실패: $e'; // 진단
           });
     }
   }
@@ -204,7 +204,8 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
         'invalid-verification-code' => '인증번호가 올바르지 않아요',
         'session-expired' => '인증 시간이 만료됐어요. 다시 받아주세요',
         'too-many-requests' || 'quota-exceeded' => '요청이 많아요. 잠시 후 다시 시도해주세요',
-        _ => '오류가 발생했어요',
+        // 진단: 알 수 없는 코드는 화면에 그대로 노출 (iOS 라이브 로그 미동작 → 원인 파악용)
+        _ => '오류[${e.code}] ${e.message ?? ''}',
       };
 
   @override

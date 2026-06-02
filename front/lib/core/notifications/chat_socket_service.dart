@@ -81,7 +81,12 @@ class ChatSocketService {
             onTap: () {
               if (roomId != null && roomId.isNotEmpty) {
                 try {
-                  appRouter.push('/chat/$roomId');
+                  // 상대 이름/프사 전달 → 채팅방 헤더에 표시 (extra 없으면 "거래 채팅" fallback).
+                  appRouter.push('/chat/$roomId', extra: {
+                    'chatRoomId': roomId,
+                    'otherUserNickname': m['senderName'],
+                    'otherUserProfileImageUrl': m['senderImage'],
+                  });
                 } catch (_) {}
               }
             },
