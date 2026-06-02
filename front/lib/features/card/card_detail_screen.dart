@@ -3798,7 +3798,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
                   ),
-                  child: const Text('판매하기'),
+                  // 매수 대기 인원 배지 — "사려는 사람 N명" 신호로 판매 유도.
+                  child: Text(
+                    (_hogaBidCount != null && _hogaBidCount! > 0)
+                        ? '판매하기 ($_hogaBidCount)'
+                        : '판매하기',
+                  ),
                 ),
               ),
             ),
@@ -3814,7 +3819,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
                   ),
-                  child: const Text('구매하기'),
+                  // 판매글 수 배지 — "파는 사람 N건" 신호로 구매 유도.
+                  child: Text(
+                    (_hogaAskCount != null && _hogaAskCount! > 0)
+                        ? '구매하기 ($_hogaAskCount)'
+                        : '구매하기',
+                  ),
                 ),
               ),
             ),

@@ -30,6 +30,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // MVP는 프론트 체크박스만 (체크 전엔 "시작하기" 비활성). 백엔드 동의 시각 기록은 v1.1.
   bool _agreedTos = false;
   bool _agreedPrivacy = false;
+  // 선택 동의 — 스캔한 실카드 이미지 수집·활용(서비스 개선·카드 이미지 품질 향상).
+  // 비필수라 시작하기를 막지 않음. 거부해도 스캔 기능은 정상 동작(업로드만 skip).
+  bool _agreedScanImages = false;
   // 만 14세 self-declared 게이트 (한국 PIPA). null=미응답, true=14세 이상, false=미만(차단).
   bool? _ageOver14;
 
@@ -81,7 +84,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (nickname.isEmpty || _available != true) return;
     setState(() => _submitting = true);
     try {
-      await ApiClient.put('/api/users/onboarding', {'nickname': nickname, 'isOver14': true});
+      // scanImageConsent: 선택 동의. 백엔드 미수용 필드는 Jackson 이 무시(forward-compat) —
+      // 스캔 이미지 파이프라인 구축 시 User 필드로 영속화.
+      await ApiClient.put('/api/users/onboarding',
+          {'nickname': nickname, 'isOver14': true, 'scanImageConsent': _agreedScanImages});
       await TokenStorage.setOnboarded(true);
       AuthState.instance.markOnboarded();
       if (!mounted) return;
@@ -335,6 +341,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 checked: _agreedPrivacy,
                 onChanged: (v) => setState(() => _agreedPrivacy = v),
                 label: '개인정보처리방침에 동의합니다 (필수)',
+                onLinkTap: () => context.push('/legal/privacy'),
+              ),
+              const SizedBox(height: 8),
+              _ConsentCheckbox(
+                checked: _agreedScanImages,
+                onChanged: (v) => setState(() => _agreedScanImages = v),
+                label: '스캔한 카드 이미지의 수집·활용에 동의합니다 (선택)',
                 onLinkTap: () => context.push('/legal/privacy'),
               ),
               const Spacer(),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import 'hoga_status_chip_bar.dart';
 import 'models/hoga_board_model.dart';
 import 'models/hoga_listing_model.dart';
 import 'services/hoga_api.dart';
@@ -69,17 +70,33 @@ class _PreOrderMatchBody extends StatefulWidget {
 
 class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
   late Future<HogaListings> _future;
+  HogaStatus _status = HogaStatus.raw;
+  HogaGrade? _grade;
 
   bool get _isBuy => widget.side == HogaSide.ask; // 구매하기 → 매도 호가(asks)
 
   @override
   void initState() {
     super.initState();
-    _future = HogaApi.fetchTopListings(
-      widget.cardId,
-      side: widget.side,
-      limit: 10,
-    );
+    _future = _fetch();
+  }
+
+  Future<HogaListings> _fetch() => HogaApi.fetchTopListings(
+        widget.cardId,
+        status: _status,
+        grade: _grade,
+        side: widget.side,
+        limit: 10,
+      );
+
+  // RAW/PSA/BRG(+등급) 전환 — 그레이딩 카드도 거래이므로 조건별 호가 조회.
+  void _onStatusChanged(HogaStatus status, HogaGrade? grade) {
+    if (status == _status && grade == _grade) return;
+    setState(() {
+      _status = status;
+      _grade = grade;
+      _future = _fetch();
+    });
   }
 
   void _openListing(HogaListing l) {
@@ -108,6 +125,15 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
             decoration: BoxDecoration(
               color: AppColors.divider,
               borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          // 조건 토글(RAW/PSA/BRG +등급) — 항상 표시, 빈 조건에서도 전환 가능.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: HogaStatusChipBar(
+              selectedStatus: _status,
+              selectedGrade: _grade,
+              onChanged: _onStatusChanged,
             ),
           ),
           Expanded(
