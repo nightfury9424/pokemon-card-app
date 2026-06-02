@@ -3066,7 +3066,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final startDate =
         DateTime.tryParse(rawData.first['date'] as String? ?? '') ??
         DateTime.now();
-    final spots = rawData
+    var spots = rawData
         .map<FlSpot?>((p) {
           final dt = DateTime.tryParse(p['date'] as String? ?? '');
           final price = (p['price'] as num?)?.toDouble();
@@ -3075,6 +3075,19 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         })
         .whereType<FlSpot>()
         .toList();
+
+    // outlier 클램프 (display only) — 일부 카드(특히 프로모)에서 차트 한 점이 비정상적으로 튀어
+    // (PSA 이상치 × 계수 등으로 1.6억 같은 값) Y축 전체가 망가지는 것 방지. 중앙값 대비 ×20 초과/
+    // 미만 점은 차트에서 제외. 데이터·시세모델은 그대로 두고 표시만 정상화.
+    if (spots.length >= 3) {
+      final sortedY = spots.map((s) => s.y).toList()..sort();
+      final median = sortedY[sortedY.length ~/ 2];
+      if (median > 0) {
+        // 상한만 — 중앙값 ×30 초과 점만 제외(명백한 corrupt). 정상 급등/저가점은 보존.
+        final filtered = spots.where((s) => s.y <= median * 30).toList();
+        if (filtered.length >= 2) spots = filtered;
+      }
+    }
 
     if (spots.isEmpty) {
       return const Padding(
