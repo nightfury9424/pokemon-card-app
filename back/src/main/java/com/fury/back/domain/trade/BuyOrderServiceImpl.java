@@ -49,6 +49,10 @@ public class BuyOrderServiceImpl implements BuyOrderService {
     // 2026-06-03 호가 교란 방지 — 매수 가격 밴드(상한) 검증용 KO 예상가 조회.
     private final com.fury.back.domain.price.PriceSnapshotRepository priceSnapshotRepository;
 
+    // 휴대폰 인증 게이트 토글 — Flutter OTP 플로우 IPA 나가기 전엔 false(전원 차단 방지). prod에서 true로.
+    @org.springframework.beans.factory.annotation.Value("${app.phone-gate.enabled:false}")
+    private boolean phoneGateEnabled;
+
     @Override
     public ReturnData<List<BuyOrderDto>> getByCard(String cardId) {
         if (cardId == null || cardId.isBlank()) {
@@ -103,6 +107,10 @@ public class BuyOrderServiceImpl implements BuyOrderService {
     public ReturnData<BuyOrderDto> create(String buyerId, ParameterData params) {
         if (buyerId == null || buyerId.isBlank()) {
             return ReturnData.fail("F403", "인증이 필요합니다.");
+        }
+        // 휴대폰 인증 게이트 — 거래 행위 시점에만 요구. 클라가 코드 보고 인증 시트 띄움.
+        if (phoneGateEnabled && !userRepository.findById(buyerId).map(User::isPhoneVerified).orElse(false)) {
+            return ReturnData.fail("PHONE_VERIFICATION_REQUIRED", "휴대폰 인증 후 거래할 수 있어요.");
         }
 
         String cardId = params.getString("cardId");

@@ -53,8 +53,17 @@ public class UserController {
         data.put("profileImageUrl", user.getProfileImageUrl() != null ? user.getProfileImageUrl() : "");
         data.put("onboarded", user.isOnboarded());
         data.put("isOver14", user.getIsOver14());
+        data.put("phoneVerified", user.isPhoneVerified());
         data.put("nicknameCooldownDaysLeft", nicknameCooldownDaysLeft(user.getNicknameChangedAt()));
         return ReturnData.success(data);
+    }
+
+    @Operation(summary = "휴대폰 OTP 인증", description = "Flutter Firebase Phone Auth ID 토큰 검증 → phoneVerified 저장.")
+    @PostMapping("/phone/verify")
+    public ReturnData<Map<String, Object>> verifyPhone(
+            @AuthenticationPrincipal String userId,
+            @RequestBody Map<String, String> body) {
+        return userService.verifyPhone(userId, body == null ? null : body.get("firebaseIdToken"));
     }
 
     @Operation(summary = "닉네임 사용 가능 여부 확인 (안내용, 최종 방어는 저장 시 409 + DB partial unique)")

@@ -44,6 +44,10 @@ public class TradeServiceImpl implements TradeService {
     private final BuyOrderRepository buyOrderRepository;
     private final CardRepository cardRepository;
     private final UserRepository userRepository;
+
+    // 휴대폰 인증 게이트 토글 — Flutter OTP IPA 전엔 false(전원 차단 방지). prod에서 true로.
+    @org.springframework.beans.factory.annotation.Value("${app.phone-gate.enabled:false}")
+    private boolean phoneGateEnabled;
     private final com.fury.back.domain.asset.AssetRepository assetRepository;
     private final AssetImageRepository assetImageRepository;
     private final NotificationService notificationService;
@@ -214,6 +218,10 @@ public class TradeServiceImpl implements TradeService {
         if (sellerId == null || sellerId.isBlank()) {
             return ReturnData.fail("F403", "인증이 필요합니다.");
         }
+        // 휴대폰 인증 게이트 — 거래 행위 시점에만. 클라가 코드 보고 인증 시트 띄움.
+        if (phoneGateEnabled && !userRepository.findById(sellerId).map(User::isPhoneVerified).orElse(false)) {
+            return ReturnData.fail("PHONE_VERIFICATION_REQUIRED", "휴대폰 인증 후 거래할 수 있어요.");
+        }
 
         Asset asset = null;
         if (assetId != null && !assetId.isBlank()) {
@@ -333,6 +341,10 @@ public class TradeServiceImpl implements TradeService {
 
         if (sellerId == null || sellerId.isBlank()) {
             return ReturnData.fail("F403", "인증이 필요합니다.");
+        }
+        // 휴대폰 인증 게이트 (거래 행위 시점).
+        if (phoneGateEnabled && !userRepository.findById(sellerId).map(User::isPhoneVerified).orElse(false)) {
+            return ReturnData.fail("PHONE_VERIFICATION_REQUIRED", "휴대폰 인증 후 거래할 수 있어요.");
         }
         if (assetId == null || assetId.isBlank() || price == null) {
             return ReturnData.badRequest("assetId, price는 필수입니다.");

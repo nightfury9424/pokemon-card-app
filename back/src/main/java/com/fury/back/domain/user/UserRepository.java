@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByGoogleId(String googleId);
     Optional<User> findByAppleId(String appleId);
+    /** 번호당 인증계정 1개 — 명의 도용/중복 방지 (DB partial unique 와 정렬). */
+    Optional<User> findByPhoneE164AndPhoneVerifiedTrue(String phoneE164);
 
     /**
      * 2026-05-29 admin Stage 0 (Codex H) — 사용자 검색.

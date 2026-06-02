@@ -82,6 +82,47 @@ public class UserService {
         ));
     }
 
+    /**
+     * 휴대폰 OTP 인증 — Flutter 가 Firebase Phone Auth 로 받은 ID 토큰 검증 후 사용자에 phone 저장.
+     * firebase-admin(FcmService 가 초기화한 default app) 으로 verifyIdToken → phone_number claim 추출.
+     * 번호당 인증계정 1개(중복 명의 차단). 로드된 엔티티 직접 변경(merge null 버그 회피).
+     */
+    @Transactional
+    public ReturnData<Map<String, Object>> verifyPhone(String userId, String firebaseIdToken) {
+        if (userId == null || userId.isBlank()) {
+            return ReturnData.fail("F403", "인증이 필요합니다.");
+        }
+        if (firebaseIdToken == null || firebaseIdToken.isBlank()) {
+            return ReturnData.badRequest("firebaseIdToken 이 필요합니다.");
+        }
+        String phoneE164;
+        try {
+            com.google.firebase.auth.FirebaseToken decoded =
+                    com.google.firebase.auth.FirebaseAuth.getInstance().verifyIdToken(firebaseIdToken);
+            Object phone = decoded.getClaims().get("phone_number");
+            phoneE164 = phone == null ? null : phone.toString().trim();
+        } catch (Exception e) {
+            log.warn("[Phone] Firebase ID 토큰 검증 실패: {}", e.getMessage());
+            return ReturnData.fail("F_PHONE_TOKEN", "휴대폰 인증 검증에 실패했습니다. 다시 시도해주세요.");
+        }
+        if (phoneE164 == null || phoneE164.isBlank()) {
+            return ReturnData.fail("F_PHONE_TOKEN", "휴대폰 번호 정보를 확인할 수 없습니다.");
+        }
+        // 번호당 인증계정 1개 — 본인 외 다른 계정이 이미 인증했으면 차단.
+        var existing = userRepository.findByPhoneE164AndPhoneVerifiedTrue(phoneE164);
+        if (existing.isPresent() && !existing.get().getUserId().equals(userId)) {
+            return ReturnData.fail("F_PHONE_DUP", "이미 다른 계정에서 인증된 번호입니다.");
+        }
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return ReturnData.notFound("사용자를 찾을 수 없습니다.");
+        }
+        user.verifyPhone(phoneE164);
+        userRepository.save(user);
+        log.info("[Phone] user={} 휴대폰 인증 완료", userId);
+        return ReturnData.success(Map.of("phoneVerified", true, "phoneE164", phoneE164));
+    }
+
     /** userId → SHA-256[0:3] = 6 hex chars uppercase. 비가역, 짧고 같은 userId면 항상 같은 값. */
     private String computeShortHash(String userId) {
         try {
