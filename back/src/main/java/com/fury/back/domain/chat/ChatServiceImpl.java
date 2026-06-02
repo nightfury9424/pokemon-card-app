@@ -45,6 +45,8 @@ public class ChatServiceImpl implements ChatService {
     private final com.fury.back.domain.notification.FcmService fcmService;
     // foreground 채팅 실시간 — 수신자 전역 STOMP(/user/queue/inbox)로 인앱 배너+목록 갱신용.
     private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
+    // 진단용 — 수신자의 활성 STOMP 세션 수 확인 (inbox delivery 가능 여부).
+    private final org.springframework.messaging.simp.user.SimpUserRegistry simpUserRegistry;
     private final ApplicationEventPublisher eventPublisher;
     // Bundle 2-A: 거래 미니카드용 카드 마스터 이미지 조립 (#62 CardCdnUrls 재활용).
     private final CardRepository cardRepository;
@@ -599,6 +601,10 @@ public class ChatServiceImpl implements ChatService {
             if (sender != null && sender.getProfileImageUrl() != null && !sender.getProfileImageUrl().isBlank()) {
                 inbox.put("senderImage", sender.getProfileImageUrl());
             }
+            var u = simpUserRegistry.getUser(recipientId);
+            int sessions = u == null ? 0 : u.getSessions().size();
+            log.info("[ChatInbox] recipient={} registeredSessions={} 전체접속자={} → /queue/inbox 발행",
+                    recipientId, sessions, simpUserRegistry.getUserCount());
             messagingTemplate.convertAndSendToUser(recipientId, "/queue/inbox", inbox);
         } catch (Exception e) {
             log.warn("[ChatInbox] STOMP inbox 발행 실패 room={} recipient={}: {}", roomId, recipientId, e.getMessage());

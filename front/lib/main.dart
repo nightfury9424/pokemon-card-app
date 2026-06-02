@@ -36,9 +36,12 @@ Future<void> main() async {
   PushNotificationService.init().then((_) {
     if (AuthState.instance.loggedIn) {
       PushNotificationService.registerToken();
-      ChatSocketService.connect(); // foreground 채팅 실시간 STOMP (앱 재시작 케이스)
     }
   });
+  // STOMP 전역 연결은 FCM init 완료에 의존하지 않게 분리 — init 지연/실패해도 채팅 실시간 보장.
+  if (AuthState.instance.loggedIn) {
+    ChatSocketService.connect();
+  }
   runApp(const PokemonCardApp());
 }
 

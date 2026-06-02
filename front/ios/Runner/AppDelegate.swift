@@ -25,8 +25,12 @@ import FirebaseAuth
     Messaging.messaging().apnsToken = deviceToken
     // Firebase Phone Auth 도 APNs 토큰 필요 — verifyPhoneNumber 의 silent push 앱 검증용.
     // 누락 시 reCAPTCHA fallback 으로 빠지고, URL scheme 불일치로 native assertion 크래시 발생.
-    // type .unknown = SDK 가 sandbox/prod 자동 판별 (debug=sandbox, TestFlight/배포=prod).
-    Auth.auth().setAPNSToken(deviceToken, type: .unknown)
+    // .unknown 자동판별이 TestFlight(prod APNs)에서 silent push 실패 유발 → 환경 명시.
+    #if DEBUG
+    Auth.auth().setAPNSToken(deviceToken, type: .sandbox)
+    #else
+    Auth.auth().setAPNSToken(deviceToken, type: .prod)
+    #endif
     super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
   }
 

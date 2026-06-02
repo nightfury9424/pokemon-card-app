@@ -28,12 +28,14 @@ class ChatSocketService {
     final token = await TokenStorage.get();
     if (token == null || token.isEmpty) return;
     if (_client != null) return; // await 사이 재진입 가드
+    print('POKEFOLIO_STOMP connect → ${ApiConstants.baseUrl}/ws (tokenLen=${token.length})');
     _client = StompClient(
       config: StompConfig.sockJS(
         url: '${ApiConstants.baseUrl}/ws',
         onConnect: _onConnect,
-        onDisconnect: (_) {},
-        onWebSocketError: (_) {},
+        onDisconnect: (_) => print('POKEFOLIO_STOMP disconnected'),
+        onWebSocketError: (e) => print('POKEFOLIO_STOMP wsError: $e'),
+        onStompError: (f) => print('POKEFOLIO_STOMP stompError: ${f.body}'),
         reconnectDelay: const Duration(seconds: 5),
         stompConnectHeaders: {'Authorization': 'Bearer $token'},
       ),
@@ -59,9 +61,11 @@ class ChatSocketService {
   }
 
   static void _onConnect(StompFrame frame) {
+    print('POKEFOLIO_STOMP CONNECTED → subscribe /user/queue/inbox');
     _client?.subscribe(
       destination: '/user/queue/inbox',
       callback: (f) {
+        print('POKEFOLIO_STOMP inbox recv: ${f.body}');
         if (f.body == null) return;
         try {
           final m = jsonDecode(f.body!) as Map<String, dynamic>;
