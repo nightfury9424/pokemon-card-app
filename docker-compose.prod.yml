@@ -52,6 +52,8 @@ services:
       # #62: 카드 마스터 이미지 CDN base (S3 cards/v1). BuyOrderDto 등 응답에 사용.
       CARD_CDN_BASE: https://pokefolio-beta-assets-759135635310-ap-northeast-2-an.s3.ap-northeast-2.amazonaws.com/cards/v1
       TZ: Asia/Seoul
+      # FCM 푸시 — service-account.json 마운트 경로 (Spring relaxed binding → firebase.service-account-path)
+      FIREBASE_SERVICE_ACCOUNT_PATH: /app/firebase-sa.json
     ports:
       - "127.0.0.1:8080:8080"   # localhost만 노출 → Nginx/Caddy reverse proxy
     volumes:
@@ -59,6 +61,7 @@ services:
       - /opt/pokefolio/data/images:/opt/pokefolio/data/images    # Spring static (legacy)
       - /opt/pokefolio/data/logs:/app/logs
       - /opt/pokefolio/config/python/config.py:/app/python/config.py:ro  # Phase 1-1: python script config (env getenv 템플릿)
+      - /opt/pokefolio/config/firebase-sa.json:/app/firebase-sa.json:ro  # FCM Firebase Admin service-account
     networks:
       - pokefolio
 
