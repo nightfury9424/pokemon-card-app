@@ -508,6 +508,10 @@ public class ChatServiceImpl implements ChatService {
 
         // 7. DTO 빌드 — ChatMessageDto.from 의 IMAGE 분기에서 key → proxy URL 변환 (Codex B)
         User sender = userRepository.findById(senderUserId).orElse(null);
+        // 채팅 이미지 푸시 — 텍스트와 동일(카톡식). body 는 "사진" placeholder. @Async 비차단.
+        fcmService.sendToUser(otherUserOf(room, senderUserId),
+                sender != null && sender.getNickname() != null ? sender.getNickname() : "새 메시지",
+                "사진을 보냈어요", java.util.Map.of("type", "CHAT", "roomId", roomId));
         return ChatMessageDto.from(saved,
                 sender != null ? sender.getNickname() : "",
                 sender != null ? sender.getProfileImageUrl() : "");

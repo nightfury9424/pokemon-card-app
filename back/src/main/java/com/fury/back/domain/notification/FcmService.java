@@ -3,6 +3,8 @@ package com.fury.back.domain.notification;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
+import com.google.firebase.messaging.Aps;
+import com.google.firebase.messaging.ApnsConfig;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.Message;
 import jakarta.annotation.PostConstruct;
@@ -64,6 +66,13 @@ public class FcmService {
                         .setNotification(com.google.firebase.messaging.Notification.builder()
                                 .setTitle(title)
                                 .setBody(body)
+                                .build())
+                        // iOS: 백그라운드/종료 상태 배너 신뢰성 — APNs aps 페이로드 명시.
+                        .setApnsConfig(ApnsConfig.builder()
+                                .setAps(Aps.builder()
+                                        .setSound("default")
+                                        .setContentAvailable(true)
+                                        .build())
                                 .build())
                         .putAllData(data != null ? data : Map.of())
                         .build());

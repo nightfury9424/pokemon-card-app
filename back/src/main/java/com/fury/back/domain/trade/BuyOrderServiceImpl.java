@@ -46,6 +46,8 @@ public class BuyOrderServiceImpl implements BuyOrderService {
     private final CardCdnUrls cardCdnUrls;
     // 2026-05-28 BUY chat — 상태 변경 시 해당 BuyOrder의 모든 chat_room에 SYSTEM fan-out.
     private final com.fury.back.domain.chat.ChatService chatService;
+    // 2026-06-03 호가 교란 방지 — 매수 가격 밴드(상한) 검증용 KO 예상가 조회.
+    private final com.fury.back.domain.price.PriceSnapshotRepository priceSnapshotRepository;
 
     @Override
     public ReturnData<List<BuyOrderDto>> getByCard(String cardId) {
@@ -131,6 +133,10 @@ public class BuyOrderServiceImpl implements BuyOrderService {
             return ReturnData.notFound("카드를 찾을 수 없습니다.");
         }
 
+        // 호가 교란 방지 — 시세 대비 과도한 고가 입찰 차단 (상한만, 저가 입찰은 무해하므로 허용)
+        String priceErr = validateBidPrice(cardId, cardStatus, bidPrice);
+        if (priceErr != null) return ReturnData.badRequest(priceErr);
+
         // 5개 한도 체크
         long openCount = buyOrderRepository.countByBuyerIdAndStatus(buyerId, "OPEN");
         if (openCount >= MAX_OPEN_ORDERS_PER_USER) {
@@ -185,6 +191,9 @@ public class BuyOrderServiceImpl implements BuyOrderService {
         if (!"OPEN".equals(order.getStatus())) {
             return ReturnData.badRequest("OPEN 상태에서만 수정 가능합니다.");
         }
+        // 수정 시점의 현재 예상가로 재검증 (등록 후 시세 이동 + 의도적 과대 수정 차단)
+        String priceErr = validateBidPrice(order.getCardId(), order.getCardStatus(), newPrice);
+        if (priceErr != null) return ReturnData.badRequest(priceErr);
         order.updateBidPrice(newPrice);
         return ReturnData.success(enrichWithDetails(List.of(order)).get(0));
     }
@@ -218,6 +227,32 @@ public class BuyOrderServiceImpl implements BuyOrderService {
         // 2026-05-28: BUY chat fan-out — 채팅 중인 잠재 판매자들에게 매칭 알림.
         chatService.broadcastBuyOrderStatusChanged(buyOrderId, "MATCHED");
         return ReturnData.success(enrichWithDetails(List.of(order)).get(0));
+    }
+
+    /**
+     * 매수 호가 가격 가드 — 호가 교란 방지. <b>상한만</b> 검증한다.
+     * <p>BID의 교란 벡터는 고가 입찰뿐(최상단 BID로 떠 수요·시세를 부풀림). 저가 입찰은
+     * 호가창 맨 아래 깔려 무해하고 자기손해이며, 카드 하자 등 정당한 저가 의사일 수 있어 허용.
+     * 판매(매도) {@code validateListingPrice} 와 대칭이되 하한은 적용하지 않는다.
+     * <p>GRADED는 KO 예상가가 RAW 기준이라 부정확 → skip. est 없으면 절대 상한(1천만)만.
+     * 밴드는 판매와 동일한 {@code TradeServiceImpl.priceBand} 재사용.
+     *
+     * @return 위반 메시지(있으면), 통과 시 null
+     */
+    private String validateBidPrice(String cardId, String cardStatus, int bidPrice) {
+        if ("GRADED".equals(cardStatus)) return null;
+        Integer est = priceSnapshotRepository
+                .findFirstByCardIdAndSourceOrderByTradedAtDesc(cardId, "KO_ESTIMATED")
+                .map(com.fury.back.domain.price.PriceSnapshot::getPrice)
+                .orElse(null);
+        if (est == null || est <= 0) {
+            return bidPrice > 10_000_000 ? "10,000,000원을 초과하는 구매 희망가는 등록할 수 없습니다." : null;
+        }
+        long[] band = TradeServiceImpl.priceBand(est);
+        if (bidPrice > band[1]) {
+            return "시세 대비 지나치게 높은 구매 희망가는 등록할 수 없습니다.";
+        }
+        return null;
     }
 
     private List<BuyOrderDto> enrichWithDetails(List<BuyOrder> orders) {

@@ -1542,13 +1542,27 @@ public class GlobalPriceService {
         List<LocalDate> dates = new java.util.ArrayList<>(byDay.keySet());
         int n = dates.size();
         double base = byDay.get(dates.get(n - 1));
-        final double amp = 0.015, freq = 0.9;
-        double phase = (Math.abs((long) cardId.hashCode()) % 1000) / 1000.0 * Math.PI * 2;
-        double noiseLast = amp * Math.sin((n - 1) * freq + phase);
+        // 카드별 고유 텍스처 — 단일 sine(전 카드 동일 물결 → 단조로움) 대신
+        // 추세 tilt + 2-harmonic 합성(카드별 주파수·진폭·위상). cardId 시드로 deterministic
+        // (매 조회 동일, flicker X). 끝점 noise 0 보정 → 최신 = currentKo(대표가) 유지.
+        java.util.Random rng = new java.util.Random(cardId.hashCode() * 0x9E3779B9L);
+        double tilt = (rng.nextDouble() - 0.5) * 0.06;   // ±3% 선형 추세 (상승/하락/평탄 구분)
+        double a1 = 0.015 + rng.nextDouble() * 0.023;    // 1.5~3.8%
+        double f1 = 0.6 + rng.nextDouble() * 0.9;        // 0.6~1.5
+        double p1 = rng.nextDouble() * Math.PI * 2;
+        double a2 = 0.005 + rng.nextDouble() * 0.011;    // 0.5~1.6%
+        double f2 = 1.9 + rng.nextDouble() * 1.6;        // 1.9~3.5
+        double p2 = rng.nextDouble() * Math.PI * 2;
+        double[] noiseRaw = new double[n];
+        for (int i = 0; i < n; i++) {
+            double t = n > 1 ? (double) i / (n - 1) : 0.0;
+            noiseRaw[i] = tilt * t + a1 * Math.sin(i * f1 + p1) + a2 * Math.sin(i * f2 + p2);
+        }
+        double noiseLast = noiseRaw[n - 1];
         List<CardPriceSummaryDto.ChartPoint> out = new java.util.ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             LocalDate d = dates.get(i);
-            double noise = amp * Math.sin(i * freq + phase) - noiseLast; // 끝점 0 → 최신 = currentKo
+            double noise = noiseRaw[i] - noiseLast; // 끝점 0 → 최신 = currentKo
             double projected = currentKo * (byDay.get(d) / base) * (1 + noise);
             out.add(new CardPriceSummaryDto.ChartPoint(
                     d.toString(), (double) (Math.round(projected / 10.0) * 10), null, null));
