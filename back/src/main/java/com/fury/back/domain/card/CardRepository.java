@@ -458,7 +458,10 @@ public interface CardRepository extends JpaRepository<Card, String> {
                     FROM cards c JOIN ko ON ko.card_id = c.card_id
                     LEFT JOIN jc ON jc.card_id = c.card_id LEFT JOIN jp ON jp.card_id = c.card_id
                     LEFT JOIN ec ON ec.card_id = c.card_id LEFT JOIN ep ON ep.card_id = c.card_id
-                    WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE) AND ko.kp >= 5000
+                    WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+                      AND c.is_visible = true
+                      AND c.rarity_code NOT IN ('A', 'S', 'K')
+                      AND ko.kp >= 5000
                  )
             SELECT card_id,
                    ck AS current_price,
@@ -469,6 +472,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
                    CURRENT_DATE AS move_date
             FROM m
             WHERE frac BETWEEN 0.03 AND 0.40 AND ABS(ck * frac) >= 100
+              AND ck / (1 + frac) >= 5000
             ORDER BY frac DESC, ck DESC
             LIMIT :size
             """)
@@ -497,7 +501,10 @@ public interface CardRepository extends JpaRepository<Card, String> {
                     FROM cards c JOIN ko ON ko.card_id = c.card_id
                     LEFT JOIN jc ON jc.card_id = c.card_id LEFT JOIN jp ON jp.card_id = c.card_id
                     LEFT JOIN ec ON ec.card_id = c.card_id LEFT JOIN ep ON ep.card_id = c.card_id
-                    WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE) AND ko.kp >= 5000
+                    WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+                      AND c.is_visible = true
+                      AND c.rarity_code NOT IN ('A', 'S', 'K')
+                      AND ko.kp >= 5000
                  )
             SELECT card_id,
                    ck AS current_price,
@@ -508,6 +515,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
                    CURRENT_DATE AS move_date
             FROM m
             WHERE frac BETWEEN -0.40 AND -0.03 AND ABS(ck * frac) >= 100
+              AND ck / (1 + frac) >= 5000
             ORDER BY frac ASC, ck DESC
             LIMIT :size
             """)
