@@ -1089,7 +1089,10 @@ class GradingAnalyzer:
         roi_quality = float(details.get("ratio", 0.0))
         roi_score = min(1.0, roi_quality / 0.75) if roi_quality > 0 else 0.5
 
-        if lap_var < 30:
+        # 뒷면은 균일한 갤럭시 패턴이라 lap_var 가 본질적으로 낮음 → side별 reject threshold.
+        # (앞면은 아트/텍스트/홀로로 고주파 풍부, 뒷면은 그렇지 않음 — 동일 30 적용 시 초점 맞은 뒷면도 오판)
+        blur_reject = 12.0 if side == "back" else 30.0
+        if lap_var < blur_reject:
             return self._precheck_result(side, False, "bad", "blur",
                 "사진이 선명하지 않아요", "카드를 한 손으로 고정한 뒤 다시 촬영해 주세요",
                 blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
@@ -1136,8 +1139,9 @@ class GradingAnalyzer:
                     blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
             # side_detected = None → 통과 (front 가능성, 단정 X)
 
+        blur_warn = 22.0 if side == "back" else 50.0
         is_warning = (
-            lap_var < 50 or v_mean < 80 or overexp_ratio > 0.15 or glare_area_ratio > 0.05
+            lap_var < blur_warn or v_mean < 80 or overexp_ratio > 0.15 or glare_area_ratio > 0.05
         )
         if is_warning:
             return self._precheck_result(side, True, "warning", "low_quality",
