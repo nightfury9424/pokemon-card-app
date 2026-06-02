@@ -26,7 +26,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        config.enableSimpleBroker("/topic");
+        // /topic = 채팅방 broadcast, /queue = user destination(/user/queue/inbox) point-to-point.
+        // /queue 누락 시 convertAndSendToUser 가 /queue/... 로 풀리지만 broker 가 못 받아 메시지 유실.
+        config.enableSimpleBroker("/topic", "/queue");
         config.setApplicationDestinationPrefixes("/app");
     }
 
