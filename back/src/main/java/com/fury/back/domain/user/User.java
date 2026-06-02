@@ -80,6 +80,18 @@ public class User {
     @Column(name = "age_checked_at")
     private LocalDateTime ageCheckedAt;
 
+    // ── 2026-06-03 휴대폰 OTP 인증 (Firebase Phone Auth). 거래/채팅 신뢰 배지·게이트용. ──
+    // 법적 본인확인 아님 — 이름/생년/CI/DI 미수집. 번호 소유만 확인.
+    @Column(name = "phone_verified", nullable = false)
+    @Builder.Default
+    private boolean phoneVerified = false;
+
+    @Column(name = "phone_e164", length = 20)
+    private String phoneE164;
+
+    @Column(name = "phone_verified_at")
+    private LocalDateTime phoneVerifiedAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -104,6 +116,13 @@ public class User {
     /** 정지 상태 여부. */
     public boolean isSuspended() {
         return this.suspendedAt != null;
+    }
+
+    /** 휴대폰 OTP 인증 완료 (Firebase Phone Auth ID토큰 검증 후 호출). 로드된 엔티티 직접 변경. */
+    public void verifyPhone(String phoneE164) {
+        this.phoneVerified = true;
+        this.phoneE164 = phoneE164;
+        this.phoneVerifiedAt = LocalDateTime.now();
     }
 
     @PreUpdate
