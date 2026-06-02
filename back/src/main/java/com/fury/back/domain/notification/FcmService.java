@@ -3,10 +3,13 @@ package com.fury.back.domain.notification;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
+import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.Aps;
 import com.google.firebase.messaging.ApnsConfig;
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
+import com.google.firebase.messaging.MessagingErrorCode;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -67,15 +70,30 @@ public class FcmService {
                                 .setTitle(title)
                                 .setBody(body)
                                 .build())
-                        // iOS: 백그라운드/종료 상태 배너 신뢰성 — APNs aps 페이로드 명시.
+                        // iOS: 즉시 alert (apns-priority 10). content-available 제거 —
+                        // 그게 백그라운드 업데이트로 취급돼 iOS 가 priority 5 로 throttle(지연)시킴 = 알림 느림 원인.
                         .setApnsConfig(ApnsConfig.builder()
+                                .putHeader("apns-priority", "10")
+                                .putHeader("apns-push-type", "alert")
                                 .setAps(Aps.builder()
                                         .setSound("default")
-                                        .setContentAvailable(true)
                                         .build())
+                                .build())
+                        // Android: 즉시 전달.
+                        .setAndroidConfig(AndroidConfig.builder()
+                                .setPriority(AndroidConfig.Priority.HIGH)
                                 .build())
                         .putAllData(data != null ? data : Map.of())
                         .build());
+            } catch (FirebaseMessagingException e) {
+                // 죽은 토큰(재설치/삭제) 정리 — 누적 시 매 전송이 무효 round-trip 되어 느려짐.
+                MessagingErrorCode code = e.getMessagingErrorCode();
+                if (code == MessagingErrorCode.UNREGISTERED || code == MessagingErrorCode.INVALID_ARGUMENT) {
+                    try { fcmTokenRepository.delete(t); } catch (Exception ignore) {}
+                    log.info("[FCM] 죽은 토큰 정리 token={} code={}", t.getTokenId(), code);
+                } else {
+                    log.warn("[FCM] 전송 실패 token={}: {}", t.getTokenId(), e.getMessage());
+                }
             } catch (Exception e) {
                 log.warn("[FCM] 전송 실패 token={}: {}", t.getTokenId(), e.getMessage());
             }
