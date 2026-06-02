@@ -43,6 +43,8 @@ public class ChatServiceImpl implements ChatService {
     private final BuyOrderRepository buyOrderRepository;
     private final UserRepository userRepository;
     private final com.fury.back.domain.notification.FcmService fcmService;
+    // foreground 채팅 실시간 — 수신자 전역 STOMP(/user/queue/inbox)로 인앱 배너+목록 갱신용.
+    private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
     private final ApplicationEventPublisher eventPublisher;
     // Bundle 2-A: 거래 미니카드용 카드 마스터 이미지 조립 (#62 CardCdnUrls 재활용).
     private final CardRepository cardRepository;
@@ -512,6 +514,9 @@ public class ChatServiceImpl implements ChatService {
         fcmService.sendToUser(otherUserOf(room, senderUserId),
                 sender != null && sender.getNickname() != null ? sender.getNickname() : "새 메시지",
                 "사진을 보냈어요", chatPushData(roomId, sender));
+        notifyInbox(roomId, otherUserOf(room, senderUserId), sender,
+                sender != null && sender.getNickname() != null ? sender.getNickname() : "새 메시지",
+                "사진을 보냈어요");
         return ChatMessageDto.from(saved,
                 sender != null ? sender.getNickname() : "",
                 sender != null ? sender.getProfileImageUrl() : "");
@@ -578,6 +583,26 @@ public class ChatServiceImpl implements ChatService {
         return d;
     }
 
+    /**
+     * foreground 인앱 알림 — 수신자 전역 STOMP({@code /user/queue/inbox})로 발행.
+     * 수신자가 앱을 켜고 STOMP 연결 중이면 즉시 도달(인앱 배너+목록 갱신), 끊겨있으면 무시(FCM 담당).
+     * iOS foreground 에서 FCM onMessage 미발화 우회용. 실패는 메시지 저장/FCM 흐름과 무관 → 무시.
+     */
+    private void notifyInbox(String roomId, String recipientId, User sender, String senderName, String preview) {
+        try {
+            java.util.Map<String, String> inbox = new java.util.HashMap<>();
+            inbox.put("type", "CHAT");
+            inbox.put("roomId", roomId);
+            inbox.put("senderName", senderName);
+            inbox.put("preview", preview == null ? "" : preview);
+            if (sender != null && sender.getProfileImageUrl() != null && !sender.getProfileImageUrl().isBlank()) {
+                inbox.put("senderImage", sender.getProfileImageUrl());
+            }
+            messagingTemplate.convertAndSendToUser(recipientId, "/queue/inbox", inbox);
+        } catch (Exception ignore) {
+        }
+    }
+
     @Override
     @Transactional
     public ChatMessageDto sendMessage(String roomId, String senderUserId, String message) {
@@ -606,6 +631,9 @@ public class ChatServiceImpl implements ChatService {
         fcmService.sendToUser(otherUserOf(room, senderUserId),
                 sender != null && sender.getNickname() != null ? sender.getNickname() : "새 메시지",
                 preview, chatPushData(roomId, sender));
+        notifyInbox(roomId, otherUserOf(room, senderUserId), sender,
+                sender != null && sender.getNickname() != null ? sender.getNickname() : "새 메시지",
+                preview);
         return ChatMessageDto.from(saved,
                 sender != null ? sender.getNickname() : "",
                 sender != null ? sender.getProfileImageUrl() : "");

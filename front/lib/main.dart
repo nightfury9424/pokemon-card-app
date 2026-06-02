@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'core/auth/auth_state.dart';
 import 'core/network/api_client.dart';
+import 'core/notifications/chat_socket_service.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/token_storage.dart';
@@ -35,6 +36,7 @@ Future<void> main() async {
   PushNotificationService.init().then((_) {
     if (AuthState.instance.loggedIn) {
       PushNotificationService.registerToken();
+      ChatSocketService.connect(); // foreground 채팅 실시간 STOMP (앱 재시작 케이스)
     }
   });
   runApp(const PokemonCardApp());

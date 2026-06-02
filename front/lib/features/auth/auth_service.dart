@@ -2,6 +2,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/network/api_client.dart';
+import '../../core/notifications/chat_socket_service.dart';
 import '../../core/notifications/push_notification_service.dart';
 import '../../core/storage/token_storage.dart';
 
@@ -30,6 +31,7 @@ class AuthService {
     await TokenStorage.setOnboarded(!requiresOnboarding);
     AuthState.instance.markLoggedIn(onboarded: !requiresOnboarding);
     PushNotificationService.registerToken(); // FCM 토큰 등록 (guard로 무해)
+    ChatSocketService.connect(); // foreground 채팅 실시간 STOMP
     return requiresOnboarding;
   }
 
@@ -62,6 +64,7 @@ class AuthService {
     await TokenStorage.setOnboarded(!requiresOnboarding);
     AuthState.instance.markLoggedIn(onboarded: !requiresOnboarding);
     PushNotificationService.registerToken(); // FCM 토큰 등록 (guard로 무해)
+    ChatSocketService.connect(); // foreground 채팅 실시간 STOMP
     return requiresOnboarding;
   }
 
@@ -75,6 +78,7 @@ class AuthService {
       await TokenStorage.save(jwt);
       await TokenStorage.setOnboarded(!requiresOnboarding);
       AuthState.instance.markLoggedIn(onboarded: !requiresOnboarding);
+      ChatSocketService.connect(); // foreground 채팅 실시간 STOMP
       return requiresOnboarding;
     } catch (e) {
       return null;
@@ -82,6 +86,7 @@ class AuthService {
   }
 
   static Future<void> logout() async {
+    ChatSocketService.disconnect();
     await PushNotificationService.unregister();
     await _googleSignIn.signOut();
     await TokenStorage.delete();
