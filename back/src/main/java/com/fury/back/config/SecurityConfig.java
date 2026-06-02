@@ -77,6 +77,7 @@ public class SecurityConfig {
                             "/api/auth/**",
                             "/api/health",
                             "/api/internal/**",   // InternalTokenFilter가 token 검증, nginx에서 외부 차단
+                            "/api/kream-agent/**", // 맥북 agent — KreamFetchController가 X-Kream-Agent-Token 검증
                             "/images/**",
                             "/ws/**",
                             "/swagger-ui/**",
