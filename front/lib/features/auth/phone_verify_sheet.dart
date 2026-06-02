@@ -17,6 +17,19 @@ import '../../core/theme/app_colors.dart';
 class PhoneVerifySheet {
   PhoneVerifySheet._();
 
+  /// 거래 시작 게이트 — 미인증이면 인증 시트를 띄우고, 인증 완료/성공 시 true.
+  /// 판매하기/구매하기 등 거래 진입 시점에서 호출. true 면 진행, false 면 중단.
+  static Future<bool> ensureVerified(BuildContext context) async {
+    try {
+      final me = await ApiClient.get('/api/users/me');
+      if (me['data'] is Map && me['data']['phoneVerified'] == true) return true;
+    } catch (_) {
+      // /me 실패 시 게이트로 막지 않음(거래 자체 백엔드가 backstop) — 인증 시트 시도.
+    }
+    if (!context.mounted) return false;
+    return show(context);
+  }
+
   static Future<bool> show(BuildContext context) async {
     final res = await showModalBottomSheet<bool>(
       context: context,

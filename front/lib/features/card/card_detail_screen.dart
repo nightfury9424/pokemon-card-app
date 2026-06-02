@@ -22,6 +22,7 @@ import '../../core/utils/price_label.dart';
 import 'hoga/hoga_board.dart';
 import 'hoga/hoga_row_detail_sheet.dart';
 import 'hoga/pre_order_match_sheet.dart';
+import '../auth/phone_verify_sheet.dart';
 import 'hoga/models/hoga_board_model.dart' show HogaSide;
 import '../../core/widgets/app_info_toast.dart';
 
@@ -3861,6 +3862,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     String rarity,
     String? imageUrl,
   ) async {
+    // 거래 시작 게이트 — 미인증이면 휴대폰 인증 시트(인증해야 진행).
+    if (!await PhoneVerifySheet.ensureVerified(context)) return;
+    if (!mounted) return;
     final asset = _localAsset ?? widget.myAsset;
     if (asset == null) {
       // 자산 X — 내 자산 탭 이동 + outer scroll collapse + 안내 banner.
@@ -4241,6 +4245,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   }
 
   Future<void> _onBuyTap() async {
+    // 거래 시작 게이트 — 미인증이면 휴대폰 인증 시트(인증해야 진행).
+    if (!await PhoneVerifySheet.ensureVerified(context)) return;
+    if (!mounted) return;
     // 거래 UX (2026-06-03): 구매 전 "이미 파는 사람" 먼저 보여주기.
     // 탭하면 그 거래로(즉시 구매) / 없거나 원하는 가격 없으면 → 매수 희망가 등록(삽니다).
     final cardName = (_cardDetail?['name'] as String?) ?? widget.cardId;
