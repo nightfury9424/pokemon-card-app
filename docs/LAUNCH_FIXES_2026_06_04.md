@@ -9,7 +9,7 @@
 
 ## 🔴 P0 — 심사 제출 전 필수
 
-### [ ] 1. 온보딩 중 앱 이탈→복귀 시 상태 초기화 (★영상 확인 신규)
+### [x] 1. 온보딩 중 앱 이탈→복귀 시 상태 초기화 (★영상 확인 신규)
 - **증상**: 만14세 선택 → 닉네임 입력 → 약관 체크(시작하기 활성) 상태에서 앱 백그라운드 갔다 복귀하면 **"만 14세 이상이신가요?" 화면으로 리셋** + 닉네임/체크 유실. (전화인증·문자확인 때문에 앱 밖에 나갈 일 많음 → 치명적)
 - **목표**: background/foreground 전환(앱 kill 아님)에선 age-confirmed/nickname/약관체크 상태 **유지**. 완전 종료 시에만 초기화 허용.
 - **확인 원인**: ①resume 시 auth/bootstrap 라우터 재계산이 onboarding을 age step으로 초기화하는지 ②OnboardingScreen dispose/recreate로 local state 날아가는지 ③redirect가 resume 때 다시 /onboarding 첫 step으로 보내는지.
@@ -36,7 +36,7 @@
 - **범위**: 프론트(편집 화면) + 백엔드(프로필 이미지 업로드 endpoint 있는지 확인 — 없으면 추가). **이미지 업로드는 IPA + 백엔드 필요.**
 - **파일**: `front/lib/features/profile/profile_screen.dart`, `edit_nickname_screen.dart`(→ 편집화면으로 확장), `UserController`.
 
-### [ ] 4. 프로필 카드에서 이메일 제거 + stat에 "구매중" 추가
+### [x] 4. 프로필 카드에서 이메일 제거 + stat에 "구매중" 추가
 - **증상**: 프로필 카드에 이메일(`...@privaterelay.appleid.com`) 노출 → **빼야 함**.
 - **목표**: 프로필 카드 = 아바타 + 닉네임만(이메일 X). 이메일 자리엔 stat 등 다른 정보. **stat 행에 "구매중"(OPEN 매수 호가 수) 추가** → 보유카드 / 판매중 / **구매중** 3종.
 - **파일**: `front/lib/features/profile/profile_screen.dart`.
@@ -58,14 +58,14 @@
 - **목표**: Scaffold/상단/섹션 컨테이너 즉시 렌더. top/hot/gainer/recent-trade/assets/portfolio **각 섹션 독립 로딩 + skeleton**. 카드 이미지 로딩이 전체 렌더 막지 않게(placeholder/errorWidget만).
 - **파일**: `front/lib/features/home/home_screen.dart`. (이전 점진렌더 + 캐러셀 fix 했으나 재확인 필요)
 
-### [ ] 9. 데이터 적을 때 pull-to-refresh 안 됨 (호가/거래/빈 리스트)
+### [x] 9. 데이터 적을 때 pull-to-refresh 안 됨 (호가/거래/빈 리스트)
 - **증상**: 호가/판매글/구매글 리스트가 0~2건으로 짧으면 스크롤이 안 생겨 **pull-to-refresh가 동작 안 함.** 새 글/호가 등록 후 수동 새로고침 불가.
 - **목표**: 데이터 0건/소량/빈 상태에서도 항상 아래로 당기면 새로고침 + 실제 API reload 실행.
 - **수정 방향**: RefreshIndicator 가 감싸는 ScrollView/ListView 에 `physics: AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics())`. CustomScrollView/Sliver 면 SliverFillRemaining 등으로 빈 상태에서도 refresh trigger 잡히게. onRefresh 는 실제 reload 함수 호출(단순 setState 금지).
 - **대상**: 호가 영역, 판매글/구매글 목록, 거래/호가 탭 리스트, 빈 상태 화면.
 - **파일**: `front .../card/hoga/*`, `trade/trade_list_screen.dart`, 빈상태 위젯들.
 
-### [ ] 10. 일반 새로고침 인디케이터 색상 빨강 → 파랑/브랜드
+### [x] 10. 일반 새로고침 인디케이터 색상 빨강 → 파랑/브랜드
 - **증상**: 내 자산 화면 pull-to-refresh 인디케이터가 **빨강**. 매수=빨강/판매=파랑 정책과 섞여 오인. 새로고침은 매수 액션 아님.
 - **목표**: 모든 일반 RefreshIndicator color = `AppColors.blue`(브랜드). 빨강은 새로고침 UI에 쓰지 않음.
 - **수정 방향**: `RefreshIndicator` 직접 생성한 **모든 위치**에서 `color: AppColors.red` 하드코딩 검색 → blue 로. backgroundColor 다크 톤 확인.
