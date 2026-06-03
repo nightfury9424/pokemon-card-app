@@ -71,6 +71,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _debounce = Timer(const Duration(milliseconds: 400), () => _check(trimmed));
   }
 
+  bool get _allAgreed => _agreedTos && _agreedPrivacy && _agreedScanImages;
+
+  /// 전체 동의 토글 — 3개 일괄 설정(+draft). 개별 해제 가능(PIPA: 선택 강제 아님).
+  void _setAllConsents(bool v) {
+    setState(() {
+      _agreedTos = v;
+      _agreedPrivacy = v;
+      _agreedScanImages = v;
+      final d = OnboardingDraft.instance;
+      d.agreedTos = v;
+      d.agreedPrivacy = v;
+      d.agreedScanImages = v;
+    });
+  }
+
   Future<void> _check(String value) async {
     final token = ++_requestToken;
     setState(() => _checking = true);
@@ -356,6 +371,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ],
               const SizedBox(height: 24),
+              // 전체 동의 마스터 — 3개 일괄 체크. 개별 해제 가능, 스캔이미지는 선택 유지.
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _setAllConsents(!_allAgreed),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: _allAgreed,
+                        onChanged: (v) => _setAllConsents(v ?? false),
+                        activeColor: AppColors.blue,
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('전체 동의',
+                        style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              ),
+              const Divider(color: AppColors.divider, height: 18),
               // 회원가입 필수 동의 (한국 개인정보보호법 + Apple App Review). 둘 다 체크돼야 "시작하기" 활성.
               _ConsentCheckbox(
                 checked: _agreedTos,
