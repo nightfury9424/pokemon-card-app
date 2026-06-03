@@ -180,13 +180,17 @@ class _HomeScreenState extends State<HomeScreen> {
     // ── 메인 await: 시장/거래 — 완료 즉시 _loading=false → 캐러셀 렌더 ──
     Map<String, dynamic>? topRes, hotRes, tradeRes;
     List<Map<String, dynamic>> topGainerCards = [];
+    // #11: 인기 탭 = 호가(실제 활성 매물) 우선. 활성 매물 0개면 힛카드(고레어)로 폴백.
+    List<Map<String, dynamic>> hotActive = [];
     await Future.wait([
       () async {
         try {
+          // #12: 금액 탭 = 거래탭 '시세' 탭과 동일 카드셋(전체 레어도 가격순). 고레어만 필터하던 것 제거 —
+          //      PR 프로모(마리오/판쵸 피카츄 등) 최고가 카드가 빠지던 문제. 거래 시세 탭 default rarities 그대로.
           topRes = await ApiClient.get(
             '/api/cards/market',
             params: {
-              'rarities': 'SSR,SAR,CSR,CHR,UR,BWR',
+              'rarities': 'SSR,SAR,CSR,SR,UR,CHR,RR,RRR,HR,AR,BWR,MA,MUR,PR',
               'sortBy': 'price',
               'sortDir': 'desc',
               'page': 0,
@@ -197,16 +201,28 @@ class _HomeScreenState extends State<HomeScreen> {
       }(),
       () async {
         try {
-          hotRes = await ApiClient.get(
-            '/api/cards/market',
-            params: {
-              'rarities': 'SSR,SAR,CSR,CHR,UR,BWR',
-              'sortBy': 'rarity',
-              'sortDir': 'asc',
-              'page': 0,
-              'size': 6,
-            },
+          // #11: 호가(활성 매물) 먼저 — 거래탭 호가 탭과 동일 endpoint. 호가 0개 카드는 백엔드 제외.
+          final active = await ApiClient.getList(
+            '/api/cards/market/active',
+            params: {'size': 6},
           );
+          hotActive = active
+              .whereType<Map>()
+              .map((c) => Map<String, dynamic>.from(c))
+              .toList();
+          // 활성 매물이 없으면 힛카드(고레어 가격순)로 폴백 — 거래탭 힛카드 탭과 동일.
+          if (hotActive.isEmpty) {
+            hotRes = await ApiClient.get(
+              '/api/cards/market',
+              params: {
+                'rarities': 'SSR,SAR,CSR,CHR,UR,BWR',
+                'sortBy': 'price',
+                'sortDir': 'desc',
+                'page': 0,
+                'size': 6,
+              },
+            );
+          }
         } catch (_) {}
       }(),
       () async {
@@ -234,10 +250,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final topData = topRes?['data'] as Map<String, dynamic>?;
     final topCards = List<Map<String, dynamic>>.from(topData?['content'] ?? []);
-    final hotData = hotRes?['data'] as Map<String, dynamic>?;
-    final hotRaw = List<Map<String, dynamic>>.from(hotData?['content'] ?? []);
-    hotRaw.shuffle(Random());
-    final hotCards = hotRaw.take(6).toList();
+    // #11: 호가 우선, 없으면 힛카드 폴백.
+    final List<Map<String, dynamic>> hotCards;
+    if (hotActive.isNotEmpty) {
+      hotCards = hotActive.take(6).toList();
+    } else {
+      final hotData = hotRes?['data'] as Map<String, dynamic>?;
+      final hotRaw = List<Map<String, dynamic>>.from(hotData?['content'] ?? []);
+      hotCards = hotRaw.take(6).toList();
+    }
     final trades =
         (tradeRes?['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
@@ -716,22 +737,18 @@ class _HomeScreenState extends State<HomeScreen> {
     return sorted.take(10).map((asset) {
       final card = asset['card'] as Map<String, dynamic>? ?? {};
       final cardId = (asset['cardId'] as String?) ?? (card['cardId'] as String?) ?? '';
-      // 내 카드: 등록 시점(구매가) 대비. 구매가 없으면 표시 안 함.
+      // #13: 내 카드는 변동률 줄을 항상 표시(렌더에서 처리). 등록 시점(구매가) 대비.
+      // 구매가가 없거나 저가(<5천원) 카드여도 '0원 (0.0%)' neutral 로 노출 — 줄 누락 방지.
       final marketPrice = _assetDisplayPrice(asset);
       final purchasePrice = (asset['purchasePrice'] as num?)?.toInt();
-      double? pct;
-      String? label;
-      if (marketPrice != null && purchasePrice != null && purchasePrice > 0) {
-        pct = (marketPrice - purchasePrice) * 100.0 / purchasePrice;
-        label = '등록 시점 대비';
-      }
       return {
         'card': card,
         'asset': asset,
         'cardId': cardId,
         'price': marketPrice,
-        'changePct': pct,
-        'changeLabel': label,
+        'isMyCard': true,
+        'purchasePrice': purchasePrice,
+        'changeLabel': '등록 시점 대비',
       };
     }).toList();
   }
@@ -1645,7 +1662,39 @@ class _CarouselCardState extends State<_CarouselCard>
             // 변동률 (등록 시점 대비 / 전일 대비)
             // PriceDisplayPolicy (2026-05-16): 저가 카드 % 숨김/Stage B 전체 숨김/Stage C 변동 적음
             // home API에는 prevPrice가 없어서 currentPrice + pct로 역산 후 정책 판단
-            if (widget.item['changePct'] != null) ...[
+            // #13: 보유 카드 = '등록 시점 대비'(손익 개념, 전일대비와 다름). 줄 항상 표시 —
+            // 저가(<5천원) 정책 hide 무시. 등록가 없거나 0% 면 '0원 (0.0%)' neutral 톤.
+            if (widget.item['isMyCard'] == true) ...[
+              const SizedBox(height: 4),
+              Builder(builder: (_) {
+                final price = (widget.item['price'] as num?)?.toInt();
+                final purchase = (widget.item['purchasePrice'] as num?)?.toInt();
+                final label = widget.item['changeLabel'] as String? ?? '등록 시점 대비';
+                int diff = 0;
+                double pct = 0;
+                if (price != null && purchase != null && purchase > 0) {
+                  diff = price - purchase;
+                  pct = diff * 100.0 / purchase;
+                }
+                final sign = diff > 0 ? '+' : (diff < 0 ? '-' : '');
+                final diffStr = '$sign${AppColors.formatPrice(diff.abs())}';
+                final pctStr = '$sign${pct.abs().toStringAsFixed(1)}%';
+                // 색 정책(feedback_color_policy): 양=빨강, 음=파랑, 0/데이터없음=neutral.
+                final color = diff > 0
+                    ? AppColors.red
+                    : (diff < 0 ? AppColors.blue : AppColors.textMuted);
+                return Text(
+                  '$label $diffStr ($pctStr)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                );
+              }),
+            ] else if (widget.item['changePct'] != null) ...[
               const SizedBox(height: 4),
               Builder(builder: (_) {
                 final pct = (widget.item['changePct'] as num).toDouble();

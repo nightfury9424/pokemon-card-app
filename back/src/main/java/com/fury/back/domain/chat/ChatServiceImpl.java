@@ -322,6 +322,47 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public ChatRoomDto getRoom(String roomId, String userId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "ROOM_NOT_FOUND"));
+        requireParticipant(room, userId); // participant 아니면 403 — URL/푸시 직접 진입 차단
+        String otherUserId = userId.equals(room.getBuyerUserId())
+                ? room.getSellerUserId() : room.getBuyerUserId();
+        User other = userRepository.findById(otherUserId).orElse(null);
+        long unread = chatMessageRepository
+                .countByChatRoomIdAndIsReadFalseAndSenderUserIdNot(roomId, userId);
+
+        if (room.getSaleListingId() != null) {
+            TradePost trade = tradePostRepository.findById(room.getSaleListingId()).orElse(null);
+            Card card = (trade != null && trade.getCardId() != null)
+                    ? cardRepository.findById(trade.getCardId()).orElse(null) : null;
+            return ChatRoomDto.fromSale(room, userId,
+                    trade != null ? trade.getTitle() : "",
+                    trade != null ? StorageKeyUrls.firstProxyUrl(trade.getImageUrl()) : null,
+                    other != null ? other.getNickname() : "",
+                    other != null ? other.getProfileImageUrl() : "",
+                    unread,
+                    trade != null ? trade.getStatus() : null,
+                    trade != null ? trade.getPrice() : null,
+                    card != null ? cardCdnUrls.forCard(card) : null,
+                    card != null ? card.getName() : null);
+        } else {
+            BuyOrder buyOrder = buyOrderRepository.findById(room.getBuyOrderId()).orElse(null);
+            Card card = (buyOrder != null && buyOrder.getCardId() != null)
+                    ? cardRepository.findById(buyOrder.getCardId()).orElse(null) : null;
+            return ChatRoomDto.fromBuy(room, userId,
+                    card != null && card.getName() != null ? card.getName() : "",
+                    other != null ? other.getNickname() : "",
+                    other != null ? other.getProfileImageUrl() : "",
+                    unread,
+                    buyOrder != null ? buyOrder.getStatus() : null,
+                    buyOrder != null ? buyOrder.getBidPrice() : null,
+                    card != null ? cardCdnUrls.forCard(card) : null);
+        }
+    }
+
+    @Override
     @Transactional
     public List<ChatMessageDto> getMessages(String roomId, String userId) {
         ChatRoom room = chatRoomRepository.findById(roomId)
@@ -419,6 +460,11 @@ public class ChatServiceImpl implements ChatService {
         final List<ChatRoom> rooms = chatRoomRepository.findAllBySaleListingId(saleListingId);
         for (final ChatRoom room : rooms) {
             sendSystemMessage(room.getChatRoomId(), content);
+            // 상태변경 푸시 — 판매글 상태는 판매자가 바꾸므로 상대(buyer)에게 알림.
+            // 백그라운드면 FCM, foreground-방밖이면 inbox 배너. 탭 → roomId 딥링크 → 방 hydrate.
+            final String buyer = room.getBuyerUserId();
+            fcmService.sendToUser(buyer, "거래 알림", content, chatPushData(room.getChatRoomId(), null));
+            notifyInbox(room.getChatRoomId(), buyer, null, "거래 알림", content);
         }
     }
 
@@ -439,6 +485,10 @@ public class ChatServiceImpl implements ChatService {
         final List<ChatRoom> rooms = chatRoomRepository.findAllByBuyOrderId(buyOrderId);
         for (final ChatRoom room : rooms) {
             sendSystemMessage(room.getChatRoomId(), content);
+            // 구매 호가 상태는 작성자(buyer)가 바꾸므로 상대(seller, 채팅 건 잠재 판매자)에게 알림.
+            final String seller = room.getSellerUserId();
+            fcmService.sendToUser(seller, "거래 알림", content, chatPushData(room.getChatRoomId(), null));
+            notifyInbox(room.getChatRoomId(), seller, null, "거래 알림", content);
         }
     }
 

@@ -17,6 +17,13 @@ public interface ChatService {
     ChatRoomDto getOrCreateRoomFromBuyOrder(String buyOrderId, String sellerUserId);
 
     List<ChatRoomDto> getMyRooms(String userId);
+
+    /**
+     * 단건 방 상세 — 알림 딥링크 진입(roomId만 들고 들어옴) 시 헤더/거래정보 hydrate 용.
+     * getMyRooms 의 per-room DTO 빌드와 동일 결과를 단건으로 반환. participant 아니면 403.
+     */
+    ChatRoomDto getRoom(String roomId, String userId);
+
     List<ChatMessageDto> getMessages(String roomId, String userId);
     ChatMessageDto sendMessage(String roomId, String senderUserId, String message);
 

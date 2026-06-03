@@ -111,6 +111,42 @@ public class TradeController {
         return tradeService.updateStatus(tradeId, userId, nextStatus, chatRoomId);
     }
 
+    @Operation(summary = "실거래가 입력 상태", description = "완료 모달/소프트 인터셉터 노출 판단 + prefill(원래 거래가)")
+    @GetMapping("/{tradeId}/settlement/me")
+    public ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> getMySettlement(
+            @PathVariable String tradeId,
+            @AuthenticationPrincipal String userId) {
+        return tradeService.getSettlementStatus(tradeId, userId);
+    }
+
+    @Operation(summary = "실거래가 입력", description = "거래 당사자 + 완료 거래만. 수집만(시세 반영은 후속 배치).")
+    @PostMapping("/{tradeId}/settlement")
+    public ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> submitSettlement(
+            @PathVariable String tradeId,
+            @AuthenticationPrincipal String userId,
+            @RequestBody(required = false) Map<String, Object> body) {
+        Integer price = null;
+        if (body != null) {
+            final Map<String, Object> source;
+            if (body.get("data") instanceof Map<?, ?> data) {
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> casted = (Map<String, Object>) data;
+                source = casted;
+            } else {
+                source = body;
+            }
+            final Object rawPrice = source.get("price");
+            if (rawPrice instanceof Number n) {
+                price = n.intValue();
+            } else if (rawPrice != null) {
+                try {
+                    price = (int) Math.round(Double.parseDouble(String.valueOf(rawPrice)));
+                } catch (NumberFormatException ignored) { /* null → service badRequest */ }
+            }
+        }
+        return tradeService.submitSettlement(tradeId, userId, price);
+    }
+
     @Operation(summary = "거래 상대 후보 목록", description = "판매자만 호출. 거래중 변경 시 상대 선택용.")
     @GetMapping("/{tradeId}/chat-partners")
     public ReturnData<java.util.List<com.fury.back.domain.trade.dto.ChatPartnerDto>> getChatPartners(

@@ -34,6 +34,12 @@ public interface TradeService {
      */
     ReturnData<TradePostDto> updateStatus(String tradeId, String userId, String status, String chatRoomId);
 
+    /** 실거래가 입력 상태 — 완료 모달/소프트 인터셉터 노출 판단 + prefill. */
+    ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> getSettlementStatus(String tradeId, String userId);
+
+    /** 실거래가 입력(수집만, 시세 반영은 후속 배치). 당사자 + COMPLETED 만. (trade,user) upsert. */
+    ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> submitSettlement(String tradeId, String userId, Integer price);
+
     /**
      * 거래중 모델: 판매글에 연결된 채팅 상대 list (거래중 변경 시 상대 선택용).
      * 판매자만 호출 가능. 차단 user 는 제외 — backend 가 후보 확정.

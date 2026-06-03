@@ -1,0 +1,251 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../core/network/api_client.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_error_toast.dart';
+import '../../core/widgets/app_segmented_toggle.dart';
+import '../../core/widgets/app_success_toast.dart';
+
+/// 실거래가 입력 시트 — 거래 완료 후 양쪽 당사자가 실제 거래 금액 기입.
+///
+/// 정책 (2026-06-04):
+/// - 원래 거래가(판매가)를 prefill → "이 금액이 맞아요" 토글이면 그대로, 다르면 "직접 입력"으로 수정.
+/// - 토글은 앱 공통 [AppSegmentedToggle] 재사용.
+/// - 소프트: '나중에'로 닫기 가능(인터셉터가 다음 진입 때 다시 권유). 시세 반영은 후속(수집만).
+class TradeSettlementSheet extends StatefulWidget {
+  final String tradeId;
+  final String? tradeTitle;
+  final int? agreedPrice;
+  final int? prefillPrice; // 이미 입력한 값이 있으면 그걸로 prefill
+
+  const TradeSettlementSheet({
+    super.key,
+    required this.tradeId,
+    this.tradeTitle,
+    this.agreedPrice,
+    this.prefillPrice,
+  });
+
+  /// 모달 표시. true = 입력 완료, false/null = 나중에(소프트 닫기).
+  static Future<bool?> show(
+    BuildContext context, {
+    required String tradeId,
+    String? tradeTitle,
+    int? agreedPrice,
+    int? prefillPrice,
+  }) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
+      builder: (_) => TradeSettlementSheet(
+        tradeId: tradeId,
+        tradeTitle: tradeTitle,
+        agreedPrice: agreedPrice,
+        prefillPrice: prefillPrice,
+      ),
+    );
+  }
+
+  @override
+  State<TradeSettlementSheet> createState() => _TradeSettlementSheetState();
+}
+
+class _TradeSettlementSheetState extends State<TradeSettlementSheet> {
+  late int _mode; // 0 = 거래가 그대로(맞아요), 1 = 직접 입력
+  late final TextEditingController _priceCtrl;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.prefillPrice ?? widget.agreedPrice;
+    // 이미 입력값이 있고 그게 원래 거래가와 다르면 '직접 입력'으로 시작.
+    _mode = (widget.prefillPrice != null && widget.prefillPrice != widget.agreedPrice) ? 1 : 0;
+    _priceCtrl = TextEditingController(text: initial != null ? initial.toString() : '');
+  }
+
+  @override
+  void dispose() {
+    _priceCtrl.dispose();
+    super.dispose();
+  }
+
+  int? get _effectivePrice {
+    if (_mode == 0) return widget.agreedPrice;
+    final raw = _priceCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+    return raw.isEmpty ? null : int.tryParse(raw);
+  }
+
+  Future<void> _submit() async {
+    final price = _effectivePrice;
+    if (price == null || price <= 0) {
+      AppErrorToast.show(context, '실거래 금액을 입력해주세요.');
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      await ApiClient.post(
+        '/api/trades/${widget.tradeId}/settlement',
+        {'data': {'price': price}},
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      AppSuccessToast.show(context, '실거래 금액이 기록됐어요. 감사합니다!');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      AppErrorToast.show(context, '기록에 실패했어요. 잠시 후 다시 시도해주세요.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final readOnly = _mode == 0;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+            20, 14, 20, MediaQuery.of(context).padding.bottom + 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text('실제 거래 금액을 알려주세요',
+                style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(
+              widget.tradeTitle != null && widget.tradeTitle!.isNotEmpty
+                  ? '${widget.tradeTitle}\n실거래가는 시세 정확도에만 쓰여요. 맞으면 그대로, 다르면 직접 입력해주세요.'
+                  : '실거래가는 시세 정확도에만 쓰여요. 원래 금액이 맞으면 그대로, 다르면 직접 입력해주세요.',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 18),
+            AppSegmentedToggle(
+              labels: const ['이 금액이 맞아요', '직접 입력'],
+              selectedIndex: _mode,
+              onChanged: (i) => setState(() {
+                _mode = i;
+                if (i == 0 && widget.agreedPrice != null) {
+                  _priceCtrl.text = widget.agreedPrice.toString();
+                }
+              }),
+            ),
+            const SizedBox(height: 14),
+            // 금액 입력 — mode 0 이면 원래 거래가 readOnly, mode 1 이면 직접 수정.
+            TextField(
+              controller: _priceCtrl,
+              readOnly: readOnly,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: TextStyle(
+                color: readOnly ? AppColors.textSecondary : AppColors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+              decoration: InputDecoration(
+                hintText: '예: 77000',
+                hintStyle:
+                    const TextStyle(color: AppColors.textMuted, fontSize: 15),
+                suffixText: '원',
+                suffixStyle: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700),
+                filled: true,
+                fillColor: readOnly
+                    ? AppColors.surfaceCard
+                    : AppColors.surfaceElevated,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.divider),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.blue, width: 1.5),
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.divider),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 50,
+                    child: OutlinedButton(
+                      onPressed:
+                          _submitting ? null : () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.divider),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('나중에',
+                          style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: SizedBox(
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _submitting ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.blue,
+                        disabledBackgroundColor: AppColors.divider,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Text('기록하기',
+                              style: TextStyle(
+                                  fontSize: 15, fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

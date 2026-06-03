@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'trade_partner_select_sheet.dart';
+import 'trade_settlement_sheet.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
@@ -1036,6 +1037,17 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       await ApiClient.updateTradeStatus(_currentTradeId, newStatus, chatRoomId: chatRoomId);
       _modified = true;
       AssetNotifier.instance.notifyChanged(); // 내 자산 isSelling 즉시 동기화(어느 경로 진입이든)
+      // 거래 완료 → 실거래가 입력 시트(판매자). 소프트: 닫아도 됨(상대 buyer 는 채팅방 인터셉터로).
+      if (newStatus == 'COMPLETED' && mounted) {
+        final price = (trade['price'] as num?)?.toInt();
+        final title = trade['title'] as String?;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            TradeSettlementSheet.show(context,
+                tradeId: _currentTradeId, tradeTitle: title, agreedPrice: price);
+          }
+        });
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => trade['status'] = oldStatus);

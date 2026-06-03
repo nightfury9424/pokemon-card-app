@@ -61,6 +61,7 @@ public class TradeServiceImpl implements TradeService {
     private final TradePostViewRepository tradePostViewRepository;
     private final BlockRepository blockRepository;
     private final com.fury.back.domain.price.PriceSnapshotRepository priceSnapshotRepository;
+    private final TradeSettlementRepository tradeSettlementRepository;
 
     @Value("${trade.image.dir}")
     private String tradeImageDir;  // Phase 1-7: legacy static handler 호환용 (신규 업로드는 ImageStorageService 사용)
@@ -494,6 +495,81 @@ public class TradeServiceImpl implements TradeService {
         User seller = userRepository.findById(post.getSellerId()).orElse(null);
         Card card = cardRepository.findById(post.getCardId()).orElse(null);
         return ReturnData.success(TradePostDto.fromWithDetails(post, seller, card));
+    }
+
+    // ── 실거래가 수집 (APP_TRADE 원천). 거래 완료 후 양쪽 당사자 입력. 시세 반영은 후속 배치. ──
+
+    /** 매칭 buyer = activeChatRoom 의 buyerUserId (지정된 거래 상대). 없으면 null. */
+    private String settlementBuyerOf(TradePost post) {
+        final String acr = post.getActiveChatRoomId();
+        if (acr == null || acr.isBlank()) return null;
+        return chatRoomRepository.findById(acr).map(r -> r.getBuyerUserId()).orElse(null);
+    }
+
+    /** userId 의 거래 역할 — SELLER / BUYER / null(당사자 아님). */
+    private String settlementRoleOf(TradePost post, String userId) {
+        if (userId != null && userId.equals(post.getSellerId())) return "SELLER";
+        final String buyer = settlementBuyerOf(post);
+        if (buyer != null && buyer.equals(userId)) return "BUYER";
+        return null;
+    }
+
+    private com.fury.back.domain.trade.dto.TradeSettlementStatusDto buildSettlementStatus(
+            TradePost post, String userId) {
+        final String role = settlementRoleOf(post, userId);
+        final boolean participant = role != null;
+        final boolean completed = "COMPLETED".equals(post.getStatus());
+        final TradeSettlement existing = participant
+                ? tradeSettlementRepository.findByTradeIdAndUserId(post.getTradeId(), userId).orElse(null)
+                : null;
+        final boolean reported = existing != null;
+        final boolean required = participant && completed && !reported;
+        return new com.fury.back.domain.trade.dto.TradeSettlementStatusDto(
+                participant, completed, reported, required,
+                post.getPrice(),
+                existing != null ? existing.getReportedPrice() : null,
+                role);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> getSettlementStatus(
+            String tradeId, String userId) {
+        final TradePost post = tradePostRepository.findById(tradeId).orElse(null);
+        if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
+        return ReturnData.success(buildSettlementStatus(post, userId));
+    }
+
+    @Override
+    @Transactional
+    public ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> submitSettlement(
+            String tradeId, String userId, Integer price) {
+        if (price == null || price <= 0) return ReturnData.badRequest("실거래 금액을 올바르게 입력해주세요.");
+        // 명백한 오입력만 차단. 정교한 outlier 필터는 후속 일일 배치(시세 반영 시점)에서.
+        if (price > 1_000_000_000) return ReturnData.badRequest("금액이 올바르지 않습니다.");
+        final TradePost post = tradePostRepository.findById(tradeId).orElse(null);
+        if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
+        final String role = settlementRoleOf(post, userId);
+        if (role == null) return ReturnData.fail("F403", "거래 당사자만 입력할 수 있습니다.");
+        if (!"COMPLETED".equals(post.getStatus())) {
+            return ReturnData.fail("F409", "완료된 거래만 입력할 수 있습니다.");
+        }
+        TradeSettlement s = tradeSettlementRepository.findByTradeIdAndUserId(tradeId, userId).orElse(null);
+        if (s == null) {
+            s = TradeSettlement.builder()
+                    .settlementId(IdGenerator.generate())
+                    .tradeId(tradeId)
+                    .userId(userId)
+                    .role(role)
+                    .cardId(post.getCardId())
+                    .reportedPrice(price)
+                    .build();
+        } else {
+            s.updatePrice(price);
+        }
+        tradeSettlementRepository.save(s);
+        // 시세(APP_TRADE) 반영은 후속 '마지막 리터치' — 여기선 수집/저장만 (v6 freeze 보호).
+        return ReturnData.success(buildSettlementStatus(post, userId));
     }
 
     /**

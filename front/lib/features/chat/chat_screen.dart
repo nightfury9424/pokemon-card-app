@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
+import '../../core/widgets/app_error_toast.dart';
 import '../../core/network/api_client.dart';
 import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/theme/app_colors.dart';
@@ -106,12 +107,18 @@ class _ChatScreenState extends State<ChatScreen> {
       destructive: true,
     );
     if (ok != true) return;
+    // 낙관적 제거 — 서버 응답을 기다리지 않고 즉시 목록에서 제거(여러 방 빠른 연속 나가기 체감 지연 해소).
+    // hidden_at set은 백그라운드로 보내고, 실패 시에만 롤백 + 안내.
+    final idx = _rooms.indexWhere((r) => r['chatRoomId'] == roomId);
+    if (idx < 0) return;
+    final removed = _rooms[idx];
+    setState(() => _rooms.removeAt(idx));
     try {
       await ApiClient.post('/api/chat/rooms/$roomId/leave', {});
-      if (!mounted) return;
-      setState(() => _rooms.removeWhere((r) => r['chatRoomId'] == roomId));
     } catch (_) {
-      if (mounted) _loadRooms();
+      if (!mounted) return;
+      setState(() => _rooms.insert(idx.clamp(0, _rooms.length), removed));
+      AppErrorToast.show(context, '채팅방 나가기에 실패했어요. 다시 시도해주세요.');
     }
   }
 

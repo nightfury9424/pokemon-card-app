@@ -18,6 +18,7 @@ import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/app_success_toast.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
+import '../trade/trade_settlement_sheet.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String roomId;
@@ -56,6 +57,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   // Bundle 2-D hotfix: trade 정보를 chat_room에서 직접 보유 → 미니카드 status 즉시 동기화.
   // SYSTEM 메시지 수신 시 _refreshTradeStatus 호출하여 갱신.
   Map<String, dynamic>? _trade;
+  // #14: 알림 딥링크 진입 시 roomInfo가 비어 들어옴({}). roomId 기준 GET /rooms/{roomId}로
+  // 헤더/거래정보를 hydrate. 정상 진입(목록→extra)이면 이미 채워진 채로 시작 + fetch로 최신화.
+  // 가변 state — 기존 코드의 in-place 갱신(optimistic status)도 widget 불변 객체 변형 없이 안전.
+  late Map<String, dynamic> _roomInfo = Map<String, dynamic>.from(widget.roomInfo);
+  // 헤더 스켈레톤 — sparse 진입(알림)일 때만 의미. hydrate 완료 시 해제.
+  bool _roomLoading = true;
 
   bool get _isSeller {
     final sellerId = (_trade?['seller'] is Map)
@@ -67,9 +74,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   /// 2026-05-29: BUY chat 에서 BuyOrder 작성자 본인 여부 — chip 클릭으로 상태 변경 가능한 권한 분기.
   /// ChatRoomDto.buyerUserId (BUY chat 에선 BuyOrder.buyerId) == _myUserId.
   bool get _isBuyOrderOwner {
-    final contextType = widget.roomInfo['contextType'] as String?;
+    final contextType = _roomInfo['contextType'] as String?;
     if (contextType != 'BUY') return false;
-    final buyerId = widget.roomInfo['buyerUserId'] as String?;
+    final buyerId = _roomInfo['buyerUserId'] as String?;
     return _myUserId != null && buyerId != null && _myUserId == buyerId;
   }
 
@@ -84,11 +91,69 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Future<void> _init() async {
     final token = await TokenStorage.get();
     if (token != null) _myUserId = _userIdFromToken(token);
+    // #14: roomId 기준 방 상세 hydrate를 먼저 — saleListingId/contextType 등이 채워져야
+    // 아래 _refreshTradeStatus(미니카드)와 헤더가 알림 진입에서도 정상 복원됨.
+    await _hydrateRoom();
     // Phase 1B: 메시지 history + conversation-state 병렬 fetch. 각자 독립 fail-safe.
     await Future.wait([_loadMessages(), _loadConversationState()]);
     _connectWebSocket();
     // Bundle 2-D hotfix: trade 정보 진입 시 1회 fetch — 미니카드 status/판매자 메뉴 갱신용.
     _refreshTradeStatus();
+    // 실거래가 소프트 인터셉터 — 완료된 거래인데 내가 아직 실거래가 미입력이면 시트 먼저.
+    _maybePromptSettlement();
+  }
+
+  /// 소프트 인터셉터: 완료 거래 + 내가 미입력이면 실거래가 시트 표시('나중에' 가능 → 다음 진입 때 재권유).
+  /// SALE chat 만(saleListingId 존재). BUY 호가는 제외.
+  Future<void> _maybePromptSettlement() async {
+    final tradeId = _roomInfo['saleListingId'] as String?;
+    if (tradeId == null || tradeId.isEmpty) return;
+    try {
+      final res = await ApiClient.get('/api/trades/$tradeId/settlement/me');
+      if (!mounted) return;
+      final data = res['data'] as Map<String, dynamic>?;
+      if (data == null || data['required'] != true) return;
+      await TradeSettlementSheet.show(
+        context,
+        tradeId: tradeId,
+        tradeTitle: _roomInfo['tradeTitle'] as String?,
+        agreedPrice: (data['agreedPrice'] as num?)?.toInt(),
+        prefillPrice: (data['myReportedPrice'] as num?)?.toInt(),
+      );
+    } catch (_) {
+      // silent — 인터셉터 실패는 채팅 흐름에 영향 없음.
+    }
+  }
+
+  /// #14: roomId 기준 방 상세 fetch → 헤더/거래정보 hydrate.
+  /// - 정상 진입: 이미 채워진 _roomInfo를 fetch 결과로 최신화(authoritative).
+  /// - 알림 진입: roomInfo가 {} 로 들어오므로 여기서 헤더/거래정보가 채워짐.
+  /// 403(비참여자)/404(삭제) → 진입 불가 안내 후 뒤로. 기타 에러는 기존 정보로 진행.
+  Future<void> _hydrateRoom() async {
+    try {
+      final res = await ApiClient.get('/api/chat/rooms/${widget.roomId}');
+      if (!mounted) return;
+      final data = res['data'];
+      if (data is Map<String, dynamic>) {
+        setState(() {
+          _roomInfo = {..._roomInfo, ...data}; // fetched 우선
+          _roomLoading = false;
+        });
+      } else {
+        setState(() => _roomLoading = false);
+      }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      final code = e.response?.statusCode;
+      if (code == 403 || code == 404) {
+        AppErrorToast.show(context, '대화방을 열 수 없어요.');
+        if (context.canPop()) context.pop();
+        return;
+      }
+      setState(() => _roomLoading = false);
+    } catch (_) {
+      if (mounted) setState(() => _roomLoading = false);
+    }
   }
 
   /// Phase 1B: 차단 관계 → 입력창 비활성화 + 안내 banner 상태 fetch.
@@ -112,7 +177,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   /// trade 정보 fetch — 상단 미니카드 status + _isSeller 판정에 사용.
   /// SYSTEM 메시지(상태 변경/삭제) 수신 시 + 판매자 메뉴 사용 후에도 호출.
   Future<void> _refreshTradeStatus() async {
-    final saleListingId = widget.roomInfo['saleListingId'] as String?;
+    final saleListingId = _roomInfo['saleListingId'] as String?;
     if (saleListingId == null) return;
     try {
       final res = await ApiClient.get('/api/trades/$saleListingId');
@@ -122,7 +187,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         setState(() => _trade = data);
       }
     } catch (_) {
-      // silent — 기존 widget.roomInfo로 fallback
+      // silent — 기존 _roomInfo로 fallback
     }
   }
 
@@ -224,7 +289,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   // SALE chat 은 _refreshTradeStatus (saleListingId null 가드로 silent skip).
                   // BUY chat 은 _refreshBuyOrderStatus — chip status 갱신 (Codex E).
                   _refreshTradeStatus();
-                  if (widget.roomInfo['contextType'] == 'BUY') {
+                  if (_roomInfo['contextType'] == 'BUY') {
                     _refreshBuyOrderStatus();
                   }
                   _loadConversationState();
@@ -468,8 +533,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final otherNickname = widget.roomInfo['otherUserNickname'] ?? '';
-    final profileUrl = widget.roomInfo['otherUserProfileImageUrl'] as String?;
+    // #14: 알림 진입 시 hydrate 전엔 닉네임이 비어있음 → 빈 헤더 대신 로딩/폴백 라벨.
+    final rawNickname = (_roomInfo['otherUserNickname'] as String?) ?? '';
+    final otherNickname = rawNickname.isNotEmpty
+        ? rawNickname
+        : (_roomLoading ? '대화 불러오는 중…' : '거래 상대');
+    final profileUrl = _roomInfo['otherUserProfileImageUrl'] as String?;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -636,7 +705,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   /// 양쪽 _loadConversationState() 자동 재조회. 본인 화면도 즉시 await refresh.
   /// mutual block 시 상대가 아직 차단 중이면 canSendMessage=false 유지 (banner 그대로).
   Future<void> _unblockOtherUser() async {
-    final otherUserId = widget.roomInfo['otherUserId']?.toString();
+    final otherUserId = _roomInfo['otherUserId']?.toString();
     if (otherUserId == null || otherUserId.isEmpty) {
       AppErrorToast.show(context, '사용자를 찾을 수 없습니다');
       return;
@@ -659,7 +728,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   Future<void> _blockOtherUser() async {
-    final otherUserId = widget.roomInfo['otherUserId']?.toString();
+    final otherUserId = _roomInfo['otherUserId']?.toString();
     if (otherUserId == null || otherUserId.isEmpty) {
       AppErrorToast.show(context, '차단할 사용자를 찾을 수 없습니다');
       return;
@@ -888,22 +957,22 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     // 사용자 업로드 trade 사진(AuthImage)은 거래 상세에서만, 미니카드는 카드 master 일관성.
     // 2026-05-28 BUY chat: contextType ('SALE'/'BUY') 으로 라벨 chip + 상태 매핑 분기.
     final contextType =
-        (widget.roomInfo['contextType'] as String?) ?? 'SALE';
+        (_roomInfo['contextType'] as String?) ?? 'SALE';
     final isBuy = contextType == 'BUY';
 
-    final tradeTitle = (widget.roomInfo['tradeTitle'] as String?) ?? '';
-    final cardImageUrl = widget.roomInfo['cardImageUrl'] as String?;
+    final tradeTitle = (_roomInfo['tradeTitle'] as String?) ?? '';
+    final cardImageUrl = _roomInfo['cardImageUrl'] as String?;
     // Bundle 2-D hotfix: _trade 우선 (최신 status) / 없으면 진입 시점 snapshot.
     // BUY chat 은 _trade fetch X (sale_listing_id null) — roomInfo snapshot 만 신뢰.
     final tradeStatus = isBuy
-        ? (widget.roomInfo['tradeStatus'] as String?)
+        ? (_roomInfo['tradeStatus'] as String?)
         : ((_trade?['status'] as String?) ??
-            (widget.roomInfo['tradeStatus'] as String?));
+            (_roomInfo['tradeStatus'] as String?));
     final tradePrice = isBuy
-        ? (widget.roomInfo['tradePrice'] as num?)?.toInt()
+        ? (_roomInfo['tradePrice'] as num?)?.toInt()
         : ((_trade?['price'] as num?)?.toInt() ??
-            (widget.roomInfo['tradePrice'] as num?)?.toInt());
-    final saleListingId = widget.roomInfo['saleListingId'] as String?;
+            (_roomInfo['tradePrice'] as num?)?.toInt());
+    final saleListingId = _roomInfo['saleListingId'] as String?;
 
     // 거래/카드 정보 모두 없으면 배너 hide (stale-safe).
     if (tradeTitle.isEmpty && cardImageUrl == null) {
@@ -1067,7 +1136,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   /// 2026-05-29: BuyOrder 상태 변경 sheet — 작성자 본인이 OPEN 일 때만 호출.
   /// 옵션 2개: 취소(CANCELED) / 매칭 완료(MATCHED). 둘 다 비가역 — confirm dialog 필수 (Codex G).
   Future<void> _showBuyOrderStatusSheet() async {
-    final buyOrderId = widget.roomInfo['buyOrderId'] as String?;
+    final buyOrderId = _roomInfo['buyOrderId'] as String?;
     if (buyOrderId == null || buyOrderId.isEmpty) return;
     final action = await showModalBottomSheet<String>(
       context: context,
@@ -1185,7 +1254,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     // optimistic = 본인 변경 직후 STOMP echo 대기 X. roomInfo 직접 patch + setState.
     if (optimisticStatus != null) {
       setState(() {
-        widget.roomInfo['tradeStatus'] = optimisticStatus;
+        _roomInfo['tradeStatus'] = optimisticStatus;
       });
       return;
     }
@@ -1200,10 +1269,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               orElse: () => const {})
           .cast<String, dynamic>();
       final newStatus = me['tradeStatus'] as String?;
-      if (newStatus != null && newStatus != widget.roomInfo['tradeStatus']) {
+      if (newStatus != null && newStatus != _roomInfo['tradeStatus']) {
         if (!mounted) return;
         setState(() {
-          widget.roomInfo['tradeStatus'] = newStatus;
+          _roomInfo['tradeStatus'] = newStatus;
         });
       }
     } catch (_) {
@@ -1430,10 +1499,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   /// Bundle 2-D hotfix: 판매자 시점만 — 채팅방에서 바로 상태 변경/삭제.
   /// 거래 완료는 finalPrice 필요해서 별도 (Bundle 2-B+).
   void _showSellerStatusSheet() {
-    final tradeId = widget.roomInfo['saleListingId'] as String?;
+    final tradeId = _roomInfo['saleListingId'] as String?;
     if (tradeId == null) return;
     final currentStatus = (_trade?['status'] as String?) ??
-        (widget.roomInfo['tradeStatus'] as String?) ?? 'OPEN';
+        (_roomInfo['tradeStatus'] as String?) ?? 'OPEN';
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surfaceCard,
@@ -1501,7 +1570,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   Future<void> _updateTradeStatus(String newStatus) async {
-    final tradeId = widget.roomInfo['saleListingId'] as String?;
+    final tradeId = _roomInfo['saleListingId'] as String?;
     if (tradeId == null) return;
     try {
       // 거래중 모델: RESERVED 변경 시 현재 chat room 을 자동 active_chat_room_id 로.

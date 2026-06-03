@@ -50,6 +50,14 @@ public class ChatController {
         return ApiResponse.ok(chatService.getMyRooms(userId));
     }
 
+    // 단건 방 상세 — 알림 딥링크 진입(roomId만) 시 헤더/거래정보 hydrate.
+    @GetMapping("/rooms/{roomId}")
+    public ApiResponse<ChatRoomDto> getRoom(
+            @PathVariable String roomId,
+            @AuthenticationPrincipal String userId) {
+        return ApiResponse.ok(chatService.getRoom(roomId, userId));
+    }
+
     // 메시지 히스토리
     @GetMapping("/rooms/{roomId}/messages")
     public ApiResponse<List<ChatMessageDto>> getMessages(
