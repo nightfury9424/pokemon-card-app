@@ -546,6 +546,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
       backgroundColor: AppColors.surface,
       child: ListView.separated(
         controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(), // #9: 항목 적어도 pull-refresh
         padding: const EdgeInsets.fromLTRB(0, 0, 0, 20),
         itemCount: cards.length,
         separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.dividerSoft, indent: 78),
@@ -873,6 +874,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
       backgroundColor: AppColors.surface,
       child: ListView.builder(
         controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(), // #9: 항목 적어도 pull-refresh
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         itemCount: _trades.length + (_loadingMore ? 1 : 0),
         itemBuilder: (context, i) {

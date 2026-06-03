@@ -138,6 +138,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       color: AppColors.blue,
       backgroundColor: AppColors.surface,
       child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(), // #9: 항목 적어도 pull-refresh
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _posts.length,
         itemBuilder: (context, index) => _buildPostItem(_posts[index]),
@@ -244,6 +245,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       color: AppColors.blue,
       backgroundColor: AppColors.surface,
       child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(), // #9: 항목 적어도 pull-refresh
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _cards.length,
         itemBuilder: (context, index) => _buildCardItem(_cards[index]),

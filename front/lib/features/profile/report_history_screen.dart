@@ -102,6 +102,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                   color: AppColors.blue,
                   onRefresh: _load,
                   child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(), // #9: 항목 적어도 pull-refresh
                     padding: const EdgeInsets.all(16),
                     itemCount: _items.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),

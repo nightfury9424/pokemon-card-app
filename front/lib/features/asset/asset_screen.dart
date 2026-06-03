@@ -817,6 +817,7 @@ class _AssetScreenState extends State<AssetScreen> {
               child: CircularProgressIndicator(color: Colors.white30),
             )
           : RefreshIndicator(
+              color: AppColors.blue, // #10: 기본 테마색(빨강) 상속 방지 — 새로고침은 매수 액션 아님
               onRefresh: () async {
                 await _loadData();
                 // 도감 탭이면 도감 데이터도 같이 갱신.
@@ -825,6 +826,8 @@ class _AssetScreenState extends State<AssetScreen> {
                 }
               },
               child: CustomScrollView(
+                // #9: 데이터 적어도 pull-to-refresh 동작하도록 항상 스크롤 가능.
+                physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
                   SliverToBoxAdapter(child: _buildPortfolioSummary()),
                   SliverToBoxAdapter(child: _buildTabAndSortRow()),
