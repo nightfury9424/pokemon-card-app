@@ -435,23 +435,15 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 닫기(아래 chevron). 헤더바·상단 등록버튼 제거 → 매수 폼과 톤 통일.
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                    size: 28, color: AppColors.textPrimary),
-                onPressed: () => Navigator.of(context).maybePop(),
-              ),
-            ),
             Expanded(
               child: SingleChildScrollView(
                 controller: widget.sheetScrollController ?? _scrollCtrl,
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 매수 폼("이 가격에 사고 싶어요")과 동일 톤의 타이틀+서브.
+                    // 매수 폼("이 가격에 사고 싶어요")과 동일 톤 — 헤더/닫기 아이콘 없이 바로 타이틀.
+                    // 닫기는 바깥 탭(barrierDismissible)·시트 드래그로. 매수 폼에 없는 닫기 버튼 두지 않음.
                     const Text('판매글 등록',
                         style: TextStyle(
                             color: AppColors.textPrimary,
