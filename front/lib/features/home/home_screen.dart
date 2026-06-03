@@ -86,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// 3초마다 활성 캐러셀의 다음 페이지로. 사용자가 드래그 중이거나
-  /// items < 2면 skip. 무한 캐러셀(items >= 3)은 끝없이, finite(2장)은 wrap.
+  /// items < 2면 skip. 2장 이상은 모두 virtual 무한 캐러셀 → 항상 다음 페이지.
   void _startAutoAdvance() {
     _autoAdvanceTimer?.cancel();
     _autoAdvanceTimer = Timer.periodic(const Duration(seconds: 3), (_) {
@@ -101,16 +101,10 @@ class _HomeScreenState extends State<HomeScreen> {
       final pos = controller.position;
       if (pos.isScrollingNotifier.value) return;
 
+      // 2장 이상 모두 virtual 무한 PageView (아래 itemCount 통일) → 항상 다음 페이지로.
       final currentPage = controller.page?.round() ?? 0;
-      int nextPage;
-      if (items.length >= 3) {
-        nextPage = currentPage + 1; // 무한 PageView
-      } else {
-        // 2장 finite: 끝 도달 시 처음으로
-        nextPage = (currentPage + 1) % items.length;
-      }
       controller.animateToPage(
-        nextPage,
+        currentPage + 1,
         duration: const Duration(milliseconds: 600),
         curve: Curves.easeInOut,
       );
@@ -859,29 +853,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          // items 수가 3 미만이면 controller가 가질 수 있는 page를 itemCount-1로 clamp.
-          // 이전 상태에서 _kCarouselStart로 초기화된 page가 itemCount=1,2에 invalid라 page indicator/peek 깨짐 방지.
-          // controller + state 모두 0으로 reset해야 dots/현재 page 표시도 일관성 유지.
-          // items.isEmpty면 maxValid=-1이 되어 무한 jumpToPage loop가 생길 수 있어 가드.
-          Builder(builder: (_) {
-            if (items.isNotEmpty && items.length < 3 && controller.hasClients) {
-              final maxValid = items.length - 1;
-              if (controller.page != null && controller.page! > maxValid) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted) return;
-                  if (controller.hasClients) controller.jumpToPage(0);
-                  setState(() {
-                    if (isMyCards) {
-                      _carouselPage = 0;
-                    } else {
-                      _marketCarouselPage = 0;
-                    }
-                  });
-                });
-              }
-            }
-            return const SizedBox.shrink();
-          }),
+          // 카드셀 1장=단일 카드(아래 분기), 0장=빈상태. 2장 이상은 모두 virtual 무한 PageView(itemCount=_kCarouselVirtual)
+          //   → 컨트롤러 initialPage(_kCarouselStart=50만)가 항상 유효 범위라 page-out-of-range/clamp 폭주 없음.
+          //   (이전: 2장만 finite itemCount=2 라 50만 page 와 충돌 → 매 프레임 jumpToPage+setState 리빌드 스톰 = 극심한 느림.)
           if (items.isEmpty)
             (_loading
                 ? _carouselSkeleton(height)
@@ -917,14 +891,14 @@ class _HomeScreenState extends State<HomeScreen> {
               child: PageView.builder(
                 clipBehavior: Clip.none,
                 controller: controller,
-                // 3장 이상이면 무한 캐러셀(양옆 peek). 2장은 finite(왼쪽 없음, 오른쪽 peek).
-                itemCount: items.length >= 3 ? _kCarouselVirtual : items.length,
+                // 2장 이상 모두 virtual 무한 캐러셀(양옆 peek). realIndex = index % items.length.
+                itemCount: _kCarouselVirtual,
                 onPageChanged: (page) => setState(() {
                   if (isMyCards) { _carouselPage = page; }
                   else { _marketCarouselPage = page; }
                 }),
                 itemBuilder: (context, index) {
-                  final realIndex = items.length >= 3 ? index % items.length : index;
+                  final realIndex = index % items.length;
                   return AnimatedBuilder(
                     animation: controller,
                     builder: (context, child) {
