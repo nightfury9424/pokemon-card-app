@@ -405,10 +405,10 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
               height: 52,
               child: ElevatedButton(
                 onPressed: _register,
-                // CTA(등록)는 위험 액션 아님 → 초록(feedback_color_policy: CTA 초록 보존).
-                // 카운트/가격 등 액센트는 매수=빨강/매도=파랑 정책 유지.
+                // 등록 CTA = 액션 색 (구매희망가=빨강 / 판매글=파랑, 토스식).
+                // 위 카운트/가격 액센트(color)는 보이는 호가 종류 기준이라 별개.
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.green,
+                  backgroundColor: _isBuy ? AppColors.red : AppColors.blue,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -439,10 +439,12 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
           height: 50,
           child: OutlinedButton(
             onPressed: _register,
-            // CTA(등록)는 초록 통일 (feedback_color_policy: CTA 초록 보존).
+            // 등록 CTA = 액션 색 (구매희망가=빨강 / 판매글=파랑, 토스식).
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.green,
-              side: BorderSide(color: AppColors.green.withValues(alpha: 0.55)),
+              foregroundColor: _isBuy ? AppColors.red : AppColors.blue,
+              side: BorderSide(
+                  color: (_isBuy ? AppColors.red : AppColors.blue)
+                      .withValues(alpha: 0.55)),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -470,8 +472,8 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
               const SizedBox(height: 14),
               OutlinedButton(
                 onPressed: _register,
-                style:
-                    OutlinedButton.styleFrom(foregroundColor: AppColors.green),
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: _isBuy ? AppColors.red : AppColors.blue),
                 child: Text(_isBuy ? '구매 희망가 등록' : '판매글 등록'),
               ),
             ],
