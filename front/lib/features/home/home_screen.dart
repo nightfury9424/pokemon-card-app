@@ -302,32 +302,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 점진 렌더링: 전체 스피너로 막지 않고 껍데기(AppBar/캐러셀 프레임/탭)를 즉시 렌더.
+    // 각 섹션은 데이터 도착 전 skeleton, 도착 시 해당 섹션만 setState 로 채움.
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.blue,
-                strokeWidth: 2,
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadAll,
-              color: AppColors.blue,
-              backgroundColor: AppColors.surface,
-              child: CustomScrollView(
-                slivers: [
-                  _buildAppBar(),
-                  // 4차-Round4-3: 카드 컬렉션 앱 — 시각적 임팩트(카드)가 위, 포트폴리오는 그 다음
-                  // 1) 카드 랭킹 캐러셀 (금액/인기/수익률 3 서브탭)
-                  SliverToBoxAdapter(child: _buildCarousel()),
-                  // 2) 내 자산 (포트폴리오 hero)
-                  if (_userId != null)
-                    SliverToBoxAdapter(child: _buildHeroSection()),
-                  const SliverToBoxAdapter(child: SizedBox(height: 48)),
-                ],
-              ),
-            ),
+      body: RefreshIndicator(
+        onRefresh: _loadAll,
+        color: AppColors.blue,
+        backgroundColor: AppColors.surface,
+        child: CustomScrollView(
+          slivers: [
+            _buildAppBar(),
+            // 1) 카드 랭킹 캐러셀 (탭 헤더 즉시 + 데이터 전 skeleton)
+            SliverToBoxAdapter(child: _buildCarousel()),
+            // 2) 내 자산 hero (자산 백그라운드 로드 완료 시 등장)
+            if (_userId != null)
+              SliverToBoxAdapter(child: _buildHeroSection()),
+            const SliverToBoxAdapter(child: SizedBox(height: 48)),
+          ],
+        ),
+      ),
     );
   }
 
@@ -771,6 +765,46 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
   }
 
+  /// 캐러셀 데이터 로딩 중 placeholder (전체 스피너 대신 섹션 skeleton).
+  Widget _carouselSkeleton(double height) {
+    Widget bar(double w, double h) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        );
+    return SizedBox(
+      height: height + 16,
+      child: Center(
+        child: FractionallySizedBox(
+          widthFactor: 0.6,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 100 / 140,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceCard,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              bar(90, 14),
+              const SizedBox(height: 8),
+              bar(60, 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCarousel() {
     // 카드 좀 더 크게 (0.40 → 0.46, max 460)
     final height = (MediaQuery.of(context).size.height * 0.46).clamp(380.0, 460.0);
@@ -849,12 +883,18 @@ class _HomeScreenState extends State<HomeScreen> {
             return const SizedBox.shrink();
           }),
           if (items.isEmpty)
-            SizedBox(
-              height: height,
-              child: const Center(
-                child: Text('데이터 없음', style: TextStyle(color: AppColors.textMuted, fontSize: 13, fontWeight: FontWeight.w700)),
-              ),
-            )
+            (_loading
+                ? _carouselSkeleton(height)
+                : SizedBox(
+                    height: height,
+                    child: const Center(
+                      child: Text('데이터 없음',
+                          style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                  ))
           else if (items.length == 1)
             // 1장: 캐러셀 없이 가운데 단일 카드. peek/repeat 방지.
             SizedBox(
