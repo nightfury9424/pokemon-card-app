@@ -74,9 +74,11 @@ services:
     restart: unless-stopped
     environment:
       TZ: Asia/Seoul
+      # blue-green 재학습 배포 — /admin/reload-index 토큰. 빈값이면 미검증(내부망 전용 fallback).
+      SCANNER_ADMIN_TOKEN: ${SCANNER_ADMIN_TOKEN:-}
     volumes:
       - /opt/pokefolio/data/models:/app/scanner/model:ro      # DINOv2 (read-only)
-      - /opt/pokefolio/data/faiss:/app/scanner/db:ro          # FAISS index (read-only)
+      - /opt/pokefolio/data/faiss:/app/scanner/db:rw          # FAISS index — reload-index 무중단 배포가 덮어씀(영속)
     expose:
       - "8082"
     networks:

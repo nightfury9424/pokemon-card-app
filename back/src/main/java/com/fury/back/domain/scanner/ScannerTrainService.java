@@ -39,8 +39,11 @@ public class ScannerTrainService {
     @Value("${scanner.base-url:http://localhost:8082}")
     private String scannerBaseUrl;
 
+    @Value("${app.scanner.admin-token:}")
+    private String scannerAdminToken;
+
     private static final int SAMPLE_LIMIT = 5000;
-    private static final Duration PRESIGN_TTL = Duration.ofMinutes(15); // 스캐너 다운로드 여유
+    private static final Duration PRESIGN_TTL = Duration.ofMinutes(60); // 341MB 다운로드 + 재시도 여유
 
     // ── admin ──
 
@@ -73,12 +76,15 @@ public class ScannerTrainService {
             String metaUrl = imageStorage.presignedGetUrl(key + "/card_meta.json", PRESIGN_TTL);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            if (scannerAdminToken != null && !scannerAdminToken.isBlank()) {
+                headers.set("X-Scanner-Admin-Token", scannerAdminToken);
+            }
             Map<String, String> reqBody = Map.of("faissUrl", faissUrl, "metaUrl", metaUrl);
             ResponseEntity<Map> resp = restTemplate().postForEntity(
                     scannerBaseUrl + "/admin/reload-index", new HttpEntity<>(reqBody, headers), Map.class);
             Object err = resp.getBody() == null ? null : resp.getBody().get("error");
             if (err != null) {
-                throw new IllegalStateException("scanner reload error: " + err);
+                throw new IllegalStateException("scanner reload error: " + sanitize(String.valueOf(err)));
             }
             int marked = captureRepo.markIndexedBefore(job.getTrainedAt());
             job.markDeployed();
@@ -86,11 +92,24 @@ public class ScannerTrainService {
             log.info("[ScanTrain] deployed job={} markedIndexed={}", job.getJobId(), marked);
             return Map.of("status", "DEPLOYED", "markedIndexed", marked);
         } catch (Exception e) {
-            job.markFailed("deploy 실패: " + e.getMessage());
+            String safe = sanitize(e.getMessage());
+            job.markFailed("deploy 실패: " + safe);
             jobRepo.save(job);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "스캐너 인덱스 reload 실패: " + e.getMessage());
+                    "스캐너 인덱스 reload 실패: " + safe);
         }
+    }
+
+    /** 막힌 job 복구 — 최신 active job(특히 DEPLOYING stuck)을 FAILED 처리해 다음 학습 가능하게. */
+    @Transactional
+    public Map<String, Object> reset() {
+        ScanTrainJob job = jobRepo.findFirstByOrderByRequestedAtDesc().orElse(null);
+        if (job == null || !job.isActive()) {
+            return Map.of("reset", false, "status", job == null ? "NONE" : job.getStatus().name());
+        }
+        log.warn("[ScanTrain] reset job={} from {}", job.getJobId(), job.getStatus());
+        job.markFailed("admin reset (" + job.getStatus() + " 에서 강제 종료)");
+        return Map.of("reset", true, "status", "FAILED");
     }
 
     /** 상태 — admin UI 버튼 게이팅 (canTrain / canDeploy). */
@@ -154,6 +173,13 @@ public class ScannerTrainService {
             return;
         }
         job.markTrained(stagedKey, sampleCount);
+    }
+
+    /** presigned URL 등 자격증명이 DB message/응답에 남지 않도록 마스킹 + 길이 제한. */
+    private static String sanitize(String msg) {
+        if (msg == null) return null;
+        String m = msg.replaceAll("https?://\\S+", "[url]");
+        return m.length() > 300 ? m.substring(0, 300) : m;
     }
 
     private RestTemplate restTemplate() {

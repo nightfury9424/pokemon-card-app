@@ -44,6 +44,12 @@ public class ScannerTrainController {
         return service.status();
     }
 
+    /** 복구 — 막힌 job(DEPLOYING stuck 등)을 FAILED 처리해 다음 학습 가능하게. */
+    @PostMapping("/admin/scanner/reset")
+    public Map<String, Object> reset() {
+        return service.reset();
+    }
+
     // ── 맥북 agent (token-gated) ──
     @GetMapping("/scanner-agent/claim")
     public Map<String, Object> claim(

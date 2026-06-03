@@ -22,7 +22,7 @@ import cv2
 from pathlib import Path
 from PIL import Image
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, Query
+from fastapi import FastAPI, UploadFile, File, Query, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from transformers import AutoImageProcessor, AutoModel
@@ -36,6 +36,10 @@ _FINETUNED = BASE_DIR / "model" / "dinov2_finetuned"
 BASE_MODEL = "facebook/dinov2-base"
 MODEL_NAME = str(_FINETUNED) if _FINETUNED.exists() else BASE_MODEL
 DEVICE     = "mps" if torch.backends.mps.is_available() else "cpu"
+
+# blue-green 배포 토큰 — 설정 시 /admin/reload-index 에 X-Scanner-Admin-Token 일치 요구.
+# 미설정(빈값)이면 미검증 — 스캐너는 docker 내부망(expose, host 미노출) 전용이라 fallback.
+SCANNER_ADMIN_TOKEN = os.environ.get("SCANNER_ADMIN_TOKEN", "")
 
 state: dict = {}
 _executor = ThreadPoolExecutor(max_workers=1)
@@ -364,10 +368,15 @@ def _reload_index_blocking(faiss_url: str, meta_url: str) -> dict:
 
 
 @app.post("/admin/reload-index")
-async def reload_index(payload: dict):
+async def reload_index(
+    payload: dict,
+    x_scanner_admin_token: str | None = Header(default=None, alias="X-Scanner-Admin-Token"),
+):
     """blue-green 배포 — 백엔드(deploy)가 staging 인덱스 presigned URL 만 전달.
     341MB 는 S3→스캐너 직결(urllib). 검증 통과 후 DB_DIR 원자 교체 + state 핫스왑.
     실패(다운로드/깨진 인덱스/size mismatch)면 OLD 인덱스 그대로 유지(무중단)."""
+    if SCANNER_ADMIN_TOKEN and x_scanner_admin_token != SCANNER_ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="scanner admin token invalid")
     faiss_url = payload.get("faissUrl")
     meta_url  = payload.get("metaUrl")
     if not faiss_url or not meta_url:
@@ -382,9 +391,14 @@ async def reload_index(payload: dict):
         n = new["index"].ntotal
         logger.info("[reload-index] swapped: %d vectors, %d cards", n, len(new["cards"]))
         return {"status": "ok", "vectors": n, "cards": len(new["cards"])}
-    except Exception as e:
-        logger.exception("[reload-index] failed — OLD 유지")
+    except ValueError as e:
+        # 우리 검증 실패(size mismatch 등) — URL 없음, 메시지 안전.
+        logger.error("[reload-index] validation failed — OLD 유지: %s", e)
         return {"error": str(e)}
+    except Exception as e:
+        # 네트워크/다운로드 예외 — presigned URL 이 메시지에 섞일 수 있어 타입명만 노출(15분 자격증명).
+        logger.error("[reload-index] failed (%s) — OLD 유지", type(e).__name__)
+        return {"error": type(e).__name__}
 
 
 import re as _re

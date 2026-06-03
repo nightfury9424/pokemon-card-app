@@ -133,7 +133,10 @@ def process_once(s3) -> bool:
         base_n = index.ntotal
         _log(f"base index: {base_n} vectors / {len(cards)} cards")
 
-        added = 0
+        # 임베딩+cardId 를 병렬 리스트로 모은 뒤 한 번에 add/extend.
+        # → index.add 와 vectors.append 사이 예외로 인한 오프셋 desync 원천 차단(P1-4).
+        new_embs = []
+        new_ids = []
         skipped = 0
         for i, s in enumerate(samples, 1):
             card_id = s["cardId"]
@@ -149,16 +152,19 @@ def process_once(s3) -> bool:
                     skipped += 1
                     continue
                 # 캡처는 이미 warp-crop(identify 가 저장) → 재검출 없이 그대로 임베딩
-                emb = get_embedding(img)
-                index.add(emb.reshape(1, -1))
-                vectors.append(card_id)
-                added += 1
+                new_embs.append(get_embedding(img))
+                new_ids.append(card_id)
             except Exception as e:
                 _log(f"  sample {s.get('captureId')} 실패: {e}")
                 skipped += 1
             if i % 50 == 0:
-                _log(f"  {i}/{len(samples)} (added={added} skipped={skipped})")
+                _log(f"  {i}/{len(samples)} (added={len(new_ids)} skipped={skipped})")
 
+        added = len(new_ids)
+        if added > 0:
+            # 원자적 동기 추가 — 둘이 항상 같은 길이 유지.
+            index.add(np.vstack(new_embs).astype(np.float32))
+            vectors.extend(new_ids)
         if added == 0:
             _api_post("/api/scanner-agent/trained",
                       {"jobId": job_id, "stagedIndexKey": None, "sampleCount": 0,

@@ -96,6 +96,16 @@ export default function Scanner() {
       .finally(() => setBusy(false))
   }
 
+  function doReset() {
+    if (busy) return
+    if (!window.confirm('진행 중 job 을 강제 종료합니다(배포 중 멈춤 복구용). 진행할까요?')) return
+    setBusy(true)
+    api.post('/admin/scanner/reset')
+      .then(() => loadTrain())
+      .catch(e => alert('리셋 실패: ' + (e.response?.data?.message ?? e.message)))
+      .finally(() => setBusy(false))
+  }
+
   function testScan() {
     if (!testImg.trim()) return
     alert('스캔 테스트는 현재 운영 스캐너에 /scan endpoint 미연동 — 별도 작업으로 분리됨')
@@ -190,6 +200,15 @@ export default function Scanner() {
           }}>
             <UploadCloud size={13} /> 업데이트하기
           </button>
+          {train && !train.canTrain && train.status !== 'NONE' && (
+            <button onClick={doReset} disabled={busy} style={{
+              padding: '10px 14px', borderRadius: 10, border: '1px solid #fecaca',
+              cursor: busy ? 'not-allowed' : 'pointer', background: '#fff', color: '#dc2626',
+              fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+            }}>
+              강제 종료
+            </button>
+          )}
           <div style={{ flex: 1 }} />
           <div style={{ fontSize: 11, color: '#cbd5e1', alignSelf: 'center', textAlign: 'right', maxWidth: 220 }}>
             학습하기 → 맥에서 <code>train_agent.py</code> 실행 → 완료되면 업데이트하기 활성
