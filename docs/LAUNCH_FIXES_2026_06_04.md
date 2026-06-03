@@ -73,6 +73,19 @@
 
 ---
 
+### [x] 11. 판매 취소 후 내 자산에 "판매중" 잔존 (mutation 전파 누락)
+- **증상**: 판매중 → 판매 취소/삭제 → 뒤로가기 → 내 자산이 아직 "판매중". (trade_detail 에서 취소 시 asset_screen 미갱신)
+- **원인**: trade_detail 의 상태변경/삭제가 `AssetNotifier.notifyChanged()` 를 안 불러서, asset_screen(listener)이 reload 안 됨. (card_detail 경로는 이미 fire)
+- **수정**: trade_detail `_updateStatus`/`_deleteTrade` 성공 시 `AssetNotifier.instance.notifyChanged()` 추가 → 어느 진입경로든 자산 즉시 동기화. (커밋 예정)
+- **원칙**: 모든 거래/자산 mutation 은 AssetNotifier 로 전파 (홈/자산/도감 listener 자동 reload).
+
+### [x] 12. 관심 "게시물" 탭 카드 이미지 안 뜸 (신규 기능 버그)
+- **증상**: 관심 목록 게시물 탭에서 카드 이미지가 뒷면 placeholder 로 깨짐.
+- **원인**: `/api/interests/my` 가 card 에 `jpScrydexRef/enScrydexRef` 를 안 줘서, 프론트 resolveCardImageUrl 이 `/special/{cardId}.png` 폴백(일반카드엔 틀림).
+- **수정**: InterestController.myInterests card 맵에 jp/en ScrydexRef 추가(백엔드). **prod 배포 필요.**
+
+---
+
 ## ⚪ 정책 결정 필요
 
 ### [x] 7. 같은 번호 다른 소셜계정 인증 → **봐주자(차단 X) — 결정 완료**

@@ -100,7 +100,10 @@ public class InterestController {
                             "card", card != null ? Map.of(
                                     "cardId", card.getCardId(),
                                     "name", card.getName(),
-                                    "rarityCode", card.getRarityCode() != null ? card.getRarityCode() : ""
+                                    "rarityCode", card.getRarityCode() != null ? card.getRarityCode() : "",
+                                    // 프론트 resolveCardImageUrl 이 ref 로 이미지 URL 조립 — 없으면 깨짐(게시물 탭 이미지 버그).
+                                    "jpScrydexRef", card.getJpScrydexRef() != null ? card.getJpScrydexRef() : "",
+                                    "enScrydexRef", card.getEnScrydexRef() != null ? card.getEnScrydexRef() : ""
                             ) : Map.of(),
                             "seller", seller != null ? Map.of(
                                     "nickname", seller.getNickname()

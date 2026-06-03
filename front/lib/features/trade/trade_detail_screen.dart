@@ -11,6 +11,7 @@ import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../auth/phone_verify_sheet.dart';
+import '../../core/notifiers/asset_notifier.dart';
 
 class TradeDetailScreen extends StatefulWidget {
   final String tradeId;
@@ -1034,6 +1035,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       // 거래중 모델: RESERVED 변경 시 chatRoomId 함께 전달.
       await ApiClient.updateTradeStatus(_currentTradeId, newStatus, chatRoomId: chatRoomId);
       _modified = true;
+      AssetNotifier.instance.notifyChanged(); // 내 자산 isSelling 즉시 동기화(어느 경로 진입이든)
     } catch (_) {
       if (!mounted) return;
       setState(() => trade['status'] = oldStatus);
@@ -1266,6 +1268,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
   Future<void> _deleteTrade() async {
     try {
       await ApiClient.delete('/api/trades/$_currentTradeId');
+      AssetNotifier.instance.notifyChanged(); // 내 자산 isSelling 즉시 동기화(어느 경로 진입이든)
       if (!mounted) return;
       // rootOverlay 사용이라 pop 후에도 토스트 유지.
       AppSuccessToast.show(context, '판매글이 삭제되었습니다');
