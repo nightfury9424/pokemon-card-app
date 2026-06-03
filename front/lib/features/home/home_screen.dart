@@ -134,20 +134,28 @@ class _HomeScreenState extends State<HomeScreen> {
     final seq = ++_loadSeq;
     if (!silent) setState(() => _loading = true);
 
-    try {
-      final meRes = await ApiClient.get('/api/users/me');
-      _userId = meRes['data']?['userId'] as String?;
-    } catch (_) {}
+    // /me 를 공유 Future 로 — 사용자 무관(시장/거래) 호출과 동시에 진행해 직렬 대기(~1 RTT)
+    // 제거. 자산/포트폴리오만 userId 확보 후 발사한다.
+    final userIdF = () async {
+      try {
+        final meRes = await ApiClient.get('/api/users/me');
+        return meRes['data']?['userId'] as String?;
+      } catch (_) {
+        return null;
+      }
+    }();
 
     Map<String, dynamic>? assetRes, topRes, hotRes, tradeRes, portfolioRes;
     List<Map<String, dynamic>> topGainerCards = [];
     await Future.wait([
       () async {
+        final uid = await userIdF;
+        _userId = uid;
         try {
-          assetRes = _userId != null
+          assetRes = uid != null
               ? await ApiClient.get(
                   ApiConstants.assets,
-                  params: {'userId': _userId},
+                  params: {'userId': uid},
                 )
               : {'data': []};
         } catch (_) {
@@ -155,11 +163,12 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }(),
       () async {
+        final uid = await userIdF;
         try {
-          if (_userId != null) {
+          if (uid != null) {
             portfolioRes = await ApiClient.get(
               '${ApiConstants.assets}/portfolio',
-              params: {'userId': _userId},
+              params: {'userId': uid},
             );
           }
         } catch (_) {}
