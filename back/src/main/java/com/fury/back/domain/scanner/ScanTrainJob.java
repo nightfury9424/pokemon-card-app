@@ -50,6 +50,10 @@ public class ScanTrainJob {
     @Column(name = "deployed_at")
     private LocalDateTime deployedAt;
 
+    /** 학습 시작 시각 (agent claim → TRAINING). 소요시간 가시화용. */
+    @Column(name = "training_started_at")
+    private LocalDateTime trainingStartedAt;
+
     @PrePersist
     void onCreate() {
         if (requestedAt == null) requestedAt = LocalDateTime.now();
@@ -70,7 +74,10 @@ public class ScanTrainJob {
     }
 
     // 상태 전이 — 로드된 엔티티 직접 변경(@Transactional dirty-check). builder 재조립 금지.
-    public void markTraining() { this.status = Status.TRAINING; }
+    public void markTraining() {
+        this.status = Status.TRAINING;
+        this.trainingStartedAt = LocalDateTime.now();
+    }
 
     public void markTrained(String stagedKey, Integer sampleCount) {
         this.status = Status.TRAINED;

@@ -11,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +88,18 @@ public class ScannerTrainService {
         m.put("unindexedCaptures", captureRepo.countByFaissIndexedFalseAndDeletedAtIsNull());
         m.put("canTrain", job == null || !job.isActive());
         m.put("canDeploy", job != null && job.getStatus() == ScanTrainJob.Status.TRAINED);
+        // 학습 소요시간 가시화 — 진행 중 경과(now-시작) + 지난번 소요(참고 ETA).
+        if (job != null && job.getStatus() == ScanTrainJob.Status.TRAINING
+                && job.getTrainingStartedAt() != null) {
+            m.put("elapsedSeconds",
+                    Duration.between(job.getTrainingStartedAt(), LocalDateTime.now()).getSeconds());
+        }
+        jobRepo.findFirstByTrainedAtIsNotNullOrderByTrainedAtDesc().ifPresent(last -> {
+            if (last.getTrainingStartedAt() != null && last.getTrainedAt() != null) {
+                m.put("lastTrainSeconds",
+                        Duration.between(last.getTrainingStartedAt(), last.getTrainedAt()).getSeconds());
+            }
+        });
         return m;
     }
 

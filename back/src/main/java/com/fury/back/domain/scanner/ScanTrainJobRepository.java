@@ -12,4 +12,7 @@ public interface ScanTrainJobRepository extends JpaRepository<ScanTrainJob, Stri
 
     /** 특정 상태 job들 (agent claim=REQUESTED, deploy=TRAINED 조회). */
     List<ScanTrainJob> findByStatusOrderByRequestedAtAsc(ScanTrainJob.Status status);
+
+    /** 마지막으로 학습 완료된 job (소요시간 참고치/ETA용). */
+    Optional<ScanTrainJob> findFirstByTrainedAtIsNotNullOrderByTrainedAtDesc();
 }
