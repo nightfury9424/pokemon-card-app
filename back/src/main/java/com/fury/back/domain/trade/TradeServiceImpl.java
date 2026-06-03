@@ -475,6 +475,11 @@ public class TradeServiceImpl implements TradeService {
             return ReturnData.success(TradePostDto.fromWithDetails(post, seller, card));
         }
 
+        // B2-4: OPEN→COMPLETED 직접 금지 — 거래중(예약, 상대 선택) 거쳐야 완료 가능.
+        if ("COMPLETED".equals(status) && "OPEN".equals(post.getStatus())) {
+            return ReturnData.fail("F409", "거래중(예약)으로 변경한 뒤 완료할 수 있어요.");
+        }
+
         post.updateStatus(status);
 
         // 거래중 모델 — active_chat_room_id 처리:
@@ -544,8 +549,8 @@ public class TradeServiceImpl implements TradeService {
     @Transactional
     public ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> submitSettlement(
             String tradeId, String userId, Integer price) {
-        if (price == null || price <= 0) return ReturnData.badRequest("실거래 금액을 올바르게 입력해주세요.");
-        // 명백한 오입력만 차단. 정교한 outlier 필터는 후속 일일 배치(시세 반영 시점)에서.
+        // 최소단위 100원 (B2-19). 명백한 오입력만 차단 — 정교한 outlier/밴드 필터는 후속 배치(시세 반영 시점).
+        if (price == null || price < 100) return ReturnData.badRequest("실거래 금액을 100원 이상 입력해주세요.");
         if (price > 1_000_000_000) return ReturnData.badRequest("금액이 올바르지 않습니다.");
         final TradePost post = tradePostRepository.findById(tradeId).orElse(null);
         if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
@@ -570,6 +575,79 @@ public class TradeServiceImpl implements TradeService {
         tradeSettlementRepository.save(s);
         // 시세(APP_TRADE) 반영은 후속 '마지막 리터치' — 여기선 수집/저장만 (v6 freeze 보호).
         return ReturnData.success(buildSettlementStatus(post, userId));
+    }
+
+    // ── B2-12: 구매(BuyOrder) 실거래가 수집 — SALE 대칭. trade_settlements 에 trade_id=buyOrderId 저장. ──
+
+    /** BUY 거래중 상대(seller) = activeChatRoom 의 sellerUserId. */
+    private String buySettlementSellerOf(BuyOrder order) {
+        final String acr = order.getActiveChatRoomId();
+        if (acr == null || acr.isBlank()) return null;
+        return chatRoomRepository.findById(acr).map(r -> r.getSellerUserId()).orElse(null);
+    }
+
+    /** BUY 거래의 userId 역할 — BUYER(호가 작성자) / SELLER(선택 상대) / null. */
+    private String buySettlementRoleOf(BuyOrder order, String userId) {
+        if (userId != null && userId.equals(order.getBuyerId())) return "BUYER";
+        final String seller = buySettlementSellerOf(order);
+        if (seller != null && seller.equals(userId)) return "SELLER";
+        return null;
+    }
+
+    private com.fury.back.domain.trade.dto.TradeSettlementStatusDto buildBuySettlementStatus(
+            BuyOrder order, String userId) {
+        final String role = buySettlementRoleOf(order, userId);
+        final boolean participant = role != null;
+        final boolean completed = "COMPLETED".equals(order.getStatus());
+        final TradeSettlement existing = participant
+                ? tradeSettlementRepository.findByTradeIdAndUserId(order.getBuyOrderId(), userId).orElse(null)
+                : null;
+        final boolean reported = existing != null;
+        final boolean required = participant && completed && !reported;
+        return new com.fury.back.domain.trade.dto.TradeSettlementStatusDto(
+                participant, completed, reported, required,
+                order.getBidPrice(),
+                existing != null ? existing.getReportedPrice() : null,
+                role);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> getBuySettlementStatus(
+            String buyOrderId, String userId) {
+        final BuyOrder order = buyOrderRepository.findById(buyOrderId).orElse(null);
+        if (order == null) return ReturnData.notFound("매수 호가를 찾을 수 없습니다.");
+        return ReturnData.success(buildBuySettlementStatus(order, userId));
+    }
+
+    @Override
+    @Transactional
+    public ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> submitBuySettlement(
+            String buyOrderId, String userId, Integer price) {
+        if (price == null || price < 100) return ReturnData.badRequest("실거래 금액을 100원 이상 입력해주세요.");
+        if (price > 1_000_000_000) return ReturnData.badRequest("금액이 올바르지 않습니다.");
+        final BuyOrder order = buyOrderRepository.findById(buyOrderId).orElse(null);
+        if (order == null) return ReturnData.notFound("매수 호가를 찾을 수 없습니다.");
+        final String role = buySettlementRoleOf(order, userId);
+        if (role == null) return ReturnData.fail("F403", "거래 당사자만 입력할 수 있습니다.");
+        if (!"COMPLETED".equals(order.getStatus())) {
+            return ReturnData.fail("F409", "완료된 거래만 입력할 수 있습니다.");
+        }
+        TradeSettlement s = tradeSettlementRepository.findByTradeIdAndUserId(buyOrderId, userId).orElse(null);
+        if (s == null) {
+            s = TradeSettlement.builder()
+                    .settlementId(IdGenerator.generate())
+                    .tradeId(buyOrderId)
+                    .userId(userId)
+                    .role(role)
+                    .cardId(order.getCardId())
+                    .reportedPrice(price)
+                    .build();
+        } else {
+            s.updatePrice(price);
+        }
+        tradeSettlementRepository.save(s);
+        return ReturnData.success(buildBuySettlementStatus(order, userId));
     }
 
     /**

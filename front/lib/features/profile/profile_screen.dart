@@ -346,11 +346,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildStatRow() {
     return Row(
       children: [
-        _StatChip(label: '보유 카드', value: '$_totalCards장'),
+        _StatChip(
+            label: '보유 카드',
+            value: '$_totalCards장',
+            onTap: () => context.push('/assets')),
         const SizedBox(width: 10),
-        _StatChip(label: '판매 중', value: '$_activeTrades건'),
+        _StatChip(
+            label: '판매 중',
+            value: '$_activeTrades건',
+            onTap: () => context.push('/assets?tab=selling')),
         const SizedBox(width: 10),
-        _StatChip(label: '구매 중', value: '$_activeBuyOrders건'),
+        _StatChip(
+            label: '구매 중',
+            value: '$_activeBuyOrders건',
+            onTap: () => context.push('/assets?tab=buy')),
       ],
     );
   }
@@ -477,36 +486,44 @@ class _MenuRow extends StatelessWidget {
 class _StatChip extends StatelessWidget {
   final String label;
   final String value;
+  final VoidCallback? onTap; // B2-9: 탭하면 내자산 해당 탭으로.
 
-  const _StatChip({required this.label, required this.value});
+  const _StatChip({required this.label, required this.value, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.5,
-              ),
-            ),
-          ],
-        ),
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.divider),
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+    return Expanded(
+      child: onTap == null
+          ? content
+          : InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(14),
+              child: content,
+            ),
     );
   }
 }

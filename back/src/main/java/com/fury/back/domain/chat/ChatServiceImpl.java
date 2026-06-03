@@ -477,6 +477,8 @@ public class ChatServiceImpl implements ChatService {
     public void broadcastBuyOrderStatusChanged(String buyOrderId, String newStatus) {
         final String content = switch (newStatus) {
             case "OPEN" -> "구매 호가가 다시 활성화되었습니다.";
+            case "RESERVED" -> "구매 거래가 거래중으로 변경되었습니다.";   // B2-12
+            case "COMPLETED" -> "구매 거래가 완료되었습니다.";              // B2-12
             case "MATCHED" -> "구매 호가가 매칭되었습니다.";
             case "CANCELED" -> "구매 호가가 취소되었습니다.";
             default -> null;
@@ -504,7 +506,7 @@ public class ChatServiceImpl implements ChatService {
                 .orElseThrow(() -> new IllegalArgumentException("채팅방 없음: " + roomId));
         requireParticipant(room, senderUserId);
         requireNotBlocked(senderUserId, otherUserOf(room, senderUserId));
-        requireOtherNotLeft(room, senderUserId);
+        // B2-3: 단순 나가기는 전송 차단 X. 아래 last_message 갱신 시 상대 재초대(hidden clear).
         requireNotExcludedFromActiveTrade(room);
 
         // 2. 파일 size 검증 (10MB) — Codex D
@@ -558,6 +560,7 @@ public class ChatServiceImpl implements ChatService {
 
         // 6. last_message — IMAGE placeholder (정책: 채팅 list 에서 "사진" 표기)
         room.updateLastMessage("[사진]");
+        room.clearHiddenForUser(otherUserOf(room, senderUserId)); // B2-3: 상대 재초대
         chatRoomRepository.save(room);
 
         // 7. DTO 빌드 — ChatMessageDto.from 의 IMAGE 분기에서 key → proxy URL 변환 (Codex B)
@@ -668,8 +671,8 @@ public class ChatServiceImpl implements ChatService {
                 .orElseThrow(() -> new IllegalArgumentException("채팅방 없음: " + roomId));
         requireParticipant(room, senderUserId);
         requireNotBlocked(senderUserId, otherUserOf(room, senderUserId));
-        // Phase 1 hotfix: 상대가 방을 나간 상태면 전송 차단 — "보내는 척" 금지.
-        requireOtherNotLeft(room, senderUserId);
+        // B2-3: 단순 나가기는 전송 차단 X (차단/신고만 requireNotBlocked로 차단). 상대가 나갔어도 보낼 수 있고,
+        //       아래에서 상대 hidden_at clear → 재초대(방 다시 뜸 + FCM/inbox 알림).
         // 거래중 모델: 비선택 buyer 메시지 전송 차단. 판매자/선택 상대만 통과.
         requireNotExcludedFromActiveTrade(room);
 
@@ -681,6 +684,8 @@ public class ChatServiceImpl implements ChatService {
                 .build());
 
         room.updateLastMessage(message);
+        // B2-3: 상대가 나갔던 상태면 hidden_at clear → 재초대(상대 목록에 방 복귀). 안 나갔으면 no-op.
+        room.clearHiddenForUser(otherUserOf(room, senderUserId));
         chatRoomRepository.save(room);
 
         User sender = userRepository.findById(senderUserId).orElse(null);
@@ -737,14 +742,15 @@ public class ChatServiceImpl implements ChatService {
         boolean isExcludedFromActiveTrade = activeChatRoomId != null
                 && !activeChatRoomId.equals(room.getChatRoomId());
         boolean tradeCompleted = trade != null && "COMPLETED".equals(trade.getStatus());
-        boolean canSend = !iBlocked && !blockedByOther && !otherLeft && !isExcludedFromActiveTrade;
+        // B2-3: 단순 나가기는 입력 차단 X (메시지 보내면 상대 재초대). 차단/신고/거래중-제외만 차단.
+        boolean canSend = !iBlocked && !blockedByOther && !isExcludedFromActiveTrade;
         String notice;
         if (iBlocked) {
             notice = "차단한 사용자입니다. 차단을 해제하면 대화할 수 있어요.";
         } else if (blockedByOther) {
             notice = "상대방의 설정으로 인해 더 이상 대화할 수 없습니다.";
         } else if (otherLeft) {
-            notice = "상대방이 채팅방을 나갔습니다.";
+            notice = "상대방이 채팅방을 나갔어요. 메시지를 보내면 다시 초대돼요.";
         } else if (isExcludedFromActiveTrade) {
             notice = tradeCompleted
                     ? "거래가 완료된 판매글입니다."

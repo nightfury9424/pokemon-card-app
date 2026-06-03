@@ -238,6 +238,40 @@ public class BuyOrderServiceImpl implements BuyOrderService {
     }
 
     /**
+     * B2-12: 구매를 판매처럼 — 구매중(OPEN)→거래중(RESERVED, 상대 선택)→완료(COMPLETED).
+     * 판매 TradeServiceImpl.updateStatus 대칭. RESERVED 시 chatRoomId(선택 상대) 기록.
+     * B2-4 대칭: OPEN→COMPLETED 직접 금지(거래중 거쳐야 완료).
+     */
+    @Override
+    @Transactional
+    public ReturnData<BuyOrderDto> updateStatus(String buyOrderId, String buyerId, String status, String chatRoomId) {
+        if (status == null || status.isBlank()) return ReturnData.badRequest("status는 필수입니다.");
+        BuyOrder order = buyOrderRepository.findById(buyOrderId).orElse(null);
+        if (order == null) return ReturnData.notFound("매수 호가를 찾을 수 없습니다.");
+        if (!order.getBuyerId().equals(buyerId)) return ReturnData.fail("F403", "권한이 없습니다.");
+        if (status.equals(order.getStatus())) {
+            return ReturnData.success(enrichWithDetails(List.of(order)).get(0));
+        }
+        if ("COMPLETED".equals(status) && "OPEN".equals(order.getStatus())) {
+            return ReturnData.fail("F409", "거래중으로 변경한 뒤 완료할 수 있어요.");
+        }
+        // Codex B2-12 review: RESERVED 는 거래 상대(채팅방) 필수. 없으면 판매자가 실거래가 입력 영구 불가
+        // (buySettlementSellerOf 가 activeChatRoomId 로만 SELLER 해소). 프론트는 항상 전달 — 방어선.
+        if ("RESERVED".equals(status) && (chatRoomId == null || chatRoomId.isBlank())) {
+            return ReturnData.badRequest("거래 상대(채팅방)가 필요합니다.");
+        }
+        order.updateStatus(status);
+        if ("RESERVED".equals(status) && chatRoomId != null && !chatRoomId.isBlank()) {
+            order.setActiveChatRoom(chatRoomId);
+        } else if ("OPEN".equals(status)) {
+            order.clearActiveChatRoom();
+        }
+        buyOrderRepository.save(order);
+        chatService.broadcastBuyOrderStatusChanged(buyOrderId, status);
+        return ReturnData.success(enrichWithDetails(List.of(order)).get(0));
+    }
+
+    /**
      * 매수 호가 가격 가드 — 호가 교란 방지. <b>상한만</b> 검증한다.
      * <p>BID의 교란 벡터는 고가 입찰뿐(최상단 BID로 떠 수요·시세를 부풀림). 저가 입찰은
      * 호가창 맨 아래 깔려 무해하고 자기손해이며, 카드 하자 등 정당한 저가 의사일 수 있어 허용.

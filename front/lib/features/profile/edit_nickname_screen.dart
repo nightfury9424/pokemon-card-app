@@ -1,11 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_success_toast.dart';
+import '../../core/widgets/auth_image.dart';
 
 class EditNicknameScreen extends StatefulWidget {
   const EditNicknameScreen({super.key});
@@ -26,6 +30,8 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
 
   String _currentNickname = '';
   int _cooldownDaysLeft = 0;
+  String? _profileImageUrl; // B2-10: 프로필 사진 (쿨다운 없음)
+  bool _uploadingImage = false;
 
   @override
   void initState() {
@@ -40,6 +46,33 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
     super.dispose();
   }
 
+  /// B2-10: 갤러리에서 프로필 사진 선택 → 업로드(POST /me/profile-image) → 즉시 반영. 쿨다운 없음.
+  Future<void> _pickAndUploadImage() async {
+    if (_uploadingImage) return;
+    try {
+      final picked = await ImagePicker().pickImage(
+          source: ImageSource.gallery, maxWidth: 1024, imageQuality: 85);
+      if (picked == null) return;
+      if (!mounted) return;
+      setState(() => _uploadingImage = true);
+      final res = await ApiClient.postMultipart(
+        '/api/users/me/profile-image',
+        files: {'file': File(picked.path)},
+      );
+      final url = ((res['data'] as Map?)?['profileImageUrl'] as String?) ?? '';
+      if (!mounted) return;
+      setState(() {
+        _profileImageUrl = url.isEmpty ? null : url;
+        _uploadingImage = false;
+      });
+      AppSuccessToast.show(context, '프로필 사진이 변경됐어요');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _uploadingImage = false);
+      AppErrorToast.show(context, '사진 변경에 실패했어요. 다시 시도해주세요.');
+    }
+  }
+
   Future<void> _loadMe() async {
     try {
       final res = await ApiClient.get('/api/users/me');
@@ -48,6 +81,8 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
       setState(() {
         _currentNickname = (data['nickname'] as String?) ?? '';
         _cooldownDaysLeft = (data['nicknameCooldownDaysLeft'] as num?)?.toInt() ?? 0;
+        final p = (data['profileImageUrl'] as String?) ?? '';
+        _profileImageUrl = p.isEmpty ? null : p;
         _loading = false;
       });
     } catch (_) {
@@ -136,7 +171,7 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
     if (_loading) {
       return Scaffold(
         backgroundColor: AppColors.bg,
-        appBar: AppBar(title: const Text('닉네임 변경')),
+        appBar: AppBar(title: const Text('프로필 편집')),
         body: const Center(child: CircularProgressIndicator(color: AppColors.blue)),
       );
     }
@@ -146,13 +181,64 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('닉네임 변경')),
+      appBar: AppBar(title: const Text('프로필 편집')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // B2-10: 프로필 사진 (쿨다운 없음). 탭하면 갤러리에서 변경.
+              Center(
+                child: GestureDetector(
+                  onTap: _uploadingImage ? null : _pickAndUploadImage,
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: 96,
+                        height: 96,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.surfaceCard,
+                          border: Border.all(color: AppColors.divider),
+                        ),
+                        child: _profileImageUrl != null
+                            ? AuthImage(
+                                url: _profileImageUrl!,
+                                width: 96,
+                                height: 96,
+                                fit: BoxFit.cover)
+                            : const Icon(Icons.person,
+                                color: AppColors.textMuted, size: 48),
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(
+                              shape: BoxShape.circle, color: AppColors.blue),
+                          child: _uploadingImage
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.camera_alt,
+                                  color: Colors.white, size: 14),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Center(
+                child: Text('탭하여 프로필 사진 변경',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              ),
+              const SizedBox(height: 24),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(

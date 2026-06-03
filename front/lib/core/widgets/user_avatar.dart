@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import 'auth_image.dart';
 
-/// 사용자 프로필 아바타. profileImageUrl 있으면 NetworkImage,
-/// 없거나 로드 실패면 기본 아이콘(파란 원 + 사람 실루엣).
-/// MY/온보딩/닉네임 변경 등 모든 사용자 아바타 노출 위치에서 통일 사용.
+/// 사용자 프로필 아바타. 없거나 실패면 기본 아이콘(파란 원 + 사람 실루엣).
+/// B2-10: 업로드 이미지는 proxy URL(/api/images/secure/...)이라 AuthImage(JWT)로 로드,
+///         legacy 전체 URL(http)은 Image.network. MY/온보딩/프로필편집/채팅 통일 사용.
 class UserAvatar extends StatelessWidget {
   final String? imageUrl;
   final double size;
@@ -12,19 +13,26 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = imageUrl != null && imageUrl!.trim().isNotEmpty;
-    if (hasImage) {
-      return ClipOval(
-        child: Image.network(
-          imageUrl!,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _defaultIcon(),
-        ),
-      );
-    }
-    return _defaultIcon();
+    final url = imageUrl?.trim() ?? '';
+    if (url.isEmpty) return _defaultIcon();
+    final isFullUrl = url.startsWith('http');
+    return ClipOval(
+      child: isFullUrl
+          ? Image.network(
+              url,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _defaultIcon(),
+            )
+          : AuthImage(
+              url: url,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _defaultIcon(),
+            ),
+    );
   }
 
   Widget _defaultIcon() {

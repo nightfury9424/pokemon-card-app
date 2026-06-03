@@ -62,6 +62,10 @@ public class BuyOrder {
     @Column(name = "matched_trade_id", length = 50)
     private String matchedTradeId;
 
+    /** B2-12: 거래중(예약) 시 선택된 상대(seller)의 chat_room_id — 판매의 activeChatRoomId 대칭. */
+    @Column(name = "active_chat_room_id", length = 50)
+    private String activeChatRoomId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -91,5 +95,14 @@ public class BuyOrder {
 
     public void updateMatchedTradeId(String tradeId) {
         this.matchedTradeId = tradeId;
+    }
+
+    /** B2-12: 거래중(예약) 상대 지정. */
+    public void setActiveChatRoom(String chatRoomId) {
+        this.activeChatRoomId = chatRoomId;
+    }
+
+    public void clearActiveChatRoom() {
+        this.activeChatRoomId = null;
     }
 }

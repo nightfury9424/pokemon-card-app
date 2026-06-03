@@ -47,7 +47,8 @@ public class ImageProxyController {
             "uploads/trade/",
             "uploads/asset/",
             "uploads/grading/",
-            "uploads/scan/"
+            "uploads/scan/",
+            "uploads/profile/"  // B2-10: 프로필 사진 — 아바타라 인증된 사용자면 누구나 조회 (participant 게이트 X)
     );
 
     /**

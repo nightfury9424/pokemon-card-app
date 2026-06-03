@@ -71,15 +71,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _debounce = Timer(const Duration(milliseconds: 400), () => _check(trimmed));
   }
 
-  bool get _allAgreed => _agreedTos && _agreedPrivacy && _agreedScanImages;
+  // B2-21: 전체 동의에 만14세 확인 포함.
+  bool get _allAgreed =>
+      _ageOver14 == true && _agreedTos && _agreedPrivacy && _agreedScanImages;
 
-  /// 전체 동의 토글 — 3개 일괄 설정(+draft). 개별 해제 가능(PIPA: 선택 강제 아님).
+  /// 전체 동의 토글 — 만14세+3개 일괄 설정(+draft). 개별 해제 가능(PIPA: 선택 강제 아님).
   void _setAllConsents(bool v) {
     setState(() {
+      _ageOver14 = v ? true : null;
       _agreedTos = v;
       _agreedPrivacy = v;
       _agreedScanImages = v;
       final d = OnboardingDraft.instance;
+      d.ageOver14 = _ageOver14;
       d.agreedTos = v;
       d.agreedPrivacy = v;
       d.agreedScanImages = v;
@@ -169,11 +173,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: _ageOver14 == null
-              ? _buildAgeGate()
-              : _ageOver14 == false
-                  ? _buildBlocked()
-                  : _buildNicknameForm(),
+          // B2-21: 만14세 게이트를 별도 화면에서 약관 동의 체크박스로 통합 → 본 폼 직행.
+          child: _buildNicknameForm(),
         ),
       ),
     );
@@ -286,7 +287,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _buildNicknameForm() {
-    final canSubmit = _available == true && !_submitting && _agreedTos && _agreedPrivacy;
+    final canSubmit = _available == true && !_submitting && _ageOver14 == true && _agreedTos && _agreedPrivacy;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -398,7 +399,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
               const Divider(color: AppColors.divider, height: 18),
-              // 회원가입 필수 동의 (한국 개인정보보호법 + Apple App Review). 둘 다 체크돼야 "시작하기" 활성.
+              // 회원가입 필수 동의 (한국 개인정보보호법 + Apple App Review). 모두 체크돼야 "시작하기" 활성.
+              // B2-21: 만14세 게이트를 별도 화면 대신 여기 필수 체크로 통합 (확인 여부만 기록, 생년월일 미저장).
+              _ConsentCheckbox(
+                checked: _ageOver14 == true,
+                onChanged: (v) => setState(() {
+                  _ageOver14 = v ? true : null;
+                  OnboardingDraft.instance.ageOver14 = _ageOver14;
+                }),
+                label: '만 14세 이상입니다 (필수)',
+              ),
+              const SizedBox(height: 8),
               _ConsentCheckbox(
                 checked: _agreedTos,
                 onChanged: (v) => setState(() {
@@ -464,13 +475,13 @@ class _ConsentCheckbox extends StatelessWidget {
   final bool checked;
   final ValueChanged<bool> onChanged;
   final String label;
-  final VoidCallback onLinkTap;
+  final VoidCallback? onLinkTap; // null이면 '보기' 링크 숨김 (만14세 등 링크 없는 항목)
 
   const _ConsentCheckbox({
     required this.checked,
     required this.onChanged,
     required this.label,
-    required this.onLinkTap,
+    this.onLinkTap,
   });
 
   @override
@@ -503,22 +514,23 @@ class _ConsentCheckbox extends StatelessWidget {
             ),
           ),
         ),
-        TextButton(
-          onPressed: onLinkTap,
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            minimumSize: const Size(0, 32),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          child: const Text(
-            '보기',
-            style: TextStyle(
-              color: AppColors.blue,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+        if (onLinkTap != null)
+          TextButton(
+            onPressed: onLinkTap,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text(
+              '보기',
+              style: TextStyle(
+                color: AppColors.blue,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-        ),
       ],
     );
   }

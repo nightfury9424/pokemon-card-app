@@ -11,6 +11,7 @@ import '../../core/widgets/app_success_toast.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/app_error_toast.dart';
+import '../../core/widgets/app_info_toast.dart';
 import '../auth/phone_verify_sheet.dart';
 import '../../core/notifiers/asset_notifier.dart';
 
@@ -977,24 +978,35 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                 final status = option['status'] as String;
                 final icon = option['icon'] as IconData;
                 final selected = status == currentStatus;
-                final color = selected
-                    ? AppColors.blue
-                    : AppColors.textSecondary;
+                // B2-4: OPEN 상태에선 '거래 완료' 비활성 — 거래중(예약) 거쳐야 완료.
+                final disabled = status == 'COMPLETED' && currentStatus == 'OPEN';
+                final color = disabled
+                    ? AppColors.textMuted
+                    : (selected ? AppColors.blue : AppColors.textSecondary);
                 return ListTile(
                   leading: Icon(icon, color: color),
                   title: Text(
                     label,
                     style: TextStyle(
-                      color: selected
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
+                      color: disabled
+                          ? AppColors.textMuted
+                          : (selected ? AppColors.textPrimary : AppColors.textSecondary),
                       fontWeight: selected ? FontWeight.bold : FontWeight.w500,
                     ),
                   ),
+                  subtitle: disabled
+                      ? const Text('거래중(예약)으로 변경한 뒤 완료할 수 있어요',
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 11))
+                      : null,
                   trailing: selected
                       ? const Icon(Icons.check_rounded, color: AppColors.blue)
                       : null,
                   onTap: () async {
+                    if (disabled) {
+                      Navigator.of(context).pop();
+                      AppInfoToast.show(context, '거래중(예약)으로 먼저 변경해주세요.');
+                      return;
+                    }
                     Navigator.of(context).pop();
                     // 거래중 모델: RESERVED 선택 시 거래 상대 선택 sheet 먼저.
                     // 선택된 chatRoomId 와 함께 status 변경. 다른 status 는 그대로.
@@ -1037,14 +1049,18 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
       await ApiClient.updateTradeStatus(_currentTradeId, newStatus, chatRoomId: chatRoomId);
       _modified = true;
       AssetNotifier.instance.notifyChanged(); // 내 자산 isSelling 즉시 동기화(어느 경로 진입이든)
-      // 거래 완료 → 실거래가 입력 시트(판매자). 소프트: 닫아도 됨(상대 buyer 는 채팅방 인터셉터로).
+      // 거래 완료 → 실거래가 입력 시트(판매자) 즉시. 소프트: 닫아도 됨(상대 buyer 는 채팅방 인터셉터로).
+      // B2-5: 상태메뉴 bottom sheet pop 애니메이션(~250ms) 중 showModalBottomSheet 가 드랍되는 것 방지 위해
+      //       1프레임(postFrame) 대신 짧은 delay 후 표시 → 완료 직후 확실히 뜨게.
       if (newStatus == 'COMPLETED' && mounted) {
         final price = (trade['price'] as num?)?.toInt();
         final title = trade['title'] as String?;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future<void>.delayed(const Duration(milliseconds: 350), () {
           if (mounted) {
             TradeSettlementSheet.show(context,
-                tradeId: _currentTradeId, tradeTitle: title, agreedPrice: price);
+                submitPath: '/api/trades/$_currentTradeId/settlement',
+                tradeTitle: title,
+                agreedPrice: price);
           }
         });
       }

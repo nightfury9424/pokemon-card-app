@@ -45,31 +45,7 @@ class CustomerSupportScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             ...InquiryCategory.values.map((c) => _CategoryCard(category: c)),
-            const SizedBox(height: 12),
-            // 5-2: 내 문의 내역 진입 (작성↔확인 동선 통합). 이메일 복사 제거(DB 문의로 전환).
-            InkWell(
-              onTap: () => context.push('/profile/inquiries'),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceCard,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.divider),
-                ),
-                child: Row(
-                  children: const [
-                    Icon(Icons.receipt_long_outlined, color: AppColors.textSecondary, size: 20),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text('내 문의 내역',
-                          style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
-                    ),
-                    Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 20),
-                  ],
-                ),
-              ),
-            ),
+            // B2-20: '내 문의 내역' 은 MY 페이지에 직접 진입 메뉴가 있어 중복 → 여기서 제거.
             const SizedBox(height: 12),
             const Text(
               '평일 24~48시간 내 답변드립니다.',

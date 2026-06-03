@@ -31,4 +31,7 @@ public interface BuyOrderService {
 
     /** 체결 표시 (status → MATCHED, matched_trade_id 연결) */
     ReturnData<BuyOrderDto> markMatched(String buyOrderId, String buyerId, String tradeId);
+
+    /** B2-12: 구매를 판매처럼 — OPEN(구매중)→RESERVED(거래중)→COMPLETED(완료). RESERVED 시 chatRoomId. */
+    ReturnData<BuyOrderDto> updateStatus(String buyOrderId, String buyerId, String status, String chatRoomId);
 }

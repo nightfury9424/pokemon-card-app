@@ -7,6 +7,24 @@ import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_segmented_toggle.dart';
 import '../../core/widgets/app_success_toast.dart';
 
+/// 천단위 콤마 포맷 (1000 → 1,000). B2-6.
+String _commaFmt(int n) => n.toString().replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+
+/// 입력 중 천단위 콤마 자동 삽입.
+class _ThousandsInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return const TextEditingValue(text: '');
+    final formatted = _commaFmt(int.parse(digits));
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
 /// 실거래가 입력 시트 — 거래 완료 후 양쪽 당사자가 실제 거래 금액 기입.
 ///
 /// 정책 (2026-06-04):
@@ -14,14 +32,15 @@ import '../../core/widgets/app_success_toast.dart';
 /// - 토글은 앱 공통 [AppSegmentedToggle] 재사용.
 /// - 소프트: '나중에'로 닫기 가능(인터셉터가 다음 진입 때 다시 권유). 시세 반영은 후속(수집만).
 class TradeSettlementSheet extends StatefulWidget {
-  final String tradeId;
+  // B2-12: SALE='/api/trades/{tradeId}/settlement', BUY='/api/trades/buy-order/{buyOrderId}/settlement'
+  final String submitPath;
   final String? tradeTitle;
   final int? agreedPrice;
   final int? prefillPrice; // 이미 입력한 값이 있으면 그걸로 prefill
 
   const TradeSettlementSheet({
     super.key,
-    required this.tradeId,
+    required this.submitPath,
     this.tradeTitle,
     this.agreedPrice,
     this.prefillPrice,
@@ -30,7 +49,7 @@ class TradeSettlementSheet extends StatefulWidget {
   /// 모달 표시. true = 입력 완료, false/null = 나중에(소프트 닫기).
   static Future<bool?> show(
     BuildContext context, {
-    required String tradeId,
+    required String submitPath,
     String? tradeTitle,
     int? agreedPrice,
     int? prefillPrice,
@@ -41,7 +60,7 @@ class TradeSettlementSheet extends StatefulWidget {
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black54,
       builder: (_) => TradeSettlementSheet(
-        tradeId: tradeId,
+        submitPath: submitPath,
         tradeTitle: tradeTitle,
         agreedPrice: agreedPrice,
         prefillPrice: prefillPrice,
@@ -64,7 +83,7 @@ class _TradeSettlementSheetState extends State<TradeSettlementSheet> {
     final initial = widget.prefillPrice ?? widget.agreedPrice;
     // 이미 입력값이 있고 그게 원래 거래가와 다르면 '직접 입력'으로 시작.
     _mode = (widget.prefillPrice != null && widget.prefillPrice != widget.agreedPrice) ? 1 : 0;
-    _priceCtrl = TextEditingController(text: initial != null ? initial.toString() : '');
+    _priceCtrl = TextEditingController(text: initial != null ? _commaFmt(initial) : '');
   }
 
   @override
@@ -81,14 +100,14 @@ class _TradeSettlementSheetState extends State<TradeSettlementSheet> {
 
   Future<void> _submit() async {
     final price = _effectivePrice;
-    if (price == null || price <= 0) {
-      AppErrorToast.show(context, '실거래 금액을 입력해주세요.');
+    if (price == null || price < 100) {
+      AppErrorToast.show(context, '실거래 금액을 100원 이상 입력해주세요.');
       return;
     }
     setState(() => _submitting = true);
     try {
       await ApiClient.post(
-        '/api/trades/${widget.tradeId}/settlement',
+        widget.submitPath,
         {'data': {'price': price}},
       );
       if (!mounted) return;
@@ -148,7 +167,7 @@ class _TradeSettlementSheetState extends State<TradeSettlementSheet> {
               onChanged: (i) => setState(() {
                 _mode = i;
                 if (i == 0 && widget.agreedPrice != null) {
-                  _priceCtrl.text = widget.agreedPrice.toString();
+                  _priceCtrl.text = _commaFmt(widget.agreedPrice!);
                 }
               }),
             ),
@@ -158,7 +177,7 @@ class _TradeSettlementSheetState extends State<TradeSettlementSheet> {
               controller: _priceCtrl,
               readOnly: readOnly,
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              inputFormatters: [_ThousandsInputFormatter()],
               style: TextStyle(
                 color: readOnly ? AppColors.textSecondary : AppColors.textPrimary,
                 fontSize: 18,

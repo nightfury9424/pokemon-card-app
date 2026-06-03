@@ -1,6 +1,9 @@
 package com.fury.back.domain.user;
 
 import com.fury.back.common.ReturnData;
+import com.fury.back.storage.ImageStorageService;
+import com.fury.back.storage.StorageKeyUrls;
+import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpServletRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,6 +31,7 @@ public class UserController {
     private final UserRepository userRepository;
     private final NicknameValidator nicknameValidator;
     private final UserService userService;
+    private final ImageStorageService imageStorageService; // B2-10: 프로필 사진 업로드
 
     /** 온보딩 요청 — 만 14세 확인(필수) + 닉네임 + 선택 프로필 이미지. */
     private record OnboardingRequest(String nickname, String profileImageUrl, Boolean isOver14,
@@ -164,6 +168,50 @@ public class UserController {
 
         user.changeNickname(normalized, now);
         return ReturnData.success(saveOrConflict(user));
+    }
+
+    @Operation(summary = "프로필 사진 변경 (쿨다운 없음)",
+            description = "B2-10: 이미지 업로드 → S3 store → proxy URL 을 profileImageUrl 로. 닉네임과 달리 쿨다운 없음.")
+    @Transactional
+    @PostMapping(value = "/me/profile-image", consumes = "multipart/form-data")
+    public ReturnData<Map<String, Object>> updateProfileImage(
+            @AuthenticationPrincipal String userId,
+            @RequestParam("file") MultipartFile file) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자 없음"));
+        if (user.isSuspended()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "정지된 사용자는 변경할 수 없습니다");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미지를 선택해주세요");
+        }
+        if (file.getSize() > 5L * 1024 * 1024) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "이미지는 5MB 이하만 가능합니다");
+        }
+        // 매직넘버 검증 — contentType은 multipart 클라에 따라 누락 가능 → 바이트로 확인 (JPEG/PNG/WebP).
+        try {
+            byte[] h;
+            try (var in = file.getInputStream()) { h = in.readNBytes(12); }
+            boolean img = h.length >= 4 && (
+                    ((h[0] & 0xff) == 0xff && (h[1] & 0xff) == 0xd8)
+                    || ((h[0] & 0xff) == 0x89 && h[1] == 0x50 && h[2] == 0x4e && h[3] == 0x47)
+                    || (h.length >= 12 && h[0] == 'R' && h[1] == 'I' && h[2] == 'F' && h[3] == 'F'
+                        && h[8] == 'W' && h[9] == 'E' && h[10] == 'B' && h[11] == 'P'));
+            if (!img) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미지 파일만 업로드할 수 있습니다");
+            }
+        } catch (java.io.IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "파일을 읽을 수 없습니다");
+        }
+        try {
+            String key = imageStorageService.store("uploads/profile/" + userId, file.getOriginalFilename(), file);
+            String url = StorageKeyUrls.toProxyUrl(key);
+            user.updateProfileImage(url);
+            userRepository.save(user);
+            return ReturnData.success(Map.of("profileImageUrl", url != null ? url : ""));
+        } catch (java.io.IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "업로드에 실패했습니다");
+        }
     }
 
     private Map<String, Object> saveOrConflict(User user) {

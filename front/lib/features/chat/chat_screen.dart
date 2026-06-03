@@ -7,6 +7,7 @@ import '../../core/network/api_client.dart';
 import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/user_avatar.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -296,31 +297,15 @@ class _ChatScreenState extends State<ChatScreen> {
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.bg, width: 2),
                 ),
-                child: CircleAvatar(
-                  radius: 11,
-                  backgroundColor: AppColors.surfaceElevated,
-                  backgroundImage:
-                      profileUrl != null ? NetworkImage(profileUrl) : null,
-                  child: profileUrl == null
-                      ? const Icon(Icons.person,
-                          color: AppColors.textMuted, size: 12)
-                      : null,
-                ),
+                child: UserAvatar(imageUrl: profileUrl, size: 22), // B2-10
               ),
             ),
           ],
         ),
       );
     }
-    // fallback — trade 매칭 없는 채팅방: 기존 큰 원형 avatar.
-    return CircleAvatar(
-      radius: 26,
-      backgroundColor: AppColors.surfaceElevated,
-      backgroundImage: profileUrl != null ? NetworkImage(profileUrl) : null,
-      child: profileUrl == null
-          ? const Icon(Icons.person, color: AppColors.textMuted, size: 22)
-          : null,
-    );
+    // fallback — trade 매칭 없는 채팅방: 큰 원형 avatar.
+    return UserAvatar(imageUrl: profileUrl, size: 52); // B2-10
   }
 
   /// Bundle 2-A.1: 콤마 포맷 (반올림 X) — chat_room의 동일 helper와 정책 일관.

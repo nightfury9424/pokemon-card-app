@@ -69,6 +69,20 @@ String? resolveCardImageUrl(Map<String, dynamic>? card) {
   return null;
 }
 
+/// B2-1: 카드 이미지 캐시 워밍 — 캐러셀 렌더 전에 미리 받아 "검정 skeleton flash" 방지.
+/// 실패는 무시(네트워크/취소). CardImage와 동일 cacheManager 사용.
+Future<void> precacheCardImage(BuildContext context, String? url) async {
+  if (url == null || url.isEmpty || url.contains('pokemonkorea.co.kr')) return;
+  try {
+    await precacheImage(
+      CachedNetworkImageProvider(url, cacheManager: _CardCacheManager.instance),
+      context,
+    );
+  } catch (_) {
+    // 무시 — 실패해도 CardImage가 placeholder로 처리.
+  }
+}
+
 /// 카드 이미지 위젯
 /// - S3 cards/v1 URL → CachedNetworkImage(디스크 캐시) + size-bucket 다운샘플
 /// - null 또는 pokemonkorea.co.kr URL → 카드 뒷면 + "이미지 없음" 블러 안내
@@ -140,20 +154,27 @@ class CardImage extends StatelessWidget {
   /// 로딩 중 카드 shape skeleton — 검정 빈 영역 대신 카드 비율 + 어두운 gradient.
   /// 사용자가 "로딩 중"으로 인지 가능 + spinner 남발 X (UI 노이즈 방지).
   Widget _buildSkeleton() {
+    // B2-1: 검정 빈박스로 인지되지 않게 — 살짝 밝은 카드톤 + 포켓볼 워터마크로 "로딩 중 카드"임을 명시.
     return Container(
       width: width,
       height: height,
+      alignment: Alignment.center,
       decoration: BoxDecoration(
         borderRadius: borderRadius,
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1F2937), Color(0xFF111827)],
+          colors: [Color(0xFF2A3346), Color(0xFF1B2230)],
         ),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.05),
+          color: Colors.white.withValues(alpha: 0.06),
           width: 1,
         ),
+      ),
+      child: Icon(
+        Icons.catching_pokemon,
+        color: Colors.white.withValues(alpha: 0.10),
+        size: width > 0 ? width * 0.32 : 44,
       ),
     );
   }

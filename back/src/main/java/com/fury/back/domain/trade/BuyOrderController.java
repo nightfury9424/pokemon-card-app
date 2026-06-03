@@ -95,4 +95,25 @@ public class BuyOrderController {
         String tradeId = (body != null && body.get("tradeId") != null) ? String.valueOf(body.get("tradeId")) : null;
         return buyOrderService.markMatched(buyOrderId, buyerId, tradeId);
     }
+
+    @Operation(summary = "매수 호가 상태 변경 (B2-12)",
+            description = "구매중(OPEN)→거래중(RESERVED, 상대선택)→완료(COMPLETED). 판매 대칭.")
+    @PatchMapping("/{buyOrderId}/status")
+    public ReturnData<BuyOrderDto> updateStatus(
+            @AuthenticationPrincipal String buyerId,
+            @PathVariable String buyOrderId,
+            @RequestBody(required = false) Map<String, Object> body) {
+        String status = null;
+        String chatRoomId = null;
+        if (body != null) {
+            final Object src = body.get("data") instanceof Map<?, ?> d ? d : body;
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> m = (Map<String, Object>) src;
+            final Object rs = m.get("status");
+            status = rs != null ? String.valueOf(rs) : null;
+            final Object rc = m.get("chatRoomId");
+            chatRoomId = rc != null ? String.valueOf(rc) : null;
+        }
+        return buyOrderService.updateStatus(buyOrderId, buyerId, status, chatRoomId);
+    }
 }

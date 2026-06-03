@@ -18,6 +18,7 @@ import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/app_success_toast.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/user_avatar.dart';
 import '../trade/trade_settlement_sheet.dart';
 
 class ChatRoomScreen extends StatefulWidget {
@@ -106,16 +107,28 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   /// 소프트 인터셉터: 완료 거래 + 내가 미입력이면 실거래가 시트 표시('나중에' 가능 → 다음 진입 때 재권유).
   /// SALE chat 만(saleListingId 존재). BUY 호가는 제외.
   Future<void> _maybePromptSettlement() async {
-    final tradeId = _roomInfo['saleListingId'] as String?;
-    if (tradeId == null || tradeId.isEmpty) return;
+    // B2-12: SALE(saleListingId) + BUY(buyOrderId) 둘 다 — 완료 거래면 실거래가 입력 인터셉터.
+    final saleId = _roomInfo['saleListingId'] as String?;
+    final buyId = _roomInfo['buyOrderId'] as String?;
+    final String statusPath;
+    final String submitPath;
+    if (saleId != null && saleId.isNotEmpty) {
+      statusPath = '/api/trades/$saleId/settlement/me';
+      submitPath = '/api/trades/$saleId/settlement';
+    } else if (buyId != null && buyId.isNotEmpty) {
+      statusPath = '/api/trades/buy-order/$buyId/settlement/me';
+      submitPath = '/api/trades/buy-order/$buyId/settlement';
+    } else {
+      return;
+    }
     try {
-      final res = await ApiClient.get('/api/trades/$tradeId/settlement/me');
+      final res = await ApiClient.get(statusPath);
       if (!mounted) return;
       final data = res['data'] as Map<String, dynamic>?;
       if (data == null || data['required'] != true) return;
       await TradeSettlementSheet.show(
         context,
-        tradeId: tradeId,
+        submitPath: submitPath,
         tradeTitle: _roomInfo['tradeTitle'] as String?,
         agreedPrice: (data['agreedPrice'] as num?)?.toInt(),
         prefillPrice: (data['myReportedPrice'] as num?)?.toInt(),
@@ -554,16 +567,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         titleSpacing: 0,
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.surfaceElevated,
-              backgroundImage:
-                  profileUrl != null ? NetworkImage(profileUrl) : null,
-              child: profileUrl == null
-                  ? const Icon(Icons.person,
-                      color: AppColors.textMuted, size: 16)
-                  : null,
-            ),
+            UserAvatar(imageUrl: profileUrl, size: 36), // B2-10: proxy URL → AuthImage
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -1075,18 +1079,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     );
   }
 
-  /// 2026-05-28: BuyOrder 상태 chip — OPEN/MATCHED/CANCELED 매핑.
-  /// 2026-05-29: BuyOrder 작성자 본인 + OPEN 일 때만 chevron + 클릭 → 상태 변경 sheet.
-  ///   _buildTradeStatusChip (SALE) pattern mirror. BuyOrder 도메인은 종결 비가역 (Codex G).
+  /// 2026-05-28: BuyOrder 상태 chip — OPEN/RESERVED/COMPLETED/CANCELED 매핑.
+  /// B2-12(2026-06-04): SALE 와 통일 — 구매중/거래중/거래완료 3상태 + 취소.
+  ///   _buildTradeStatusChip (SALE) pattern mirror. MATCHED 는 legacy(완료로 표기).
   Widget _buildBuyOrderStatusChip(String status) {
     final (label, color) = switch (status) {
       'OPEN' => ('구매중', AppColors.green),
-      'MATCHED' => ('매칭 완료', AppColors.textMuted),
+      'RESERVED' => ('거래 중', AppColors.gold),
+      'COMPLETED' => ('거래 완료', AppColors.textMuted),
+      'MATCHED' => ('거래 완료', AppColors.textMuted), // legacy
       'CANCELED' => ('취소됨', AppColors.textMuted),
       _ => ('상태 확인', AppColors.textMuted),
     };
-    // BuyOrder 작성자 본인 + OPEN 일 때만 변경 가능 (MATCHED/CANCELED 종결 비가역).
-    final canChange = _isBuyOrderOwner && status == 'OPEN';
+    // 작성자 본인 + active(OPEN/RESERVED)일 때만 변경 가능 (SALE 대칭).
+    final canChange = _isBuyOrderOwner && (status == 'OPEN' || status == 'RESERVED');
     final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -1133,25 +1139,26 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     return chip;
   }
 
-  /// 2026-05-29: BuyOrder 상태 변경 sheet — 작성자 본인이 OPEN 일 때만 호출.
-  /// 옵션 2개: 취소(CANCELED) / 매칭 완료(MATCHED). 둘 다 비가역 — confirm dialog 필수 (Codex G).
+  /// B2-12(2026-06-04): BuyOrder 상태 변경 sheet — SALE(_showSellerStatusSheet)와 통일.
+  /// 구매 중(OPEN) / 거래 중(RESERVED) / 거래 완료(COMPLETED) 3상태 + 구매 호가 취소.
+  /// 거래중 모델: RESERVED 변경 시 현재 chat room 이 자동 활성 상대(별도 선택 X).
   Future<void> _showBuyOrderStatusSheet() async {
     final buyOrderId = _roomInfo['buyOrderId'] as String?;
     if (buyOrderId == null || buyOrderId.isEmpty) return;
-    final action = await showModalBottomSheet<String>(
+    final currentStatus = (_roomInfo['tradeStatus'] as String?) ?? 'OPEN';
+    showModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
-      isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetCtx) => SafeArea(
+      builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const SizedBox(height: 12),
             Container(
-              margin: const EdgeInsets.only(top: 8, bottom: 12),
               width: 40,
               height: 4,
               decoration: BoxDecoration(
@@ -1159,87 +1166,121 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '구매 호가 상태 변경',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Text(
-                '한 번 변경하면 되돌릴 수 없어요.',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-              ),
-            ),
+            const SizedBox(height: 12),
+            _buyOrderStatusTile(ctx, '구매 중', 'OPEN',
+                Icons.shopping_cart_rounded, currentStatus, buyOrderId),
+            // 거래중 모델: chat_room 에서 거래중 변경 시 현재 chat room 이 자동 활성 상대.
+            _buyOrderStatusTile(ctx, '거래 중', 'RESERVED',
+                Icons.bookmark_rounded, currentStatus, buyOrderId),
+            _buyOrderStatusTile(ctx, '거래 완료', 'COMPLETED',
+                Icons.check_circle_rounded, currentStatus, buyOrderId),
+            const Divider(color: AppColors.divider, height: 1),
             ListTile(
-              leading: const Icon(Icons.check_circle_outline,
-                  color: AppColors.green),
-              title: const Text('매칭 완료',
-                  style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w700)),
-              subtitle: const Text('이 채팅 상대와 거래가 성사됐어요.',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-              onTap: () => Navigator.pop(sheetCtx, 'MATCHED'),
-            ),
-            ListTile(
-              leading:
-                  const Icon(Icons.cancel_outlined, color: AppColors.red),
+              leading: const Icon(Icons.cancel_outlined,
+                  color: AppColors.red, size: 22),
               title: const Text('구매 호가 취소',
                   style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w700)),
-              subtitle: const Text('호가창에서 내 구매 호가를 내릴게요.',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-              onTap: () => Navigator.pop(sheetCtx, 'CANCELED'),
+                      color: AppColors.red, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _confirmCancelBuyOrder(buyOrderId);
+              },
             ),
             const SizedBox(height: 8),
           ],
         ),
       ),
     );
-    if (action == null || !mounted) return;
-    // 비가역 confirm — AppConfirmDialog 패턴 일관.
-    final label = action == 'MATCHED' ? '매칭 완료' : '구매 호가 취소';
-    final confirmed = await AppConfirmDialog.show(
-      context,
-      title: '$label 처리할까요?',
-      message: '한 번 처리하면 되돌릴 수 없어요.',
-      confirmLabel: '$label 처리',
-      destructive: action == 'CANCELED',
-    );
-    if (confirmed != true || !mounted) return;
-    await _updateBuyOrderStatus(action, buyOrderId);
   }
 
-  /// 2026-05-29: BuyOrder 상태 변경 API 호출 + 토스트.
-  /// MATCHED: POST /api/buy-orders/{id}/match (tradeId optional, MVP는 body 빈 객체).
+  Widget _buyOrderStatusTile(BuildContext ctx, String label, String status,
+      IconData icon, String currentStatus, String buyOrderId) {
+    final selected = status == currentStatus;
+    // B2-4 대칭: OPEN 에서 곧장 거래완료 금지 (거래중 먼저). 백엔드 F409 도 가드.
+    final disabled = status == 'COMPLETED' && currentStatus == 'OPEN';
+    return ListTile(
+      enabled: !disabled,
+      leading: Icon(icon,
+          color: disabled
+              ? AppColors.textMuted
+              : selected
+                  ? AppColors.blue
+                  : AppColors.textSecondary),
+      title: Text(label,
+          style: TextStyle(
+            color: disabled
+                ? AppColors.textMuted
+                : selected
+                    ? AppColors.textPrimary
+                    : AppColors.textSecondary,
+            fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+          )),
+      subtitle: disabled
+          ? const Text('거래중으로 바꾼 뒤 완료할 수 있어요',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 11))
+          : null,
+      trailing: selected
+          ? const Icon(Icons.check_rounded, color: AppColors.blue, size: 20)
+          : null,
+      onTap: (selected || disabled)
+          ? null
+          : () {
+              Navigator.of(ctx).pop();
+              _updateBuyOrderStatus(status, buyOrderId);
+            },
+    );
+  }
+
+  Future<void> _confirmCancelBuyOrder(String buyOrderId) async {
+    final confirmed = await AppConfirmDialog.show(
+      context,
+      title: '구매 호가를 취소할까요?',
+      message: '호가창에서 내 구매 호가가 내려가요.',
+      confirmLabel: '취소하기',
+      destructive: true,
+    );
+    if (confirmed != true || !mounted) return;
+    await _updateBuyOrderStatus('CANCELED', buyOrderId);
+  }
+
+  /// B2-12: BuyOrder 상태 변경 API — SALE(_updateTradeStatus)와 통일.
+  /// OPEN/RESERVED/COMPLETED: PATCH /api/buy-orders/{id}/status (RESERVED 시 현재 방 = 활성 상대).
   /// CANCELED: DELETE /api/buy-orders/{id}.
-  /// 백엔드 broadcastBuyOrderStatusChanged 가 STOMP SYSTEM fan-out — chip 자동 갱신 (Codex E).
+  /// 완료 시 실거래가 인터셉터(_maybePromptSettlement) 호출 — SALE 대칭.
+  /// 백엔드 broadcastBuyOrderStatusChanged 가 STOMP SYSTEM fan-out — chip 자동 갱신.
   Future<void> _updateBuyOrderStatus(String newStatus, String buyOrderId) async {
     try {
-      if (newStatus == 'MATCHED') {
-        await ApiClient.post('/api/buy-orders/$buyOrderId/match', {});
-      } else if (newStatus == 'CANCELED') {
+      if (newStatus == 'CANCELED') {
         await ApiClient.delete('/api/buy-orders/$buyOrderId');
+      } else {
+        // 거래중 모델: RESERVED 변경 시 현재 chat room 을 자동 active 상대로.
+        final chatRoomId = newStatus == 'RESERVED' ? widget.roomId : null;
+        await ApiClient.patch(
+          '/api/buy-orders/$buyOrderId/status',
+          data: {
+            'data': {
+              'status': newStatus,
+              if (chatRoomId != null) 'chatRoomId': chatRoomId,
+            }
+          },
+        );
       }
       if (!mounted) return;
       AppSuccessToast.show(
           context,
-          newStatus == 'MATCHED'
-              ? '매칭 완료로 처리됐어요'
-              : '구매 호가가 취소됐어요');
+          switch (newStatus) {
+            'OPEN' => '구매중으로 변경됐어요',
+            'RESERVED' => '거래중으로 변경됐어요',
+            'COMPLETED' => '거래 완료로 처리됐어요',
+            _ => '구매 호가가 취소됐어요',
+          });
       // 즉시 chip 갱신 — SYSTEM broadcast 도착 전에도 UI 반영.
       await _refreshBuyOrderStatus(newStatus);
+      ChatUnreadNotifier.instance.notifyChanged();
+      // 완료 시 실거래가 입력 인터셉터 (SALE 대칭, 수집만).
+      if (newStatus == 'COMPLETED' && mounted) {
+        await _maybePromptSettlement();
+      }
     } catch (e) {
       if (!mounted) return;
       AppErrorToast.show(context, '상태 변경에 실패했어요. 다시 시도해주세요.');
@@ -1432,16 +1473,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             : [
                 // 상대방 아바타
                 if (!sameSenderAsPrev)
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: AppColors.surfaceElevated,
-                    backgroundImage:
-                        profileUrl != null ? NetworkImage(profileUrl) : null,
-                    child: profileUrl == null
-                        ? const Icon(Icons.person,
-                            color: AppColors.textMuted, size: 14)
-                        : null,
-                  )
+                  UserAvatar(imageUrl: profileUrl, size: 32) // B2-10
                 else
                   const SizedBox(width: 32),
                 const SizedBox(width: 8),
@@ -1828,16 +1860,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ]
             : [
                 if (!sameSenderAsPrev)
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: AppColors.surfaceElevated,
-                    backgroundImage:
-                        profileUrl != null ? NetworkImage(profileUrl) : null,
-                    child: profileUrl == null
-                        ? const Icon(Icons.person,
-                            color: AppColors.textMuted, size: 14)
-                        : null,
-                  )
+                  UserAvatar(imageUrl: profileUrl, size: 32) // B2-10
                 else
                   const SizedBox(width: 32),
                 const SizedBox(width: 8),

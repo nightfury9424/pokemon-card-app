@@ -90,13 +90,14 @@ class _ProductCardsScreenState extends State<ProductCardsScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: const BackButton(color: AppColors.textPrimary),
-        titleSpacing: 0,
+        centerTitle: true,
         title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               title,
+              textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 16,
@@ -112,6 +113,7 @@ class _ProductCardsScreenState extends State<ProductCardsScreen> {
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   widget.seriesName!,
+                  textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,

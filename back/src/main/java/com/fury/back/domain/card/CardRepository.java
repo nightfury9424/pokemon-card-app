@@ -124,9 +124,9 @@ public interface CardRepository extends JpaRepository<Card, String> {
             -- 한국 포카 시장 시세 기준 (front AppRarity와 동기화) — 고레어만.
             -- 2026-05-12 사용자 확정 순서. ACE/H/R 등은 PokeFolio 미취급.
             ORDER BY CASE c.rarity_code
-              WHEN 'MUR'  THEN 0  WHEN 'UR'   THEN 1
-              WHEN 'SAR'  THEN 2  WHEN 'AR'   THEN 3
-              WHEN 'MA'   THEN 4  WHEN 'BWR'  THEN 5
+              WHEN 'MUR'  THEN 0  WHEN 'BWR'  THEN 1
+              WHEN 'UR'   THEN 2  WHEN 'SAR'  THEN 3
+              WHEN 'MA'   THEN 4  WHEN 'AR'   THEN 5
               WHEN 'CSR'  THEN 6  WHEN 'CHR'  THEN 7
               WHEN 'HR'   THEN 8  WHEN 'SSR'  THEN 9
               WHEN 'SR'   THEN 10 WHEN 'SM-P' THEN 11
@@ -151,9 +151,9 @@ public interface CardRepository extends JpaRepository<Card, String> {
             -- 한국 포카 시장 시세 기준 (front AppRarity와 동기화). DESC는 일반→정점 방향.
             -- 2026-05-12 사용자 확정 순서. ACE/H/R 등은 PokeFolio 미취급.
             ORDER BY CASE c.rarity_code
-              WHEN 'MUR'  THEN 0  WHEN 'UR'   THEN 1
-              WHEN 'SAR'  THEN 2  WHEN 'AR'   THEN 3
-              WHEN 'MA'   THEN 4  WHEN 'BWR'  THEN 5
+              WHEN 'MUR'  THEN 0  WHEN 'BWR'  THEN 1
+              WHEN 'UR'   THEN 2  WHEN 'SAR'  THEN 3
+              WHEN 'MA'   THEN 4  WHEN 'AR'   THEN 5
               WHEN 'CSR'  THEN 6  WHEN 'CHR'  THEN 7
               WHEN 'HR'   THEN 8  WHEN 'SSR'  THEN 9
               WHEN 'SR'   THEN 10 WHEN 'SM-P' THEN 11

@@ -11,8 +11,10 @@ import '../../core/theme/rarity.dart';
 import '../../core/utils/price_label.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/animated_counter.dart';
-import '../../core/widgets/card_image.dart' show CardImage, resolveCardImageUrl;
+import '../../core/widgets/card_image.dart'
+    show CardImage, resolveCardImageUrl, precacheCardImage;
 import '../../core/widgets/pressable.dart';
+import 'price_disclaimer.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -74,6 +76,10 @@ class _HomeScreenState extends State<HomeScreen> {
     AssetNotifier.instance.addListener(_onExternalChange);
     _loadAll();
     _startAutoAdvance();
+    // B2-16: 일일 시세 안내(예상가치 고지). 하루 1회.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) PriceDisclaimer.maybeShow(context);
+    });
   }
 
   @override
@@ -185,12 +191,12 @@ class _HomeScreenState extends State<HomeScreen> {
     await Future.wait([
       () async {
         try {
-          // #12: 금액 탭 = 거래탭 '시세' 탭과 동일 카드셋(전체 레어도 가격순). 고레어만 필터하던 것 제거 —
-          //      PR 프로모(마리오/판쵸 피카츄 등) 최고가 카드가 빠지던 문제. 거래 시세 탭 default rarities 그대로.
+          // B2-7/B2-18: '금액' 탭 → '힛카드'. 체이스 레어도(SSR/SAR/CSR/CHR/UR/BWR) + MUR/MA(무조건 힛) 가격순.
+          //   (MUR 누락 문제 해결 — 메가개굴닌자 등 최상위 체이스 포함). 전일대비는 gainPct로 표시.
           topRes = await ApiClient.get(
             '/api/cards/market',
             params: {
-              'rarities': 'SSR,SAR,CSR,SR,UR,CHR,RR,RRR,HR,AR,BWR,MA,MUR,PR',
+              'rarities': 'SSR,SAR,CSR,CHR,UR,BWR,MUR,MA',
               'sortBy': 'price',
               'sortDir': 'desc',
               'page': 0,
@@ -272,6 +278,21 @@ class _HomeScreenState extends State<HomeScreen> {
       _recentTrades = trades;
       _loading = false;
     });
+    _precacheCarousels(); // B2-1: 캐러셀 카드 이미지 미리 받아 검정 skeleton flash 방지.
+  }
+
+  /// B2-1: 진입 시 보이는 캐러셀 카드들 이미지 캐시 워밍.
+  void _precacheCarousels() {
+    if (!mounted) return;
+    final cards = <Map<String, dynamic>>[
+      ..._myAssets.take(2).map((a) => (a['card'] as Map<String, dynamic>?) ?? const {}),
+      ..._topGainerCards.take(2),
+      ..._topCards.take(3),
+      ..._hotCards.take(2),
+    ];
+    for (final c in cards) {
+      precacheCardImage(context, resolveCardImageUrl(c));
+    }
   }
 
   Future<void> _loadData() => _loadAll(silent: true);
@@ -465,16 +486,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       return const SizedBox(height: 4);
                     }
                     final diff = market - purchase;
-                    final rate = diff / purchase * 100;
-                    final isPos = rate >= 0;
-                    final sign = isPos ? '+' : '';
+                    final rate = purchase > 0 ? diff / purchase * 100 : 0.0;
+                    // B2-14: 0=회색(neutral), 양=빨강, 음=파랑. (기존 rate>=0 → 0%도 빨강 버그)
+                    final sign = diff > 0 ? '+' : (diff < 0 ? '-' : '');
+                    final changeColor = diff > 0
+                        ? AppColors.red
+                        : (diff < 0 ? AppColors.blue : AppColors.textMuted);
                     return Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        '$sign${AppColors.formatPrice(diff.toInt())} ($sign${rate.toStringAsFixed(1)}%)',
+                        '$sign${AppColors.formatPrice(diff.abs().toInt())} ($sign${rate.abs().toStringAsFixed(1)}%)',
                         style: TextStyle(
-                          // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
-                          color: isPos ? AppColors.red : AppColors.blue,
+                          color: changeColor,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
@@ -504,8 +527,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final hasProfit = purchase > 0 && market > 0;
     final diff = market - purchase;
     final rate = purchase > 0 ? diff / purchase * 100 : 0.0;
-    final isPositive = diff >= 0;
-    final sign = isPositive ? '+' : '-';
+    // B2-14: 0=회색, 양=빨강, 음=파랑.
+    final sign = diff > 0 ? '+' : (diff < 0 ? '-' : '');
+    final changeColor = diff > 0
+        ? AppColors.red
+        : (diff < 0 ? AppColors.blue : AppColors.textMuted);
 
     final heroCard = _topRarityAsset?['card'] as Map<String, dynamic>?;
     final heroImageUrl = heroCard != null ? resolveCardImageUrl(heroCard) : null;
@@ -665,8 +691,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
-                                color: isPositive ? AppColors.red : AppColors.blue,
+                                color: changeColor,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: -0.2,
@@ -848,7 +873,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (_carouselTab == 1) ...[
                   const Spacer(),
                   _MiniSegment(
-                    labels: const ['금액', '인기', '수익률'],
+                    labels: const ['힛카드', '인기', '수익률'],
                     selected: _marketSubTab,
                     onChanged: (i) {
                       final newItems = switch (i) {

@@ -1092,7 +1092,7 @@ class _AssetScreenState extends State<AssetScreen> {
           const SizedBox(width: 18),
           _tabText('판매중', 1),
           const SizedBox(width: 18),
-          _tabText('내 매수', 2),
+          _tabText('구매중', 2), // B2-13: MY '구매중'과 용어 통일 (판매중↔구매중)
           const SizedBox(width: 18),
           _tabText('도감', 3),
           const Spacer(),

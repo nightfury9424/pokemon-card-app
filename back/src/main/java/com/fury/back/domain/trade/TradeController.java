@@ -147,6 +147,37 @@ public class TradeController {
         return tradeService.submitSettlement(tradeId, userId, price);
     }
 
+    @Operation(summary = "구매 실거래가 입력 상태 (B2-12)")
+    @GetMapping("/buy-order/{buyOrderId}/settlement/me")
+    public ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> getMyBuySettlement(
+            @PathVariable String buyOrderId,
+            @AuthenticationPrincipal String userId) {
+        return tradeService.getBuySettlementStatus(buyOrderId, userId);
+    }
+
+    @Operation(summary = "구매 실거래가 입력 (B2-12)", description = "BuyOrder 당사자 + COMPLETED 만.")
+    @PostMapping("/buy-order/{buyOrderId}/settlement")
+    public ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> submitBuySettlement(
+            @PathVariable String buyOrderId,
+            @AuthenticationPrincipal String userId,
+            @RequestBody(required = false) Map<String, Object> body) {
+        Integer price = null;
+        if (body != null) {
+            final Object src = body.get("data") instanceof Map<?, ?> d ? d : body;
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> source = (Map<String, Object>) src;
+            final Object rawPrice = source.get("price");
+            if (rawPrice instanceof Number n) {
+                price = n.intValue();
+            } else if (rawPrice != null) {
+                try {
+                    price = (int) Math.round(Double.parseDouble(String.valueOf(rawPrice)));
+                } catch (NumberFormatException ignored) { /* null → service badRequest */ }
+            }
+        }
+        return tradeService.submitBuySettlement(buyOrderId, userId, price);
+    }
+
     @Operation(summary = "거래 상대 후보 목록", description = "판매자만 호출. 거래중 변경 시 상대 선택용.")
     @GetMapping("/{tradeId}/chat-partners")
     public ReturnData<java.util.List<com.fury.back.domain.trade.dto.ChatPartnerDto>> getChatPartners(

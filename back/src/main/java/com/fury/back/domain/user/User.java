@@ -167,6 +167,11 @@ public class User {
         this.ageCheckedAt = now;
     }
 
+    /** B2-10: 프로필 사진 변경 — 쿨다운 없음(닉네임과 다름). 로드된 엔티티 직접 변경. */
+    public void updateProfileImage(String url) {
+        this.profileImageUrl = url;
+    }
+
     /** 스캔 이미지 수집·활용 선택 동의 변경 — 온보딩/설정에서 호출. 로드된 엔티티 직접 변경. */
     public void setScanImageConsent(boolean agreed, LocalDateTime now) {
         this.scanImageConsent = agreed;

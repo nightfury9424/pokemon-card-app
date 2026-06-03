@@ -1,8 +1,8 @@
 /// 한국 포카 시장 시세 기준 레어도 hierarchy (정점 → 일반).
 /// PokeFolio는 고레어 카드만 다룸 — ACE/H/R/C/U 등 일반 레어도는 제외.
 ///
-/// 2026-05-12 사용자 확정 순서:
-/// - MUR/UR/SAR/AR/MA/BWR: 시세 최정점
+/// 2026-05-12 사용자 확정 + 2026-06-04 BWR 상향(세트 한정 최상위 체이스 → MUR 바로 아래):
+/// - MUR/BWR/UR/SAR/MA/AR: 시세 최정점
 /// - CSR/CHR/HR: 캐릭터/하이 레어
 /// - SSR(→SR 인접)/SR: 묶음
 /// - SM-P/RRR/RR: 고레어 하한
@@ -13,11 +13,11 @@ class AppRarity {
   /// 정점 → 일반 순서. UI 정렬 + chip 정렬 등에 사용.
   static const List<String> hierarchy = [
     'MUR',  // Master Ultra Rare
+    'BWR',  // Black & White Rare — 블랙볼트/화이트플레어 세트 한정 최상위 체이스 (2장뿐, MUR 바로 아래)
     'UR',   // Ultra Rare
     'SAR',  // Special Art Rare
-    'AR',   // Art Rare
     'MA',   // Mega Art (메가에볼루션 ex 일러스트)
-    'BWR',  // Black & White Rare
+    'AR',   // Art Rare
     'CSR',  // Character Super Rare
     'CHR',  // Character Rare
     'HR',   // High Rare
