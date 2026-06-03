@@ -134,8 +134,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final seq = ++_loadSeq;
     if (!silent) setState(() => _loading = true);
 
-    // /me 를 공유 Future 로 — 사용자 무관(시장/거래) 호출과 동시에 진행해 직렬 대기(~1 RTT)
-    // 제거. 자산/포트폴리오만 userId 확보 후 발사한다.
+    // 점진 렌더링: 시장/거래(유저 무관)만 await 해서 캐러셀을 즉시 띄우고(_loading=false),
+    // 자산/포트폴리오(유저 의존)는 백그라운드로 받아 hero 를 나중에 채운다.
+    // /me 는 공유 Future — 시장 호출과 동시 진행.
     final userIdF = () async {
       try {
         final meRes = await ApiClient.get('/api/users/me');
@@ -145,34 +146,47 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }();
 
-    Map<String, dynamic>? assetRes, topRes, hotRes, tradeRes, portfolioRes;
+    // ── 백그라운드: 자산 + 포트폴리오 (캐러셀을 막지 않음) ──
+    unawaited(() async {
+      final uid = await userIdF;
+      if (seq != _loadSeq) return;
+      Map<String, dynamic>? assetRes, portfolioRes;
+      await Future.wait([
+        () async {
+          try {
+            assetRes = uid != null
+                ? await ApiClient.get(
+                    ApiConstants.assets,
+                    params: {'userId': uid},
+                  )
+                : {'data': []};
+          } catch (_) {
+            assetRes = {'data': []};
+          }
+        }(),
+        () async {
+          try {
+            if (uid != null) {
+              portfolioRes = await ApiClient.get(
+                '${ApiConstants.assets}/portfolio',
+                params: {'userId': uid},
+              );
+            }
+          } catch (_) {}
+        }(),
+      ]);
+      if (seq != _loadSeq || !mounted) return;
+      setState(() {
+        _userId = uid;
+        _myAssets = List<Map<String, dynamic>>.from(assetRes?['data'] ?? []);
+        _portfolio = portfolioRes?['data'] as Map<String, dynamic>?;
+      });
+    }());
+
+    // ── 메인 await: 시장/거래 — 완료 즉시 _loading=false → 캐러셀 렌더 ──
+    Map<String, dynamic>? topRes, hotRes, tradeRes;
     List<Map<String, dynamic>> topGainerCards = [];
     await Future.wait([
-      () async {
-        final uid = await userIdF;
-        _userId = uid;
-        try {
-          assetRes = uid != null
-              ? await ApiClient.get(
-                  ApiConstants.assets,
-                  params: {'userId': uid},
-                )
-              : {'data': []};
-        } catch (_) {
-          assetRes = {'data': []};
-        }
-      }(),
-      () async {
-        final uid = await userIdF;
-        try {
-          if (uid != null) {
-            portfolioRes = await ApiClient.get(
-              '${ApiConstants.assets}/portfolio',
-              params: {'userId': uid},
-            );
-          }
-        } catch (_) {}
-      }(),
       () async {
         try {
           topRes = await ApiClient.get(
@@ -224,28 +238,23 @@ class _HomeScreenState extends State<HomeScreen> {
       }(),
     ]);
 
-    final assets = List<Map<String, dynamic>>.from(assetRes?['data'] ?? []);
-
     final topData = topRes?['data'] as Map<String, dynamic>?;
     final topCards = List<Map<String, dynamic>>.from(topData?['content'] ?? []);
     final hotData = hotRes?['data'] as Map<String, dynamic>?;
     final hotRaw = List<Map<String, dynamic>>.from(hotData?['content'] ?? []);
     hotRaw.shuffle(Random());
     final hotCards = hotRaw.take(6).toList();
-
     final trades =
         (tradeRes?['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
     if (!mounted) return;
-    // 더 최신 load가 시작됐다면 stale 응답이므로 무시 (필드 오염 방지를 위해 모든 대입 전에 체크).
+    // 더 최신 load가 시작됐다면 stale 응답이므로 무시.
     if (seq != _loadSeq) return;
     setState(() {
-      _myAssets = assets;
       _topCards = topCards;
       _hotCards = hotCards;
       _topGainerCards = topGainerCards;
       _recentTrades = trades;
-      _portfolio = portfolioRes?['data'] as Map<String, dynamic>?;
       _loading = false;
     });
   }
