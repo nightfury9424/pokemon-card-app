@@ -92,6 +92,15 @@ public class User {
     @Column(name = "phone_verified_at")
     private LocalDateTime phoneVerifiedAt;
 
+    // ── 2026-06-03 스캔 이미지 수집·활용 선택 동의 (PIPA, docs/IMAGE_DATA_STRATEGY.md). ──
+    // 미동의(false) 시 scan_captures 캡처 skip. 기존 유저 기본값 false(안전).
+    @Column(name = "scan_image_consent", nullable = false)
+    @Builder.Default
+    private boolean scanImageConsent = false;
+
+    @Column(name = "scan_image_consent_at")
+    private LocalDateTime scanImageConsentAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -156,6 +165,12 @@ public class User {
         this.nicknameChangedAt = now;
         this.isOver14 = Boolean.TRUE;
         this.ageCheckedAt = now;
+    }
+
+    /** 스캔 이미지 수집·활용 선택 동의 변경 — 온보딩/설정에서 호출. 로드된 엔티티 직접 변경. */
+    public void setScanImageConsent(boolean agreed, LocalDateTime now) {
+        this.scanImageConsent = agreed;
+        this.scanImageConsentAt = agreed ? now : null;
     }
 
     /** 닉네임 변경 — 로드된 엔티티 직접 변경(재조립 금지). */

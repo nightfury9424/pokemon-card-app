@@ -30,7 +30,8 @@ public class UserController {
     private final UserService userService;
 
     /** 온보딩 요청 — 만 14세 확인(필수) + 닉네임 + 선택 프로필 이미지. */
-    private record OnboardingRequest(String nickname, String profileImageUrl, Boolean isOver14) {}
+    private record OnboardingRequest(String nickname, String profileImageUrl, Boolean isOver14,
+                                     Boolean scanImageConsent) {}
     private record NicknameRequest(String nickname) {}
 
     @Operation(summary = "계정 탈퇴 (App Review 5.1.1)",
@@ -114,12 +115,15 @@ public class UserController {
 
         String profileImageUrl = body.profileImageUrl();
         // 재조립 금지 — 로드된 엔티티 직접 변경(appleId/정지/탈퇴 필드 보존).
+        LocalDateTime now = LocalDateTime.now();
         user.completeOnboarding(
                 normalized,
                 profileImageUrl != null && !profileImageUrl.isBlank() ? profileImageUrl : null,
                 body.isOver14(),
-                LocalDateTime.now()
+                now
         );
+        // 스캔 이미지 수집·활용 선택 동의 — null/false 면 미동의(캡처 skip).
+        user.setScanImageConsent(Boolean.TRUE.equals(body.scanImageConsent()), now);
         return ReturnData.success(saveOrConflict(user));
     }
 

@@ -1,5 +1,7 @@
 package com.fury.back.domain.scanner;
 
+import com.fury.back.domain.user.User;
+import com.fury.back.domain.user.UserRepository;
 import com.fury.back.storage.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +23,7 @@ public class ScanCaptureService {
 
     private final ScanCaptureRepository repository;
     private final ImageStorageService imageStorage;
+    private final UserRepository userRepository;
 
     /** 카드당 캡처 상한 — 무한 증식 차단(유저수 무관 상한 고정). */
     private static final int PER_CARD_CAP = 20;
@@ -35,6 +38,13 @@ public class ScanCaptureService {
     @Transactional
     public void captureAsync(String cardId, String userId, String cropB64, Float confidence) {
         if (cardId == null || cropB64 == null || cropB64.isBlank()) return;
+        // 선택 동의 게이트 (PIPA) — 동의한 유저만 수집. 미동의/익명/기존유저(null)는 skip.
+        boolean consented = userId != null && userRepository.findById(userId)
+                .map(User::isScanImageConsent).orElse(false);
+        if (!consented) {
+            log.debug("[ScanCapture] no consent — skip card={} user={}", cardId, userId);
+            return;
+        }
         try {
             // 카드당 cap — 인기 카드 무한 증식 차단.
             if (repository.countByCardIdAndDeletedAtIsNull(cardId) >= PER_CARD_CAP) {
