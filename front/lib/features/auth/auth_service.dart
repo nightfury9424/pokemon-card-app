@@ -5,6 +5,7 @@ import '../../core/network/api_client.dart';
 import '../../core/notifications/chat_socket_service.dart';
 import '../../core/notifications/push_notification_service.dart';
 import '../../core/storage/token_storage.dart';
+import 'onboarding_draft.dart';
 
 final _googleSignIn = GoogleSignIn(
   scopes: ['email', 'profile'],
@@ -90,6 +91,7 @@ class AuthService {
     await PushNotificationService.unregister();
     await _googleSignIn.signOut();
     await TokenStorage.delete();
+    OnboardingDraft.instance.clear(); // 계정전환/재가입 시 이전 온보딩 입력(특히 14세미만 차단) 잔존 방지
     AuthState.instance.markLoggedOut();
   }
 }

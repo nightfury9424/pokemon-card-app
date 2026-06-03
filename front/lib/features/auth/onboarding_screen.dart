@@ -10,6 +10,7 @@ import '../../core/storage/token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/user_avatar.dart';
 import 'auth_service.dart';
+import 'onboarding_draft.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -37,6 +38,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   bool? _ageOver14;
 
   @override
+  void initState() {
+    super.initState();
+    // background/resume 또는 라우터 재계산으로 State 재생성돼도 입력 유지 — draft 에서 복원.
+    final d = OnboardingDraft.instance;
+    _ageOver14 = d.ageOver14;
+    _agreedTos = d.agreedTos;
+    _agreedPrivacy = d.agreedPrivacy;
+    _agreedScanImages = d.agreedScanImages;
+    if (d.nickname.isNotEmpty) {
+      _controller.text = d.nickname;
+      _check(d.nickname); // 닉네임 가용성 재검증 → '사용 가능' 상태 복원
+    }
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
     _controller.dispose();
@@ -50,6 +66,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
     _debounce?.cancel();
     final trimmed = value.trim();
+    OnboardingDraft.instance.nickname = trimmed;
     if (trimmed.isEmpty) return;
     _debounce = Timer(const Duration(milliseconds: 400), () => _check(trimmed));
   }
@@ -89,6 +106,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       await ApiClient.put('/api/users/onboarding',
           {'nickname': nickname, 'isOver14': true, 'scanImageConsent': _agreedScanImages});
       await TokenStorage.setOnboarded(true);
+      OnboardingDraft.instance.clear();
       AuthState.instance.markOnboarded();
       if (!mounted) return;
       context.go('/home');
@@ -172,7 +190,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         SizedBox(
           height: 54,
           child: ElevatedButton(
-            onPressed: () => setState(() => _ageOver14 = true),
+            onPressed: () => setState(() {
+              _ageOver14 = true;
+              OnboardingDraft.instance.ageOver14 = true;
+            }),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.blue,
               foregroundColor: Colors.white,
@@ -185,7 +206,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
         const SizedBox(height: 8),
         TextButton(
-          onPressed: () => setState(() => _ageOver14 = false),
+          onPressed: () => setState(() {
+            _ageOver14 = false;
+            OnboardingDraft.instance.ageOver14 = false;
+          }),
           child: const Text('만 14세 미만입니다',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w600)),
         ),
@@ -234,7 +258,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
         const SizedBox(height: 8),
         TextButton(
-          onPressed: () => setState(() => _ageOver14 = null),
+          onPressed: () => setState(() {
+            _ageOver14 = null;
+            OnboardingDraft.instance.ageOver14 = null;
+          }),
           child: const Text('다시 선택',
               style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
         ),
@@ -332,21 +359,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               // 회원가입 필수 동의 (한국 개인정보보호법 + Apple App Review). 둘 다 체크돼야 "시작하기" 활성.
               _ConsentCheckbox(
                 checked: _agreedTos,
-                onChanged: (v) => setState(() => _agreedTos = v),
+                onChanged: (v) => setState(() {
+                  _agreedTos = v;
+                  OnboardingDraft.instance.agreedTos = v;
+                }),
                 label: '이용약관에 동의합니다 (필수)',
                 onLinkTap: () => context.push('/legal/terms'),
               ),
               const SizedBox(height: 8),
               _ConsentCheckbox(
                 checked: _agreedPrivacy,
-                onChanged: (v) => setState(() => _agreedPrivacy = v),
+                onChanged: (v) => setState(() {
+                  _agreedPrivacy = v;
+                  OnboardingDraft.instance.agreedPrivacy = v;
+                }),
                 label: '개인정보처리방침에 동의합니다 (필수)',
                 onLinkTap: () => context.push('/legal/privacy'),
               ),
               const SizedBox(height: 8),
               _ConsentCheckbox(
                 checked: _agreedScanImages,
-                onChanged: (v) => setState(() => _agreedScanImages = v),
+                onChanged: (v) => setState(() {
+                  _agreedScanImages = v;
+                  OnboardingDraft.instance.agreedScanImages = v;
+                }),
                 label: '스캔한 카드 이미지의 수집·활용에 동의합니다 (선택)',
                 onLinkTap: () => context.push('/legal/privacy'),
               ),
