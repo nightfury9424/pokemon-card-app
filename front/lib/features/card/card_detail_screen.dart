@@ -3063,17 +3063,29 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       );
     }
 
+    // 유효 포인트(가격>0)만 추려 startDate 를 첫 유효점으로 잡는다 — 선행 무효/0 포인트가
+    // startDate 가 되면 라인이 우측으로 밀려 좌측이 비는(차트 짤림) 버그 발생. EN/JP 차트와 동일.
+    final validRaw = rawData.where((p) {
+      final dt = DateTime.tryParse(p['date'] as String? ?? '');
+      final price = (p['price'] as num?)?.toDouble();
+      return dt != null && price != null && price > 0;
+    }).toList();
+    if (validRaw.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Text('데이터 없음',
+            style: TextStyle(color: Colors.white38, fontSize: 13)),
+      );
+    }
     final startDate =
-        DateTime.tryParse(rawData.first['date'] as String? ?? '') ??
-        DateTime.now();
-    var spots = rawData
-        .map<FlSpot?>((p) {
-          final dt = DateTime.tryParse(p['date'] as String? ?? '');
-          final price = (p['price'] as num?)?.toDouble();
-          if (dt == null || price == null || price <= 0) return null;
+        DateTime.tryParse(validRaw.first['date'] as String? ?? '') ??
+            DateTime.now();
+    var spots = validRaw
+        .map<FlSpot>((p) {
+          final dt = DateTime.parse(p['date'] as String);
+          final price = (p['price'] as num).toDouble();
           return FlSpot(dt.difference(startDate).inDays.toDouble(), price);
         })
-        .whereType<FlSpot>()
         .toList();
 
     // outlier 클램프 (display only) — 일부 카드(특히 프로모)에서 차트 한 점이 비정상적으로 튀어
