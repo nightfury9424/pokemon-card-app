@@ -1936,10 +1936,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     String cardStatus = 'RAW';
     String? gradingCompany;
     String? gradeValue;
-    // 예상가치를 가격 초기값으로 (KO mid 대표 시세) — tick 단위로 floor.
-    // ex) 26,210,940 + tick 100,000 → 26,200,000
+    // 가격 초기값 = 대표 시세(KO mid) 를 100원 단위 반올림 — 판매폼(_onSellTapImpl)과 동일 정책.
+    // (이전 _floorToTick 은 1000 tick 이라 240원 등 저가 카드가 0원으로 떨어지는 버그.)
     final midPrice = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
-    final initialPrice = midPrice != null ? _floorToTick(midPrice) : null;
+    final initialPrice =
+        (midPrice != null && midPrice > 0) ? _roundTo100(midPrice) : null;
     // 컨트롤러 dispose 는 sheet dismiss animation 중 TextField rebuild 와 충돌 (TextEditingController used after disposed).
     // 정석은 별도 StatefulWidget 으로 분리해 State.dispose 활용 — 다음 polish 에서 처리. 지금은 dispose 생략 (1회성 시트라 누수 무시).
     final priceCtrl = TextEditingController(
