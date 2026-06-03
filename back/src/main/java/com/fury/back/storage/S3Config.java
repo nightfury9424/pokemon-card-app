@@ -10,6 +10,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 import java.net.URI;
 
@@ -51,6 +52,24 @@ public class S3Config {
             log.info("[S3Config] AWS S3 region={}", region);
         }
 
+        return builder.build();
+    }
+
+    /** presigned GET URL 생성용 — 스캐너 인덱스 배포(deploy)에서 341MB faiss 를 스캐너가 직접 다운로드. */
+    @Bean
+    public S3Presigner s3Presigner(
+            @Value("${aws.s3.region}") String region,
+            @Value("${aws.s3.endpoint:}") String endpoint,
+            @Value("${aws.access-key}") String accessKey,
+            @Value("${aws.secret-key}") String secretKey
+    ) {
+        S3Presigner.Builder builder = S3Presigner.builder()
+                .region(Region.of(region))
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(accessKey, secretKey)));
+        if (endpoint != null && !endpoint.isBlank()) {
+            builder.endpointOverride(URI.create(endpoint));
+        }
         return builder.build();
     }
 }

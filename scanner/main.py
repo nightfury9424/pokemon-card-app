@@ -337,46 +337,54 @@ async def health():
     return {"status": "ok", "vectors": idx.ntotal if idx else 0}
 
 
-@app.post("/admin/reload-index")
-async def reload_index(
-    faiss_file: UploadFile = File(..., alias="faiss"),
-    meta_file: UploadFile = File(..., alias="meta"),
-):
-    """blue-green 배포 — 백엔드(deploy)가 S3 staging 인덱스를 multipart 로 전달.
-    임시파일에 쓰고 read_index/json 으로 검증 후 DB_DIR 원자 교체 + state 핫스왑.
-    실패(깨진 인덱스/size mismatch)면 OLD 인덱스 그대로 유지(무중단)."""
-    import tempfile, shutil
+def _reload_index_blocking(faiss_url: str, meta_url: str) -> dict:
+    """341MB 인덱스 다운로드+검증+디스크교체 = 블로킹 → executor 에서 실행(event loop 비점유).
+    검증 통과 시에만 (new_index, new_vectors, new_cards) 반환. 실패면 ValueError(OLD 유지)."""
+    import tempfile, shutil, urllib.request
     tmp_dir = Path(tempfile.mkdtemp(prefix="reload_idx_"))
     try:
         tmp_faiss = tmp_dir / "card_db.faiss"
         tmp_meta  = tmp_dir / "card_meta.json"
-        with open(tmp_faiss, "wb") as f:
-            f.write(await faiss_file.read())
-        with open(tmp_meta, "wb") as f:
-            f.write(await meta_file.read())
-        # 검증 — 여기서 throw 되면 OLD 유지된 채 error 반환
-        new_index   = faiss.read_index(str(tmp_faiss))
+        urllib.request.urlretrieve(faiss_url, tmp_faiss)   # S3 presigned / file://
+        urllib.request.urlretrieve(meta_url, tmp_meta)
+        new_index   = faiss.read_index(str(tmp_faiss))     # 깨진 파일이면 여기서 throw
         with open(tmp_meta, encoding="utf-8") as f:
             new_meta = json.load(f)
         new_vectors = new_meta["vectors"]
         new_cards   = new_meta["cards"]
         if new_index.ntotal != len(new_vectors):
-            return {"error": f"size mismatch: index {new_index.ntotal} vs vectors {len(new_vectors)}"}
-        # 디스크 교체(재시작 후에도 NEW 로드) → state 핫스왑.
-        # 스왑 3줄 사이엔 await 없음 → asyncio 단일루프에서 identify 와 인터리브 불가(원자적).
+            raise ValueError(f"size mismatch: index {new_index.ntotal} vs vectors {len(new_vectors)}")
+        # 디스크 교체(재시작 후에도 NEW 로드). 아직 state 는 OLD 유지.
         shutil.copy2(tmp_faiss, FAISS_PATH)
         shutil.copy2(tmp_meta, META_PATH)
-        state["vectors"] = new_vectors
-        state["cards"]   = new_cards
-        state["index"]   = new_index
-        logger.info("[reload-index] swapped: %d vectors, %d cards", new_index.ntotal, len(new_cards))
-        return {"status": "ok", "vectors": new_index.ntotal, "cards": len(new_cards)}
-    except Exception as e:
-        logger.exception("[reload-index] failed — OLD 유지")
-        return {"error": str(e)}
+        return {"index": new_index, "vectors": new_vectors, "cards": new_cards}
     finally:
         import shutil as _sh
         _sh.rmtree(tmp_dir, ignore_errors=True)
+
+
+@app.post("/admin/reload-index")
+async def reload_index(payload: dict):
+    """blue-green 배포 — 백엔드(deploy)가 staging 인덱스 presigned URL 만 전달.
+    341MB 는 S3→스캐너 직결(urllib). 검증 통과 후 DB_DIR 원자 교체 + state 핫스왑.
+    실패(다운로드/깨진 인덱스/size mismatch)면 OLD 인덱스 그대로 유지(무중단)."""
+    faiss_url = payload.get("faissUrl")
+    meta_url  = payload.get("metaUrl")
+    if not faiss_url or not meta_url:
+        return {"error": "faissUrl and metaUrl required"}
+    try:
+        loop = asyncio.get_running_loop()
+        new = await loop.run_in_executor(None, _reload_index_blocking, faiss_url, meta_url)
+        # 핫스왑 3줄 — 사이에 await 없음 → asyncio 단일루프에서 identify 와 인터리브 불가(원자적).
+        state["vectors"] = new["vectors"]
+        state["cards"]   = new["cards"]
+        state["index"]   = new["index"]
+        n = new["index"].ntotal
+        logger.info("[reload-index] swapped: %d vectors, %d cards", n, len(new["cards"]))
+        return {"status": "ok", "vectors": n, "cards": len(new["cards"])}
+    except Exception as e:
+        logger.exception("[reload-index] failed — OLD 유지")
+        return {"error": str(e)}
 
 
 import re as _re

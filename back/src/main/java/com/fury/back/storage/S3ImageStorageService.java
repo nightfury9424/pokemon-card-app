@@ -13,10 +13,13 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.UUID;
 
 /**
@@ -35,10 +38,13 @@ import java.util.UUID;
 public class S3ImageStorageService implements ImageStorageService {
 
     private final S3Client s3;
+    private final S3Presigner presigner;
     private final String bucket;
 
-    public S3ImageStorageService(S3Client s3, @Value("${aws.s3.bucket}") String bucket) {
+    public S3ImageStorageService(S3Client s3, S3Presigner presigner,
+                                 @Value("${aws.s3.bucket}") String bucket) {
         this.s3 = s3;
+        this.presigner = presigner;
         this.bucket = bucket;
     }
 
@@ -123,6 +129,15 @@ public class S3ImageStorageService implements ImageStorageService {
             log.warn("[S3ImageStorage] head failed key={}: {}", key, e.getMessage());
             return false;
         }
+    }
+
+    @Override
+    public String presignedGetUrl(String key, Duration ttl) {
+        GetObjectPresignRequest req = GetObjectPresignRequest.builder()
+                .signatureDuration(ttl)
+                .getObjectRequest(GetObjectRequest.builder().bucket(bucket).key(key).build())
+                .build();
+        return presigner.presignGetObject(req).url().toString();
     }
 
     private String normalizePrefix(String prefix) {

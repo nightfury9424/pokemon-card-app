@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.UUID;
 
 /**
@@ -94,6 +95,12 @@ public class LocalImageStorageService implements ImageStorageService {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    @Override
+    public String presignedGetUrl(String key, Duration ttl) {
+        // local/dev — 스캐너가 같은 머신이라 file:// 로 직접 읽음 (urllib file:// 지원). TTL 무의미.
+        return resolveSafe(key).toUri().toString();
     }
 
     private Path resolveSafe(String key) {

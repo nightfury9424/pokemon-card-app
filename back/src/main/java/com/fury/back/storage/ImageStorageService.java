@@ -4,6 +4,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 
 /**
  * Phase 1-7: 이미지 storage 추상화.
@@ -43,4 +44,10 @@ public interface ImageStorageService {
 
     /** key 존재 여부. */
     boolean exists(String key);
+
+    /**
+     * key 에 대한 직접 다운로드 URL (TTL). 스캐너 인덱스 배포 시 백엔드 메모리 경유 없이
+     * 341MB faiss 를 스캐너가 직접 받게 하는 용도. S3=presigned, Local=file:// 절대경로.
+     */
+    String presignedGetUrl(String key, Duration ttl) throws IOException;
 }

@@ -4,21 +4,18 @@ import com.fury.back.storage.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.InputStream;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -43,6 +40,7 @@ public class ScannerTrainService {
     private String scannerBaseUrl;
 
     private static final int SAMPLE_LIMIT = 5000;
+    private static final Duration PRESIGN_TTL = Duration.ofMinutes(15); // 스캐너 다운로드 여유
 
     // ── admin ──
 
@@ -68,18 +66,20 @@ public class ScannerTrainService {
         job.markDeploying();
         jobRepo.saveAndFlush(job);
         try {
-            // B: 백엔드가 S3 staging 인덱스 다운로드 → prod 스캐너에 multipart forward → 원자 스왑.
-            //    (스캐너 S3 creds 불필요. backend↔scanner prod 로컬이라 전송 빠름.) 그 전까지 OLD 서빙.
+            // B: 백엔드는 presigned URL 만 전달, 341MB faiss 는 S3→스캐너 직결(백엔드 메모리 평탄).
+            //    스캐너가 urllib 로 직접 다운로드(boto3 불필요) → 검증 후 원자 스왑. 그 전까진 OLD 서빙.
             String key = job.getStagedIndexKey();
-            byte[] faiss = readAll(imageStorage.load(key + "/card_db.faiss"));
-            byte[] meta = readAll(imageStorage.load(key + "/card_meta.json"));
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("faiss", namedResource(faiss, "card_db.faiss"));
-            body.add("meta", namedResource(meta, "card_meta.json"));
+            String faissUrl = imageStorage.presignedGetUrl(key + "/card_db.faiss", PRESIGN_TTL);
+            String metaUrl = imageStorage.presignedGetUrl(key + "/card_meta.json", PRESIGN_TTL);
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-            restTemplate().postForEntity(scannerBaseUrl + "/admin/reload-index",
-                    new HttpEntity<>(body, headers), Map.class);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            Map<String, String> reqBody = Map.of("faissUrl", faissUrl, "metaUrl", metaUrl);
+            ResponseEntity<Map> resp = restTemplate().postForEntity(
+                    scannerBaseUrl + "/admin/reload-index", new HttpEntity<>(reqBody, headers), Map.class);
+            Object err = resp.getBody() == null ? null : resp.getBody().get("error");
+            if (err != null) {
+                throw new IllegalStateException("scanner reload error: " + err);
+            }
             int marked = captureRepo.markIndexedBefore(job.getTrainedAt());
             job.markDeployed();
             jobRepo.save(job);
@@ -159,22 +159,7 @@ public class ScannerTrainService {
     private RestTemplate restTemplate() {
         SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
         f.setConnectTimeout(5_000);
-        f.setReadTimeout(120_000); // 인덱스 다운로드+reload 여유
+        f.setReadTimeout(300_000); // 스캐너가 341MB 다운로드+reload 하는 동안 대기
         return new RestTemplate(f);
-    }
-
-    private static byte[] readAll(InputStream in) throws java.io.IOException {
-        try (in) {
-            return in.readAllBytes();
-        }
-    }
-
-    private static ByteArrayResource namedResource(byte[] bytes, String filename) {
-        return new ByteArrayResource(bytes) {
-            @Override
-            public String getFilename() {
-                return filename;
-            }
-        };
     }
 }
