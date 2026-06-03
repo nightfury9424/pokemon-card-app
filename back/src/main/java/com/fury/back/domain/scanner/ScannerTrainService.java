@@ -1,16 +1,24 @@
 package com.fury.back.domain.scanner;
 
+import com.fury.back.storage.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.InputStream;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -29,6 +37,7 @@ public class ScannerTrainService {
 
     private final ScanTrainJobRepository jobRepo;
     private final ScanCaptureRepository captureRepo;
+    private final ImageStorageService imageStorage;
 
     @Value("${scanner.base-url:http://localhost:8082}")
     private String scannerBaseUrl;
@@ -59,10 +68,18 @@ public class ScannerTrainService {
         job.markDeploying();
         jobRepo.saveAndFlush(job);
         try {
-            // prod 스캐너에 staging 인덱스 reload 요청 (원자 스왑). 그 전까지 서버는 OLD 서빙.
-            RestTemplate rt = restTemplate();
-            rt.postForEntity(scannerBaseUrl + "/admin/reload-index?key={k}", null, Map.class,
-                    job.getStagedIndexKey());
+            // B: 백엔드가 S3 staging 인덱스 다운로드 → prod 스캐너에 multipart forward → 원자 스왑.
+            //    (스캐너 S3 creds 불필요. backend↔scanner prod 로컬이라 전송 빠름.) 그 전까지 OLD 서빙.
+            String key = job.getStagedIndexKey();
+            byte[] faiss = readAll(imageStorage.load(key + "/card_db.faiss"));
+            byte[] meta = readAll(imageStorage.load(key + "/card_meta.json"));
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("faiss", namedResource(faiss, "card_db.faiss"));
+            body.add("meta", namedResource(meta, "card_meta.json"));
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            restTemplate().postForEntity(scannerBaseUrl + "/admin/reload-index",
+                    new HttpEntity<>(body, headers), Map.class);
             int marked = captureRepo.markIndexedBefore(job.getTrainedAt());
             job.markDeployed();
             jobRepo.save(job);
@@ -144,5 +161,20 @@ public class ScannerTrainService {
         f.setConnectTimeout(5_000);
         f.setReadTimeout(120_000); // 인덱스 다운로드+reload 여유
         return new RestTemplate(f);
+    }
+
+    private static byte[] readAll(InputStream in) throws java.io.IOException {
+        try (in) {
+            return in.readAllBytes();
+        }
+    }
+
+    private static ByteArrayResource namedResource(byte[] bytes, String filename) {
+        return new ByteArrayResource(bytes) {
+            @Override
+            public String getFilename() {
+                return filename;
+            }
+        };
     }
 }
