@@ -151,19 +151,15 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
                 }
                 final listings =
                     snap.hasData ? snap.data!.listings : const <HogaListing>[];
-                final hasError = snap.hasError;
+                if (snap.hasError) return _errorState();
+                // 빈 상태: 중복 카운트 헤더(0명…)·divider 없이 빈 상태가 단독으로.
+                if (listings.isEmpty) return _emptyState(color);
                 return Column(
                   children: [
-                    _header(color, hasError ? 0 : listings.length),
+                    _header(color, listings.length),
                     const Divider(color: AppColors.divider, height: 1),
-                    Expanded(
-                      child: hasError
-                          ? _errorState()
-                          : (listings.isEmpty
-                              ? _emptyState(color)
-                              : _list(listings, color)),
-                    ),
-                    if (!hasError && listings.isNotEmpty) _footer(color),
+                    Expanded(child: _list(listings, color)),
+                    _footer(color),
                   ],
                 );
               },
@@ -355,41 +351,64 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
         ? '구매 희망가를 남기면 카드 보유자에게 알림이 가요'
         : '판매글을 등록하면 구매 희망자에게 노출돼요';
     final cta = _isBuy ? '구매 희망가 등록하기' : '판매글 등록하기';
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 0, 28, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.inbox_rounded, color: AppColors.textMuted, size: 44),
-            const SizedBox(height: 14),
-            Text(
-              msg,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
+    // 일러스트+카피는 가용 영역 중앙, CTA는 하단 고정 — 죽은 여백/허전함 해소.
+    return Column(
+      children: [
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.10),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.inbox_rounded,
+                        color: color.withValues(alpha: 0.75), size: 30),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    msg,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    sub,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12.5,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              sub,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 22),
-            SizedBox(
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            child: SizedBox(
               width: double.infinity,
-              height: 50,
+              height: 52,
               child: ElevatedButton(
                 onPressed: _register,
+                // CTA(등록)는 위험 액션 아님 → 초록(feedback_color_policy: CTA 초록 보존).
+                // 카운트/가격 등 액센트는 매수=빨강/매도=파랑 정책 유지.
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: color,
+                  backgroundColor: AppColors.green,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -398,14 +417,14 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
                 ),
                 child: Text(
                   cta,
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w800),
+                  style:
+                      const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                 ),
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -420,9 +439,10 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
           height: 50,
           child: OutlinedButton(
             onPressed: _register,
+            // CTA(등록)는 초록 통일 (feedback_color_policy: CTA 초록 보존).
             style: OutlinedButton.styleFrom(
-              foregroundColor: color,
-              side: BorderSide(color: color.withValues(alpha: 0.55)),
+              foregroundColor: AppColors.green,
+              side: BorderSide(color: AppColors.green.withValues(alpha: 0.55)),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -450,6 +470,8 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
               const SizedBox(height: 14),
               OutlinedButton(
                 onPressed: _register,
+                style:
+                    OutlinedButton.styleFrom(foregroundColor: AppColors.green),
                 child: Text(_isBuy ? '구매 희망가 등록' : '판매글 등록'),
               ),
             ],
