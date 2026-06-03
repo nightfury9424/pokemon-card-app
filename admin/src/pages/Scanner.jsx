@@ -1,6 +1,16 @@
-import { useEffect, useState } from 'react'
-import { RefreshCw, Database, Cpu, Clock, Search, CheckCircle, XCircle } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { RefreshCw, Database, Cpu, Clock, Search, CheckCircle, XCircle, Play, UploadCloud, Hourglass } from 'lucide-react'
 import api from '../api'
+
+const STATUS_KO = {
+  NONE: '대기', REQUESTED: '학습 요청됨(맥 agent 대기)', TRAINING: '학습 중',
+  TRAINED: '학습 완료 — 배포 대기', DEPLOYING: '배포 중', DEPLOYED: '배포 완료', FAILED: '실패',
+}
+function fmtDur(s) {
+  if (s == null) return '—'
+  const m = Math.floor(s / 60), r = s % 60
+  return m > 0 ? `${m}분 ${r}초` : `${r}초`
+}
 
 const S = {
   page:  { padding: '32px 36px', minHeight: '100%', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
@@ -29,10 +39,12 @@ function InfoCard({ icon: Icon, label, value, color }) {
 export default function Scanner() {
   const [info, setInfo]         = useState(null)
   const [scans, setScans]       = useState([])
-  const [rebuilding, setRebuilding] = useState(false)
   const [testImg, setTestImg]   = useState('')
   const [testResult, setTestResult] = useState(null)
   const [testing, setTesting]   = useState(false)
+  const [train, setTrain]       = useState(null)   // train-status 응답
+  const [busy, setBusy]         = useState(false)
+  const pollRef = useRef(null)
 
   // 2026-05-29 P-1: localhost:8082 직접 호출 → backend proxy 사용 (브라우저에서 prod scanner 미도달 문제 해결).
   //   - /admin/scanner/stats : backend 가 docker network 안 scanner:8082/health → vectors 카운트 반환.
@@ -49,10 +61,39 @@ export default function Scanner() {
       .catch(() => setScans([]))
   }
 
-  useEffect(() => { loadInfo(); loadScans() }, [])
+  function loadTrain() {
+    return api.get('/admin/scanner/train-status')
+      .then(r => setTrain(r.data ?? null))
+      .catch(() => setTrain(null))
+  }
 
-  function rebuild() {
-    alert('FAISS 재빌드는 현재 운영 스캐너에 미구현 — 별도 작업으로 분리됨')
+  useEffect(() => { loadInfo(); loadScans(); loadTrain() }, [])
+
+  // 진행 중(REQUESTED/TRAINING/DEPLOYING)이면 3초 폴링 — 경과시간/완료 자동 반영.
+  useEffect(() => {
+    const active = ['REQUESTED', 'TRAINING', 'DEPLOYING'].includes(train?.status)
+    clearInterval(pollRef.current)
+    if (active) pollRef.current = setInterval(loadTrain, 3000)
+    return () => clearInterval(pollRef.current)
+  }, [train?.status])
+
+  function doTrain() {
+    if (busy || !train?.canTrain) return
+    setBusy(true)
+    api.post('/admin/scanner/train')
+      .then(() => loadTrain())
+      .catch(e => alert('학습 요청 실패: ' + (e.response?.data?.message ?? e.message)))
+      .finally(() => setBusy(false))
+  }
+
+  function doDeploy() {
+    if (busy || !train?.canDeploy) return
+    if (!window.confirm('학습된 인덱스를 운영 스캐너에 무중단 배포합니다. 진행할까요?')) return
+    setBusy(true)
+    api.post('/admin/scanner/deploy')
+      .then(r => { alert('배포 완료 — 반영 ' + (r.data?.markedIndexed ?? 0) + '개'); loadTrain() })
+      .catch(e => alert('배포 실패: ' + (e.response?.data?.message ?? e.message)))
+      .finally(() => setBusy(false))
   }
 
   function testScan() {
@@ -65,14 +106,12 @@ export default function Scanner() {
     <div style={S.page}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
         <div style={S.h1}>스캐너</div>
-        <button onClick={rebuild} disabled={rebuilding} style={{
+        <button onClick={() => { loadInfo(); loadScans(); loadTrain() }} style={{
           display: 'flex', alignItems: 'center', gap: 6,
-          padding: '9px 16px', borderRadius: 10, border: 'none', cursor: rebuilding ? 'not-allowed' : 'pointer',
-          background: rebuilding ? '#cbd5e1' : 'linear-gradient(135deg, #6366f1, #4f46e5)',
-          color: '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+          padding: '9px 16px', borderRadius: 10, border: '1px solid #e2e8f0', cursor: 'pointer',
+          background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
         }}>
-          <RefreshCw size={13} style={{ animation: rebuilding ? 'spin 1s linear infinite' : 'none' }} />
-          {rebuilding ? '재빌드 중...' : 'FAISS 재빌드'}
+          <RefreshCw size={13} /> 새로고침
         </button>
       </div>
       <div style={S.sub}>DINOv2 + FAISS 스캐너 현황</div>
@@ -86,6 +125,76 @@ export default function Scanner() {
           value={info?.connected ? (info.dim ?? 1536) : '연동 안 됨'} />
         <InfoCard icon={Clock}    label="마지막 업데이트"   color="#f59e0b"
           value={info?.connected ? (info.lastUpdated ? String(info.lastUpdated).slice(0, 10) : 'N/A') : '연동 안 됨'} />
+      </div>
+
+      {/* 모델 재학습 — 맥북 agent 오케스트레이션. 학습은 맥에서(서버비용 0), 완료 후 무중단 배포. */}
+      <div style={{ ...S.card, padding: '24px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <Cpu size={15} color="#6366f1" />
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>모델 재학습</div>
+        </div>
+        <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 18 }}>
+          유저 스캔 캡처로 FAISS 인덱스 보강 — 학습은 맥북 agent 에서, 완료 후 운영에 무중단 반영
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap', marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>새 데이터 (미반영 캡처)</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: (train?.unindexedCaptures > 0) ? '#6366f1' : '#1e293b', letterSpacing: -0.5 }}>
+              {(train?.unindexedCaptures ?? 0).toLocaleString()}개
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>상태</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: train?.status === 'FAILED' ? '#dc2626' : '#1e293b' }}>
+              {STATUS_KO[train?.status] ?? train?.status ?? '—'}
+            </div>
+          </div>
+          {train?.status === 'TRAINING' && (
+            <div>
+              <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>경과</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, fontWeight: 700, color: '#f59e0b' }}>
+                <Hourglass size={13} /> {fmtDur(train?.elapsedSeconds)}
+              </div>
+            </div>
+          )}
+          {train?.lastTrainSeconds != null && (
+            <div>
+              <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>지난번 소요(참고)</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#64748b' }}>~{fmtDur(train?.lastTrainSeconds)}</div>
+            </div>
+          )}
+        </div>
+
+        {train?.status === 'FAILED' && train?.message && (
+          <div style={{ fontSize: 12, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>
+            {train.message}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={doTrain} disabled={busy || !train?.canTrain} style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', borderRadius: 10, border: 'none',
+            cursor: (busy || !train?.canTrain) ? 'not-allowed' : 'pointer',
+            background: (busy || !train?.canTrain) ? '#cbd5e1' : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+            color: '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+          }}>
+            <Play size={13} /> 학습하기
+          </button>
+          <button onClick={doDeploy} disabled={busy || !train?.canDeploy} style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', borderRadius: 10,
+            border: train?.canDeploy ? 'none' : '1px solid #e2e8f0',
+            cursor: (busy || !train?.canDeploy) ? 'not-allowed' : 'pointer',
+            background: (busy || !train?.canDeploy) ? '#f1f5f9' : 'linear-gradient(135deg, #16a34a, #15803d)',
+            color: (busy || !train?.canDeploy) ? '#94a3b8' : '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+          }}>
+            <UploadCloud size={13} /> 업데이트하기
+          </button>
+          <div style={{ flex: 1 }} />
+          <div style={{ fontSize: 11, color: '#cbd5e1', alignSelf: 'center', textAlign: 'right', maxWidth: 220 }}>
+            학습하기 → 맥에서 <code>train_agent.py</code> 실행 → 완료되면 업데이트하기 활성
+          </div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
