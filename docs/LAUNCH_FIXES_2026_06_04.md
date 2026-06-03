@@ -3,6 +3,8 @@
 > 하나씩 쳐낸다. 체크박스 = 완료. 각 항목 **증상 / 목표 / 파일힌트 / 범위**.
 > 원칙: 이번 버그 배치는 **Flutter front 중심**. backend/scanner/grading/DB 마이그는 섞지 말 것(별도). 거래상태/채팅/신고/차단 로직 건드리지 말 것.
 
+> **권장 진행 순서**: ①온보딩 리셋(P0-1) → ②홈 로딩(#6) → ③pull-to-refresh(#9) → ④refresh 색상(#10) → ⑤반응형 차트(#8) → ⑥프로필 편집/이메일/구매중stat(#3,4) → ⑦문의 플로우(#5). 프론트 묶어서 구현+커밋, **IPA는 사용자 신호 후 한 방에**. 백엔드(탈퇴30일 #2, 전번봐주자 #7)는 별도 배포.
+
 ---
 
 ## 🔴 P0 — 심사 제출 전 필수
@@ -55,6 +57,19 @@
 - **증상**: 홈 진입 시 전체 스피너가 여전히 오래 도는 것으로 보임(시장/거래 API 묶음이 끝나야 화면 뜨는 구조 잔존 가능).
 - **목표**: Scaffold/상단/섹션 컨테이너 즉시 렌더. top/hot/gainer/recent-trade/assets/portfolio **각 섹션 독립 로딩 + skeleton**. 카드 이미지 로딩이 전체 렌더 막지 않게(placeholder/errorWidget만).
 - **파일**: `front/lib/features/home/home_screen.dart`. (이전 점진렌더 + 캐러셀 fix 했으나 재확인 필요)
+
+### [ ] 9. 데이터 적을 때 pull-to-refresh 안 됨 (호가/거래/빈 리스트)
+- **증상**: 호가/판매글/구매글 리스트가 0~2건으로 짧으면 스크롤이 안 생겨 **pull-to-refresh가 동작 안 함.** 새 글/호가 등록 후 수동 새로고침 불가.
+- **목표**: 데이터 0건/소량/빈 상태에서도 항상 아래로 당기면 새로고침 + 실제 API reload 실행.
+- **수정 방향**: RefreshIndicator 가 감싸는 ScrollView/ListView 에 `physics: AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics())`. CustomScrollView/Sliver 면 SliverFillRemaining 등으로 빈 상태에서도 refresh trigger 잡히게. onRefresh 는 실제 reload 함수 호출(단순 setState 금지).
+- **대상**: 호가 영역, 판매글/구매글 목록, 거래/호가 탭 리스트, 빈 상태 화면.
+- **파일**: `front .../card/hoga/*`, `trade/trade_list_screen.dart`, 빈상태 위젯들.
+
+### [ ] 10. 일반 새로고침 인디케이터 색상 빨강 → 파랑/브랜드
+- **증상**: 내 자산 화면 pull-to-refresh 인디케이터가 **빨강**. 매수=빨강/판매=파랑 정책과 섞여 오인. 새로고침은 매수 액션 아님.
+- **목표**: 모든 일반 RefreshIndicator color = `AppColors.blue`(브랜드). 빨강은 새로고침 UI에 쓰지 않음.
+- **수정 방향**: `RefreshIndicator` 직접 생성한 **모든 위치**에서 `color: AppColors.red` 하드코딩 검색 → blue 로. backgroundColor 다크 톤 확인.
+- **파일**: `front .../asset/asset_screen.dart` + grep `RefreshIndicator.*AppColors.red` 전역.
 
 ---
 
