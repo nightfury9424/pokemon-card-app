@@ -68,4 +68,26 @@ public class ScanTrainJob {
         return status == Status.REQUESTED || status == Status.TRAINING
                 || status == Status.TRAINED || status == Status.DEPLOYING;
     }
+
+    // 상태 전이 — 로드된 엔티티 직접 변경(@Transactional dirty-check). builder 재조립 금지.
+    public void markTraining() { this.status = Status.TRAINING; }
+
+    public void markTrained(String stagedKey, Integer sampleCount) {
+        this.status = Status.TRAINED;
+        this.stagedIndexKey = stagedKey;
+        this.sampleCount = sampleCount;
+        this.trainedAt = LocalDateTime.now();
+    }
+
+    public void markDeploying() { this.status = Status.DEPLOYING; }
+
+    public void markDeployed() {
+        this.status = Status.DEPLOYED;
+        this.deployedAt = LocalDateTime.now();
+    }
+
+    public void markFailed(String msg) {
+        this.status = Status.FAILED;
+        this.message = msg;
+    }
 }
