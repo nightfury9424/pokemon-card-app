@@ -288,6 +288,8 @@ function HandleModal({ row, onClose, onDone }) {
   async function submit() {
     if (isDestructive) {
       if (!confirm(`${action} 처리할까요? 한 번 처리하면 되돌릴 수 없어요.`)) return
+    } else if (action === 'WARN_USER') {
+      if (!confirm('이 유저에게 경고를 발급할까요? (경고 3회 누적 시 자동 정지)')) return
     }
     setSubmitting(true)
     setError('')
@@ -351,7 +353,7 @@ function HandleModal({ row, onClose, onDone }) {
 
         <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6 }}>처리 액션 (선택)</label>
         <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-          {['NONE', 'SUSPEND_USER', 'DELETE_TRADE', 'DISMISS'].map(a => {
+          {['NONE', 'WARN_USER', 'SUSPEND_USER', 'DELETE_TRADE', 'DISMISS'].map(a => {
             const sel = action === a
             const dest = a === 'SUSPEND_USER' || a === 'DELETE_TRADE'
             return (
@@ -364,6 +366,9 @@ function HandleModal({ row, onClose, onDone }) {
               }}>{a}</button>
             )
           })}
+        </div>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: -12, marginBottom: 20, lineHeight: 1.5 }}>
+          처리 시 액션 자동 실행: WARN_USER=경고 발급(3회 누적 시 자동 정지) · SUSPEND_USER=즉시 정지 · DELETE_TRADE=거래글 삭제
         </div>
 
         <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6 }}>처리 메모 (선택)</label>

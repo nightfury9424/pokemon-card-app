@@ -36,6 +36,11 @@ public class AdminStage0Service {
     private final AdminAllowlistFilter adminAllowlistFilter;
     private final AdminActionService adminActionService;
     private final ChatService chatService;
+    private final UserWarningRepository userWarningRepository;
+
+    /** 활성 경고 누적이 이 수치 도달 시 자동 정지. (신고 처리 정책) */
+    @org.springframework.beans.factory.annotation.Value("${app.moderation.warning-threshold:3}")
+    private int warningThreshold;
 
     // ─────────────────────────────────────────────────────────────────────
     // GET /api/admin/whoami
@@ -142,6 +147,17 @@ public class AdminStage0Service {
         adminActionService.record(adminUserId, "REVIEW_REPORT", "REPORT", reportId,
                 reportId, body.getAdminMemo(), previousState, body.getStatus());
 
+        // ★resolutionAction 실제 실행 — 이전엔 라벨만 저장되고 정작 정지/삭제가 안 돌던 구멍(P0).
+        //   SUSPEND_USER/WARN_USER → 대상 유저 / DELETE_TRADE → 대상 거래글 / NONE·DISMISS → 상태만.
+        final String act = body.getResolutionAction();
+        if ("SUSPEND_USER".equals(act) && report.getTargetUserId() != null) {
+            suspendUser(report.getTargetUserId(), adminUserId, "신고 처리: " + report.getReason());
+        } else if ("WARN_USER".equals(act) && report.getTargetUserId() != null) {
+            warnUser(report.getTargetUserId(), adminUserId, "신고 처리: " + report.getReason(), reportId);
+        } else if ("DELETE_TRADE".equals(act) && "TRADE".equals(report.getTargetType())) {
+            adminDeleteTradePost(report.getTargetId(), adminUserId, "신고 처리: " + report.getReason());
+        }
+
         // re-fetch row for response (admin list 와 동일 형태).
         return listReports(null, null, null, null, 0, 1).stream()
                 .filter(r -> r.getReportId().equals(reportId))
@@ -202,6 +218,55 @@ public class AdminStage0Service {
                 .suspensionReason(user.getSuspensionReason())
                 .deleted(false)
                 .createdAt(user.getCreatedAt())
+                .build();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // POST /api/admin/users/{id}/warn — 경고 발급 (누적 임계치 도달 시 자동 정지)
+    // ─────────────────────────────────────────────────────────────────────
+
+    @Transactional
+    public AdminStage0Dto.UserRow warnUser(String userId, String adminUserId, String reason, String reportId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
+        if (adminAllowlistFilter.isAllowed(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "ADMIN_USER_NOT_WARNABLE");
+        }
+        if (user.getDeletedAt() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "USER_ALREADY_DELETED");
+        }
+        String safeReason = (reason == null || reason.isBlank()) ? "(사유 없음)" : reason.trim();
+        userWarningRepository.save(UserWarning.builder()
+                .warningId(com.fury.back.common.IdGenerator.generate())
+                .userId(userId)
+                .reason(safeReason)
+                .reportId(reportId)
+                .issuedBy(adminUserId)
+                .build());
+        long count = userWarningRepository.countByUserIdAndRevokedAtIsNull(userId);
+        adminActionService.record(adminUserId, "WARN", "USER", userId,
+                null, "경고 " + count + "회: " + safeReason, null, null);
+
+        boolean autoSuspended = false;
+        // 임계치 도달 + 아직 정지 안 됨 → 자동 정지.
+        if (count >= warningThreshold && !user.isSuspended()) {
+            user.suspend("경고 " + count + "회 누적 자동 정지", adminUserId);
+            userRepository.save(user);
+            adminActionService.record(adminUserId, "AUTO_SUSPEND", "USER", userId,
+                    null, "경고 임계치(" + warningThreshold + ") 도달", "ACTIVE", "SUSPENDED");
+            autoSuspended = true;
+        }
+        return AdminStage0Dto.UserRow.builder()
+                .userId(user.getUserId())
+                .nickname(user.getNickname())
+                .email(user.getEmail())
+                .suspended(user.isSuspended())
+                .suspendedAt(user.getSuspendedAt())
+                .suspensionReason(user.getSuspensionReason())
+                .deleted(user.getDeletedAt() != null)
+                .createdAt(user.getCreatedAt())
+                .warningCount(count)
+                .autoSuspended(autoSuspended)
                 .build();
     }
 

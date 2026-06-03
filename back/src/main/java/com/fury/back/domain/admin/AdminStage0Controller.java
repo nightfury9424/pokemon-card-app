@@ -89,6 +89,15 @@ public class AdminStage0Controller {
         return ApiResponse.ok(service.unsuspendUser(userId, adminUserId));
     }
 
+    // 경고 발급 — 누적 임계치(기본 3) 도달 시 자동 정지. reportId 는 근거 신고(선택).
+    @PostMapping("/users/{userId}/warn")
+    public ApiResponse<AdminStage0Dto.UserRow> warnUser(
+            @PathVariable String userId,
+            @AuthenticationPrincipal String adminUserId,
+            @RequestBody AdminStage0Dto.WarnBody body) {
+        return ApiResponse.ok(service.warnUser(userId, adminUserId, body.getReason(), body.getReportId()));
+    }
+
     // ─────────────────────────────────────────────────────────────────────
     // DELETE /api/admin/trade-posts/{id}
     // ─────────────────────────────────────────────────────────────────────

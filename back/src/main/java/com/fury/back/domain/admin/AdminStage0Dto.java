@@ -64,6 +64,8 @@ public class AdminStage0Dto {
         private String suspensionReason;
         private boolean deleted;               // deleted_at NOT NULL
         private LocalDateTime createdAt;
+        private long warningCount;             // 활성 경고 수 (모더레이션)
+        private boolean autoSuspended;         // 이번 경고로 임계치 도달해 자동 정지됐는지
     }
 
     /** POST /api/admin/users/{id}/suspend — body. */
@@ -76,5 +78,12 @@ public class AdminStage0Dto {
     @Getter
     public static class DeleteTradeBody {
         private String reason;
+    }
+
+    /** POST /api/admin/users/{id}/warn — body. reportId 는 근거 신고(선택). */
+    @Getter
+    public static class WarnBody {
+        private String reason;
+        private String reportId;
     }
 }
