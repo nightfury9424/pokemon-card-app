@@ -54,6 +54,18 @@ class PokemonCardApp extends StatelessWidget {
       title: '포켓몬 카드',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: rootScaffoldMessengerKey,
+      // 해상도/접근성 대응: iOS Dynamic Type(설정>글자 크게) 시 고정 height 레이아웃(버튼·칩·
+      // 가격 행 등) 오버플로 방지 — 텍스트 배율 상한을 1.15 로 clamp. 기본(1.0) 사용자는 무변화,
+      // 과도하게 키운 경우만 1.15 로 제한. (전 화면 일괄 적용)
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(
+            textScaler: mq.textScaler.clamp(maxScaleFactor: 1.15),
+          ),
+          child: child!,
+        );
+      },
       theme: ThemeData.dark().copyWith(
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFFE53935),
