@@ -228,9 +228,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   Future<void> _loadMyPendingOrders() async {
     if (!mounted) return;
     setState(() => _pendingOrdersLoading = true);
-    debugPrint('[Pending] start fetch — cardId=${widget.cardId}');
     try {
-      // 본인 BuyOrder (이 카드 + OPEN).
+      // 본인 BuyOrder (이 카드 + OPEN). 클라 안전망: 백엔드 필터 실패 대비 cardId 재필터(판매글과 동일).
       List<Map<String, dynamic>> buyOrders = [];
       try {
         final res = await ApiClient.get(
@@ -239,20 +238,17 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         );
         if (res['data'] is List) {
           buyOrders = List<Map<String, dynamic>>.from(
-              (res['data'] as List).cast<Map>().map((m) => Map<String, dynamic>.from(m)));
+                  (res['data'] as List).cast<Map>().map((m) => Map<String, dynamic>.from(m)))
+              .where((b) => b['cardId'] == widget.cardId)
+              .toList();
         }
-        debugPrint('[Pending] BuyOrder fetched — count=${buyOrders.length} '
-            'cardIds=${buyOrders.map((b) => b['cardId']).toList()}');
-      } catch (e) {
-        debugPrint('[Pending] BuyOrder me fetch error: $e');
-      }
+      } catch (_) {}
 
       // 본인 TradePost (이 카드 + OPEN, sellerId + cardId + status 동시 필터).
       List<Map<String, dynamic>> tradePosts = [];
       try {
         final meRes = await ApiClient.get('/api/users/me');
         final myUserId = (meRes['data'] as Map?)?['userId'] as String?;
-        debugPrint('[Pending] me userId=$myUserId');
         if (myUserId != null) {
           final res = await ApiClient.get(
             '/api/trades',
@@ -274,12 +270,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 .where((t) => t['status'] == 'OPEN' && t['cardId'] == widget.cardId)
                 .toList();
           }
-          debugPrint('[Pending] TradePost fetched — content count=${(content is List) ? content.length : -1} '
-              'after-filter count=${tradePosts.length}');
         }
-      } catch (e) {
-        debugPrint('[Pending] TradePost me fetch error: $e');
-      }
+      } catch (_) {}
 
       if (mounted) {
         setState(() {
@@ -287,7 +279,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           _myTradePosts = tradePosts;
           _pendingOrdersLoading = false;
         });
-        debugPrint('[Pending] state set — buyOrders=${buyOrders.length} tradePosts=${tradePosts.length}');
       }
     } catch (e) {
       debugPrint('[Pending] _loadMyPendingOrders error: $e');
@@ -1524,7 +1515,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             ],
           ),
         ),
-        // 매도 (내 판매글) — 정책: 매도 = red
+        // 매도 (내 판매글) — 정책: 매도 = blue
         for (final tp in _myTradePosts)
           _pendingOrderRow(
             isBuy: false,
@@ -1539,7 +1530,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             onEdit: () => _showTradePostEditSheet(tp),
             onCancel: () => _confirmCancelTradePost(tp),
           ),
-        // 매수 (내 주문) — 정책: 매수 = blue
+        // 매수 (내 주문) — 정책: 매수 = red
         for (final bo in _myBuyOrders)
           _pendingOrderRow(
             isBuy: true,
@@ -1571,7 +1562,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     required VoidCallback onEdit,
     required VoidCallback onCancel,
   }) {
-    final actionColor = isBuy ? AppColors.blue : AppColors.red;
+    // 색 정책: 매수(구매)=빨강 / 매도(판매)=파랑 (CTA·호가창 row 와 동일 방향). 이전 반전 버그 정정.
+    final actionColor = isBuy ? AppColors.red : AppColors.blue;
     final stateLabel = cardStatus == 'GRADED' &&
             gradingCompany != null &&
             gradeValue != null
@@ -1807,6 +1799,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   myUserId: _myUserId,
                 );
                 if (listingId == null || !context.mounted) return;
+                // 거래 시작 게이트 — 하단 CTA와 동일하게 호가창 row 경로도 전화인증 요구.
+                if (!await PhoneVerifySheet.ensureVerified(context)) return;
+                if (!context.mounted) return;
 
                 if (side == HogaSide.ask) {
                   // 기존 ASK 경로 — trade_detail 진입. status 변경/삭제 시 pop(true)로 hoga 갱신.

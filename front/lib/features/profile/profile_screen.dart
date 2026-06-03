@@ -253,7 +253,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             iconColor: AppColors.textMuted,
                             label: '앱 정보',
                             sub: 'v1.0.0',
-                            onTap: () {},
+                            onTap: () => showAboutDialog(
+                              context: context,
+                              applicationName: 'PokeFolio',
+                              applicationVersion: 'v1.0.0',
+                              applicationLegalese: '© 2026 PokeFolio',
+                            ),
                           ),
                         ]),
                         const SizedBox(height: 20),

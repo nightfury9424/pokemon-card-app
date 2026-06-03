@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_success_toast.dart';
 import 'inquiry_category.dart';
 
 /// 고객지원 — 문의 카테고리 분류 + 카테고리별 폼(/support/inquiry/:key) 진입점.
@@ -16,12 +17,7 @@ class CustomerSupportScreen extends StatelessWidget {
   Future<void> _copyEmail(BuildContext context) async {
     await Clipboard.setData(const ClipboardData(text: ApiConstants.supportEmail));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('이메일 주소를 복사했어요.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    AppSuccessToast.show(context, '이메일 주소를 복사했어요.');
   }
 
   @override

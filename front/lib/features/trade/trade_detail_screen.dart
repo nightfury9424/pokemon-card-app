@@ -10,6 +10,7 @@ import '../../core/widgets/app_success_toast.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/app_error_toast.dart';
+import '../auth/phone_verify_sheet.dart';
 
 class TradeDetailScreen extends StatefulWidget {
   final String tradeId;
@@ -736,6 +737,9 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Future<void> _startChat() async {
     if (_chatLoading) return;
+    // 거래 시작 게이트 — card_detail CTA와 동일하게 전화인증 요구(미인증 채팅 진입 차단).
+    if (!await PhoneVerifySheet.ensureVerified(context)) return;
+    if (!mounted) return;
     // Phase 1 hotfix#2: existing 분기 제거 — 차단/상대 나감 backend 가드 우회 막음.
     // backend getOrCreateRoom 은 unique constraint 로 idempotent — existing 이면 같은 room 반환,
     // 차단/상대 나감이면 save 전 403 (BLOCKED / OTHER_LEFT). 빈 채팅방 생성 X.
