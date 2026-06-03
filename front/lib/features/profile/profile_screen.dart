@@ -308,7 +308,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildProfileHeader() {
     final nickname = _user?['nickname'] as String? ?? '-';
-    final email = _user?['email'] as String? ?? '';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -334,14 +333,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     letterSpacing: -0.3,
                   ),
                 ),
-                if (email.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    email,
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                // 이메일 노출 제거(privaterelay 등 민감) — 닉네임만.
               ],
             ),
           ),
@@ -356,6 +348,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _StatChip(label: '보유 카드', value: '$_totalCards장'),
         const SizedBox(width: 10),
         _StatChip(label: '판매 중', value: '$_activeTrades건'),
+        const SizedBox(width: 10),
+        _StatChip(label: '구매 중', value: '$_activeBuyOrders건'),
       ],
     );
   }
