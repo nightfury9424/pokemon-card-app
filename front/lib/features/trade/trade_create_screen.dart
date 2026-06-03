@@ -431,58 +431,41 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
       backgroundColor: AppColors.bg,
       // sheet 모드: 키보드 시 Scaffold resize 대신 스크롤뷰가 입력칸 노출 (sheet 높이 깨짐 방지).
       resizeToAvoidBottomInset: widget.sheetScrollController == null,
-      appBar: AppBar(
-        backgroundColor: AppColors.bg,
-        elevation: 0,
-        foregroundColor: AppColors.textPrimary,
-        // 슬라이드업 모달 — 닫기는 아래 방향 chevron.
-        leading: IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 28),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: const Text(
-          '판매글 등록',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          Builder(builder: (_) {
-            // 사진 1장 이상 + 등록 중 아닐 때만 활성 (정책).
-            final canSubmit = !_submitting && _photos.isNotEmpty;
-            return TextButton(
-              onPressed: canSubmit ? _submit : null,
-              child: _submitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        color: AppColors.blue,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : Text(
-                      '등록',
-                      style: TextStyle(
-                        color: canSubmit
-                            ? AppColors.blue
-                            : AppColors.blue.withValues(alpha: 0.35),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-            );
-          }),
-        ],
-      ),
-      body: SingleChildScrollView(
-        controller: widget.sheetScrollController ?? _scrollCtrl,
-        padding: const EdgeInsets.all(16),
+      body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const TradeSafetyNotice(margin: EdgeInsets.only(bottom: 14)),
+            // 닫기(아래 chevron). 헤더바·상단 등록버튼 제거 → 매수 폼과 톤 통일.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                    size: 28, color: AppColors.textPrimary),
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: widget.sheetScrollController ?? _scrollCtrl,
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 매수 폼("이 가격에 사고 싶어요")과 동일 톤의 타이틀+서브.
+                    const Text('판매글 등록',
+                        style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 6),
+                    const Text('판매글을 올리면 구매 희망자에게 노출돼요.',
+                        style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                            height: 1.5)),
+                    const SizedBox(height: 14),
+                    const TradeSafetyNotice(),
+                    const SizedBox(height: 14),
             // 등록 실패 / 사진 누락 inline error (SnackBar 금지).
             if (_submitError != null) ...[
               Container(
@@ -695,7 +678,56 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
             const SizedBox(height: 8),
             _buildTextField(_memoCtrl, '예) 직거래 가능, 1회 슬리브 보관', maxLines: 3),
 
-            const SizedBox(height: 40),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            ),
+            // 하단 고정 등록 버튼 — 매수 호가 등록 폼과 동일 패턴.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed:
+                      (!_submitting && _photos.isNotEmpty) ? _submit : null,
+                  style: ElevatedButton.styleFrom(
+                    // 판매(매도) 액션 = 파랑 (feedback_color_policy: 매수 빨강/매도 파랑, 토스식).
+                    backgroundColor: AppColors.blue,
+                    disabledBackgroundColor:
+                        AppColors.blue.withValues(alpha: 0.35),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  child: _submitting
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2)),
+                            SizedBox(width: 8),
+                            Text('등록 중...',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800)),
+                          ],
+                        )
+                      : const Text('판매글 등록하기',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ),
           ],
         ),
       ),
