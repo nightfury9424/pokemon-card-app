@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -35,6 +36,10 @@ class PhoneVerifySheet {
       context: context,
       isScrollControlled: true,
       useRootNavigator: true,
+      // 인증 도중 실수로 슬라이드/바깥탭 닫힘 방지 — 진행 상태 유실 차단.
+      // 의도적 취소는 시트 상단 X 버튼으로만.
+      isDismissible: false,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
@@ -58,9 +63,18 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
   String? _verificationId;
   bool _otpStep = false;
   bool _busy = false;
+  bool _sendingOtp = false; // 낙관적 전환: OTP 화면 진입했으나 아직 SMS 발송 대기 중
   String? _error;
   int _resendIn = 0;
   Timer? _resendTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // APNs 토큰 프리워밍 — 사용자가 번호 입력하는 동안 토큰을 미리 준비해
+    // verifyPhoneNumber 시점의 앱검증 지연을 줄인다(베스트 에포트, 실패 무시).
+    FirebaseMessaging.instance.getAPNSToken().catchError((_) => null);
+  }
 
   @override
   void dispose() {
@@ -104,12 +118,23 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
             });
         return;
       }
+      // 낙관적 전환 — 게이트 통과 즉시 OTP 화면으로 전환(입력 대기 표시).
+      // Firebase 앱검증/발송 지연(2~5s)을 화면 전환 뒤로 숨겨 체감 대기를 없앤다.
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _otpStep = true;
+        _sendingOtp = true;
+        _error = null;
+      });
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: _toE164(_phone.text),
         timeout: const Duration(seconds: 60),
         verificationCompleted: (cred) async => _completeWith(cred), // iOS 자동 인증
         verificationFailed: (e) {
           if (mounted) setState(() {
+                _otpStep = false; // 폰 입력 단계로 되돌림
+                _sendingOtp = false;
                 _busy = false;
                 _error = _mapErr(e);
               });
@@ -117,8 +142,7 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
         codeSent: (vid, _) {
           if (!mounted) return;
           setState(() {
-            _busy = false;
-            _otpStep = true;
+            _sendingOtp = false; // 발송 완료 → 입력 활성화
             _verificationId = vid;
           });
           _startResendCooldown();
@@ -127,8 +151,10 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
       );
     } catch (e) {
       if (mounted) setState(() {
+            _otpStep = false;
+            _sendingOtp = false;
             _busy = false;
-            _error = '요청실패: $e'; // 진단
+            _error = '요청실패: $e';
           });
     }
   }
@@ -220,14 +246,29 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: AppColors.divider,
-                  borderRadius: BorderRadius.circular(2)),
-            ),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: GestureDetector(
+                  onTap: () => Navigator.of(context).pop(false),
+                  behavior: HitTestBehavior.opaque,
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.close,
+                        color: AppColors.textMuted, size: 20),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           const Text('휴대폰 인증',
@@ -239,7 +280,9 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
           const SizedBox(height: 6),
           Text(
             _otpStep
-                ? '문자로 받은 인증번호 6자리를 입력해주세요'
+                ? (_sendingOtp
+                    ? '인증번호를 보내고 있어요…'
+                    : '문자로 받은 인증번호 6자리를 입력해주세요')
                 : '거래·채팅 신뢰를 위해 휴대폰 번호를 인증해요',
             style: const TextStyle(
                 color: AppColors.textSecondary, fontSize: 13, height: 1.4),
@@ -276,7 +319,7 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
                   letterSpacing: 6),
               textAlign: TextAlign.center,
               onChanged: (v) {
-                if (v.length == 6 && !_busy) _submitOtp();
+                if (v.length == 6 && !_busy && !_sendingOtp) _submitOtp();
               },
               decoration: _dec('______'),
             ),
@@ -284,7 +327,8 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: (_resendIn > 0 || _busy) ? null : _sendCode,
+                onPressed:
+                    (_resendIn > 0 || _busy || _sendingOtp) ? null : _sendCode,
                 child: Text(
                   _resendIn > 0 ? '재전송 ($_resendIn초)' : '인증번호 재전송',
                   style: TextStyle(
@@ -306,7 +350,9 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
           SizedBox(
             height: 52,
             child: ElevatedButton(
-              onPressed: _busy ? null : (_otpStep ? _submitOtp : _sendCode),
+              onPressed: (_busy || _sendingOtp)
+                  ? null
+                  : (_otpStep ? _submitOtp : _sendCode),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.blue,
                 foregroundColor: Colors.white,
@@ -316,7 +362,7 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
               ),
-              child: _busy
+              child: (_busy || _sendingOtp)
                   ? const SizedBox(
                       width: 20,
                       height: 20,
