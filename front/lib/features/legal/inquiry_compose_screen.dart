@@ -142,7 +142,8 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
       setState(() => _sending = false);
       AppSuccessToast.show(context, '문의가 접수됐어요. 답변은 문의 내역에서 확인할 수 있어요.');
       await Future<void>.delayed(const Duration(milliseconds: 300));
-      if (mounted) context.pop();
+      // 5-1: 제출 후 고객지원(카테고리)으로 안 돌아가고 내 문의 내역으로 — 방금 보낸 문의+상태 바로 보이게.
+      if (mounted) context.pushReplacement('/profile/inquiries');
     } catch (_) {
       if (!mounted) return;
       setState(() => _sending = false);

@@ -1,24 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/app_success_toast.dart';
 import 'inquiry_category.dart';
 
-/// 고객지원 — 문의 카테고리 분류 + 카테고리별 폼(/support/inquiry/:key) 진입점.
-///
-/// App Review 5.1 — 작동하는 contact 정보(이메일) 노출은 그대로 유지.
-/// 위에 분류형 카드 list를 두어 "그냥 mailto" 대신 "분류된 문의"로 전환.
+/// 고객지원 — 문의 카테고리 분류 + 카테고리별 폼(/support/inquiry/:key) 진입점 + 내 문의 내역.
+/// 2026-06-04: DB 문의로 전환 — 이메일 복사 제거(채널 혼란). 답변은 내 문의 내역에서 확인.
 class CustomerSupportScreen extends StatelessWidget {
   const CustomerSupportScreen({super.key});
-
-  Future<void> _copyEmail(BuildContext context) async {
-    await Clipboard.setData(const ClipboardData(text: ApiConstants.supportEmail));
-    if (!context.mounted) return;
-    AppSuccessToast.show(context, '이메일 주소를 복사했어요.');
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,59 +45,35 @@ class CustomerSupportScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             ...InquiryCategory.values.map((c) => _CategoryCard(category: c)),
-            const SizedBox(height: 24),
-            // 백업 — 이메일 직접 노출/복사. 메일 composer 미작동 케이스 대응 + App Review 5.1.
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceCard,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '고객지원 이메일',
-                    style: TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
+            const SizedBox(height: 12),
+            // 5-2: 내 문의 내역 진입 (작성↔확인 동선 통합). 이메일 복사 제거(DB 문의로 전환).
+            InkWell(
+              onTap: () => context.push('/profile/inquiries'),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceCard,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: Row(
+                  children: const [
+                    Icon(Icons.receipt_long_outlined, color: AppColors.textSecondary, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text('내 문의 내역',
+                          style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SelectableText(
-                          ApiConstants.supportEmail,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => _copyEmail(context),
-                        icon: const Icon(Icons.copy_rounded,
-                            color: AppColors.textSecondary, size: 18),
-                        tooltip: '이메일 주소 복사',
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '평일 24~48시간 내 답변드립니다.',
-                    style: TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
+                    Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 20),
+                  ],
+                ),
               ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '평일 24~48시간 내 답변드립니다.',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 11),
             ),
           ],
         ),
