@@ -46,6 +46,11 @@
 - **5-4** 관리자 답변 시 **`INQUIRY_ANSWERED` 알림**(푸시+인앱) — NotificationService 이미 있어 쉬움. (백엔드)
 - **파일**: `front .../legal/{customer_support_screen,inquiry_compose_screen}`, `profile/inquiry_history_screen`, `back .../inquiry/InquiryAdminController`(답변 시 notify).
 
+### [ ] 8. 반응형 깨짐 — 시세 차트 disclaimer 텍스트 짤림/겹침 (다른 해상도/폰)
+- **증상**: 다른 해상도/기기에서 카드 상세 **시세 차트** 영역의 안내문("한국판 기준 예상가입니다. 다른 발매판 시세는 JP/EN…")이 **왼쪽 "<" 플로팅 백버튼에 가려 짤림/겹침.** (Image)
+- **목표**: 모든 해상도에서 안 짤리게 — 백버튼이 콘텐츠와 안 겹치게 좌측 패딩/레이아웃 보정, 텍스트 폭 화면 대응. (이전 textScaler 1.15 clamp 는 Dynamic Type 용 — 이건 별개 해상도 overflow)
+- **파일**: `front/lib/features/card/card_detail_screen.dart` 시세 차트 섹션 + 플로팅 백버튼.
+
 ### [ ] 6. 홈 로딩 여전히 느림 재검증
 - **증상**: 홈 진입 시 전체 스피너가 여전히 오래 도는 것으로 보임(시장/거래 API 묶음이 끝나야 화면 뜨는 구조 잔존 가능).
 - **목표**: Scaffold/상단/섹션 컨테이너 즉시 렌더. top/hot/gainer/recent-trade/assets/portfolio **각 섹션 독립 로딩 + skeleton**. 카드 이미지 로딩이 전체 렌더 막지 않게(placeholder/errorWidget만).
@@ -77,6 +82,14 @@
 - [x] 전화인증 작동(DB 확인) / 캐러셀 / 보안·DoS / 스캔 동의 게이팅 등
 
 ---
+
+## ✅ 테스트 통과 (2026-06-04 사용자 검증)
+- [x] 전화인증: 거래/채팅 시도 → 인증 시트 → SMS 통과 → 거래 진입 (신규번호 정상진입 / **기존번호는 "이미 다른 계정에서 인증된 번호입니다" 차단** → ⑦ 봐주자로 완화 예정)
+- [x] 전화인증 시트 슬라이드/바깥탭 안 닫힘 (X 클릭으로만)
+- [x] 미인증 계정: 호가창 row 탭 / trade_detail "채팅하기" → 인증 시트 뜸
+- [x] 신규 가입(구글/애플) → 만14세 게이트 → 닉네임 중복확인 → 시작하기
+- [x] 동의 체크박스 3개(이용약관/개인정보 필수 + 스캔이미지 선택)
+- [x] 이용약관/개인정보 "보기" 링크 → (수정 `dd44303a` 반영 빌드에서) 통과 예정
 
 ## 🔵 Post-launch (분리)
 - [ ] 스캐너 캡처 활성 검증 + 첫 모델 학습(맥 agent) + SCANNER 토큰 .env + compose :rw
