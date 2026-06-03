@@ -99,11 +99,16 @@ public class AssetServiceImpl implements AssetService {
     }
 
     @Override
-    public ReturnData<AssetDto> getAsset(String assetId) {
+    public ReturnData<AssetDto> getAsset(String assetId, String userId) {
         if (assetId == null || assetId.isBlank()) {
             return ReturnData.badRequest("assetId는 필수입니다.");
         }
         Optional<Asset> asset = assetRepository.findById(assetId);
+        // IDOR 가드 — 본인 자산만. 매입가/수량 등 금융정보가 assetId 추측으로 노출되던 구멍.
+        //   타인 소유/미존재는 동일하게 notFound 처리(존재 여부 자체를 숨김).
+        if (asset.isEmpty() || !asset.get().getUserId().equals(userId)) {
+            return ReturnData.notFound("자산을 찾을 수 없습니다. assetId=" + assetId);
+        }
         return asset.<ReturnData<AssetDto>>map(a -> {
                     String activeTradeId = tradePostRepository.findByAssetIdAndStatusIn(a.getAssetId(), List.of("OPEN", "RESERVED"))
                             .stream()

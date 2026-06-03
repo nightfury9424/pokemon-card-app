@@ -67,8 +67,9 @@ public class AssetController {
     @GetMapping("/{assetId}")
     public ReturnData<AssetDto> getAsset(
         @Parameter(description = "자산 ID", example = "ASSET_001")
-        @PathVariable String assetId) {
-        return assetService.getAsset(assetId);
+        @PathVariable String assetId,
+        @AuthenticationPrincipal String userId) {
+        return assetService.getAsset(assetId, userId);
     }
 
     @Operation(summary = "자산 등록", description = """

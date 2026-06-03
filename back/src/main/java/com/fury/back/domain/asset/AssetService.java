@@ -11,7 +11,7 @@ import java.util.List;
 
 public interface AssetService {
     ReturnData<List<AssetDto>> getMyAssets(String userId);
-    ReturnData<AssetDto> getAsset(String assetId);
+    ReturnData<AssetDto> getAsset(String assetId, String userId);
     ReturnData<AssetDto> registerAsset(ParameterData parameterData);
     ReturnData<AssetDto> updateAsset(String assetId, String userId, ParameterData parameterData);
     void updateGradingInfo(String assetId, String userId, String gradingCompany, String gradeValue);
