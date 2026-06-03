@@ -29,6 +29,9 @@ public interface ImageStorageService {
      */
     String store(String prefix, String origFilename, MultipartFile file) throws IOException;
 
+    /** 메모리 bytes 직접 저장 (스캔 캡처 등 — MultipartFile 아님). 파일명은 UUID로 재할당. */
+    String store(String prefix, String origFilename, byte[] bytes, String contentType) throws IOException;
+
     /** key 기반 stream load (proxy controller에서 사용). */
     InputStream load(String key) throws IOException;
 

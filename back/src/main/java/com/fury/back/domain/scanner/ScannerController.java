@@ -9,6 +9,7 @@ import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,12 +22,14 @@ import java.util.*;
 public class ScannerController {
 
     private final CardService cardService;
+    private final ScanCaptureService scanCaptureService;
 
     @Value("${scanner.base-url:http://localhost:8082}")
     private String scannerBaseUrl;
 
     @PostMapping("/identify")
-    public ReturnData<?> identify(@RequestParam("image") MultipartFile image) {
+    public ReturnData<?> identify(@RequestParam("image") MultipartFile image,
+                                  @AuthenticationPrincipal String userId) {
         try {
             Map<String, Object> scanResult = callScannerApi(image);
             if (scanResult == null) {
@@ -71,6 +74,11 @@ public class ScannerController {
                 }).toList();
             }
 
+            // 스캔 데이터 수집 — 성공 매칭 warp-crop 비동기 저장 (스캔 응답 블로킹 X, docs/IMAGE_DATA_STRATEGY.md).
+            if (scanResult.get("cropB64") instanceof String crop && !crop.isBlank()) {
+                Float sc = topResult.get("score") instanceof Number n ? n.floatValue() : null;
+                scanCaptureService.captureAsync(cardId, userId, crop, sc);
+            }
             return ReturnData.success(Map.of(
                 "status",     status,
                 "card",       cardRes.getData(),

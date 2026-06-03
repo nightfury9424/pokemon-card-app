@@ -55,6 +55,18 @@ public class LocalImageStorageService implements ImageStorageService {
     }
 
     @Override
+    public String store(String prefix, String origFilename, byte[] bytes, String contentType) throws IOException {
+        String ext = extractExt(origFilename);
+        String filename = UUID.randomUUID().toString().replace("-", "") + ext;
+        String key = normalizePrefix(prefix) + "/" + filename;
+        Path target = resolveSafe(key);
+        Files.createDirectories(target.getParent());
+        Files.write(target, bytes);
+        log.debug("[LocalImageStorage] store(bytes) key={} size={}", key, bytes.length);
+        return key;
+    }
+
+    @Override
     public InputStream load(String key) throws IOException {
         Path resolved = resolveSafe(key);
         return Files.newInputStream(resolved);

@@ -9,6 +9,7 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import json
+import base64
 import re
 import asyncio
 import logging
@@ -140,6 +141,23 @@ def _process_image_scan(data: bytes) -> tuple[np.ndarray, np.ndarray] | tuple[No
     return get_embedding(warped), warped
 
 
+def _encode_crop_b64(warped_bgr, max_side: int = 1024, quality: int = 85):
+    """warp-crop 을 ≤max_side 리사이즈 + JPEG + base64 (스캔 데이터 수집용, docs/IMAGE_DATA_STRATEGY.md).
+    백엔드가 디코드해 S3 저장 + scan_captures row. 앱엔 전달 안 됨(서버-서버). 실패 시 None."""
+    try:
+        if warped_bgr is None:
+            return None
+        h, w = warped_bgr.shape[:2]
+        scale = max_side / float(max(h, w))
+        if scale < 1.0:
+            warped_bgr = cv2.resize(warped_bgr, (int(w * scale), int(h * scale)),
+                                    interpolation=cv2.INTER_AREA)
+        ok, buf = cv2.imencode(".jpg", warped_bgr, [cv2.IMWRITE_JPEG_QUALITY, quality])
+        return base64.b64encode(buf.tobytes()).decode("ascii") if ok else None
+    except Exception:
+        return None
+
+
 def ocr_card_number(warped_bgr: np.ndarray) -> str | None:
     """카드 하단 OCR → 카드번호(NNN) 추출"""
     reader = state.get("ocr_reader")
@@ -254,7 +272,7 @@ async def identify(image: UploadFile = File(...)):
     else:
         status = "not_found"
 
-    return {
+    resp = {
         "status": status,
         "data": {
             "topResult":  top,
@@ -262,6 +280,12 @@ async def identify(image: UploadFile = File(...)):
             "ocrNumber":  card_num,
         },
     }
+    # 스캔 데이터 수집: 성공 매칭 시 warp-crop base64 동봉 (백엔드가 S3 + scan_captures 저장).
+    if status == "success" and warped is not None:
+        crop_b64 = _encode_crop_b64(warped)
+        if crop_b64:
+            resp["cropB64"] = crop_b64
+    return resp
 
 
 @app.get("/identify_path")

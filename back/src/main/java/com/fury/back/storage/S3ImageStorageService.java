@@ -72,6 +72,22 @@ public class S3ImageStorageService implements ImageStorageService {
     }
 
     @Override
+    public String store(String prefix, String origFilename, byte[] bytes, String contentType) {
+        String ext = extractExt(origFilename);
+        String filename = UUID.randomUUID().toString().replace("-", "") + ext;
+        String key = normalizePrefix(prefix) + "/" + filename;
+        PutObjectRequest req = PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .contentType(contentType != null ? contentType : "application/octet-stream")
+                .contentLength((long) bytes.length)
+                .build();
+        s3.putObject(req, RequestBody.fromBytes(bytes));
+        log.debug("[S3ImageStorage] put(bytes) bucket={} key={} size={}", bucket, key, bytes.length);
+        return key;
+    }
+
+    @Override
     public InputStream load(String key) {
         return s3.getObject(
                 GetObjectRequest.builder().bucket(bucket).key(key).build()
