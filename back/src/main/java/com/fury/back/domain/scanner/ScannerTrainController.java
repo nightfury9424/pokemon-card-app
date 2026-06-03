@@ -50,6 +50,12 @@ public class ScannerTrainController {
         return service.reset();
     }
 
+    /** FF2 수집 커버리지 대시보드 — 캡처 퍼널 + KO 카탈로그 대비 진행률. */
+    @GetMapping("/admin/scanner/coverage")
+    public Map<String, Object> coverage() {
+        return service.coverage();
+    }
+
     // ── 맥북 agent (token-gated) ──
     @GetMapping("/scanner-agent/claim")
     public Map<String, Object> claim(

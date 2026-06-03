@@ -1,5 +1,7 @@
 package com.fury.back.domain.scanner;
 
+import com.fury.back.domain.card.CardRepository;
+import com.fury.back.domain.user.UserRepository;
 import com.fury.back.storage.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +37,8 @@ public class ScannerTrainService {
     private final ScanTrainJobRepository jobRepo;
     private final ScanCaptureRepository captureRepo;
     private final ImageStorageService imageStorage;
+    private final CardRepository cardRepository;
+    private final UserRepository userRepository;
 
     @Value("${scanner.base-url:http://localhost:8082}")
     private String scannerBaseUrl;
@@ -43,6 +47,7 @@ public class ScannerTrainService {
     private String scannerAdminToken;
 
     private static final int SAMPLE_LIMIT = 5000;
+    private static final int PER_CARD_CAP = 20; // ScanCaptureService 와 동일 — cap 도달 카드 계산용
     private static final Duration PRESIGN_TTL = Duration.ofMinutes(60); // 341MB 다운로드 + 재시도 여유
 
     // ── admin ──
@@ -136,6 +141,30 @@ public class ScannerTrainService {
                         Duration.between(last.getTrainingStartedAt(), last.getTrainedAt()).getSeconds());
             }
         });
+        return m;
+    }
+
+    /** FF2 수집 커버리지 대시보드 — 스캔 캡처 퍼널 + KO 카탈로그 대비 진행률. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> coverage() {
+        long totalCards = cardRepository.count(); // @SQLRestriction is_visible=true → 노출 카드만
+        long covered = captureRepo.countDistinctCardsCovered();
+        List<Map<String, Object>> top = captureRepo.topCardsByCaptureCount(20).stream()
+                .map(r -> Map.<String, Object>of(
+                        "cardId", r[0],
+                        "name", r[1] == null ? "" : r[1],
+                        "count", ((Number) r[2]).intValue()))
+                .toList();
+        Map<String, Object> m = new HashMap<>();
+        m.put("totalCards", totalCards);
+        m.put("coveredCards", covered);
+        m.put("coveragePct", totalCards == 0 ? 0.0 : Math.round(covered * 1000.0 / totalCards) / 10.0);
+        m.put("totalCaptures", captureRepo.countByDeletedAtIsNull());
+        m.put("unindexedCaptures", captureRepo.countByFaissIndexedFalseAndDeletedAtIsNull());
+        m.put("cardsAtCap", captureRepo.countCardsAtCap(PER_CARD_CAP));
+        m.put("perCardCap", PER_CARD_CAP);
+        m.put("consentedUsers", userRepository.countByScanImageConsentTrueAndDeletedAtIsNull());
+        m.put("topCards", top);
         return m;
     }
 

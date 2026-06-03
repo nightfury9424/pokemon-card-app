@@ -43,6 +43,7 @@ export default function Scanner() {
   const [testResult, setTestResult] = useState(null)
   const [testing, setTesting]   = useState(false)
   const [train, setTrain]       = useState(null)   // train-status 응답
+  const [cov, setCov]           = useState(null)   // coverage 응답
   const [busy, setBusy]         = useState(false)
   const pollRef = useRef(null)
 
@@ -67,7 +68,13 @@ export default function Scanner() {
       .catch(() => setTrain(null))
   }
 
-  useEffect(() => { loadInfo(); loadScans(); loadTrain() }, [])
+  function loadCoverage() {
+    return api.get('/admin/scanner/coverage')
+      .then(r => setCov(r.data ?? null))
+      .catch(() => setCov(null))
+  }
+
+  useEffect(() => { loadInfo(); loadScans(); loadTrain(); loadCoverage() }, [])
 
   // 진행 중(REQUESTED/TRAINING/DEPLOYING)이면 3초 폴링 — 경과시간/완료 자동 반영.
   useEffect(() => {
@@ -91,7 +98,7 @@ export default function Scanner() {
     if (!window.confirm('학습된 인덱스를 운영 스캐너에 무중단 배포합니다. 진행할까요?')) return
     setBusy(true)
     api.post('/admin/scanner/deploy')
-      .then(r => { alert('배포 완료 — 반영 ' + (r.data?.markedIndexed ?? 0) + '개'); loadTrain() })
+      .then(r => { alert('배포 완료 — 반영 ' + (r.data?.markedIndexed ?? 0) + '개'); loadTrain(); loadCoverage() })
       .catch(e => alert('배포 실패: ' + (e.response?.data?.message ?? e.message)))
       .finally(() => setBusy(false))
   }
@@ -116,7 +123,7 @@ export default function Scanner() {
     <div style={S.page}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
         <div style={S.h1}>스캐너</div>
-        <button onClick={() => { loadInfo(); loadScans(); loadTrain() }} style={{
+        <button onClick={() => { loadInfo(); loadScans(); loadTrain(); loadCoverage() }} style={{
           display: 'flex', alignItems: 'center', gap: 6,
           padding: '9px 16px', borderRadius: 10, border: '1px solid #e2e8f0', cursor: 'pointer',
           background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
@@ -214,6 +221,63 @@ export default function Scanner() {
             학습하기 → 맥에서 <code>train_agent.py</code> 실행 → 완료되면 업데이트하기 활성
           </div>
         </div>
+      </div>
+
+      {/* 수집 커버리지 — FF2. 스캔 캡처 퍼널 + KO 카탈로그 대비 진행률. */}
+      <div style={{ ...S.card, padding: '24px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <Database size={15} color="#06b6d4" />
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>수집 커버리지</div>
+        </div>
+        <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 18 }}>
+          유저 스캔 실사진 수집 진행 — 카탈로그 교체·FAISS 보강용 (카드당 최대 {cov?.perCardCap ?? 20}장)
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
+            <span style={{ fontSize: 30, fontWeight: 800, color: '#06b6d4', letterSpacing: -0.5 }}>
+              {cov ? cov.coveragePct : '—'}%
+            </span>
+            <span style={{ fontSize: 13, color: '#64748b' }}>
+              {(cov?.coveredCards ?? 0).toLocaleString()} / {(cov?.totalCards ?? 0).toLocaleString()}종 카드 수집됨
+            </span>
+          </div>
+          <div style={{ height: 8, borderRadius: 6, background: '#f1f5f9', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${Math.min(cov?.coveragePct ?? 0, 100)}%`,
+              background: 'linear-gradient(90deg, #06b6d4, #0891b2)', borderRadius: 6 }} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', marginBottom: 20 }}>
+          {[
+            ['총 캡처', (cov?.totalCaptures ?? 0).toLocaleString() + '장'],
+            ['미반영(학습대기)', (cov?.unindexedCaptures ?? 0).toLocaleString() + '장'],
+            ['수집완료 카드(cap)', (cov?.cardsAtCap ?? 0).toLocaleString() + '종'],
+            ['동의 유저', (cov?.consentedUsers ?? 0).toLocaleString() + '명'],
+          ].map(([label, val]) => (
+            <div key={label}>
+              <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{label}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#1e293b' }}>{val}</div>
+            </div>
+          ))}
+        </div>
+
+        {cov?.topCards?.length > 0 && (
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 8 }}>캡처 많은 카드 TOP</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {cov.topCards.slice(0, 12).map((c) => (
+                <div key={c.cardId} style={{ display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 10px', borderRadius: 8, background: '#f8fafc', border: '1px solid #f1f5f9' }}>
+                  <span style={{ fontSize: 12, color: '#475569', fontWeight: 600, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {c.name || c.cardId}
+                  </span>
+                  <span style={{ fontSize: 12, color: '#06b6d4', fontWeight: 700 }}>{c.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

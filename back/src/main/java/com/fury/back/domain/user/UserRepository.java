@@ -14,6 +14,9 @@ public interface UserRepository extends JpaRepository<User, String> {
     /** 번호당 인증계정 1개 — 명의 도용/중복 방지 (DB partial unique 와 정렬). */
     Optional<User> findByPhoneE164AndPhoneVerifiedTrue(String phoneE164);
 
+    /** 스캔 이미지 수집 동의한 활성 유저 수 (admin 커버리지 대시보드). */
+    long countByScanImageConsentTrueAndDeletedAtIsNull();
+
     /**
      * 2026-05-29 admin Stage 0 (Codex H) — 사용자 검색.
      *   nickname partial match (LIKE %q%), email prefix match (LIKE q%) — PII safety.
