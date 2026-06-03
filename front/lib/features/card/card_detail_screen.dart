@@ -1,4 +1,5 @@
 import 'dart:ui' show ImageFilter;
+import 'package:dio/dio.dart' show DioException;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show TextInputFormatter, TextEditingValue, TextSelection;
@@ -7,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/network/api_client.dart';
 import '../../core/widgets/app_success_toast.dart';
+import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/trade_safety_notice.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/constants/feature_flags.dart';
@@ -1825,12 +1827,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     await context.push('/chat/${room['chatRoomId']}', extra: room);
                   } catch (e) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('채팅을 시작할 수 없어요: ${e.toString()}'),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
+                      AppErrorToast.show(context, _chatStartErrorMessage(e));
                     }
                   }
                 }
@@ -3800,6 +3797,21 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     });
   }
 
+  /// 매수 호가 → 채팅 시작 실패를 사용자 친화 메시지로 매핑 (raw DioException 노출 금지).
+  /// 백엔드: 403 OTHER_LEFT(상대 나감)/BLOCKED, 409 BUY_ORDER_MATCHED, 410 BUY_ORDER_CANCELED.
+  String _chatStartErrorMessage(Object e) {
+    if (e is DioException) {
+      final code = e.response?.statusCode;
+      final data = e.response?.data;
+      final reason = (data is Map) ? data['message']?.toString() : null;
+      if (code == 403 && reason == 'OTHER_LEFT') return '상대방이 대화를 종료한 매수 호가예요.';
+      if (code == 403 && reason == 'BLOCKED') return '차단된 사용자와는 거래를 시작할 수 없어요.';
+      if (code == 409) return '이미 거래가 진행 중인 매수 호가예요.';
+      if (code == 410) return '취소된 매수 호가예요.';
+    }
+    return '채팅을 시작할 수 없어요. 잠시 후 다시 시도해주세요.';
+  }
+
   Widget _buildBottomCta({
     required String cardName,
     required String rarity,
@@ -3946,8 +3958,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         final room = (res['data'] as Map?)?.cast<String, dynamic>();
         if (room == null || !mounted) return;
         await context.push('/chat/${room['chatRoomId']}', extra: room);
-      } catch (_) {
-        // 실패 시 ApiClient 전역 핸들러가 에러 토스트 표시.
+      } catch (e) {
+        if (mounted) AppErrorToast.show(context, _chatStartErrorMessage(e));
       }
       return;
     }

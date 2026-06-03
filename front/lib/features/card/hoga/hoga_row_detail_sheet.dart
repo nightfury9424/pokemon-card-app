@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/auth_image.dart';
+import '../../../core/widgets/user_avatar.dart';
 import 'models/hoga_board_model.dart';
 import 'models/hoga_listing_model.dart';
 import 'services/hoga_api.dart';
@@ -168,21 +169,6 @@ class _HogaRowDetailSheetState extends State<HogaRowDetailSheet> {
             ),
           ),
           const Divider(color: AppColors.divider, height: 1),
-          // BID 시트는 1차 전체 disabled 상태 — 헤더 색(빨강)이 "매수 가능"으로 오인되지 않게 상단 안내 1줄.
-          if (widget.side == HogaSide.bid)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-              color: AppColors.red.withValues(alpha: 0.06),
-              child: const Text(
-                '매수 호가 상세는 준비 중입니다. 곧 판매 제안/채팅으로 연결돼요.',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
           // 리스트
           Expanded(
             child: FutureBuilder<HogaListings>(
@@ -313,31 +299,8 @@ class _ListingTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (isAsk)
-            _AskThumbnail(
-              tradeImageUrl: listing.tradeImageUrl,
-              cardId: cardId,
-              borderColor: clickable ? color : AppColors.divider,
-            )
-          else
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: color.withValues(alpha: 0.4)),
-              ),
-              child: Center(
-                child: Text(
-                  nick.characters.first,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ),
+          // 등록자 프로필 사진 (판매/매수 동일). 카드 상세라 카드 썸네일은 중복 → 사람 식별 우선.
+          UserAvatar(imageUrl: listing.profileImageUrl, size: 44),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

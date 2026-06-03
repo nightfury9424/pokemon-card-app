@@ -4,6 +4,7 @@ import 'hoga_board_model.dart';
 class HogaListing {
   final String userId;
   final String? nickname;
+  final String? profileImageUrl;  // 등록자 프로필 사진 (ASK/BID 공통 아바타용)
   final int price;
   final String? memo;
   final DateTime createdAt;
@@ -18,6 +19,7 @@ class HogaListing {
   const HogaListing({
     required this.userId,
     required this.nickname,
+    this.profileImageUrl,
     required this.price,
     required this.memo,
     required this.createdAt,
@@ -33,6 +35,7 @@ class HogaListing {
   factory HogaListing.fromJson(Map<String, dynamic> json) => HogaListing(
         userId: json['userId'] as String,
         nickname: json['nickname'] as String?,
+        profileImageUrl: json['profileImageUrl'] as String?,
         price: (json['price'] as num).toInt(),
         memo: json['memo'] as String?,
         createdAt: DateTime.parse(json['createdAt'] as String),

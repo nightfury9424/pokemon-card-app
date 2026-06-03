@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 public record HogaListingResponse(
         String userId,
         String nickname,
+        String profileImageUrl,
         long price,
         String memo,
         LocalDateTime createdAt,

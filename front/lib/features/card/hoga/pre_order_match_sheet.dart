@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/user_avatar.dart';
 import 'hoga_status_chip_bar.dart';
 import 'models/hoga_board_model.dart';
 import 'models/hoga_listing_model.dart';
@@ -237,24 +238,10 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
       padding: const EdgeInsets.fromLTRB(20, 13, 20, 13),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: isOwn ? 0.08 : 0.14),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: color.withValues(alpha: 0.35)),
-            ),
-            child: Center(
-              child: Text(
-                nick.characters.first,
-                style: TextStyle(
-                  color: clickable ? color : AppColors.textMuted,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
+          // 등록자 프로필 사진 (판매/매수 동일). 카드 썸네일 아님 — 카드 상세라 카드는 중복.
+          Opacity(
+            opacity: isOwn ? 0.6 : 1.0,
+            child: UserAvatar(imageUrl: l.profileImageUrl, size: 40),
           ),
           const SizedBox(width: 12),
           Expanded(

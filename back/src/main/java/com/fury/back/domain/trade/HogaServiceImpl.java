@@ -149,7 +149,7 @@ public class HogaServiceImpl implements HogaService {
         List<TradePost> rows = blocked.isEmpty() ? rowsIn
                 : rowsIn.stream().filter(t -> !blocked.contains(t.getSellerId())).toList();
         if (rows.isEmpty()) return List.of();
-        Map<String, String> nicks = nicknames(rows.stream().map(TradePost::getSellerId).collect(Collectors.toSet()));
+        Map<String, User> users = usersById(rows.stream().map(TradePost::getSellerId).collect(Collectors.toSet()));
         // ASK batch count — chat_rooms / post_interests N+1 방지.
         List<String> tradeIds = rows.stream().map(TradePost::getTradeId).distinct().toList();
         Map<String, Long> chatCountMap = tradeIds.isEmpty()
@@ -161,9 +161,12 @@ public class HogaServiceImpl implements HogaService {
                 : postInterestRepository.countByTradeIdIn(tradeIds).stream()
                         .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
         return rows.stream()
-                .map(t -> new HogaListingResponse(
+                .map(t -> {
+                    User u = users.get(t.getSellerId());
+                    return new HogaListingResponse(
                         t.getSellerId(),
-                        nicks.get(t.getSellerId()),
+                        u == null ? null : u.getNickname(),
+                        u == null ? null : u.getProfileImageUrl(),
                         t.getPrice() == null ? 0L : t.getPrice().longValue(),
                         t.getDescription(),
                         t.getCreatedAt(),
@@ -174,7 +177,8 @@ public class HogaServiceImpl implements HogaService {
                         StorageKeyUrls.firstProxyUrl(t.getImageUrl()),
                         t.getStatus(),
                         chatCountMap.getOrDefault(t.getTradeId(), 0L),
-                        favoriteCountMap.getOrDefault(t.getTradeId(), 0L)))
+                        favoriteCountMap.getOrDefault(t.getTradeId(), 0L));
+                })
                 .toList();
     }
 
@@ -183,11 +187,14 @@ public class HogaServiceImpl implements HogaService {
         List<BuyOrder> rows = blocked.isEmpty() ? rowsIn
                 : rowsIn.stream().filter(b -> !blocked.contains(b.getBuyerId())).toList();
         if (rows.isEmpty()) return List.of();
-        Map<String, String> nicks = nicknames(rows.stream().map(BuyOrder::getBuyerId).collect(Collectors.toSet()));
+        Map<String, User> users = usersById(rows.stream().map(BuyOrder::getBuyerId).collect(Collectors.toSet()));
         return rows.stream()
-                .map(b -> new HogaListingResponse(
+                .map(b -> {
+                    User u = users.get(b.getBuyerId());
+                    return new HogaListingResponse(
                         b.getBuyerId(),
-                        nicks.get(b.getBuyerId()),
+                        u == null ? null : u.getNickname(),
+                        u == null ? null : u.getProfileImageUrl(),
                         b.getBidPrice().longValue(),
                         b.getMemo(),
                         b.getCreatedAt(),
@@ -197,7 +204,8 @@ public class HogaServiceImpl implements HogaService {
                         null,
                         null,
                         null,
-                        null))
+                        null);
+                })
                 .toList();
     }
 
@@ -215,11 +223,12 @@ public class HogaServiceImpl implements HogaService {
         return out;
     }
 
-    private Map<String, String> nicknames(Set<String> userIds) {
+    /** 등록자 batch 조회 (닉네임 + 프로필 이미지). 호가 listing 아바타용. */
+    private Map<String, User> usersById(Set<String> userIds) {
         if (userIds == null || userIds.isEmpty()) return Map.of();
         Set<String> ids = new HashSet<>(userIds);
         return userRepository.findAllById(ids).stream()
-                .collect(Collectors.toMap(User::getUserId, u -> u.getNickname() == null ? "" : u.getNickname(), (a, b) -> a));
+                .collect(Collectors.toMap(User::getUserId, u -> u, (a, b) -> a));
     }
 
     private HogaStatusValue toStatusValue(HogaStatus status) {
