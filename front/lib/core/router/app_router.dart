@@ -83,7 +83,10 @@ final appRouter = GoRouter(
       return isLoginPage ? null : '/login';
     }
     if (!auth.onboarded) {
-      return isOnboardingPage ? null : '/onboarding';
+      // 온보딩 동의 단계에서 약관/개인정보 '보기' 링크 열람 허용.
+      // (안 그러면 redirect 가 /legal/* 를 /onboarding 으로 튕겨 동의해야 할 약관을 못 읽음 — Codex P1-1)
+      const allowedDuringOnboarding = {'/onboarding', '/legal/terms', '/legal/privacy'};
+      return allowedDuringOnboarding.contains(path) ? null : '/onboarding';
     }
     if (isLoginPage || isOnboardingPage) return '/home';
     return null;
