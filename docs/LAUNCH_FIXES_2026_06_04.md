@@ -79,7 +79,7 @@
 - **수정**: trade_detail `_updateStatus`/`_deleteTrade` 성공 시 `AssetNotifier.instance.notifyChanged()` 추가 → 어느 진입경로든 자산 즉시 동기화. (커밋 예정)
 - **원칙**: 모든 거래/자산 mutation 은 AssetNotifier 로 전파 (홈/자산/도감 listener 자동 reload).
 
-### [ ] 13. 탭 선택/터치 빨강·갈색 highlight 제거 (색 정책)
+### [x] 13. 탭 선택/터치 빨강·갈색 highlight 제거 (색 정책)
 - **증상**: 관심목록/내자산/거래 등 일반 탭 누르면 빨강·갈색 배경/ripple 튐. 앱 다크/블루 톤 + 매수=빨강 정책과 충돌.
 - **★근본원인 확인**: `main.dart` 전역 `colorScheme.primary = Color(0xFFE53935)`(빨강). → 색 미지정 Material 위젯의 기본 splash/overlay/indicator/선택이 전부 빨강. (#10 새로고침 빨강도 같은 뿌리)
 - **명시적 빨강은 안전**: 매수 버튼·하트·상승은 `AppColors.red` 직접 지정 → primary 바꿔도 영향 0.
