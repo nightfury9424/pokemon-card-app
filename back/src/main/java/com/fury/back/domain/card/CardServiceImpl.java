@@ -345,6 +345,8 @@ public class CardServiceImpl implements CardService {
 
     @Override
     public Map<String, Object> getCardsByRarityOrderByPrice(List<String> rarityCodes, String name, int size, int offset) {
+        size = Math.max(1, Math.min(size, 100));   // DoS 가드 — 전체 덤프 차단
+        offset = Math.max(0, offset);
         List<Card> cards = cardRepository.findByRarityOrderByLatestPriceDesc(rarityCodes, name, size, offset);
         long total = getCachedMarketCount(rarityCodes, name);
         return buildNativeResult(cards, total, size, offset / size);
@@ -352,6 +354,9 @@ public class CardServiceImpl implements CardService {
 
     @Override
     public Map<String, Object> getMarketCards(List<String> rarityCodes, String name, int page, int size, String sortBy, String sortDir) {
+        // DoS 가드 — size 무제한이면 ?size=999999 로 DB 전체 덤프 가능. page 음수 차단.
+        size = Math.max(1, Math.min(size, 100));
+        page = Math.max(0, page);
         int offset = page * size;
         boolean asc = !"desc".equalsIgnoreCase(sortDir);
         long total = getCachedMarketCount(rarityCodes, name);
@@ -547,6 +552,8 @@ public class CardServiceImpl implements CardService {
 
     @Override
     public Map<String, Object> getPromoCards(String name, int page, int size) {
+        size = Math.max(1, Math.min(size, 100));   // DoS 가드
+        page = Math.max(0, page);
         int offset = page * size;
         long total = cardRepository.countPromoExclusive(name);
         List<Card> cards = cardRepository.findPromoExclusiveOrderByPriceDesc(name, size, offset);
