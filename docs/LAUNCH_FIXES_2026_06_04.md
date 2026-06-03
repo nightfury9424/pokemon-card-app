@@ -79,6 +79,14 @@
 - **수정**: trade_detail `_updateStatus`/`_deleteTrade` 성공 시 `AssetNotifier.instance.notifyChanged()` 추가 → 어느 진입경로든 자산 즉시 동기화. (커밋 예정)
 - **원칙**: 모든 거래/자산 mutation 은 AssetNotifier 로 전파 (홈/자산/도감 listener 자동 reload).
 
+### [ ] 13. 탭 선택/터치 빨강·갈색 highlight 제거 (색 정책)
+- **증상**: 관심목록/내자산/거래 등 일반 탭 누르면 빨강·갈색 배경/ripple 튐. 앱 다크/블루 톤 + 매수=빨강 정책과 충돌.
+- **★근본원인 확인**: `main.dart` 전역 `colorScheme.primary = Color(0xFFE53935)`(빨강). → 색 미지정 Material 위젯의 기본 splash/overlay/indicator/선택이 전부 빨강. (#10 새로고침 빨강도 같은 뿌리)
+- **명시적 빨강은 안전**: 매수 버튼·하트·상승은 `AppColors.red` 직접 지정 → primary 바꿔도 영향 0.
+- **옵션 A(추천·1줄·root)**: `colorScheme.primary` → `AppColors.blue`. #13+#10 한 방. 전역이지만 1줄+저위험(명시적 red 무관). + `splashColor/highlightColor` 다크톤 보정.
+- **옵션 B(국소)**: 전역 유지 + 각 탭(TabBar.overlayColor, InkWell splash/highlight, ChoiceChip)에 blue 명시. 파일 많음·누락 위험.
+- **대상**: 관심목록 2탭, 내자산 탭, 거래/호가 탭, 필터/segmented/ChoiceChip.
+
 ### [x] 12. 관심 "게시물" 탭 카드 이미지 안 뜸 (신규 기능 버그)
 - **증상**: 관심 목록 게시물 탭에서 카드 이미지가 뒷면 placeholder 로 깨짐.
 - **원인**: `/api/interests/my` 가 card 에 `jpScrydexRef/enScrydexRef` 를 안 줘서, 프론트 resolveCardImageUrl 이 `/special/{cardId}.png` 폴백(일반카드엔 틀림).
@@ -120,6 +128,7 @@
 - [x] 이용약관/개인정보 "보기" 링크 → (수정 `dd44303a` 반영 빌드에서) 통과 예정
 
 ## 🔵 Post-launch (분리)
+- [ ] **전화번호 저장 하드닝**: 풀번호 AES-256 암호화(키 .env, 가역=우리만 복호화) + 뒤4자리 plaintext 컬럼(표시용). 법적 의무 아님(전번은 PIPA 의무암호화 대상 X)이라 출시 차단 아님. #2(탈퇴30일)/#7(전번봐주자) 전번 백엔드 묶음과 함께. 신뢰배지는 phoneVerified flag만으로 충분 → 풀번호 의존 최소화.
 - [ ] 스캐너 캡처 활성 검증 + 첫 모델 학습(맥 agent) + SCANNER 토큰 .env + compose :rw
 - [ ] 문의 이미지 첨부(S3 multipart)
 - [ ] admin `/stats/scans` 실제 연동(현재 0 stub)
