@@ -91,7 +91,12 @@ public class ScannerTrainService {
             if (err != null) {
                 throw new IllegalStateException("scanner reload error: " + sanitize(String.valueOf(err)));
             }
-            int marked = captureRepo.markIndexedBefore(job.getTrainedAt());
+            // ★기준: 학습 '시작'(=샘플 스냅샷) 시각 이전 캡처만 indexed 마킹.
+            //   완료(trainedAt) 기준이면 학습 도중 들어온 캡처가 인덱스엔 없는데 done 처리돼 유실됨.
+            //   시작 기준이면 그 이후 데이터는 unindexed 유지 → 다음 학습에 포함(유실 0, 최악 소량 중복).
+            LocalDateTime cutoff = job.getTrainingStartedAt() != null
+                    ? job.getTrainingStartedAt() : job.getTrainedAt();
+            int marked = captureRepo.markIndexedBefore(cutoff);
             job.markDeployed();
             jobRepo.save(job);
             log.info("[ScanTrain] deployed job={} markedIndexed={}", job.getJobId(), marked);
