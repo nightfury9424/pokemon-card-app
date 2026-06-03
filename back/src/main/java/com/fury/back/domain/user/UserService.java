@@ -44,7 +44,9 @@ public class UserService {
     // 휴대폰 OTP 발송 strict 가드 — Firebase quota 보강(우리 측 영속 추적).
     private static final int OTP_COOLDOWN_SECONDS = 60;
     private static final int OTP_MAX_PER_PHONE_DAY = 5;
-    private static final int OTP_MAX_PER_IP_DAY = 15;
+    // 한국 통신사 CGNAT(다수 유저가 공인 IP 공유) 고려 — 15는 정상 유저 오차단 위험.
+    // per-phone(5)가 실 SMS 비용 게이트, per-IP 는 단일 IP 대량 abuse 방지 천장으로만 사용.
+    private static final int OTP_MAX_PER_IP_DAY = 100;
     private static final int OTP_MAX_PER_USER_DAY = 5;
 
     @Transactional
