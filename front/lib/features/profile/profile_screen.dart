@@ -144,17 +144,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 16),
                         _buildStatRow(),
                         const SizedBox(height: 28),
-                        _buildSectionLabel('계정'),
-                        const SizedBox(height: 8),
-                        _buildMenuGroup([
-                          _MenuItem(
-                            icon: Icons.edit_rounded,
-                            iconColor: AppColors.blue,
-                            label: '닉네임 변경',
-                            onTap: () => context.push('/profile/edit-nickname'),
-                          ),
-                        ]),
-                        const SizedBox(height: 20),
+                        // #3: 닉네임 변경은 프로필 카드 탭으로 통합 — 별도 '계정' 메뉴 제거.
                         _buildSectionLabel('내 활동'),
                         const SizedBox(height: 8),
                         _buildMenuGroup([
@@ -309,35 +299,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildProfileHeader() {
     final nickname = _user?['nickname'] as String? ?? '-';
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Row(
-        children: [
-          UserAvatar(imageUrl: _user?['profileImageUrl'] as String?),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  nickname,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.3,
+    // #3: 카드 탭 → 프로필 편집(닉네임). 별도 '닉네임 변경' 메뉴 통합. (프로필 사진 변경=post-launch)
+    return InkWell(
+      onTap: () async {
+        await context.push('/profile/edit-nickname');
+        if (mounted) _loadData();
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(
+          children: [
+            UserAvatar(imageUrl: _user?['profileImageUrl'] as String?),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    nickname,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.3,
+                    ),
                   ),
-                ),
-                // 이메일 노출 제거(privaterelay 등 민감) — 닉네임만.
-              ],
+                  const SizedBox(height: 3),
+                  const Text('프로필 편집',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+                ],
+              ),
             ),
-          ),
-        ],
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 22),
+          ],
+        ),
       ),
     );
   }
