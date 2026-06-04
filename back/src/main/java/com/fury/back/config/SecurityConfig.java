@@ -83,7 +83,9 @@ public class SecurityConfig {
                             "/ws/**",
                             "/swagger-ui/**",
                             "/swagger-ui.html",
-                            "/api-docs/**"
+                            "/api-docs/**",
+                            "/privacy.html",   // App Store 개인정보처리방침 URL (정적 페이지)
+                            "/support.html"    // 지원(고객지원) 페이지
                     ).permitAll();
 
                     // 2. admin API — ADMIN_AUTH_ENABLED toggle.
