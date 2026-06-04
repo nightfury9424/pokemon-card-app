@@ -977,13 +977,23 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   Future<void> _submitReport(String reasonCode, String detail) async {
     try {
-      await ApiClient.post('/api/reports', {
+      final res = await ApiClient.post('/api/reports', {
         'targetType': 'CHAT',
         'targetId': widget.roomId,
         'reason': reasonCode,
         'detail': detail,
       });
-      if (mounted) AppSuccessToast.show(context, '신고가 접수되었습니다');
+      if (!mounted) return;
+      if (res['status'] != 'success') {
+        AppErrorToast.show(
+            context,
+            (res['message'] is String &&
+                    (res['message'] as String).trim().isNotEmpty)
+                ? res['message'] as String
+                : '신고 접수에 실패했습니다');
+        return;
+      }
+      AppSuccessToast.show(context, '신고가 접수되었습니다');
     } catch (_) {
       if (mounted) AppErrorToast.show(context, '신고 접수에 실패했습니다');
     }
@@ -1731,8 +1741,17 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     );
     if (ok != true || !mounted) return;
     try {
-      await ApiClient.delete('/api/trades/$tradeId');
+      final res = await ApiClient.delete('/api/trades/$tradeId');
       if (!mounted) return;
+      if (res['status'] != 'success') {
+        AppErrorToast.show(
+            context,
+            (res['message'] is String &&
+                    (res['message'] as String).trim().isNotEmpty)
+                ? res['message'] as String
+                : '삭제에 실패했어요');
+        return;
+      }
       AppSuccessToast.show(context, '판매글이 삭제되었어요');
       await _refreshTradeStatus();
       ChatUnreadNotifier.instance.notifyChanged();

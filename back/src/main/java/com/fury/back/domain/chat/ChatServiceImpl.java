@@ -39,6 +39,7 @@ public class ChatServiceImpl implements ChatService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final TradePostRepository tradePostRepository;
+    private final com.fury.back.domain.interest.PostInterestRepository postInterestRepository;
     // 2026-05-28 BUY chat — BuyOrder context 조회 (가격/상태/cardId) + getOrCreateRoomFromBuyOrder.
     private final BuyOrderRepository buyOrderRepository;
     private final UserRepository userRepository;
@@ -457,14 +458,33 @@ public class ChatServiceImpl implements ChatService {
             default -> null;
         };
         if (content == null) return;
+        // 삭제는 알림(푸시/인박스) 제외 — 시스템 메시지로 채팅 맥락만 남김.
+        final boolean alarm = !"DELETED".equals(newStatus);
         final List<ChatRoom> rooms = chatRoomRepository.findAllBySaleListingId(saleListingId);
         for (final ChatRoom room : rooms) {
             sendSystemMessage(room.getChatRoomId(), content);
+            if (!alarm) continue;
             // 상태변경 푸시 — 판매글 상태는 판매자가 바꾸므로 상대(buyer)에게 알림.
             // 백그라운드면 FCM, foreground-방밖이면 inbox 배너. 탭 → roomId 딥링크 → 방 hydrate.
             final String buyer = room.getBuyerUserId();
             fcmService.sendToUser(buyer, "거래 알림", content, chatPushData(room.getChatRoomId(), null));
             notifyInbox(room.getChatRoomId(), buyer, null, "거래 알림", content);
+        }
+        // 관심(저장)한 사용자에게도 알림 — RESERVED/COMPLETED 만. 채팅 상대/판매자 중복 제외. 거래상세 딥링크.
+        if ("RESERVED".equals(newStatus) || "COMPLETED".equals(newStatus)) {
+            final java.util.Set<String> notified = new java.util.HashSet<>();
+            for (final ChatRoom room : rooms) notified.add(room.getBuyerUserId());
+            tradePostRepository.findById(saleListingId)
+                    .map(com.fury.back.domain.trade.TradePost::getSellerId)
+                    .ifPresent(notified::add);
+            final java.util.Map<String, String> tradeData =
+                    java.util.Map.of("type", "TRADE", "tradeId", saleListingId);
+            for (final com.fury.back.domain.interest.PostInterest pi
+                    : postInterestRepository.findByTradeId(saleListingId)) {
+                final String uid = pi.getUserId();
+                if (uid == null || !notified.add(uid)) continue; // add()=false → 이미 알림함
+                fcmService.sendToUser(uid, "관심 거래 알림", content, tradeData);
+            }
         }
     }
 
@@ -484,9 +504,12 @@ public class ChatServiceImpl implements ChatService {
             default -> null;
         };
         if (content == null) return;
+        // 취소(삭제 등가)는 알림(푸시/인박스) 제외 — 시스템 메시지로 채팅 맥락만 남김.
+        final boolean alarm = !"CANCELED".equals(newStatus);
         final List<ChatRoom> rooms = chatRoomRepository.findAllByBuyOrderId(buyOrderId);
         for (final ChatRoom room : rooms) {
             sendSystemMessage(room.getChatRoomId(), content);
+            if (!alarm) continue;
             // 구매 호가 상태는 작성자(buyer)가 바꾸므로 상대(seller, 채팅 건 잠재 판매자)에게 알림.
             final String seller = room.getSellerUserId();
             fcmService.sendToUser(seller, "거래 알림", content, chatPushData(room.getChatRoomId(), null));

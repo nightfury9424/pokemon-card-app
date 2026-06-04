@@ -161,6 +161,10 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
         {},
       );
       if (!mounted) return;
+      if (res['status'] != 'success') {
+        AppErrorToast.show(context, '관심 목록을 변경하지 못했어요.');
+        return;
+      }
       final liked = res['data']?['isLiked'] as bool? ?? !_isLiked;
       setState(() => _isLiked = liked);
       AppSuccessToast.show(context, liked ? '관심 목록에 추가했습니다' : '관심 목록에서 제거했습니다');
@@ -1274,7 +1278,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Future<void> _submitReport(String reasonCode, String detail) async {
     try {
-      await ApiClient.post('/api/reports', {
+      final res = await ApiClient.post('/api/reports', {
         'data': {
           'targetType': 'TRADE',
           'targetId': _currentTradeId,
@@ -1283,6 +1287,15 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
         },
       });
       if (!mounted) return;
+      if (res['status'] != 'success') {
+        AppErrorToast.show(
+            context,
+            (res['message'] is String &&
+                    (res['message'] as String).trim().isNotEmpty)
+                ? res['message'] as String
+                : '신고 접수에 실패했어요.');
+        return;
+      }
       AppSuccessToast.show(context, '신고가 접수되었어요.\n검토 후 처리할게요.');
     } catch (e) {
       if (!mounted) return;
@@ -1295,9 +1308,18 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Future<void> _deleteTrade() async {
     try {
-      await ApiClient.delete('/api/trades/$_currentTradeId');
-      AssetNotifier.instance.notifyChanged(); // 내 자산 isSelling 즉시 동기화(어느 경로 진입이든)
+      final res = await ApiClient.delete('/api/trades/$_currentTradeId');
       if (!mounted) return;
+      if (res['status'] != 'success') {
+        AppErrorToast.show(
+            context,
+            (res['message'] is String &&
+                    (res['message'] as String).trim().isNotEmpty)
+                ? res['message'] as String
+                : '삭제에 실패했어요.');
+        return;
+      }
+      AssetNotifier.instance.notifyChanged(); // 내 자산 isSelling 즉시 동기화(어느 경로 진입이든)
       // rootOverlay 사용이라 pop 후에도 토스트 유지.
       AppSuccessToast.show(context, '판매글이 삭제되었습니다');
       context.pop(true);

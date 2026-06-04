@@ -44,8 +44,12 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
     if (_unblocking.contains(userId)) return;
     setState(() => _unblocking.add(userId));
     try {
-      await ApiClient.unblockUser(userId);
+      final res = await ApiClient.unblockUser(userId);
       if (!mounted) return;
+      if (res['status'] != 'success') {
+        AppErrorToast.show(context, '차단 해제에 실패했습니다');
+        return;
+      }
       setState(() => _items.removeWhere((item) => item['blockedId'] == userId));
       AppSuccessToast.show(context, '차단을 해제했습니다');
     } catch (_) {

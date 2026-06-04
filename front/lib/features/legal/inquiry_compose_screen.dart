@@ -130,7 +130,7 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
     if (!_validate()) return;
     setState(() => _sending = true);
     try {
-      await ApiClient.post('/api/inquiries', {
+      final res = await ApiClient.post('/api/inquiries', {
         'data': {
           'category': widget.category.key,
           'title': _buildTitle(),
@@ -140,6 +140,15 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
       });
       if (!mounted) return;
       setState(() => _sending = false);
+      if (res['status'] != 'success') {
+        AppErrorToast.show(
+            context,
+            (res['message'] is String &&
+                    (res['message'] as String).trim().isNotEmpty)
+                ? res['message'] as String
+                : '문의 접수에 실패했어요. 잠시 후 다시 시도해주세요.');
+        return;
+      }
       AppSuccessToast.show(context, '문의가 접수됐어요. 답변은 문의 내역에서 확인할 수 있어요.');
       await Future<void>.delayed(const Duration(milliseconds: 300));
       // 5-1: 제출 후 고객지원(카테고리)으로 안 돌아가고 내 문의 내역으로 — 방금 보낸 문의+상태 바로 보이게.

@@ -152,8 +152,19 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
     if (nickname.isEmpty || _available != true) return;
     setState(() => _submitting = true);
     try {
-      await ApiClient.put('/api/users/nickname', {'nickname': nickname});
+      final res = await ApiClient.put('/api/users/nickname', {'nickname': nickname});
       if (!mounted) return;
+      // 거부(중복/쿨다운 등)는 HTTP 200 바디(status=fail)로 옴 → 성공 오인 방지.
+      if (res['status'] != 'success') {
+        setState(() {
+          _submitting = false;
+          _validationError = (res['message'] is String &&
+                  (res['message'] as String).trim().isNotEmpty)
+              ? res['message'] as String
+              : '닉네임을 변경할 수 없어요.';
+        });
+        return;
+      }
       AppSuccessToast.show(context, '닉네임이 변경되었습니다');
       Navigator.of(context).pop(true);
     } catch (e) {

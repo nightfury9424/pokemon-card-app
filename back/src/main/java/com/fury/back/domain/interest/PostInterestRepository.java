@@ -23,4 +23,7 @@ public interface PostInterestRepository extends JpaRepository<PostInterest, Stri
 
     /** 단건 — 거래 상세 favoriteCount용. */
     long countByTradeId(String tradeId);
+
+    /** 해당 판매글을 관심(저장)한 사용자들 — 상태변경 알림 fan-out용. */
+    List<PostInterest> findByTradeId(String tradeId);
 }

@@ -125,6 +125,10 @@ class PushNotificationService {
         final roomId = data['roomId'];
         if (roomId != null && '$roomId'.isNotEmpty) return '/chat/$roomId';
         break;
+      case 'TRADE': // 관심 거래 상태변경 알림 → 거래 상세 딥링크
+        final tradeId = data['tradeId'];
+        if (tradeId != null && '$tradeId'.isNotEmpty) return '/trades/$tradeId';
+        break;
     }
     return null;
   }

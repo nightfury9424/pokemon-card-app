@@ -385,7 +385,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               final userRes = await ApiClient.get('/api/users/me');
               final userId =
                   (userRes['data'] as Map?)?['userId'] as String? ?? 'guest';
-              await ApiClient.post(ApiConstants.assets, {
+              final res = await ApiClient.post(ApiConstants.assets, {
                 'data': {
                   'userId': userId,
                   'cardId': cardId,
@@ -401,6 +401,16 @@ class _ScannerScreenState extends State<ScannerScreen>
               });
 
               if (!mounted || !ctx.mounted) return;
+              // 거부(HTTP 200 바디 status=fail)를 성공 오인하지 않게.
+              if (res['status'] != 'success') {
+                AppErrorToast.show(
+                    context,
+                    (res['message'] is String &&
+                            (res['message'] as String).trim().isNotEmpty)
+                        ? res['message'] as String
+                        : '자산 추가에 실패했어요.');
+                return;
+              }
               Navigator.pop(ctx);
               setState(() => _wasModified = true);
               // 새 자산이 추가됐으니 보유 요약 재로드 (개수 + 평가액 정확 반영)
