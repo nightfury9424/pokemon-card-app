@@ -953,11 +953,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<Map<String, dynamic>> _marketCarouselItems() {
-    // 4차-Round4-3: 홈 단순화 — 시장 랭킹 3 서브탭 (금액/인기/수익률)
+    // 시장 랭킹 2 서브탭 (힛카드/인기). 수익률 제거(오늘의 TOP=급상승과 중복).
     final source = switch (_marketSubTab) {
-      0 => _topCards,        // 금액
+      0 => _topCards,        // 힛카드(금액)
       1 => _hotCards,        // 인기
-      2 => _topGainerCards,  // 수익률
       _ => _topCards,
     };
     return source.map((card) {
@@ -1094,13 +1093,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (_carouselTab == 1) ...[
                   const Spacer(),
                   _MiniSegment(
-                    labels: const ['힛카드', '인기', '수익률'],
+                    // 수익률 제거 — 0자산 시 '오늘의 TOP'(급상승)과 동일 데이터라 중복.
+                    labels: const ['힛카드', '인기'],
                     selected: _marketSubTab,
                     onChanged: (i) {
                       final newItems = switch (i) {
                         0 => _topCards,
                         1 => _hotCards,
-                        2 => _topGainerCards,
                         _ => _topCards,
                       };
                       final len = newItems.isEmpty ? 1 : newItems.length;
