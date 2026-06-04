@@ -999,7 +999,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
                         child: Center(
                           child: Text(
                             switch (tradeStatus) {
-                              'RESERVED' => '거래중',
+                              'RESERVED' => '거래 중',
                               'COMPLETED' => '거래 완료',
                               'DELETED' => '삭제됨',
                               _ => '판매완료',

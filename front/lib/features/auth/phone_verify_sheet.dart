@@ -178,7 +178,11 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
 
   Future<void> _submitOtp() async {
     final code = _otp.text.trim();
-    if (code.length < 6 || _verificationId == null) {
+    if (_verificationId == null) {
+      setState(() => _error = '먼저 인증번호를 받아주세요');
+      return;
+    }
+    if (code.length < 6) {
       setState(() => _error = '인증번호 6자리를 입력해주세요');
       return;
     }

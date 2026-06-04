@@ -187,7 +187,7 @@ class _HogaRowDetailSheetState extends State<HogaRowDetailSheet> {
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text(
-                        '리스트를 불러오지 못했습니다.\n${snap.error}',
+                        '리스트를 불러오지 못했어요.\n잠시 후 다시 시도해주세요.',
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                       ),
@@ -329,7 +329,7 @@ class _ListingTile extends StatelessWidget {
                         final chipColor = isReserved
                             ? AppColors.gold
                             : AppColors.green;
-                        final chipLabel = isReserved ? '예약 중' : '판매 중';
+                        final chipLabel = isReserved ? '거래 중' : '판매중';
                         return Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 1),

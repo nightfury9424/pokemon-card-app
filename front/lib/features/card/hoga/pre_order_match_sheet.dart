@@ -264,10 +264,10 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
                     ),
                     if (reserved) ...[
                       const SizedBox(width: 6),
-                      _chip('예약 중', AppColors.gold),
+                      _chip('거래 중', AppColors.gold),
                     ] else if (_isBuy && l.tradeStatus == 'OPEN') ...[
                       const SizedBox(width: 6),
-                      _chip('판매 중', AppColors.green),
+                      _chip('판매중', AppColors.green),
                     ],
                   ],
                 ),

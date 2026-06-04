@@ -36,12 +36,21 @@ class AuthImage extends StatefulWidget {
 }
 
 class _AuthImageState extends State<AuthImage> {
-  late final Future<Uint8List?> _future;
+  late Future<Uint8List?> _future;
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(AuthImage old) {
+    super.didUpdateWidget(old);
+    // URL 바뀌면(예: 같은 세션에서 프사 변경) 새로 로드 — stale 이미지 방지.
+    if (old.url != widget.url) {
+      _future = _load();
+    }
   }
 
   Future<Uint8List?> _load() async {

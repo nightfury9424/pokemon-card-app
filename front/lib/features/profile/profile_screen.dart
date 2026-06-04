@@ -404,12 +404,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: () => context.push('/assets')),
         const SizedBox(width: 10),
         _StatChip(
-            label: '판매 중',
+            label: '판매중',
             value: '$_activeTrades건',
             onTap: () => context.push('/assets?tab=selling')),
         const SizedBox(width: 10),
         _StatChip(
-            label: '구매 중',
+            label: '구매중',
             value: '$_activeBuyOrders건',
             onTap: () => context.push('/assets?tab=buy')),
       ],

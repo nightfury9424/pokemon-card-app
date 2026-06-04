@@ -157,8 +157,8 @@ class _FavoritesScreenState extends State<FavoritesScreen>
     final imageUrl = resolveCardImageUrl(card);
 
     final (badgeLabel, badgeColor) = switch (status) {
-      'RESERVED' => ('예약중', AppColors.gold),
-      'SOLD' || 'COMPLETED' => ('거래완료', AppColors.textMuted),
+      'RESERVED' => ('거래 중', AppColors.gold),
+      'SOLD' || 'COMPLETED' => ('거래 완료', AppColors.textMuted),
       _ => ('판매중', AppColors.green),
     };
 

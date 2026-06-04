@@ -81,8 +81,12 @@ class _TradeSettlementSheetState extends State<TradeSettlementSheet> {
   void initState() {
     super.initState();
     final initial = widget.prefillPrice ?? widget.agreedPrice;
-    // 이미 입력값이 있고 그게 원래 거래가와 다르면 '직접 입력'으로 시작.
-    _mode = (widget.prefillPrice != null && widget.prefillPrice != widget.agreedPrice) ? 1 : 0;
+    // 직접 입력으로 시작하는 경우: ① 이미 입력값이 원래 거래가와 다름,
+    // ② 희망가(agreedPrice) 미상 — '이 금액이 맞아요'는 빈 readonly라 진행 불가하므로.
+    _mode = (widget.agreedPrice == null ||
+            (widget.prefillPrice != null && widget.prefillPrice != widget.agreedPrice))
+        ? 1
+        : 0;
     _priceCtrl = TextEditingController(text: initial != null ? _commaFmt(initial) : '');
   }
 

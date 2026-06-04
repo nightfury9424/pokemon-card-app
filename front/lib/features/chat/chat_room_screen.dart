@@ -1229,7 +1229,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            _buyOrderStatusTile(ctx, '구매 중', 'OPEN',
+            _buyOrderStatusTile(ctx, '구매중', 'OPEN',
                 Icons.shopping_cart_rounded, currentStatus, buyOrderId),
             // 거래중 모델: chat_room 에서 거래중 변경 시 현재 chat room 이 자동 활성 상대.
             _buyOrderStatusTile(ctx, '거래 중', 'RESERVED',
@@ -1618,7 +1618,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            _sellerStatusTile(ctx, '판매 중', 'OPEN', Icons.sell_rounded, currentStatus),
+            _sellerStatusTile(ctx, '판매중', 'OPEN', Icons.sell_rounded, currentStatus),
             // 거래중 모델: chat_room 에서 거래중 변경 시 현재 chat room 이 자동으로 활성 상대.
             // 별도 partner select sheet 없이 widget.roomId 가 active_chat_room_id 가 됨.
             _sellerStatusTile(ctx, '거래 중', 'RESERVED', Icons.bookmark_rounded, currentStatus),
