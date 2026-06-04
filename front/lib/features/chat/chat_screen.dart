@@ -288,17 +288,9 @@ class _ChatScreenState extends State<ChatScreen> {
               borderRadius: BorderRadius.circular(8),
             ),
             Positioned(
-              right: -4,
-              bottom: -4,
-              child: Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.bg, width: 2),
-                ),
-                child: UserAvatar(imageUrl: profileUrl, size: 22), // B2-10
-              ),
+              right: -2,
+              bottom: -2,
+              child: UserAvatar(imageUrl: profileUrl, size: 24), // 테두리 링 제거(사용자 요청)
             ),
           ],
         ),

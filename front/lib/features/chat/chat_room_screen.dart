@@ -102,8 +102,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   /// 키보드 변화·새 메시지 수신 시 이 플래그가 true 일 때만 자동으로 바닥 고정.
   void _onScroll() {
     if (!_scrollController.hasClients) return;
-    final pos = _scrollController.position;
-    _isNearBottom = (pos.maxScrollExtent - pos.pixels) <= 120;
+    // reverse:true — 바닥(최신)=offset 0. pixels 가 작을수록 바닥 근처.
+    _isNearBottom = _scrollController.position.pixels <= 120;
   }
 
   /// 키보드 open/close(viewInsets.bottom 변화) 감지 → 직전에 바닥 근처였다면 바닥에 다시 붙인다.
@@ -613,14 +613,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_scrollController.hasClients) {
+        // reverse:true 라 바닥(최신) = offset 0.
+        const bottom = 0.0;
         if (animated) {
           _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
+            bottom,
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOut,
           );
         } else {
-          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+          _scrollController.jumpTo(bottom);
         }
       }
     });
@@ -731,13 +733,18 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                             style: TextStyle(
                                 color: AppColors.textMuted, fontSize: 14)))
                     : ListView.builder(
+                        // reverse:true — 카톡식 바닥 앵커. 메시지 개수와 무관하게 항상 최신이
+                        // 하단(offset 0)에 고정 → 키보드 리사이즈에 자동으로 붙음(방마다 다른 출렁임 제거).
+                        reverse: true,
                         controller: _scrollController,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 12),
                         itemCount: _messages.length,
                         itemBuilder: (context, i) {
-                          final prev = i > 0 ? _messages[i - 1] : null;
-                          return _buildMessageBubble(_messages[i], prev);
+                          // i=0 이 최신(바닥). idx=실제 시간순 인덱스, prev=시간상 더 오래된 메시지(그룹핑/날짜구분 유지).
+                          final idx = _messages.length - 1 - i;
+                          final prev = idx > 0 ? _messages[idx - 1] : null;
+                          return _buildMessageBubble(_messages[idx], prev);
                         },
                       ),
           ),
