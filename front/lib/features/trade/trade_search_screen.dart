@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
+import '../../core/utils/price_label.dart';
 import '../../core/widgets/card_image.dart';
 
 /// 거래 탭 검색 — 풀스크린 모달.
@@ -556,19 +557,58 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
     );
   }
 
+  // rarity pill — 거래 리스트(_rarityPill)와 동일.
+  Widget _rarityPill(String code) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: AppColors.divider, width: 0.5),
+        ),
+        child: Text(
+          code,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
+          ),
+        ),
+      );
+
+  // 검색 결과 행 — 거래 시세 리스트(_buildMarketCardRow)와 동일 레이아웃
+  //   (CardThumb 44x60 + 이름/rarity → 가격+라벨+변동 → 매도·매수·관심 + 하트).
   Widget _buildRow(Map<String, dynamic> card, int rank) {
     final cardId = card['cardId'] as String? ?? '';
     final name = card['name'] as String? ?? '';
-    final rarity = card['rarityCode'] as String? ?? '';
     final price = (card['koEstimatedPrice'] as num?)?.toInt() ??
         (card['latestPrice'] as num?)?.toInt();
     final pct = (card['gainPct'] as num?)?.toDouble();
-    final rarityColor = AppColors.rarityColor(rarity);
+    final liked = _likedCardIds.contains(cardId);
+
+    int? prevPriceApprox;
+    if (price != null && pct != null && pct > -100) {
+      prevPriceApprox = (price / (1 + pct / 100)).round();
+    }
+    final display = PriceDisplayPolicy.buildChangeDisplay(
+      lastPrice: price,
+      prevPrice: prevPriceApprox,
+      prefix: '',
+    );
+    final String pctLabel = display?.label.trim() ?? '';
+    final Color pctColor = display == null
+        ? AppColors.textMuted
+        : switch (display.color) {
+            PriceChangeColor.positive => AppColors.red,
+            PriceChangeColor.negative => AppColors.blue,
+            PriceChangeColor.neutral => AppColors.textMuted,
+          };
+
     return InkWell(
       onTap: () async {
         _focusNode.unfocus();
-        // 최근 검색은 _runCardSearch에서 이미 저장됨 — 카드 탭은 진입만.
         await context.push('/card/$cardId', extra: {'cardData': card});
+        if (mounted) _loadLikedStatuses(); // 상세에서 찜 토글했을 수 있어 재동기화.
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -579,125 +619,115 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
               child: Text(
                 '$rank',
                 style: TextStyle(
-                  color: AppColors.blue
-                      .withValues(alpha: rank <= 3 ? 1.0 : 0.5),
+                  color: AppColors.blue.withValues(alpha: rank <= 3 ? 1.0 : 0.5),
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CardImage(
-                imageUrl: resolveCardImageUrl(card),
-                width: 56,
-                height: 78,
-                fit: BoxFit.cover,
-              ),
+            CardThumb(
+              imageUrl: resolveCardImageUrl(card),
+              width: 44,
+              height: 60,
             ),
             const SizedBox(width: 14),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Row(
-                    children: [
-                      if (rarity.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: rarityColor.withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
+              child: Builder(builder: (_) {
+                final rarityCode = (card['rarityCode'] as String?) ?? '';
+                final sell = (card['activeSellCount'] as num?)?.toInt() ?? 0;
+                final buy = (card['activeBuyCount'] as num?)?.toInt() ?? 0;
+                final interest = (card['interestCount'] as num?)?.toInt() ?? 0;
+                final priceLabelText = PriceLabel.resolve(
+                  labelType: card['koPriceLabelType'] as String?,
+                  price: price,
+                );
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
                           child: Text(
-                            rarity,
-                            style: TextStyle(
-                              color: rarityColor,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.3,
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
                             ),
                           ),
                         ),
-                      if (price == null) ...[
-                        const SizedBox(width: 6),
-                        const Text(
-                          '시세 없음',
+                        if (rarityCode.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          _rarityPill(rarityCode),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          price != null ? AppColors.formatPrice(price) : '시세 없음',
                           style: TextStyle(
+                            color: price != null
+                                ? AppColors.textSecondary
+                                : AppColors.textMuted,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          priceLabelText,
+                          style: const TextStyle(
                             color: AppColors.textMuted,
                             fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          pctLabel,
+                          style: TextStyle(
+                            color: pctColor,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  price != null ? AppColors.formatPrice(price) : '-',
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Builder(builder: (_) {
-                  // PriceDisplayPolicy (2026-05-16): 저가 카드 % 숨김/Stage B 전체 숨김/Stage C 변동 적음
-                  int? prevPriceApprox;
-                  if (price != null && pct != null && pct > -100) {
-                    prevPriceApprox = (price / (1 + pct / 100)).round();
-                  }
-                  final display = PriceDisplayPolicy.buildChangeDisplay(
-                    lastPrice: price,
-                    prevPrice: prevPriceApprox,
-                    prefix: '',
-                  );
-                  if (display == null) {
-                    return const Text(
-                      '-',
-                      style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 12,
-                      ),
-                    );
-                  }
-                  // scanner와 동일한 한국 주식 패턴 (양수=빨강, 음수=파랑)
-                  final color = switch (display.color) {
-                    PriceChangeColor.positive => AppColors.red,
-                    PriceChangeColor.negative => AppColors.blue,
-                    PriceChangeColor.neutral => AppColors.textMuted,
-                  };
-                  return Text(
-                    display.label.trim(),
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
                     ),
-                  );
-                }),
-              ],
+                    const SizedBox(height: 3),
+                    Text.rich(
+                      TextSpan(
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: '매도 $sell',
+                            style: const TextStyle(color: AppColors.blue),
+                          ),
+                          const TextSpan(text: '  ·  ', style: TextStyle(color: AppColors.textMuted)),
+                          TextSpan(
+                            text: '매수 $buy',
+                            style: const TextStyle(color: AppColors.red),
+                          ),
+                          const TextSpan(text: '  ·  ', style: TextStyle(color: AppColors.textMuted)),
+                          TextSpan(
+                            text: '관심 $interest',
+                            style: const TextStyle(color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }),
             ),
             // 하트 — 카드 단위 찜 토글 (거래 리스트와 동일).
             GestureDetector(
@@ -706,12 +736,8 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(6),
                 child: Icon(
-                  _likedCardIds.contains(cardId)
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
-                  color: _likedCardIds.contains(cardId)
-                      ? AppColors.red
-                      : AppColors.textMuted,
+                  liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                  color: liked ? AppColors.red : AppColors.textMuted,
                   size: 22,
                 ),
               ),
