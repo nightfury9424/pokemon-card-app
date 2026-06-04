@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/auth/auth_state.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/notifiers/home_session_cache.dart';
 import '../../core/theme/app_colors.dart';
@@ -167,7 +168,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final userIdF = () async {
       try {
         final meRes = await ApiClient.get('/api/users/me');
-        return meRes['data']?['userId'] as String?;
+        final me = meRes['data'] as Map<String, dynamic>?;
+        // 정지 계정 — 첫 진입에서 즉시 게이트(라우터가 /suspended). 홈이 보이기 전에 잡음.
+        if (me?['suspended'] == true) {
+          AuthState.instance.markSuspended(reason: me?['suspensionReason'] as String?);
+        }
+        return me?['userId'] as String?;
       } catch (_) {
         return null;
       }

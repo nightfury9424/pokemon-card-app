@@ -63,9 +63,10 @@ public class DeletedUserGuardFilter extends OncePerRequestFilter {
         User user = userOpt.get();
         if (user.isSuspended() && !adminAllowlistFilter.isAllowed(userId)) {
             String path = request.getRequestURI();
-            boolean allowed = SUSPENDED_PASSTHROUGH_PATH.equals(path)
-                    || (SUSPENSION_APPEAL_PATH.equals(path)
-                        && "POST".equalsIgnoreCase(request.getMethod()));
+            String method = request.getMethod();
+            // /me 는 GET 만(정지자가 DELETE /me 로 자기삭제→재가입 밴 회피 차단), 이의신청은 POST 만.
+            boolean allowed = (SUSPENDED_PASSTHROUGH_PATH.equals(path) && "GET".equalsIgnoreCase(method))
+                    || (SUSPENSION_APPEAL_PATH.equals(path) && "POST".equalsIgnoreCase(method));
             if (!allowed) {
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 response.setContentType("application/json;charset=UTF-8");

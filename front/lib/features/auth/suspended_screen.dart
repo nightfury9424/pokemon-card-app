@@ -44,8 +44,8 @@ class _SuspendedScreenState extends State<SuspendedScreen> {
       final res = await ApiClient.get('/api/users/me');
       if (!mounted) return;
       final data = res['data'] as Map<String, dynamic>?;
-      // 복구된 계정 — 게이트 해제(라우터가 /home 으로).
-      if (data != null && data['suspended'] != true) {
+      // 복구된 계정만 게이트 해제 — suspended 키 누락(파싱 오류 등)으로 잘못 해제되지 않게 엄격 비교(== false).
+      if (data != null && data['suspended'] == false) {
         AuthState.instance.clearSuspended();
         return;
       }

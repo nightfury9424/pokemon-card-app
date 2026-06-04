@@ -33,6 +33,7 @@ public class OnboardingGuardFilter extends OncePerRequestFilter {
             "/api/users/me",
             "/api/users/onboarding",
             "/api/users/nickname/check",
+            "/api/suspension-appeals", // 정지 이의신청 — 정지+미온보딩 엣지에서도 막히지 않게.
             "/swagger-ui",
             "/api-docs",
             "/images/",
