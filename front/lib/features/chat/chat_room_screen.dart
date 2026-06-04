@@ -1318,7 +1318,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       } else {
         // 거래중 모델: RESERVED 변경 시 현재 chat room 을 자동 active 상대로.
         final chatRoomId = newStatus == 'RESERVED' ? widget.roomId : null;
-        await ApiClient.patch(
+        final res = await ApiClient.patch(
           '/api/buy-orders/$buyOrderId/status',
           data: {
             'data': {
@@ -1327,6 +1327,17 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             }
           },
         );
+        if (!mounted) return;
+        // 백엔드 거부(F409 등)는 HTTP 200 바디(status=fail)로 옴 → 성공 오인 방지.
+        if (res['status'] != 'success') {
+          final msg = (res['message'] is String &&
+                  (res['message'] as String).trim().isNotEmpty)
+              ? res['message'] as String
+              : '상태를 변경할 수 없어요.';
+          AppErrorToast.show(context, msg);
+          await _refreshBuyOrderStatus(); // 서버 truth 재동기화
+          return;
+        }
       }
       if (!mounted) return;
       AppSuccessToast.show(
@@ -1644,18 +1655,33 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Widget _sellerStatusTile(BuildContext ctx, String label, String status,
       IconData icon, String currentStatus) {
     final selected = status == currentStatus;
+    // B2-4: 판매중에서 곧장 거래완료 금지(거래중 먼저). 백엔드 F409 도 가드 — BUY 타일과 동일.
+    final disabled = status == 'COMPLETED' && currentStatus == 'OPEN';
     return ListTile(
+      enabled: !disabled,
       leading: Icon(icon,
-          color: selected ? AppColors.blue : AppColors.textSecondary),
+          color: disabled
+              ? AppColors.textMuted
+              : selected
+                  ? AppColors.blue
+                  : AppColors.textSecondary),
       title: Text(label,
           style: TextStyle(
-            color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+            color: disabled
+                ? AppColors.textMuted
+                : selected
+                    ? AppColors.textPrimary
+                    : AppColors.textSecondary,
             fontWeight: selected ? FontWeight.bold : FontWeight.w500,
           )),
+      subtitle: disabled
+          ? const Text('거래중으로 바꾼 뒤 완료할 수 있어요',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 11))
+          : null,
       trailing: selected
           ? const Icon(Icons.check_rounded, color: AppColors.blue, size: 20)
           : null,
-      onTap: selected
+      onTap: (selected || disabled)
           ? null
           : () {
               Navigator.of(ctx).pop();
@@ -1671,8 +1697,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       // 거래중 모델: RESERVED 변경 시 현재 chat room 을 자동 active_chat_room_id 로.
       // chat_room 안에서 거래중 변경 = 이 buyer 와 거래중 의미가 자명. 별도 상대 선택 X.
       final chatRoomId = newStatus == 'RESERVED' ? widget.roomId : null;
-      await ApiClient.updateTradeStatus(tradeId, newStatus, chatRoomId: chatRoomId);
+      final res = await ApiClient.updateTradeStatus(tradeId, newStatus,
+          chatRoomId: chatRoomId);
       if (!mounted) return;
+      // 백엔드 거부(F409 등)는 HTTP 200 바디(status=fail)로 옴 → 성공 오인 방지.
+      if (res['status'] != 'success') {
+        final msg = (res['message'] is String &&
+                (res['message'] as String).trim().isNotEmpty)
+            ? res['message'] as String
+            : '상태를 변경할 수 없어요.';
+        AppErrorToast.show(context, msg);
+        await _refreshTradeStatus();
+        return;
+      }
       AppSuccessToast.show(context, '상태가 변경되었습니다');
       await _refreshTradeStatus();
       await _loadConversationState();
