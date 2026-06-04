@@ -49,8 +49,9 @@ services:
       GRADING_SERVICE_URL: http://grading:8081
       SCANNER_BASE_URL: http://scanner:8082
       PYTHON_SCRIPTS_DIR: /app/python
-      # #62: 카드 마스터 이미지 CDN base (S3 cards/v1). BuyOrderDto 등 응답에 사용.
-      CARD_CDN_BASE: https://pokefolio-beta-assets-759135635310-ap-northeast-2-an.s3.ap-northeast-2.amazonaws.com/cards/v1
+      # #62: 카드 마스터 이미지 CDN base. 2026-06-05 S3 직접 → CloudFront(d3shjhylvfe40j) 전환(셀룰러 속도).
+      #   원복: 아래를 S3 직접 URL(.../pokefolio-beta-assets-...amazonaws.com/cards/v1)로 되돌리면 됨.
+      CARD_CDN_BASE: https://d3shjhylvfe40j.cloudfront.net/cards/v1
       TZ: Asia/Seoul
       # FCM 푸시 — service-account.json 마운트 경로 (Spring relaxed binding → firebase.service-account-path)
       FIREBASE_SERVICE_ACCOUNT_PATH: /app/firebase-sa.json
