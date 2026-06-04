@@ -24,7 +24,9 @@ class TradeSafetyNotice extends StatelessWidget {
           SizedBox(width: 8),
           Expanded(
             child: Text(
-              '포켓폴리오는 이용자 간 직거래를 연결하는 서비스로, 거래 당사자가 아닙니다. 거래 전 상대방과 카드 상태를 직접 확인하세요. 분쟁 발생 시 신고·채팅·거래 상태 기록이 확인될 수 있습니다.',
+              '포켓폴리오는 이용자 간 직거래를 연결하는 서비스로, 거래 당사자가 아닙니다.\n'
+              '거래 전 상대방과 카드 상태를 직접 확인하세요.\n'
+              '분쟁 발생 시 신고·채팅·거래 상태 기록이 확인될 수 있습니다.',
               style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.45),
             ),
           ),

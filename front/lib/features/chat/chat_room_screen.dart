@@ -288,6 +288,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 }
                 setState(() => _messages.add(msg));
                 _scrollToBottom();
+                // B3-3: 내 메시지가 나가면 백엔드가 나간 상대를 재초대(clearHiddenForUser) →
+                // "상대방이 나갔어요" 배너(conversation-state notice) 재조회로 즉시 사라지게.
+                if (msg['senderUserId'] == _myUserId && _blockNotice != null) {
+                  _loadConversationState();
+                }
                 // Bundle 1.5 (active read gap): 채팅방에 active 상태에서 상대 메시지 수신 시
                 // 즉시 markAsRead REST 호출 → 백엔드 AFTER_COMMIT broadcast → sender 화면 "1" 사라짐.
                 // 내 메시지는 호출 X (영향 없지만 불필요 트래픽 차단).
@@ -426,10 +431,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             _ImagePickerOption(
               icon: Icons.photo_library_outlined,
               title: '사진 앨범에서 선택',
-              subtitle: '카드 앞/뒤, 하자 부위 사진을 보낼 수 있어요.',
+              subtitle: '여러 장 한 번에 보낼 수 있어요 (최대 5장).',
               onTap: () {
                 Navigator.pop(sheetCtx);
-                _pickAndUploadImage(ImageSource.gallery);
+                _pickAndUploadMultiImages();
               },
             ),
             _ImagePickerOption(
@@ -446,6 +451,58 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         ),
       ),
     );
+  }
+
+  /// B3-9: 앨범에서 여러 장 선택 → 순차 업로드(최대 5장). 카메라는 단일(_pickAndUploadImage).
+  /// 각 업로드의 STOMP echo 가 IMAGE 메시지로 도착 → 순서대로 bubble 렌더.
+  Future<void> _pickAndUploadMultiImages() async {
+    if (_uploadingImage) return;
+    try {
+      final picker = ImagePicker();
+      final List<XFile> picked = await picker.pickMultiImage(
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 80,
+      );
+      if (picked.isEmpty || !mounted) return;
+      const maxBatch = 5;
+      final over = picked.length > maxBatch;
+      final files = over ? picked.sublist(0, maxBatch) : picked;
+      setState(() => _uploadingImage = true);
+      int ok = 0;
+      int fail = 0;
+      for (final x in files) {
+        try {
+          final length = await File(x.path).length();
+          if (length > _kMaxImageBytes) {
+            fail++;
+            continue;
+          }
+          await ApiClient.uploadFile(
+            '/api/chat/rooms/${widget.roomId}/upload-image',
+            x.path,
+            field: 'file',
+          );
+          ok++;
+        } catch (_) {
+          fail++;
+        }
+      }
+      if (!mounted) return;
+      setState(() => _uploadingImage = false);
+      if (ok > 0 && fail == 0) {
+        AppSuccessToast.show(context,
+            over ? '사진 $ok장을 보냈어요 (한 번에 최대 5장)' : '사진 $ok장을 보냈어요');
+      } else if (ok > 0) {
+        AppErrorToast.show(context, '$ok장 전송, $fail장은 실패했어요');
+      } else {
+        AppErrorToast.show(context, '이미지 전송에 실패했어요. 다시 시도해주세요.');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _uploadingImage = false);
+      AppErrorToast.show(context, '이미지 전송에 실패했어요. 다시 시도해주세요.');
+    }
   }
 
   /// image_picker로 압축 + 10MB 검증 + multipart upload + 실패 분기 토스트.
@@ -613,7 +670,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       body: SizedBox.expand(
         child: Container(
           color: AppColors.bg,
-          child: Column(
+          // B3-2: 빈 영역 탭 시 키보드 내림 (translucent → 버튼/입력 등 자식 제스처는 유지).
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusScope.of(context).unfocus(),
+            child: Column(
             children: [
               // Phase 1B: 차단 안내 sticky banner (canSendMessage=false 시 표시).
               if (_blockNotice != null) _buildBlockBanner(_blockNotice!),
@@ -645,6 +706,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               // 입력창
               _buildInputBar(),
             ],
+          ),
           ),
         ),
       ),
@@ -940,9 +1002,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           const SizedBox(width: 7),
           Expanded(
             child: Text(
-              '포켓폴리오는 직거래 연결 서비스로 거래 당사자가 아닙니다. 거래 전 상대방·카드 상태를 직접 확인하세요. '
-              '욕설·사기·비매너 행위는 자동 차단되며, 수사기관 정보제공 등 가능한 모든 조치로 대응합니다. '
-              '외부 송금·개인정보 요구에 주의하세요.',
+              '포켓폴리오는 직거래 연결 서비스로 거래 당사자가 아닙니다.\n'
+              '거래 전 상대방·카드 상태를 직접 확인하세요.\n'
+              '욕설·사기·비매너 행위는 자동 차단되며, 수사기관 정보제공 등 가능한 모든 조치로 대응합니다. 외부 송금·개인정보 요구에 주의하세요.',
               style: TextStyle(
                 color: AppColors.gold.withValues(alpha: 0.92),
                 fontSize: 11,
@@ -1178,7 +1240,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             ListTile(
               leading: const Icon(Icons.cancel_outlined,
                   color: AppColors.red, size: 22),
-              title: const Text('구매 호가 취소',
+              title: const Text('구매 호가 삭제',
                   style: TextStyle(
                       color: AppColors.red, fontWeight: FontWeight.w600)),
               onTap: () {
@@ -1234,9 +1296,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Future<void> _confirmCancelBuyOrder(String buyOrderId) async {
     final confirmed = await AppConfirmDialog.show(
       context,
-      title: '구매 호가를 취소할까요?',
+      title: '구매 호가를 삭제할까요?',
       message: '호가창에서 내 구매 호가가 내려가요.',
-      confirmLabel: '취소하기',
+      confirmLabel: '삭제하기',
       destructive: true,
     );
     if (confirmed != true || !mounted) return;
@@ -1327,7 +1389,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Widget _buildTradeStatusChip(String status) {
     final (label, color) = switch (status) {
       'OPEN' => ('판매중', AppColors.green),
-      'RESERVED' => ('예약 중', AppColors.gold),
+      'RESERVED' => ('거래 중', AppColors.gold),
       'COMPLETED' => ('거래 완료', AppColors.textMuted),
       'DELETED' => ('삭제됨', AppColors.textMuted),
       // fallback: '판매중' X — unknown status를 OPEN처럼 표시하면 거래 위험.

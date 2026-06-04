@@ -323,7 +323,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// 실제로 삭제/완료/오류인데 거래 가능한 듯 보일 수 있어 위험.
   String _statusLabel(String status) => switch (status) {
         'OPEN' => '판매중',
-        'RESERVED' => '예약 중',
+        'RESERVED' => '거래 중', // B3-4: 구매/시트와 통일
         'COMPLETED' => '거래 완료',
         'DELETED' => '삭제됨',
         _ => '상태 확인',
@@ -339,18 +339,22 @@ class _ChatScreenState extends State<ChatScreen> {
         _ => AppColors.textMuted,
       };
 
-  /// 2026-05-28: BuyOrder 상태(OPEN/MATCHED/CANCELED) 라벨 — _statusLabel 의 BUY 버전.
+  /// BuyOrder 상태 라벨 — _statusLabel 의 BUY 버전. B3-6: RESERVED/COMPLETED 매핑 추가.
   String _buyOrderStatusLabel(String status) => switch (status) {
         'OPEN' => '구매중',
-        'MATCHED' => '매칭 완료',
+        'RESERVED' => '거래 중',
+        'COMPLETED' => '거래 완료',
+        'MATCHED' => '거래 완료', // legacy
         'CANCELED' => '취소됨',
         _ => '상태 확인',
       };
 
-  /// 2026-05-28: BuyOrder 상태별 색.
+  /// BuyOrder 상태별 색. B3-6: RESERVED/COMPLETED 추가.
   Color _buyOrderStatusColor(String status) => switch (status) {
         'OPEN' => AppColors.green,
-        'MATCHED' => AppColors.textMuted,
+        'RESERVED' => AppColors.gold,
+        'COMPLETED' => AppColors.textMuted,
+        'MATCHED' => AppColors.textMuted, // legacy
         'CANCELED' => AppColors.textMuted,
         _ => AppColors.textMuted,
       };

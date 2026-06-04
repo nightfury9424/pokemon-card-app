@@ -536,6 +536,40 @@ public class TradeServiceImpl implements TradeService {
                 role);
     }
 
+    /**
+     * 실거래가 도메인 검증 (B3-1) — 시세 데이터 오염 방지. 백엔드 최종 게이트(API 직접 호출 방어).
+     * <p>단위: 1,000원 이상 + 100원 단위(단, 희망가/시세와 정확히 일치 시 신뢰 → 단위 예외).
+     * <p>밴드: 기준가 우선순위(앱 시세 KO_ESTIMATED → 희망가). 시세 밴드 0.4~1.8, 희망가 밴드 0.5~1.5.
+     * @return 위반 시 사용자 문구, 통과 시 null.
+     */
+    private String validateSettlementAmount(int price, String cardId, Integer listingPrice) {
+        if (price < 1000) return "거래 금액은 1,000원 이상 입력해주세요.";
+        if (price > 1_000_000_000) return "금액이 올바르지 않습니다.";
+        final Integer estimate = (cardId == null) ? null : priceSnapshotRepository
+                .findFirstByCardIdAndSourceOrderByTradedAtDesc(cardId, "KO_ESTIMATED")
+                .map(com.fury.back.domain.price.PriceSnapshot::getPrice)
+                .orElse(null);
+        // 희망가/시세와 정확히 일치하는 값은 신뢰(비-100원 단위 희망가 보호) → 단위 검증 예외.
+        final boolean trusted = (listingPrice != null && price == listingPrice)
+                || (estimate != null && price == estimate);
+        if (!trusted && price % 100 != 0) return "거래 금액은 100원 단위로 입력해주세요.";
+        final Integer ref;
+        final double lo;
+        final double hi;
+        if (estimate != null && estimate > 0) {
+            ref = estimate; lo = 0.4; hi = 1.8;
+        } else if (listingPrice != null && listingPrice > 0) {
+            ref = listingPrice; lo = 0.5; hi = 1.5;
+        } else {
+            ref = null; lo = 0; hi = 0;
+        }
+        if (ref != null) {
+            if (price < ref * lo) return "입력한 금액이 너무 낮아요. 실제 거래 금액을 다시 확인해주세요.";
+            if (price > ref * hi) return "입력한 금액이 너무 높아요. 실제 거래 금액을 다시 확인해주세요.";
+        }
+        return null;
+    }
+
     @Override
     @Transactional(readOnly = true)
     public ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> getSettlementStatus(
@@ -549,9 +583,7 @@ public class TradeServiceImpl implements TradeService {
     @Transactional
     public ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> submitSettlement(
             String tradeId, String userId, Integer price) {
-        // 최소단위 100원 (B2-19). 명백한 오입력만 차단 — 정교한 outlier/밴드 필터는 후속 배치(시세 반영 시점).
-        if (price == null || price < 100) return ReturnData.badRequest("실거래 금액을 100원 이상 입력해주세요.");
-        if (price > 1_000_000_000) return ReturnData.badRequest("금액이 올바르지 않습니다.");
+        if (price == null) return ReturnData.badRequest("거래 금액을 입력해주세요.");
         final TradePost post = tradePostRepository.findById(tradeId).orElse(null);
         if (post == null) return ReturnData.notFound("판매글을 찾을 수 없습니다.");
         final String role = settlementRoleOf(post, userId);
@@ -559,6 +591,9 @@ public class TradeServiceImpl implements TradeService {
         if (!"COMPLETED".equals(post.getStatus())) {
             return ReturnData.fail("F409", "완료된 거래만 입력할 수 있습니다.");
         }
+        // B3-1: 실거래가 도메인 검증 — 시세 오염 방지. 위반 시 400, 저장 X.
+        final String amtErr = validateSettlementAmount(price, post.getCardId(), post.getPrice());
+        if (amtErr != null) return ReturnData.badRequest(amtErr);
         TradeSettlement s = tradeSettlementRepository.findByTradeIdAndUserId(tradeId, userId).orElse(null);
         if (s == null) {
             s = TradeSettlement.builder()
@@ -624,8 +659,7 @@ public class TradeServiceImpl implements TradeService {
     @Transactional
     public ReturnData<com.fury.back.domain.trade.dto.TradeSettlementStatusDto> submitBuySettlement(
             String buyOrderId, String userId, Integer price) {
-        if (price == null || price < 100) return ReturnData.badRequest("실거래 금액을 100원 이상 입력해주세요.");
-        if (price > 1_000_000_000) return ReturnData.badRequest("금액이 올바르지 않습니다.");
+        if (price == null) return ReturnData.badRequest("거래 금액을 입력해주세요.");
         final BuyOrder order = buyOrderRepository.findById(buyOrderId).orElse(null);
         if (order == null) return ReturnData.notFound("매수 호가를 찾을 수 없습니다.");
         final String role = buySettlementRoleOf(order, userId);
@@ -633,6 +667,9 @@ public class TradeServiceImpl implements TradeService {
         if (!"COMPLETED".equals(order.getStatus())) {
             return ReturnData.fail("F409", "완료된 거래만 입력할 수 있습니다.");
         }
+        // B3-1: 실거래가 도메인 검증 — 시세 오염 방지. 위반 시 400, 저장 X.
+        final String amtErr = validateSettlementAmount(price, order.getCardId(), order.getBidPrice());
+        if (amtErr != null) return ReturnData.badRequest(amtErr);
         TradeSettlement s = tradeSettlementRepository.findByTradeIdAndUserId(buyOrderId, userId).orElse(null);
         if (s == null) {
             s = TradeSettlement.builder()

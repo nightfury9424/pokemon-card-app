@@ -98,10 +98,31 @@ class _TradeSettlementSheetState extends State<TradeSettlementSheet> {
     return raw.isEmpty ? null : int.tryParse(raw);
   }
 
+  /// B3-1: 실거래가 도메인 검증(프론트 즉시 피드백). 백엔드가 시세 기준 최종 게이트.
+  /// reference = 희망가(agreedPrice). 단위 1,000원↑·100원 단위 + 희망가 밴드 0.5~1.5.
+  String? _validatePrice(int? price, int? reference) {
+    if (price == null) return '거래 금액을 입력해주세요.';
+    if (price < 1000) return '거래 금액은 1,000원 이상 입력해주세요.';
+    if (price > 1000000000) return '금액이 올바르지 않습니다.';
+    // 희망가와 정확히 같으면(="이 금액이 맞아요") 신뢰 → 단위/밴드 예외.
+    final trusted = reference != null && price == reference;
+    if (!trusted && price % 100 != 0) return '거래 금액은 100원 단위로 입력해주세요.';
+    if (reference != null && reference > 0) {
+      if (price < reference * 0.5) {
+        return '입력한 금액이 희망가보다 너무 낮아요.\n실제 거래 금액을 다시 확인해주세요.';
+      }
+      if (price > reference * 1.5) {
+        return '입력한 금액이 희망가보다 너무 높아요.\n실제 거래 금액을 다시 확인해주세요.';
+      }
+    }
+    return null;
+  }
+
   Future<void> _submit() async {
     final price = _effectivePrice;
-    if (price == null || price < 100) {
-      AppErrorToast.show(context, '실거래 금액을 100원 이상 입력해주세요.');
+    final err = _validatePrice(price, widget.agreedPrice);
+    if (err != null) {
+      AppErrorToast.show(context, err);
       return;
     }
     setState(() => _submitting = true);

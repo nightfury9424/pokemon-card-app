@@ -243,11 +243,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             iconColor: AppColors.textMuted,
                             label: '앱 정보',
                             sub: 'v1.0.0',
-                            onTap: () => showAboutDialog(
+                            // B3-8: Flutter 기본 about/license(Powered by Flutter + 영문 패키지 raw 리스트)
+                            // 대신 커스텀 다이얼로그. OSS 라이선스 고지는 법적 의무라 "오픈소스 라이선스"
+                            // 액션으로 격하해 유지(브랜딩 헤더).
+                            onTap: () => showDialog<void>(
                               context: context,
-                              applicationName: 'PokeFolio',
-                              applicationVersion: 'v1.0.0',
-                              applicationLegalese: '© 2026 PokeFolio',
+                              builder: (ctx) => AlertDialog(
+                                backgroundColor: AppColors.surface,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16)),
+                                title: const Text('PokeFolio',
+                                    style: TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.w800)),
+                                content: const Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('v1.0.0',
+                                        style: TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 13)),
+                                    SizedBox(height: 6),
+                                    Text('© 2026 PokeFolio',
+                                        style: TextStyle(
+                                            color: AppColors.textMuted,
+                                            fontSize: 12)),
+                                    SizedBox(height: 12),
+                                    Text(
+                                        '본 앱은 비공식 팬 서비스입니다. ‘Pokémon’ 및 관련 명칭·이미지의 저작권·상표권은 각 권리자에게 있습니다.',
+                                        style: TextStyle(
+                                            color: AppColors.textMuted,
+                                            fontSize: 11.5,
+                                            height: 1.5)),
+                                  ],
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(ctx).pop();
+                                      showLicensePage(
+                                        context: context,
+                                        applicationName: 'PokeFolio',
+                                        applicationVersion: 'v1.0.0',
+                                        applicationLegalese: '© 2026 PokeFolio',
+                                      );
+                                    },
+                                    child: const Text('오픈소스 라이선스',
+                                        style: TextStyle(
+                                            color: AppColors.textSecondary)),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.of(ctx).pop(),
+                                    child: const Text('닫기',
+                                        style: TextStyle(color: AppColors.blue)),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ]),

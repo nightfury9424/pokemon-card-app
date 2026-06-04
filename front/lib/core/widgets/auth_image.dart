@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import '../network/api_client.dart';
 
@@ -63,20 +62,17 @@ class _AuthImageState extends State<AuthImage> {
       future: _future,
       builder: (ctx, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return SizedBox(
+          // B3-10: 작은 아바타에서 스피너가 "깨진 이미지"처럼 보이던 문제 → 중립 placeholder.
+          return Container(
             width: widget.width,
             height: widget.height,
-            child: const Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
+            color: const Color(0xFF1B2230),
           );
         }
         final bytes = snap.data;
-        if (bytes == null || bytes.isEmpty) {
+        // B3-10: null/빈 값뿐 아니라 비정상 작은 바이트(에러 응답 본문 등)도 에러 처리 →
+        // Image.memory 가 깨진 글리프를 렌더하지 않고 errorBuilder(기본 아바타)로 폴백.
+        if (bytes == null || bytes.length < 100) {
           if (widget.errorBuilder != null) {
             return widget.errorBuilder!(ctx, snap.error ?? 'no bytes', null);
           }
