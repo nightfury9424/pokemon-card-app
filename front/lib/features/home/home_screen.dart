@@ -289,11 +289,11 @@ class _HomeScreenState extends State<HomeScreen> {
       _hotCards = hotCards;
       _loading = false;
     });
-    // 첫 진입: 보이는 캐러셀 이미지가 캐시될 때까지(최대 2초) 기다렸다가 홈을 한 번에 노출(팝인 방지).
-    // 2초 타임아웃 fallback — 느린 네트워크에서도 멈춤 없이 보여줌. 이후/새로고침엔 비차단.
+    // 첫 진입: 데이터(위에서 await 완료) + 보이는 캐러셀 이미지가 캐시되면 홈을 한 번에 노출(팝인 방지).
+    // 빠르게 — 1.2초 타임아웃 fallback. 느린 네트워크에서도 멈춤 없이 곧 보여줌. 이후/새로고침엔 비차단.
     if (!_revealed) {
       await _precacheCarousels()
-          .timeout(const Duration(seconds: 2), onTimeout: () {});
+          .timeout(const Duration(milliseconds: 1200), onTimeout: () {});
       if (mounted) setState(() => _revealed = true);
     } else {
       unawaited(_precacheCarousels());
@@ -407,7 +407,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 첫 진입은 보이는 캐러셀 이미지가 캐시될 때까지(최대 2초) 로딩 화면 → 준비되면 한 번에 fade-in.
+    // 첫 진입은 데이터+캐러셀 이미지가 준비될 때까지(최대 1.2초) 로딩 화면 → 준비되면 한 번에 fade-in.
     // 이미지가 하나씩 뒤늦게 뜨는 팝인 방지. 새로고침/이후엔 _revealed 유지(재로딩 화면 X).
     return Scaffold(
       backgroundColor: AppColors.bg,
