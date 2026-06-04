@@ -848,22 +848,24 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               foregroundColor: Colors.white,
               expandedHeight: heroExpandedHeight,
               pinned: true,
+              // 우상단 아이콘 — 뒤로/하트/삭제 크기·색·굵기 통일(standard outline 셋, size 24, white).
+              //   기존: arrow_back(굵음) + favorite_rounded(얇음) + delete white38(흐림) → 제각각.
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: const Icon(Icons.arrow_back, size: 24, color: Colors.white),
                 onPressed: () => context.pop(),
               ),
               actions: [
-                // 우상단 찜(관심) 하트 — 뒤로 화살표 반대편.
                 IconButton(
                   icon: Icon(
-                    _liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                    _liked ? Icons.favorite : Icons.favorite_border,
+                    size: 24,
                     color: _liked ? AppColors.red : Colors.white,
                   ),
                   onPressed: _toggleInterest,
                 ),
                 if (_localAsset != null)
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.white38),
+                    icon: const Icon(Icons.delete_outline, size: 24, color: Colors.white),
                     onPressed: () => _confirmDeleteAsset(),
                   ),
               ],
