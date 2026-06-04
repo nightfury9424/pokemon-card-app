@@ -46,6 +46,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _marketSubTab = 0;   // 0 = 시세 높은순, 1 = 관심 많은
 
   bool _loading = true;
+  // 첫 진입 시 보이는 캐러셀 이미지가 캐시될 때까지 홈을 가렸다가 한 번에 노출(팝인 방지).
+  bool _revealed = false;
   String? _userId;
 
 
@@ -287,7 +289,15 @@ class _HomeScreenState extends State<HomeScreen> {
       _hotCards = hotCards;
       _loading = false;
     });
-    _precacheCarousels(); // B2-1: 캐러셀 카드 이미지 미리 받아 검정 skeleton flash 방지.
+    // 첫 진입: 보이는 캐러셀 이미지가 캐시될 때까지(최대 2초) 기다렸다가 홈을 한 번에 노출(팝인 방지).
+    // 2초 타임아웃 fallback — 느린 네트워크에서도 멈춤 없이 보여줌. 이후/새로고침엔 비차단.
+    if (!_revealed) {
+      await _precacheCarousels()
+          .timeout(const Duration(seconds: 2), onTimeout: () {});
+      if (mounted) setState(() => _revealed = true);
+    } else {
+      unawaited(_precacheCarousels());
+    }
     unawaited(_loadPendingSettlements()); // B2-11: 미입력 실거래가 배너 갱신(캐러셀 비차단).
   }
 
@@ -340,7 +350,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// B2-1: 진입 시 보이는 캐러셀 카드들 이미지 캐시 워밍.
-  void _precacheCarousels() {
+  Future<void> _precacheCarousels() async {
     if (!mounted) return;
     final cards = <Map<String, dynamic>>[
       ..._myAssets.take(2).map((a) => (a['card'] as Map<String, dynamic>?) ?? const {}),
@@ -348,9 +358,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ..._topCards.take(3),
       ..._hotCards.take(2),
     ];
-    for (final c in cards) {
-      precacheCardImage(context, resolveCardImageUrl(c));
-    }
+    // precacheCardImage 는 내부에서 실패를 삼키므로 throw 안 함 → Future.wait 안전.
+    await Future.wait(
+      cards.map((c) => precacheCardImage(context, resolveCardImageUrl(c))),
+    );
   }
 
   Future<void> _loadData() => _loadAll(silent: true);
@@ -396,28 +407,69 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 점진 렌더링: 전체 스피너로 막지 않고 껍데기(AppBar/캐러셀 프레임/탭)를 즉시 렌더.
-    // 각 섹션은 데이터 도착 전 skeleton, 도착 시 해당 섹션만 setState 로 채움.
+    // 첫 진입은 보이는 캐러셀 이미지가 캐시될 때까지(최대 2초) 로딩 화면 → 준비되면 한 번에 fade-in.
+    // 이미지가 하나씩 뒤늦게 뜨는 팝인 방지. 새로고침/이후엔 _revealed 유지(재로딩 화면 X).
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: RefreshIndicator(
-        onRefresh: _loadAll,
-        color: AppColors.blue,
-        backgroundColor: AppColors.surface,
-        child: CustomScrollView(
-          slivers: [
-            _buildAppBar(),
-            // B2-11: 미입력 실거래가 슬림 배너 (있을 때만). 탭 → 해당 챗방.
-            if (_pendingSettlements.isNotEmpty)
-              SliverToBoxAdapter(child: _buildSettlementBanner()),
-            // 1) 카드 랭킹 캐러셀 (탭 헤더 즉시 + 데이터 전 skeleton)
-            SliverToBoxAdapter(child: _buildCarousel()),
-            // 2) 내 자산 hero (자산 백그라운드 로드 완료 시 등장)
-            if (_userId != null)
-              SliverToBoxAdapter(child: _buildHeroSection()),
-            const SliverToBoxAdapter(child: SizedBox(height: 48)),
-          ],
-        ),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: _revealed ? _buildHomeContent() : _buildInitialLoading(),
+      ),
+    );
+  }
+
+  Widget _buildInitialLoading() {
+    return const Center(
+      key: ValueKey('home-loading'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                  text: 'Poke',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900)),
+              TextSpan(
+                  text: 'Folio',
+                  style: TextStyle(
+                      color: AppColors.blue,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900)),
+            ]),
+          ),
+          SizedBox(height: 18),
+          SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2.2, color: AppColors.blue)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHomeContent() {
+    return RefreshIndicator(
+      key: const ValueKey('home-content'),
+      onRefresh: _loadAll,
+      color: AppColors.blue,
+      backgroundColor: AppColors.surface,
+      child: CustomScrollView(
+        slivers: [
+          _buildAppBar(),
+          // B2-11: 미입력 실거래가 슬림 배너 (있을 때만). 탭 → 해당 챗방.
+          if (_pendingSettlements.isNotEmpty)
+            SliverToBoxAdapter(child: _buildSettlementBanner()),
+          // 1) 카드 랭킹 캐러셀
+          SliverToBoxAdapter(child: _buildCarousel()),
+          // 2) 내 자산 hero (자산 백그라운드 로드 완료 시 등장)
+          if (_userId != null)
+            SliverToBoxAdapter(child: _buildHeroSection()),
+          const SliverToBoxAdapter(child: SizedBox(height: 48)),
+        ],
       ),
     );
   }
