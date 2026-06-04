@@ -2,12 +2,15 @@ package com.fury.back.domain.inquiry;
 
 import com.fury.back.common.IdGenerator;
 import com.fury.back.common.ReturnData;
+import com.fury.back.domain.user.User;
+import com.fury.back.domain.user.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -29,6 +32,7 @@ public class SuspensionAppealController {
     private static final String CATEGORY = "SUSPENSION_APPEAL";
 
     private final InquiryRepository inquiryRepository;
+    private final UserRepository userRepository;
 
     @Operation(summary = "정지 이의신청 등록", description = "정지 계정 전용. 사유 검토 요청을 문의로 저장.")
     @PostMapping
@@ -46,8 +50,16 @@ public class SuspensionAppealController {
         String contactEmail = data.get("contactEmail") != null
                 ? String.valueOf(data.get("contactEmail")) : null;
 
-        // 중복 방지 — 미처리(OPEN) 이의신청이 이미 있으면 재접수 차단.
-        if (inquiryRepository.existsByUserIdAndCategoryAndStatus(userId, CATEGORY, "OPEN")) {
+        // 중복 방지 — "이번 정지건"에 대한 OPEN 이의신청만 차단.
+        //   suspendedAt 이후 createdAt 인 것만 카운트 → 과거 정지 때 만든 묵은 이의신청이
+        //   해제→재정지 후 새 이의신청을 막던 버그 fix. (정지 시각 없으면 보수적으로 plain OPEN 체크.)
+        User user = userRepository.findById(userId).orElse(null);
+        LocalDateTime suspendedAt = user != null ? user.getSuspendedAt() : null;
+        boolean dup = (suspendedAt != null)
+                ? inquiryRepository.existsByUserIdAndCategoryAndStatusAndCreatedAtGreaterThanEqual(
+                        userId, CATEGORY, "OPEN", suspendedAt)
+                : inquiryRepository.existsByUserIdAndCategoryAndStatus(userId, CATEGORY, "OPEN");
+        if (dup) {
             return ReturnData.fail("F409", "이미 접수된 이의신청이 검토 중입니다.");
         }
 

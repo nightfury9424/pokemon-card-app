@@ -37,6 +37,7 @@ public class AdminStage0Service {
     private final AdminActionService adminActionService;
     private final ChatService chatService;
     private final UserWarningRepository userWarningRepository;
+    private final com.fury.back.domain.inquiry.InquiryRepository inquiryRepository;
 
     /** 활성 경고 누적이 이 수치 도달 시 자동 정지. (신고 처리 정책) */
     @org.springframework.beans.factory.annotation.Value("${app.moderation.warning-threshold:3}")
@@ -283,6 +284,16 @@ public class AdminStage0Service {
         }
         user.unsuspend();
         userRepository.save(user);
+
+        // 해제 = 이의신청 해결 → 해당 유저의 OPEN 정지 이의신청 자동 종료(인박스 정리 + 재정지 시 재신청 가능).
+        var openAppeals = inquiryRepository.findByUserIdAndCategoryAndStatus(
+                userId, "SUSPENSION_APPEAL", "OPEN");
+        for (var appeal : openAppeals) {
+            appeal.markClosed();
+        }
+        if (!openAppeals.isEmpty()) {
+            inquiryRepository.saveAll(openAppeals);
+        }
 
         adminActionService.record(adminUserId, "UNSUSPEND", "USER", userId,
                 null, null, "SUSPENDED", "ACTIVE");
