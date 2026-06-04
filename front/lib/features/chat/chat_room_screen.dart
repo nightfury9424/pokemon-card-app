@@ -858,8 +858,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '신고하면 해당 사용자가 자동으로 차단됩니다.\n'
-              '욕설·사기·비매너 행위는 수사기관 정보제공 등 가능한 모든 조치로 대응합니다.',
+              '신고하면 해당 사용자가 자동으로 차단됩니다. 차단은 해제할 수 있지만 접수된 신고는 취소되지 않아요.\n'
+              '신중하게 신고해 주세요. 허위·악의적 신고는 이용 제재 대상이 될 수 있습니다.',
               style: TextStyle(
                 color: AppColors.gold.withValues(alpha: 0.95),
                 fontSize: 12,
@@ -954,9 +954,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                           icon: Icons.report_gmailerrorred_rounded,
                           iconColor: AppColors.red,
                           title: '신고하고 차단할까요?',
-                          message: '신고하면 해당 사용자가 자동으로 차단되며,\n'
-                              '신고된 채팅 내용은 관리자가 모두 확인합니다.\n'
-                              '욕설·사기 등 악의적 행위는 수사기관 정보제공 등으로 대응합니다.',
+                          message: '신고하면 해당 사용자가 자동으로 차단되고, 신고된 채팅 내용은 관리자가 모두 확인합니다.\n'
+                              '차단은 나중에 해제할 수 있지만, 접수된 신고는 취소되지 않으니 신중하게 신고해 주세요.\n'
+                              '허위·악의적 신고는 이용 제재 대상이 될 수 있습니다.',
                           cancelLabel: '취소',
                           confirmLabel: '신고하고 차단',
                         );

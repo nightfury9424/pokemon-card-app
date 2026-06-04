@@ -1172,8 +1172,8 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '신고하면 해당 판매자가 자동으로 차단됩니다.\n'
-                            '욕설·사기·비매너 행위는 수사기관 정보제공 등 가능한 모든 조치로 대응합니다.',
+                            '신고하면 해당 판매자가 자동으로 차단됩니다. 차단은 해제할 수 있지만 접수된 신고는 취소되지 않아요.\n'
+                            '신중하게 신고해 주세요. 허위·악의적 신고는 이용 제재 대상이 될 수 있습니다.',
                             style: TextStyle(
                               color: AppColors.gold.withValues(alpha: 0.95),
                               fontSize: 12,
