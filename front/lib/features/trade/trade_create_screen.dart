@@ -343,11 +343,9 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
           return;
         }
       }
-      final memo = _memoCtrl.text.trim();
-      final cardName = widget.cardName ?? widget.cardId;
-      final description = memo.isNotEmpty
-          ? memo
-          : '[$cardName] $_cardStatus 판매';
+      // 메모를 비우면 설명 자동생성 안 함(사용자 정책) — 빈 값 전송 → 상세에서 설명 블록 미표시.
+      //   (상세 trade_detail 은 description.isNotEmpty 일 때만 렌더)
+      final description = _memoCtrl.text.trim();
 
       final createRes = await ApiClient.post('/api/trades', {
         'data': {
