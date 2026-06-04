@@ -79,6 +79,11 @@ class _AssetScreenState extends State<AssetScreen> {
           final ra = AppRarity.rank((a['card']?['rarityCode'] as String?));
           final rb = AppRarity.rank((b['card']?['rarityCode'] as String?));
           if (ra != rb) return ra.compareTo(rb) * asc;
+          // 같은 등급 내 = 가격 높은순 (이전: 이름순). displayPrice(현재 표시가) 내림차순.
+          final pa = (a['displayPrice'] as num?)?.toInt() ?? 0;
+          final pb = (b['displayPrice'] as num?)?.toInt() ?? 0;
+          if (pa != pb) return pb.compareTo(pa);
+          // 가격까지 같으면 이름순(안정적 정렬).
           return ((a['card']?['name'] as String?) ?? '').compareTo(
             (b['card']?['name'] as String?) ?? '',
           );
