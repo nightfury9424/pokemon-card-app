@@ -120,11 +120,15 @@ class CardImage extends StatelessWidget {
   /// size-bucket 다운샘플 — 동적 width*DPR 난사 시 변형 폭발 + cache key 충돌 회피.
   /// 작은 grid는 디코딩/메모리도 절감, 같은 카드가 grid↔detail 이동해도 가장 큰 캐시가 재사용됨.
   int? _bucketWidth() {
-    if (width <= 0) return null;          // unbounded — Hero/fullscreen 원본
+    // ★ width: double.infinity (레이아웃이 크기 결정 — 캐러셀/홈 히어로/거래상세/자산 큰 카드)는
+    //   여기서 풀해상도 디코드되면(이전: 맨 끝 return null) 체이스 고해상도 PNG 여러 장을 원본으로 동시
+    //   디코드 → iOS 메모리 압박 → 디코드 텍스처 purge → "회색 박스". 1024 로 캡해 다운샘플(표시 크기엔 충분).
+    if (width.isInfinite) return 1024;
+    if (width <= 0) return null;          // 진짜 원본 (fullscreen 뷰어 등 명시적 unbounded)
     if (width <= 96) return 384;          // grid 썸네일 (44x62, 56x78, 88x123, 90x126)
     if (width <= 200) return 600;         // mid (호가 row, 캐러셀 큰 카드 등)
     if (width <= 400) return 800;         // detail 카드
-    return null;                          // fullscreen / Hero — 원본
+    return null;                          // 그 외 — 원본
   }
 
   @override
