@@ -106,16 +106,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     _isNearBottom = (pos.maxScrollExtent - pos.pixels) <= 120;
   }
 
-  /// 키보드 open/close(viewInsets.bottom 변화) 감지 → 직전에 바닥 근처였다면
-  /// 레이아웃 갱신 후 최신 메시지로 다시 붙인다. 과거 대화 보는 중엔 유지.
-  /// (resizeToAvoidBottomInset 가 body 를 리사이즈하지만 스크롤 오프셋은 자동 재고정 안 됨.)
+  /// 키보드 open/close(viewInsets.bottom 변화) 감지 → 직전에 바닥 근처였다면 바닥에 다시 붙인다.
+  /// 과거 대화 보는 중(_isNearBottom=false)엔 유지. resizeToAvoidBottomInset 가 body 를
+  /// 리사이즈하지만 스크롤 오프셋은 자동 재고정 안 됨.
+  /// ★ jumpTo(animated:false) 사용 — didChangeMetrics 는 키보드 애니메이션 동안 매 프레임 fire 되는데,
+  ///   여기서 animateTo(200ms)를 매번 던지면 tween 들이 겹치고 네이티브 키보드 애니메이션과 싸워
+  ///   '들썩→점프→다시붙음'이 됨. postFrame jumpTo 는 매 프레임 바닥에 즉시 핀 → 한 덩어리로 붙어 따라옴.
   @override
   void didChangeMetrics() {
     if (!mounted) return;
     final inset = View.of(context).viewInsets.bottom; // physical px — 변화 감지용
     if (inset == _lastViewInsetBottom) return;
     _lastViewInsetBottom = inset;
-    if (_isNearBottom) _scrollToBottom(animated: true);
+    if (_isNearBottom) _scrollToBottom(animated: false);
   }
 
   Future<void> _init() async {
