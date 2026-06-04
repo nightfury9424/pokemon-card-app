@@ -96,7 +96,11 @@ class _SuspendedScreenState extends State<SuspendedScreen> {
       canPop: false, // 뒤로가기로 게이트 탈출 차단.
       child: Scaffold(
         backgroundColor: AppColors.bg,
-        body: SafeArea(
+        // 빈 곳 탭 → 키보드 내림(이의신청 입력 후 다른 곳 눌러도 안 내려가던 버그 fix).
+        body: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
@@ -226,6 +230,7 @@ class _SuspendedScreenState extends State<SuspendedScreen> {
                 ],
               ),
             ),
+          ),
           ),
         ),
       ),

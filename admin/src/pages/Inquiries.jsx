@@ -21,6 +21,7 @@ const S = {
 const CATEGORY_LABEL = {
   cardAddRequest: '카드 추가', price: '시세/가격', trade: '거래/채팅',
   account: '계정/닉네임', bug: '버그', feature: '기능 제안', etc: '기타',
+  SUSPENSION_APPEAL: '정지 이의신청',
 }
 
 const STATUS_MAP = {
