@@ -135,19 +135,16 @@ class CardImage extends StatelessWidget {
   }
 
   Widget _buildNetwork() {
-    final bw = _bucketWidth();
-    return CachedNetworkImage(
+    // 일시적 네트워크 실패(셀룰러/혼잡)에 "이미지 없음"으로 굳지 않도록 백오프 재시도.
+    // S3 파일은 존재하므로 대부분 재시도로 복구됨. 재시도 소진 후에만 unavailable 표시.
+    return _RetryingNetworkImage(
       imageUrl: imageUrl!,
-      cacheManager: _CardCacheManager.instance,
       width: width,
       height: height,
       fit: fit,
-      fadeInDuration: const Duration(milliseconds: 80),
-      useOldImageOnUrlChange: true,
-      memCacheWidth: bw,
-      maxWidthDiskCache: bw,
-      placeholder: (_, _) => _buildSkeleton(),
-      errorWidget: (_, _, _) => _buildUnavailable(),
+      bucketWidth: _bucketWidth(),
+      skeleton: _buildSkeleton(),
+      unavailable: _buildUnavailable(),
     );
   }
 
@@ -229,6 +226,75 @@ class CardImage extends StatelessWidget {
         borderRadius: borderRadius,
       ),
       child: Icon(Icons.catching_pokemon, color: Colors.white24, size: width * 0.4),
+    );
+  }
+}
+
+/// CachedNetworkImage 래퍼 — 로드 실패 시 백오프로 자동 재시도.
+///
+/// 배경: S3 카드 이미지는 거의 전부 존재하지만, 홈 진입 시 이미지가 한꺼번에 몰리면
+/// 셀룰러/혼잡으로 일부 GET이 일시 실패한다. CachedNetworkImage는 실패를 재시도하지
+/// 않고 errorWidget("이미지 없음")으로 굳어버린다. 여기서 짧은 백오프로 재시도해
+/// 일시 실패를 복구하고, 재시도를 소진했을 때만 unavailable 을 보여준다.
+class _RetryingNetworkImage extends StatefulWidget {
+  final String imageUrl;
+  final double width;
+  final double height;
+  final BoxFit fit;
+  final int? bucketWidth;
+  final Widget skeleton;
+  final Widget unavailable;
+
+  const _RetryingNetworkImage({
+    required this.imageUrl,
+    required this.width,
+    required this.height,
+    required this.fit,
+    required this.bucketWidth,
+    required this.skeleton,
+    required this.unavailable,
+  });
+
+  @override
+  State<_RetryingNetworkImage> createState() => _RetryingNetworkImageState();
+}
+
+class _RetryingNetworkImageState extends State<_RetryingNetworkImage> {
+  static const _maxRetries = 2;
+  int _attempt = 0;
+
+  @override
+  void didUpdateWidget(_RetryingNetworkImage old) {
+    super.didUpdateWidget(old);
+    if (old.imageUrl != widget.imageUrl) _attempt = 0; // URL 바뀌면 재시도 카운트 리셋
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CachedNetworkImage(
+      // attempt 를 key 에 포함 → 실패 후 재시도 시 provider 가 네트워크를 다시 친다.
+      key: ValueKey('${widget.imageUrl}#$_attempt'),
+      imageUrl: widget.imageUrl,
+      cacheManager: _CardCacheManager.instance,
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      fadeInDuration: const Duration(milliseconds: 80),
+      useOldImageOnUrlChange: true,
+      memCacheWidth: widget.bucketWidth,
+      maxWidthDiskCache: widget.bucketWidth,
+      placeholder: (_, _) => widget.skeleton,
+      errorWidget: (_, _, _) {
+        if (_attempt < _maxRetries) {
+          // 백오프 후 재시도 — 재시도 중에는 "이미지 없음" 대신 skeleton 유지.
+          final delayMs = 500 * (1 << _attempt); // 500ms, 1000ms
+          Future.delayed(Duration(milliseconds: delayMs), () {
+            if (mounted) setState(() => _attempt++);
+          });
+          return widget.skeleton;
+        }
+        return widget.unavailable;
+      },
     );
   }
 }

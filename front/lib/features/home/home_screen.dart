@@ -183,16 +183,48 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }());
 
-    // ── 메인 await: 시장/거래 — 완료 즉시 _loading=false → 캐러셀 렌더 ──
-    Map<String, dynamic>? topRes, hotRes, tradeRes;
-    List<Map<String, dynamic>> topGainerCards = [];
+    // ── 캐러셀 임계 경로: 힛카드(시장) + 호가만 await → 도착 즉시 _loading=false.
+    //    급변동(top-gainers ~190ms)·최근거래는 캐러셀에 불필요 → 독립 로딩(아래 unawaited).
+    //    예전엔 4개를 Future.wait로 묶어 가장 느린 호출이 캐러셀 스켈레톤을 잡고 있었음.
+    Map<String, dynamic>? topRes, hotRes;
     // #11: 인기 탭 = 호가(실제 활성 매물) 우선. 활성 매물 0개면 힛카드(고레어)로 폴백.
     List<Map<String, dynamic>> hotActive = [];
+
+    // 보조 섹션(캐러셀 비차단): 급변동 — 도착 즉시 개별 setState.
+    unawaited(() async {
+      try {
+        final list = await ApiClient.getList(
+          '/api/cards/market/top-gainers',
+          params: {'size': 10},
+        );
+        if (!mounted || seq != _loadSeq) return;
+        setState(() {
+          _topGainerCards = list
+              .whereType<Map>()
+              .map((card) => Map<String, dynamic>.from(card))
+              .toList();
+        });
+      } catch (_) {}
+    }());
+    // 보조 섹션(캐러셀 비차단): 최근 거래 요약.
+    unawaited(() async {
+      try {
+        final tradeRes = await ApiClient.get(
+          '/api/trades/cards/summary',
+          params: {'size': 6},
+        );
+        if (!mounted || seq != _loadSeq) return;
+        setState(() {
+          _recentTrades =
+              (tradeRes['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        });
+      } catch (_) {}
+    }());
+
     await Future.wait([
       () async {
         try {
           // B2-7/B2-18: '금액' 탭 → '힛카드'. 체이스 레어도(SSR/SAR/CSR/CHR/UR/BWR) + MUR/MA(무조건 힛) 가격순.
-          //   (MUR 누락 문제 해결 — 메가개굴닌자 등 최상위 체이스 포함). 전일대비는 gainPct로 표시.
           topRes = await ApiClient.get(
             '/api/cards/market',
             params: {
@@ -231,27 +263,6 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         } catch (_) {}
       }(),
-      () async {
-        try {
-          tradeRes = await ApiClient.get(
-            '/api/trades/cards/summary',
-            params: {'size': 6},
-          );
-        } catch (_) {}
-      }(),
-      () async {
-        try {
-          // 3차-C: 별도 Dio 인스턴스 제거 → ApiClient 통일 (토큰 + 401/5xx 인터셉터 적용)
-          final list = await ApiClient.getList(
-            '/api/cards/market/top-gainers',
-            params: {'size': 10},
-          );
-          topGainerCards = list
-              .whereType<Map>()
-              .map((card) => Map<String, dynamic>.from(card))
-              .toList();
-        } catch (_) {}
-      }(),
     ]);
 
     final topData = topRes?['data'] as Map<String, dynamic>?;
@@ -265,8 +276,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final hotRaw = List<Map<String, dynamic>>.from(hotData?['content'] ?? []);
       hotCards = hotRaw.take(6).toList();
     }
-    final trades =
-        (tradeRes?['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
     if (!mounted) return;
     // 더 최신 load가 시작됐다면 stale 응답이므로 무시.
@@ -274,8 +283,6 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _topCards = topCards;
       _hotCards = hotCards;
-      _topGainerCards = topGainerCards;
-      _recentTrades = trades;
       _loading = false;
     });
     _precacheCarousels(); // B2-1: 캐러셀 카드 이미지 미리 받아 검정 skeleton flash 방지.
