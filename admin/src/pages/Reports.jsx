@@ -24,6 +24,32 @@ const STATUS_MAP = {
   DISMISSED: { label: '기각', bg: '#f8fafc', color: '#64748b', border: '#e2e8f0' },
 }
 
+// resolutionAction enum → 한글 라벨 (테이블/이력 표시용).
+const ACTION_LABEL = {
+  WARN_USER:    '경고 발급',
+  SUSPEND_USER: '계정 정지',
+  DELETE_TRADE: '거래글 삭제',
+  DISMISS:      '기각',
+  NONE:         '조치 없음',
+}
+
+// ★단일 축 "조치" — 선택 하나로 집행(resolutionAction) + 신고 상태(status)를 동시에 결정.
+//   기존엔 처리 상태/처리 액션 두 축을 따로 골라 모순 조합(기각인데 정지 등)이 가능했음.
+const DECISIONS = [
+  { key: 'WARN_USER',    label: '경고 발급',     desc: '대상 유저에게 경고를 발급해요. 누적 3회 시 자동 정지.', status: 'RESOLVED',  tone: 'warn',    needsUser: true },
+  { key: 'SUSPEND_USER', label: '계정 정지',     desc: '대상 유저를 즉시 정지해 앱 이용을 차단해요.',          status: 'RESOLVED',  tone: 'danger',  needsUser: true },
+  { key: 'DELETE_TRADE', label: '거래글 삭제',   desc: '신고된 거래글을 삭제해요.',                            status: 'RESOLVED',  tone: 'danger',  tradeOnly: true },
+  { key: 'DISMISS',      label: '기각 (무혐의)', desc: '문제 없음으로 판단하고 조치 없이 종료해요.',           status: 'DISMISSED', tone: 'neutral' },
+  { key: 'NONE',         label: '보류 (검토중)', desc: '판단을 보류하고 나중에 다시 처리해요.',                status: 'REVIEWED',  tone: 'muted' },
+]
+
+const TONE = {
+  warn:    { sel: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  danger:  { sel: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+  neutral: { sel: '#475569', bg: '#f8fafc', border: '#e2e8f0' },
+  muted:   { sel: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+}
+
 function StatusBadge({ status }) {
   const s = STATUS_MAP[status] ?? STATUS_MAP.PENDING
   return (
@@ -162,7 +188,7 @@ export default function Reports() {
                   {r.handledAt ? (
                     <div style={{ fontSize: 11, color: '#64748b' }}>
                       {new Date(r.handledAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}<br />
-                      <span style={{ color: '#94a3b8' }}>{r.resolutionAction}</span>
+                      <span style={{ color: '#94a3b8' }}>{ACTION_LABEL[r.resolutionAction] ?? r.resolutionAction ?? ''}</span>
                     </div>
                   ) : (
                     <span style={{ color: '#cbd5e1', fontSize: 11 }}>미처리</span>
@@ -277,27 +303,40 @@ function ChatViewModal({ roomId, onClose }) {
 }
 
 function HandleModal({ row, onClose, onDone }) {
-  const [status, setStatus] = useState(row.status === 'PENDING' ? 'REVIEWED' : row.status)
-  const [action, setAction] = useState(row.resolutionAction ?? 'NONE')
+  // 대상 타입에 맞는 조치만 노출 — TRADE 만 거래글 삭제, BUY_ORDER 는 유저 해석 불가라 경고/정지 숨김.
+  const isTrade = row.targetType === 'TRADE'
+  const hasUser = ['USER', 'TRADE', 'CHAT'].includes(row.targetType)
+  const decisions = DECISIONS.filter(d => {
+    if (d.tradeOnly) return isTrade
+    if (d.needsUser) return hasUser
+    return true
+  })
+
+  // 이미 처리된 신고면 기존 조치 복원, 아니면 미선택(강제 선택 → 오발송 방지).
+  const initial = decisions.some(d => d.key === row.resolutionAction) ? row.resolutionAction : null
+  const [decision, setDecision] = useState(initial)
   const [memo, setMemo] = useState(row.adminMemo ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  const isDestructive = action === 'SUSPEND_USER' || action === 'DELETE_TRADE'
+  const chosen = DECISIONS.find(d => d.key === decision) ?? null
+  const isDanger = chosen?.tone === 'danger'
 
   async function submit() {
-    if (isDestructive) {
-      if (!confirm(`${action} 처리할까요? 한 번 처리하면 되돌릴 수 없어요.`)) return
-    } else if (action === 'WARN_USER') {
-      if (!confirm('이 유저에게 경고를 발급할까요? (경고 3회 누적 시 자동 정지)')) return
+    if (!chosen) return
+    if (isDanger) {
+      if (!confirm(`'${chosen.label}' 조치를 실행할까요? 되돌릴 수 없어요.`)) return
+    } else if (chosen.key === 'WARN_USER') {
+      if (!confirm('이 유저에게 경고를 발급할까요? (누적 3회 시 자동 정지)')) return
     }
     setSubmitting(true)
     setError('')
     try {
+      // 단일 조치 → status + resolutionAction 동시 파생 전송. 백엔드 계약은 그대로.
       await api.patch(`/admin/reports/${row.reportId}/status`, {
-        status,
+        status: chosen.status,
         adminMemo: memo.trim() || null,
-        resolutionAction: action,
+        resolutionAction: chosen.key,
       })
       onDone()
     } catch (e) {
@@ -315,7 +354,7 @@ function HandleModal({ row, onClose, onDone }) {
       zIndex: 100,
     }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{
-        width: 520, background: '#fff', borderRadius: 16,
+        width: 520, maxHeight: '90vh', overflowY: 'auto', background: '#fff', borderRadius: 16,
         padding: '28px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -326,6 +365,7 @@ function HandleModal({ row, onClose, onDone }) {
         </div>
         <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 20 }}>
           {row.targetType} · {row.reason} · 신고자: {row.reporterNickname || row.reporterId}
+          {row.targetSummary ? ` · 대상: ${row.targetSummary}` : ''}
         </div>
 
         {row.detail && (
@@ -335,40 +375,29 @@ function HandleModal({ row, onClose, onDone }) {
           }}>{row.detail}</div>
         )}
 
-        <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6 }}>처리 상태</label>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {['REVIEWED', 'RESOLVED', 'DISMISSED'].map(s => {
-            const sel = status === s
+        <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 8 }}>조치 선택</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+          {decisions.map(d => {
+            const sel = decision === d.key
+            const t = TONE[d.tone]
             return (
-              <button key={s} onClick={() => setStatus(s)} style={{
-                flex: 1, padding: '10px', borderRadius: 8,
-                background: sel ? '#4f46e5' : '#fff',
-                border: sel ? '1px solid #4f46e5' : '1px solid #e2e8f0',
-                color: sel ? '#fff' : '#475569',
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}>{STATUS_MAP[s].label}</button>
+              <button key={d.key} onClick={() => setDecision(d.key)} style={{
+                textAlign: 'left', padding: '12px 14px', borderRadius: 10,
+                background: sel ? t.bg : '#fff',
+                border: `1.5px solid ${sel ? t.sel : '#e2e8f0'}`,
+                cursor: 'pointer', transition: 'all 0.1s',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    width: 16, height: 16, borderRadius: 99, flexShrink: 0, boxSizing: 'border-box',
+                    border: `5px solid ${sel ? t.sel : '#cbd5e1'}`, background: '#fff',
+                  }} />
+                  <span style={{ fontSize: 14, fontWeight: 700, color: sel ? t.sel : '#1e293b' }}>{d.label}</span>
+                </div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4, marginLeft: 24, lineHeight: 1.4 }}>{d.desc}</div>
+              </button>
             )
           })}
-        </div>
-
-        <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6 }}>처리 액션 (선택)</label>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-          {['NONE', 'WARN_USER', 'SUSPEND_USER', 'DELETE_TRADE', 'DISMISS'].map(a => {
-            const sel = action === a
-            const dest = a === 'SUSPEND_USER' || a === 'DELETE_TRADE'
-            return (
-              <button key={a} onClick={() => setAction(a)} style={{
-                padding: '6px 12px', borderRadius: 99,
-                background: sel ? (dest ? '#dc2626' : '#0ea5e9') : '#fff',
-                border: sel ? `1px solid ${dest ? '#dc2626' : '#0ea5e9'}` : '1px solid #e2e8f0',
-                color: sel ? '#fff' : '#475569',
-                fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              }}>{a}</button>
-            )
-          })}
-        </div>
-        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: -12, marginBottom: 20, lineHeight: 1.5 }}>
-          처리 시 액션 자동 실행: WARN_USER=경고 발급(3회 누적 시 자동 정지) · SUSPEND_USER=즉시 정지 · DELETE_TRADE=거래글 삭제
         </div>
 
         <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6 }}>처리 메모 (선택)</label>
@@ -398,13 +427,13 @@ function HandleModal({ row, onClose, onDone }) {
             background: '#fff', border: '1px solid #e2e8f0',
             color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer',
           }}>취소</button>
-          <button onClick={submit} disabled={submitting} style={{
+          <button onClick={submit} disabled={submitting || !chosen} style={{
             flex: 2, padding: '11px', borderRadius: 10,
-            background: submitting ? '#a5b4fc' : (isDestructive ? '#dc2626' : '#4f46e5'),
-            color: '#fff', fontSize: 13, fontWeight: 600,
-            border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
+            background: (submitting || !chosen) ? '#cbd5e1' : (isDanger ? '#dc2626' : '#4f46e5'),
+            color: '#fff', fontSize: 13, fontWeight: 600, border: 'none',
+            cursor: (submitting || !chosen) ? 'not-allowed' : 'pointer',
           }}>
-            {submitting ? '처리 중...' : (isDestructive ? `${action} + ${STATUS_MAP[status].label}` : `${STATUS_MAP[status].label} 처리`)}
+            {submitting ? '처리 중...' : (chosen ? chosen.label : '조치를 선택하세요')}
           </button>
         </div>
       </div>
