@@ -327,12 +327,15 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
           .whereType<String>()
           .toSet();
 
-      if (status == 'no_card' || status == 'not_found' ||
-          card == null || matchedCardId == null) {
+      // 사진은 단발 촬영이라 스캔(연속 프레임, top1≥0.62/0.75)보다 임계값을 낮춘다.
+      //   status=not_found(top1<0.62) 여도 등록 대상이 FAISS 후보군(top-5)에 있으면 통과 —
+      //   맞는 카드를 살짝 빗나가게 찍어도 거부 안 되게. 다른 카드면 후보군에 안 들어와 거부됨.
+      final recognizedNothing = matchedCardId == null && candidateIds.isEmpty;
+      if (status == 'no_card' || recognizedNothing) {
         return '카드를 인식하지 못했어요. 등록할 카드의 앞면을 또렷하게 촬영해 주세요.';
       }
       if (matchedCardId == expected || candidateIds.contains(expected)) {
-        return null; // 일치 — 통과
+        return null; // 일치(최상위 또는 후보군 포함) — 통과
       }
       return '등록하려는 카드와 다른 카드예요. 이 카드의 앞면을 촬영해 주세요.';
     } catch (_) {
