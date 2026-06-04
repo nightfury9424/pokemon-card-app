@@ -12,12 +12,14 @@ typedef ApiErrorHandler = void Function(ApiErrorInfo info);
 class ApiErrorInfo {
   final int? statusCode;
   final String message;
+  final String? code;       // 백엔드 에러 코드 (USER_SUSPENDED / USER_DELETED 등)
   final bool isAuthError;   // 401 → 로그인 만료
   final bool isServerError; // 5xx
   final bool isNetworkError;
   ApiErrorInfo({
     this.statusCode,
     required this.message,
+    this.code,
     this.isAuthError = false,
     this.isServerError = false,
     this.isNetworkError = false,
@@ -58,20 +60,26 @@ class ApiClient {
 
   static ApiErrorInfo _classify(DioException err) {
     final status = err.response?.statusCode;
+    final data = err.response?.data;
+    final code = (data is Map && data['code'] is String) ? data['code'] as String : null;
     final isNetwork = err.type == DioExceptionType.connectionTimeout
         || err.type == DioExceptionType.receiveTimeout
         || err.type == DioExceptionType.sendTimeout
         || err.type == DioExceptionType.connectionError;
+    // 정지 계정 — 403 USER_SUSPENDED. 핸들러가 정지 게이트로 보냄(토스트 X).
+    if (status == 403 && code == 'USER_SUSPENDED') {
+      return ApiErrorInfo(statusCode: 403, code: code, message: '정지된 계정입니다.');
+    }
     if (status == 401) {
-      return ApiErrorInfo(statusCode: 401, message: '로그인이 만료되었습니다. 다시 로그인해주세요.', isAuthError: true);
+      return ApiErrorInfo(statusCode: 401, code: code, message: '로그인이 만료되었습니다. 다시 로그인해주세요.', isAuthError: true);
     }
     if (status != null && status >= 500) {
-      return ApiErrorInfo(statusCode: status, message: '서버에 일시적 문제가 발생했습니다. 잠시 후 다시 시도해주세요.', isServerError: true);
+      return ApiErrorInfo(statusCode: status, code: code, message: '서버에 일시적 문제가 발생했습니다. 잠시 후 다시 시도해주세요.', isServerError: true);
     }
     if (isNetwork) {
       return ApiErrorInfo(message: '네트워크 연결을 확인해주세요.', isNetworkError: true);
     }
-    return ApiErrorInfo(statusCode: status, message: err.message ?? '요청 중 오류가 발생했습니다.');
+    return ApiErrorInfo(statusCode: status, code: code, message: err.message ?? '요청 중 오류가 발생했습니다.');
   }
 
   /// 인증 헤더 포함 byte 다운로드 — proxy endpoint (/api/images/secure/**) 호출용.

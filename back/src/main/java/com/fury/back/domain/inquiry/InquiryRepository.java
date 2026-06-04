@@ -16,4 +16,7 @@ public interface InquiryRepository extends JpaRepository<Inquiry, String> {
     List<Inquiry> findByStatusOrderByCreatedAtDesc(String status);
 
     long countByStatus(String status);
+
+    /** 정지 이의신청 중복 방지 — 같은 유저의 OPEN 상태 이의신청 존재 여부. */
+    boolean existsByUserIdAndCategoryAndStatus(String userId, String category, String status);
 }

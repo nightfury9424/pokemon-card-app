@@ -19,6 +19,11 @@ Future<void> main() async {
   // ApiClient 전역 에러 핸들러 — 401/5xx/네트워크 끊김 시 통일된 AppErrorToast (가운데 ⚠ fade).
   // 이전: Material SnackBar (빨간 띠) → 사용자 정책 위반(통일 안 됨). AppErrorToast로 교체.
   ApiClient.setErrorHandler((info) {
+    // 정지 계정 — 토스트 대신 정지 게이트로(라우터가 /suspended). 사유는 게이트가 /me 로 가져옴.
+    if (info.code == 'USER_SUSPENDED') {
+      AuthState.instance.markSuspended();
+      return;
+    }
     final ctx = rootScaffoldMessengerKey.currentContext;
     if (ctx != null) {
       AppErrorToast.show(ctx, info.message);

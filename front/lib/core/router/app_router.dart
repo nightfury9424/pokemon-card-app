@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/onboarding_screen.dart';
+import '../../features/auth/suspended_screen.dart';
 import '../../features/grading/grading_screen.dart';
 import '../../features/grading/grading_capture_screen.dart';
 import '../../features/grading/grading_result_screen.dart';
@@ -88,12 +89,18 @@ final appRouter = GoRouter(
       const allowedDuringOnboarding = {'/onboarding', '/legal/terms', '/legal/privacy'};
       return allowedDuringOnboarding.contains(path) ? null : '/onboarding';
     }
+    // 정지 게이트 — 정지 상태면 모든 경로를 /suspended 로(탭/상세/거래/채팅 접근 차단).
+    if (auth.suspended) {
+      return path == '/suspended' ? null : '/suspended';
+    }
+    if (path == '/suspended') return '/home'; // 복구된 계정 — 게이트 해제.
     if (isLoginPage || isOnboardingPage) return '/home';
     return null;
   },
   routes: [
     GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
     GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
+    GoRoute(path: '/suspended', builder: (_, _) => const SuspendedScreen()),
     GoRoute(path: '/profile/edit-nickname', builder: (_, _) => const EditNicknameScreen()),
     GoRoute(path: '/profile/blocked-users', builder: (_, _) => const BlockedUsersScreen()),
     GoRoute(path: '/profile/reports', builder: (_, _) => const ReportHistoryScreen()),

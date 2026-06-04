@@ -36,8 +36,10 @@ public class DeletedUserGuardFilter extends OncePerRequestFilter {
     private final UserRepository userRepository;
     private final AdminAllowlistFilter adminAllowlistFilter;
 
-    /** 정지 사용자도 자기 정보 조회는 통과 — banner 표시용. */
+    /** 정지 사용자도 자기 정보 조회는 통과 — 게이트 사유 표시용. */
     private static final String SUSPENDED_PASSTHROUGH_PATH = "/api/users/me";
+    /** 정지 사용자 이의신청 — 이 POST 하나만 allowlist(앱 내 이의신청 가능). 나머지 문의 API 는 계속 차단. */
+    private static final String SUSPENSION_APPEAL_PATH = "/api/suspension-appeals";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -61,7 +63,10 @@ public class DeletedUserGuardFilter extends OncePerRequestFilter {
         User user = userOpt.get();
         if (user.isSuspended() && !adminAllowlistFilter.isAllowed(userId)) {
             String path = request.getRequestURI();
-            if (!SUSPENDED_PASSTHROUGH_PATH.equals(path)) {
+            boolean allowed = SUSPENDED_PASSTHROUGH_PATH.equals(path)
+                    || (SUSPENSION_APPEAL_PATH.equals(path)
+                        && "POST".equalsIgnoreCase(request.getMethod()));
+            if (!allowed) {
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 response.setContentType("application/json;charset=UTF-8");
                 response.getWriter().write(

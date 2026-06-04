@@ -61,6 +61,9 @@ public class UserController {
         data.put("isOver14", user.getIsOver14());
         data.put("phoneVerified", user.isPhoneVerified());
         data.put("nicknameCooldownDaysLeft", nicknameCooldownDaysLeft(user.getNicknameChangedAt()));
+        // 정지 게이트용 — 프론트가 suspended 면 전체 가림 + 사유 표시. (/me 는 정지자도 통과.)
+        data.put("suspended", user.isSuspended());
+        data.put("suspensionReason", user.getSuspensionReason());
         return ReturnData.success(data);
     }
 
