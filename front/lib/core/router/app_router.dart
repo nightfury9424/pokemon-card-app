@@ -200,9 +200,9 @@ final appRouter = GoRouter(
         return CustomTransitionPage<void>(
           key: state.pageKey,
           opaque: false,
-          // B2-17: 반투명(black54)이면 sheet 위쪽 빈 영역으로 부모 카드상세 헤더(뒤로/삭제/탭)가 비침.
-          //        불투명 앱배경으로 → 부모 화면 완전 차단(슬라이드/드래그 UX는 유지).
-          barrierColor: AppColors.bg,
+          // 매수 호가 등록 시트(showModalBottomSheet)와 동일한 룩 — 반투명 dim 위 부분 높이 슬라이드업
+          //   (이전 B2-17 은 불투명 풀스크린이라 '화면 다 가린다' 지적 → 구매와 동일하게 dim 으로 통일).
+          barrierColor: Colors.black54,
           barrierDismissible: true,
           transitionDuration: const Duration(milliseconds: 300),
           reverseTransitionDuration: const Duration(milliseconds: 240),
@@ -212,12 +212,12 @@ final appRouter = GoRouter(
             child: child,
           ),
           child: DraggableScrollableSheet(
-            initialChildSize: 0.95,
-            minChildSize: 0.55,
+            initialChildSize: 0.82,
+            minChildSize: 0.5,
             maxChildSize: 0.97,
             expand: false,
             snap: true,
-            snapSizes: const [0.95, 0.97],
+            snapSizes: const [0.82, 0.97],
             builder: (context, scrollController) => ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               child: TradeCreateScreen(

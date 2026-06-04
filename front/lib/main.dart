@@ -70,7 +70,13 @@ class PokemonCardApp extends StatelessWidget {
           data: mq.copyWith(
             textScaler: mq.textScaler.clamp(maxScaleFactor: 1.15),
           ),
-          child: child!,
+          // 전역 키보드 dismiss — 입력 외 빈 곳 탭 시 포커스 해제(키보드 내림).
+          // translucent: 자식(버튼/TextField/스크롤)의 제스처는 그대로 — 자식이 안 먹은 탭만 여기로.
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: child!,
+          ),
         );
       },
       theme: ThemeData.dark().copyWith(
