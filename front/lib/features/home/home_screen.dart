@@ -571,7 +571,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     _AssetStat(label: '보유', value: '$_totalCards종'),
                     const SizedBox(width: 20),
-                    _AssetStat(label: '고레어', value: '$_highRareCount장'),
+                    _AssetStat(label: '고레어', value: '$_highRareCount종'),
                   ],
                 ),
               ],
@@ -778,7 +778,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            '보유 카드 $_totalCards장',
+                            '보유 카드 $_totalCards종',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -1011,12 +1011,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 ? _carouselSkeleton(height)
                 : SizedBox(
                     height: height,
-                    child: const Center(
-                      child: Text('데이터 없음',
-                          style: TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700)),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('데이터를 불러오지 못했어요',
+                              style: TextStyle(
+                                  color: AppColors.textMuted,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 6),
+                          TextButton(
+                            onPressed: () => _loadAll(),
+                            child: const Text('새로고침',
+                                style: TextStyle(
+                                    color: AppColors.blue,
+                                    fontWeight: FontWeight.w700)),
+                          ),
+                        ],
+                      ),
                     ),
                   ))
           else if (items.length == 1)

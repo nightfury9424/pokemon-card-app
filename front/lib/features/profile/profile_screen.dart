@@ -152,7 +152,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             icon: Icons.style_rounded,
                             iconColor: AppColors.blue,
                             label: '내 자산',
-                            sub: '$_totalCards장 보유',
+                            sub: '$_totalCards종 보유',
                             onTap: () => context.push('/assets'),
                           ),
                           _MenuItem(
@@ -400,7 +400,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         _StatChip(
             label: '보유 카드',
-            value: '$_totalCards장',
+            value: '$_totalCards종',
             onTap: () => context.push('/assets')),
         const SizedBox(width: 10),
         _StatChip(

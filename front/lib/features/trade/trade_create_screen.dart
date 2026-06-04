@@ -10,6 +10,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/constants/feature_flags.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/thousands_comma_formatter.dart';
+import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/trade_safety_notice.dart';
 
@@ -374,6 +375,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
       final tradeId = createRes['data']?['tradeId'] as String?;
       if (tradeId == null) throw Exception('판매글 생성 실패');
 
+      int imgFail = 0;
       for (final photo in _orderedPhotosForUpload()) {
         if (!photo.file.existsSync()) continue;
         try {
@@ -381,10 +383,17 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
             '/api/trades/$tradeId/image',
             photo.file.path,
           );
-        } catch (_) {}
+        } catch (_) {
+          imgFail++;
+        }
       }
 
       if (!mounted) return;
+      // 판매글은 등록됐지만 일부 사진 업로드 실패 — 조용히 삼키지 않고 안내(rootOverlay 토스트는 pop 후 유지).
+      if (imgFail > 0) {
+        AppInfoToast.show(context,
+            '판매글은 등록됐지만 사진 $imgFail장이 업로드되지 않았어요. 판매글에서 다시 추가해 주세요.');
+      }
       context.pop(true);
     } catch (e) {
       debugPrint('등록 실패 원인: $e');

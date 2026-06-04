@@ -199,8 +199,12 @@ class _BannerBodyState extends State<_BannerBody>
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Row(
                     children: [
-                      _avatar(),
-                      const SizedBox(width: 12),
+                      // 아이콘은 상대 프사(http)가 있을 때만 — 거래/시스템 알림의
+                      // 첫글자 네모 박스("거" 등) 제거(사용자 요청), 텍스트만 노출.
+                      if ((widget.data.imageUrl?.startsWith('http')) ?? false) ...[
+                        _avatar(),
+                        const SizedBox(width: 12),
+                      ],
                       Expanded(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
