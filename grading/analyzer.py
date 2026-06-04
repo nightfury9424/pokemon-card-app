@@ -1118,26 +1118,18 @@ class GradingAnalyzer:
                 "카드가 프레임 안에 잘 들어오도록 다시 촬영해 주세요",
                 blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
 
-        # P0-A hotfix: ternary 분기 (사용자 정책 — 애매 → low_detection, wrong_side X).
-        # back 확신 + side=front → wrong_side
-        # back 단계 + back 확신 X → low_detection (애매)
-        # front 단계 + 애매 → 통과 (front 단정 X)
+        # 면 검사 = "확실히 반대면일 때만" 차단(유연·앞뒤 대칭). _detect_card_side 는 back 만
+        # 단방향 판정(None=애매)이라, 앞면 단계만 'back 확신' 시 차단한다.
+        # ★뒷면 단계는 back 단정 요구를 제거: 탑로더/슬리브 글레어로 갤럭시 패턴(파랑+노랑)이
+        #   흐려지면 back 확신이 안 잡혀 정상 뒷면이 자주 반려됐음(앞면은 동일 상황서 통과).
+        #   앞면 단계의 wrong_side 가드 + 앞/뒷 동일파일 가드 + (앞면)신원검증이 잘못된 면을 거른다.
         side_detected, _side_signals = self._detect_card_side(warped)
-        if side == "back":
-            if side_detected != "back":
-                # back 단계인데 back 확신 X → 면 식별 어려움
-                return self._precheck_result(side, False, "bad", "low_detection",
-                    "카드 면 식별이 어려워요",
-                    "더 밝은 곳에서 카드 뒷면을 정확히 촬영해 주세요",
-                    blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
-        else:  # side == "front"
-            if side_detected == "back":
-                # front 단계인데 back 확신 → 잘못된 면
-                return self._precheck_result(side, False, "bad", "wrong_side",
-                    "촬영한 면이 달라요",
-                    "뒷면이 보여요. 카드 앞면을 촬영해 주세요",
-                    blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
-            # side_detected = None → 통과 (front 가능성, 단정 X)
+        if side == "front" and side_detected == "back":
+            # 앞면 단계인데 back 확신 → 잘못된 면
+            return self._precheck_result(side, False, "bad", "wrong_side",
+                "촬영한 면이 달라요",
+                "뒷면이 보여요. 카드 앞면을 촬영해 주세요",
+                blur=blur_score, glare=glare_score, exposure=exposure_score, roi=roi_score)
 
         blur_warn = 22.0 if side == "back" else 50.0
         is_warning = (

@@ -224,7 +224,34 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
         return;
       }
 
-      // Hotfix 10-6: 앞면/뒷면 모두 takePicture + precheck 품질검사. identify/cardId 게이트 없음.
+      // 앞면 신원검증(빡세게) — card_verify 모드 + cardId 있으면 scanner identify 로 등록 대상
+      //   카드와 일치하는지 확인. 다른 카드를 앞면으로 찍으면 차단. (뒷면은 검증 없음 = 유하게)
+      if (side == 'front' &&
+          widget.isCardVerifyMode &&
+          (widget.cardId?.isNotEmpty ?? false)) {
+        if (mounted) AppInfoToast.show(context, '카드를 확인하는 중…');
+        final mismatchMsg = await _verifyFrontCardMatch(shotFile);
+        if (!mounted) return;
+        if (mismatchMsg != null) {
+          try { if (shotFile.existsSync()) { shotFile.deleteSync(); } } catch (_) {}
+          setState(() => _isCapturing = false);
+          await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('카드가 일치하지 않아요'),
+              content: Text(mismatchMsg),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('다시 촬영'),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
+      }
+
       _photos.add(shotFile);
 
       if (_step < 1) {
@@ -269,6 +296,47 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
         });
         AppErrorToast.show(context, '촬영 실패: $e');
       }
+    }
+  }
+
+  /// 앞면 신원검증 — scanner identify 로 등록 대상 카드(widget.cardId)와 일치하는지 확인.
+  /// 반환: null=통과 / 메시지=거부 사유.
+  /// 정책: 인식 실패(no_card/not_found) 또는 다른 카드 인식 → 거부(빡세게).
+  ///   top1 일치 OR 후보군에 대상 cardId 포함이면 통과(변종 rank 흔들림 허용).
+  ///   스캐너 오류(예외) 시엔 등록을 막지 않음 — 장애로 판매 자체가 불가해지지 않도록.
+  Future<String?> _verifyFrontCardMatch(File front) async {
+    final expected = widget.cardId;
+    if (expected == null || expected.isEmpty) return null;
+    try {
+      final res = await ApiClient.postMultipart(
+        ApiConstants.scannerIdentify,
+        files: {'image': front},
+        receiveTimeout: const Duration(seconds: 90),
+      );
+      final data = (res['data'] is Map)
+          ? Map<String, dynamic>.from(res['data'] as Map)
+          : null;
+      final status = data?['status'] as String? ?? '';
+      final card = (data?['card'] is Map)
+          ? Map<String, dynamic>.from(data!['card'] as Map)
+          : null;
+      final matchedCardId = card?['cardId'] as String?;
+      final candidateIds = ((data?['candidates'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => e['cardId'] as String?)
+          .whereType<String>()
+          .toSet();
+
+      if (status == 'no_card' || status == 'not_found' ||
+          card == null || matchedCardId == null) {
+        return '카드를 인식하지 못했어요. 등록할 카드의 앞면을 또렷하게 촬영해 주세요.';
+      }
+      if (matchedCardId == expected || candidateIds.contains(expected)) {
+        return null; // 일치 — 통과
+      }
+      return '등록하려는 카드와 다른 카드예요. 이 카드의 앞면을 촬영해 주세요.';
+    } catch (_) {
+      return null; // 스캐너 장애 시 통과(차단 안 함)
     }
   }
 
