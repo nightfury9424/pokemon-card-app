@@ -32,6 +32,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _hotCards = [];
   List<Map<String, dynamic>> _topGainerCards = [];
   List<Map<String, dynamic>> _recentTrades = [];
+  // B2-11: 완료했는데 실거래가 미입력인 거래(=내가 참여한 완료 챗방). 홈 상단 슬림 배너.
+  List<Map<String, dynamic>> _pendingSettlements = [];
   late final PageController _carouselController;
   late final PageController _marketCarouselController;
   /// 캐러셀 자동 회전 타이머 (items >= 2일 때 3초 간격).
@@ -286,6 +288,55 @@ class _HomeScreenState extends State<HomeScreen> {
       _loading = false;
     });
     _precacheCarousels(); // B2-1: 캐러셀 카드 이미지 미리 받아 검정 skeleton flash 방지.
+    unawaited(_loadPendingSettlements()); // B2-11: 미입력 실거래가 배너 갱신(캐러셀 비차단).
+  }
+
+  /// B2-11: 완료한 거래 중 내가 실거래가 미입력인 것 수집.
+  /// 정산 당사자는 항상 완료된 챗방(activeChatRoom) 참여자 → 내 챗방 중 COMPLETED + required 만.
+  /// 백엔드 추가 없이 기존 /api/chat/rooms + per-trade settlement/me 재사용(완료 방 수만큼, 보통 0~2건).
+  Future<void> _loadPendingSettlements() async {
+    try {
+      final res = await ApiClient.get('/api/chat/rooms');
+      final rooms = (res['data'] as List?)
+              ?.whereType<Map>()
+              .map((r) => Map<String, dynamic>.from(r))
+              .toList() ??
+          const [];
+      final completed =
+          rooms.where((r) => r['tradeStatus'] == 'COMPLETED').take(12).toList();
+      final pending = <Map<String, dynamic>>[];
+      for (final room in completed) {
+        final sale = room['saleListingId'] as String?;
+        final buy = room['buyOrderId'] as String?;
+        final String? statusPath;
+        if (sale != null && sale.isNotEmpty) {
+          statusPath = '/api/trades/$sale/settlement/me';
+        } else if (buy != null && buy.isNotEmpty) {
+          statusPath = '/api/trades/buy-order/$buy/settlement/me';
+        } else {
+          statusPath = null;
+        }
+        if (statusPath == null) continue;
+        try {
+          final s = await ApiClient.get(statusPath);
+          if ((s['data'] as Map?)?['required'] == true) pending.add(room);
+        } catch (_) {}
+      }
+      if (!mounted) return;
+      setState(() => _pendingSettlements = pending);
+    } catch (_) {}
+  }
+
+  /// 배너 탭 → 가장 최근 미입력 거래의 챗방으로 이동(인터셉터가 실거래가 시트 표시).
+  /// 복귀 시 배너 재계산(입력 완료면 사라짐).
+  Future<void> _openPendingSettlement() async {
+    if (_pendingSettlements.isEmpty) return;
+    final room = _pendingSettlements.first;
+    final roomId = room['chatRoomId'] as String?;
+    if (roomId == null || roomId.isEmpty) return;
+    await context.push('/chat/$roomId', extra: room);
+    if (!mounted) return;
+    _loadPendingSettlements();
   }
 
   /// B2-1: 진입 시 보이는 캐러셀 카드들 이미지 캐시 워밍.
@@ -356,6 +407,9 @@ class _HomeScreenState extends State<HomeScreen> {
         child: CustomScrollView(
           slivers: [
             _buildAppBar(),
+            // B2-11: 미입력 실거래가 슬림 배너 (있을 때만). 탭 → 해당 챗방.
+            if (_pendingSettlements.isNotEmpty)
+              SliverToBoxAdapter(child: _buildSettlementBanner()),
             // 1) 카드 랭킹 캐러셀 (탭 헤더 즉시 + 데이터 전 skeleton)
             SliverToBoxAdapter(child: _buildCarousel()),
             // 2) 내 자산 hero (자산 백그라운드 로드 완료 시 등장)
@@ -843,6 +897,53 @@ class _HomeScreenState extends State<HomeScreen> {
               bar(60, 12),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// B2-11: 미입력 실거래가 슬림 배너 — 한 줄 스트립(엄청 얇게). 탭 → 챗방.
+  Widget _buildSettlementBanner() {
+    final n = _pendingSettlements.length;
+    return GestureDetector(
+      onTap: _openPendingSettlement,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: AppColors.blue.withValues(alpha: 0.13),
+          border: const Border(
+            bottom: BorderSide(color: AppColors.divider, width: 0.5),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.notifications_active_rounded,
+                size: 15, color: AppColors.blueLight),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                n == 1
+                    ? '완료한 거래의 실거래가를 입력해 주세요'
+                    : '완료한 거래 $n건의 실거래가를 입력해 주세요',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text('입력하기',
+                style: TextStyle(
+                    color: AppColors.blueLight,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800)),
+            const Icon(Icons.chevron_right_rounded,
+                size: 16, color: AppColors.blueLight),
+          ],
         ),
       ),
     );
