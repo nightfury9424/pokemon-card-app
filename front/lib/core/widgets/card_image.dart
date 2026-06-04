@@ -281,8 +281,11 @@ class _RetryingNetworkImageState extends State<_RetryingNetworkImage> {
       key: ValueKey('${widget.imageUrl}#$_attempt'),
       imageUrl: widget.imageUrl,
       cacheManager: _CardCacheManager.instance,
-      width: widget.width,
-      height: widget.height,
+      // ★ double.infinity 를 그대로 넘기면 OctoImage 가 SizedBox(infinity,infinity)로 감싸고
+      //   첫 프레임 도착 전 Image/RawImage 가 회색 컴포지터 fill 로 그려짐(캐러셀 회색박스 근본원인).
+      //   null 로 넘겨 부모(AspectRatio/Expanded) 제약이 사이즈를 정하게 하면 placeholder(다크 skeleton)가 정상 표시.
+      width: widget.width.isFinite ? widget.width : null,
+      height: widget.height.isFinite ? widget.height : null,
       fit: widget.fit,
       fadeInDuration: const Duration(milliseconds: 80),
       useOldImageOnUrlChange: true,
