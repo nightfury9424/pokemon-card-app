@@ -63,6 +63,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
                 ORDER BY traded_at DESC LIMIT 1
             ) en ON true
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+            AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
             AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
             ORDER BY
@@ -100,6 +101,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
                 ORDER BY traded_at DESC LIMIT 1
             ) en ON true
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+            AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
             AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
             ORDER BY
@@ -119,6 +121,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
             SELECT c.*
             FROM cards c
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+            AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
             AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
             -- 한국 포카 시장 시세 기준 (front AppRarity와 동기화) — 고레어만.
@@ -146,6 +149,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
             SELECT c.*
             FROM cards c
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+            AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
             AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
             -- 한국 포카 시장 시세 기준 (front AppRarity와 동기화). DESC는 일반→정점 방향.
@@ -178,6 +182,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
                 ORDER BY traded_at DESC LIMIT 1
             ) ps ON true
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+            AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
             AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
             ORDER BY ps.traded_at DESC NULLS LAST, c.name ASC
@@ -199,6 +204,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
                 ORDER BY traded_at DESC LIMIT 1
             ) ps ON true
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+            AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
             AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
             ORDER BY ps.traded_at ASC NULLS LAST, c.name ASC
@@ -215,6 +221,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
             SELECT c.*
             FROM cards c
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+            AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
             AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
             ORDER BY c.name ASC, c.official_card_code ASC
@@ -231,6 +238,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
             SELECT c.*
             FROM cards c
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+            AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
             AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
             ORDER BY c.name DESC, c.official_card_code DESC
@@ -246,6 +254,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
             SELECT COUNT(*)
             FROM cards
             WHERE (language = 'KO' OR is_promo_exclusive = TRUE)
+            AND is_visible = true
             AND rarity_code IN (:rarityCodes)
             AND (:name = '' OR LOWER(name) LIKE LOWER(CONCAT('%', :name, '%')))
             """)
@@ -270,6 +279,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
                 ORDER BY traded_at DESC LIMIT 1
             ) en ON true
             WHERE c.is_promo_exclusive = TRUE
+              AND c.is_visible = true
               AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
             ORDER BY COALESCE(jp.jp_price, en.en_price) DESC NULLS LAST, c.name ASC
             LIMIT :size OFFSET :offset
@@ -282,6 +292,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
     @Query(nativeQuery = true, value = """
             SELECT COUNT(*) FROM cards c
             WHERE c.is_promo_exclusive = TRUE
+              AND c.is_visible = true
               AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
             """)
     long countPromoExclusive(@Param("name") String name);
@@ -361,6 +372,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
             JOIN ko_estimation_audit a ON a.ko_snapshot_id = today.price_snapshot_id
             WHERE yesterday.price > 0
               AND (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+              AND c.is_visible = true
               AND a.ranking_eligible = true
               AND a.is_anomaly = false
               -- 보조 안전망 (audit 통과해도 추가 가드)
@@ -419,6 +431,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
             JOIN ko_estimation_audit a ON a.ko_snapshot_id = today.price_snapshot_id
             WHERE yesterday.price > 0
               AND (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+              AND c.is_visible = true
               AND a.ranking_eligible = true
               AND a.is_anomaly = false
               -- 보조 안전망 (audit 통과해도 추가 가드)
