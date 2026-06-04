@@ -36,17 +36,19 @@ class UserAvatar extends StatelessWidget {
   }
 
   Widget _defaultIcon() {
+    // "사진 없음" 기본 아바타 — 파랑-on-파랑(저대비, 작은 크기에서 깨진 파란 덩어리처럼 보임) →
+    // 중립 다크 원 + 회색 person. 채팅 목록 카드 우하단 22px 오버레이에서도 깔끔하게 읽힘.
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: AppColors.blue.withValues(alpha: 0.15),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceElevated,
         shape: BoxShape.circle,
       ),
       child: Icon(
         Icons.person_rounded,
-        color: AppColors.blue,
-        size: size * 0.5,
+        color: AppColors.textMuted,
+        size: size * 0.56,
       ),
     );
   }

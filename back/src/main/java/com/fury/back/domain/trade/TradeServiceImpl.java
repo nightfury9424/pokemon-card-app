@@ -178,21 +178,30 @@ public class TradeServiceImpl implements TradeService {
     static final long ABSOLUTE_MAX_PRICE = 100_000_000L;
 
     /**
-     * KO 검증 기준가 해석 — UI 가 보여주는 {@code getCardPriceSummary().koMid} 와 정합하게 맞춘다.
-     * <p>KO_ESTIMATED 우선, 없으면(프로모 직접가 카드 등 — KO 추정 모델 미적용, OVERSEAS_REF)
-     * koMid 가 JP/EN RAW 직접가이므로 검증 base 도 동일하게 SCRYDEX_JP → SCRYDEX_EN 폴백.
-     * 이전엔 KO_ESTIMATED 단일 조회라 프로모 고가 카드(판쵸 피카츄 등 15장)가 전부 1천만 캡에 걸렸음.
+     * KO 검증 기준가 해석 — 화면 '대표 시세'({@code getCardPriceSummary().koMid})와 <b>동일한 행 선택</b>으로 맞춘다.
+     * <p>비프로모: KO_ESTIMATED. 프로모(KO_ESTIMATED 없음, OVERSEAS_REF): JP RAW → JP PSA10 → EN RAW —
+     * getCardPriceSummary 프로모 분기(jpRawSnap → jpPsa10Snap → enRawSnap)와 동일한 repo 메서드·순서.
+     * <p>★ {@code findFirstByCardIdAndSourceOrderByTradedAtDesc}(card_status 무관 최신)는 PSA9 같은 낮은 행을
+     * 잡아 시세를 과소평가 → 화면 시세(예: 마리오 피카츄 JP PSA10 4,500만)와 불일치, 정상 매수호가 차단 버그.
+     * findLatest* 들은 RAW/PSA10 등 화면과 같은 행을 고른다.
      * @return 기준가(원) 또는 어떤 시장 ref 도 없으면 null
      */
     static Integer resolveKoReferencePrice(
             com.fury.back.domain.price.PriceSnapshotRepository repo, String cardId) {
-        for (String src : new String[]{"KO_ESTIMATED", "SCRYDEX_JP", "SCRYDEX_EN"}) {
-            Integer p = repo.findFirstByCardIdAndSourceOrderByTradedAtDesc(cardId, src)
-                    .map(com.fury.back.domain.price.PriceSnapshot::getPrice)
-                    .orElse(null);
-            if (p != null && p > 0) return p;
-        }
+        java.util.List<String> ids = java.util.List.of(cardId);
+        Integer p;
+        if ((p = firstPositivePrice(repo.findLatestKoEstimatedByCardIds(ids))) != null) return p;
+        if ((p = firstPositivePrice(repo.findLatestScrydexJpByCardIds(ids))) != null) return p;      // JP RAW
+        if ((p = firstPositivePrice(repo.findLatestScrydexJpPsa10ByCardIds(ids))) != null) return p; // JP PSA10 (프로모 RAW 없음)
+        if ((p = firstPositivePrice(repo.findLatestScrydexEnByCardIds(ids))) != null) return p;      // EN RAW
         return null;
+    }
+
+    private static Integer firstPositivePrice(
+            java.util.List<com.fury.back.domain.price.PriceSnapshot> rows) {
+        if (rows == null || rows.isEmpty()) return null;
+        Integer price = rows.get(0).getPrice();
+        return (price != null && price > 0) ? price : null;
     }
 
     /**
