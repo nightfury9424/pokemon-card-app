@@ -537,36 +537,18 @@ public class TradeServiceImpl implements TradeService {
     }
 
     /**
-     * 실거래가 도메인 검증 (B3-1) — 시세 데이터 오염 방지. 백엔드 최종 게이트(API 직접 호출 방어).
-     * <p>단위: 1,000원 이상 + 100원 단위(단, 희망가/시세와 정확히 일치 시 신뢰 → 단위 예외).
-     * <p>밴드: 기준가 우선순위(앱 시세 KO_ESTIMATED → 희망가). 시세 밴드 0.4~1.8, 희망가 밴드 0.5~1.5.
+     * 실거래가 도메인 검증 (B3-1) — "말도 안 되는 값"(garbage) 차단. 백엔드 최종 게이트(API 직접 호출 방어).
+     * <p>거름: 1,000원 미만(0·1·15 등), 100원 단위 아님(1004·15·11111111 등), 절대 상한 초과(99999999999 등).
+     * <p>희망가 대비 밴드는 적용하지 않음 — 실거래가 희망가와 크게 다를 수 있어(협상/상태차) 정상 데이터를
+     *    버릴 위험. 단위/상한 sanity 만 강제. (희망가가 비-100원 단위면 정확히 일치 시 단위 예외.)
      * @return 위반 시 사용자 문구, 통과 시 null.
      */
-    private String validateSettlementAmount(int price, String cardId, Integer listingPrice) {
+    private String validateSettlementAmount(int price, Integer listingPrice) {
         if (price < 1000) return "거래 금액은 1,000원 이상 입력해주세요.";
         if (price > 1_000_000_000) return "금액이 올바르지 않습니다.";
-        final Integer estimate = (cardId == null) ? null : priceSnapshotRepository
-                .findFirstByCardIdAndSourceOrderByTradedAtDesc(cardId, "KO_ESTIMATED")
-                .map(com.fury.back.domain.price.PriceSnapshot::getPrice)
-                .orElse(null);
-        // 희망가/시세와 정확히 일치하는 값은 신뢰(비-100원 단위 희망가 보호) → 단위 검증 예외.
-        final boolean trusted = (listingPrice != null && price == listingPrice)
-                || (estimate != null && price == estimate);
+        // 희망가와 정확히 일치하면(이 금액이 맞아요) 단위 검증 예외 — 희망가가 비-100원 단위일 수 있음.
+        final boolean trusted = listingPrice != null && price == listingPrice;
         if (!trusted && price % 100 != 0) return "거래 금액은 100원 단위로 입력해주세요.";
-        final Integer ref;
-        final double lo;
-        final double hi;
-        if (estimate != null && estimate > 0) {
-            ref = estimate; lo = 0.4; hi = 1.8;
-        } else if (listingPrice != null && listingPrice > 0) {
-            ref = listingPrice; lo = 0.5; hi = 1.5;
-        } else {
-            ref = null; lo = 0; hi = 0;
-        }
-        if (ref != null) {
-            if (price < ref * lo) return "입력한 금액이 너무 낮아요. 실제 거래 금액을 다시 확인해주세요.";
-            if (price > ref * hi) return "입력한 금액이 너무 높아요. 실제 거래 금액을 다시 확인해주세요.";
-        }
         return null;
     }
 
@@ -592,7 +574,7 @@ public class TradeServiceImpl implements TradeService {
             return ReturnData.fail("F409", "완료된 거래만 입력할 수 있습니다.");
         }
         // B3-1: 실거래가 도메인 검증 — 시세 오염 방지. 위반 시 400, 저장 X.
-        final String amtErr = validateSettlementAmount(price, post.getCardId(), post.getPrice());
+        final String amtErr = validateSettlementAmount(price, post.getPrice());
         if (amtErr != null) return ReturnData.badRequest(amtErr);
         TradeSettlement s = tradeSettlementRepository.findByTradeIdAndUserId(tradeId, userId).orElse(null);
         if (s == null) {
@@ -668,7 +650,7 @@ public class TradeServiceImpl implements TradeService {
             return ReturnData.fail("F409", "완료된 거래만 입력할 수 있습니다.");
         }
         // B3-1: 실거래가 도메인 검증 — 시세 오염 방지. 위반 시 400, 저장 X.
-        final String amtErr = validateSettlementAmount(price, order.getCardId(), order.getBidPrice());
+        final String amtErr = validateSettlementAmount(price, order.getBidPrice());
         if (amtErr != null) return ReturnData.badRequest(amtErr);
         TradeSettlement s = tradeSettlementRepository.findByTradeIdAndUserId(buyOrderId, userId).orElse(null);
         if (s == null) {
