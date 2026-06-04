@@ -135,7 +135,12 @@ class CardImage extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: borderRadius ?? BorderRadius.zero,
-      child: _isUnavailable ? _buildUnavailable() : _buildNetwork(),
+      // ★ 이미지가 페인트되기 전 1프레임 갭(precache miss·재디코드)에도 회색 컴포지터 fill 대신
+      //   다크 카드 배경이 보이게 — 로드가 느려도 '회색박스' 없이 깔끔한 다크 placeholder.
+      child: ColoredBox(
+        color: AppColors.surfaceCard,
+        child: _isUnavailable ? _buildUnavailable() : _buildNetwork(),
+      ),
     );
   }
 
