@@ -1298,7 +1298,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       context,
       title: '구매 호가를 삭제할까요?',
       message: '호가창에서 내 구매 호가가 내려가요.',
-      confirmLabel: '삭제하기',
+      cancelLabel: '취소',
+      confirmLabel: '삭제',
       destructive: true,
     );
     if (confirmed != true || !mounted) return;
@@ -1685,10 +1686,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Future<void> _confirmDeleteTrade(String tradeId) async {
     final ok = await AppConfirmDialog.show(
       context,
-      title: '판매글 삭제',
-      message: '삭제해도 채팅방 대화는 유지돼요.\n진행하시겠어요?',
+      title: '판매글을 삭제할까요?',
+      message: '삭제해도 채팅방 대화는 유지돼요.',
       cancelLabel: '취소',
       confirmLabel: '삭제',
+      destructive: true,
     );
     if (ok != true || !mounted) return;
     try {
