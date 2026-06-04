@@ -1581,6 +1581,9 @@ public class GlobalPriceService {
         return byDay;
     }
 
+    // Caffeine 캐시 (30분 TTL) — 90일 히스토리+계수+PSA 등 무거운 read, 거래 데이터 없음. null 결과는 미캐시.
+    // PriceController(다른 빈)에서 호출되어 프록시 AOP 적용됨. 가격 cron(23:50) 후 TTL 만료로 자연 갱신.
+    @org.springframework.cache.annotation.Cacheable(value = "cardPriceSummary", key = "#cardId", unless = "#result == null")
     public CardPriceSummaryDto getCardPriceSummary(String cardId) {
         Card card = cardRepository.findById(cardId).orElse(null);
         if (card == null) return null;
