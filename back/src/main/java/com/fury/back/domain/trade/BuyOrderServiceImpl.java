@@ -286,14 +286,9 @@ public class BuyOrderServiceImpl implements BuyOrderService {
         if (bidPrice > TradeServiceImpl.ABSOLUTE_MAX_PRICE) {
             return "비정상적으로 높은 구매 희망가는 등록할 수 없습니다.";
         }
-        // 기준가 = UI koMid 와 정합 (KO_ESTIMATED → JP → EN). 프로모 직접가 고가 카드 차단 버그 fix.
-        Integer est = TradeServiceImpl.resolveKoReferencePrice(priceSnapshotRepository, cardId);
-        if (est == null) {
-            return bidPrice > 10_000_000 ? "10,000,000원을 초과하는 구매 희망가는 등록할 수 없습니다." : null;
-        }
-        long[] band = TradeServiceImpl.priceBand(est);
-        long upper = Math.min(band[1], TradeServiceImpl.ABSOLUTE_MAX_PRICE);
-        if (bidPrice > upper) {
+        // KO_ESTIMATED 있으면 타이트 밴드, 없으면(프로모/PSA-only) 표시값×3 느슨한 상한만 — 상한만 검사(하한 없음).
+        long[] range = TradeServiceImpl.resolveAllowedPriceRange(priceSnapshotRepository, cardId);
+        if (bidPrice > range[1]) {
             return "시세 대비 지나치게 높은 구매 희망가는 등록할 수 없습니다.";
         }
         return null;

@@ -178,23 +178,31 @@ public class TradeServiceImpl implements TradeService {
     static final long ABSOLUTE_MAX_PRICE = 100_000_000L;
 
     /**
-     * KO 검증 기준가 해석 — 화면 '대표 시세'({@code getCardPriceSummary().koMid})와 <b>동일한 행 선택</b>으로 맞춘다.
-     * <p>비프로모: KO_ESTIMATED. 프로모(KO_ESTIMATED 없음, OVERSEAS_REF): JP RAW → JP PSA10 → EN RAW —
-     * getCardPriceSummary 프로모 분기(jpRawSnap → jpPsa10Snap → enRawSnap)와 동일한 repo 메서드·순서.
-     * <p>★ {@code findFirstByCardIdAndSourceOrderByTradedAtDesc}(card_status 무관 최신)는 PSA9 같은 낮은 행을
-     * 잡아 시세를 과소평가 → 화면 시세(예: 마리오 피카츄 JP PSA10 4,500만)와 불일치, 정상 매수호가 차단 버그.
-     * findLatest* 들은 RAW/PSA10 등 화면과 같은 행을 고른다.
-     * @return 기준가(원) 또는 어떤 시장 ref 도 없으면 null
+     * 가격 허용 범위 [하한, 상한] — 카드 종류에 따라 가드 강도 분기 (사용자 정책 2026-06-05).
+     * <p><b>① KO_ESTIMATED(=KO RAW 기준가) 있음</b>(일반 카드): 기존 타이트 RAW 밴드({@link #priceBand}).
+     *    시세 교란/오입력 방지. 상한은 절대상한과 min.
+     * <p><b>② KO_ESTIMATED 없음</b>(프로모/PSA-only — 화면 표시값이 JP PSA10/PSA9 등 해외 graded 참고가):
+     *    RAW 적정가를 판정할 KO RAW 시세가 없으므로 <b>타이트 밴드 제거</b>. 하한 없음 + 상한 = min(참고가×3, 절대상한).
+     *    해외 PSA 참고가는 '적정가 밴드'가 아니라 fat-finger 방어용 느슨한 스케일로만 사용. 싼 프로모(예: 16만)는
+     *    ×3=48만 상한이라 1억 통과 안 됨(전부 1억 허용은 거부). 참고가 순서 = getCardPriceSummary 프로모 분기 동일.
+     * <p>③ 어떤 ref 도 없음: 보수적 절대 fallback 1천만.
      */
-    static Integer resolveKoReferencePrice(
+    static long[] resolveAllowedPriceRange(
             com.fury.back.domain.price.PriceSnapshotRepository repo, String cardId) {
         java.util.List<String> ids = java.util.List.of(cardId);
-        Integer p;
-        if ((p = firstPositivePrice(repo.findLatestKoEstimatedByCardIds(ids))) != null) return p;
-        if ((p = firstPositivePrice(repo.findLatestScrydexJpByCardIds(ids))) != null) return p;      // JP RAW
-        if ((p = firstPositivePrice(repo.findLatestScrydexJpPsa10ByCardIds(ids))) != null) return p; // JP PSA10 (프로모 RAW 없음)
-        if ((p = firstPositivePrice(repo.findLatestScrydexEnByCardIds(ids))) != null) return p;      // EN RAW
-        return null;
+        Integer ko = firstPositivePrice(repo.findLatestKoEstimatedByCardIds(ids));
+        if (ko != null) {
+            long[] band = priceBand(ko);
+            return new long[]{ band[0], Math.min(band[1], ABSOLUTE_MAX_PRICE) };
+        }
+        // RAW 기준가 없음 — 해외참고가(JP RAW → JP PSA10 → EN RAW)를 느슨한 스케일로만.
+        Integer ref = firstPositivePrice(repo.findLatestScrydexJpByCardIds(ids));
+        if (ref == null) ref = firstPositivePrice(repo.findLatestScrydexJpPsa10ByCardIds(ids));
+        if (ref == null) ref = firstPositivePrice(repo.findLatestScrydexEnByCardIds(ids));
+        long upper = (ref != null)
+                ? Math.min((long) ref * 3, ABSOLUTE_MAX_PRICE)
+                : 10_000_000L; // 어떤 ref 도 없음 — 보수적 fallback
+        return new long[]{ 0L, upper }; // 하한 없음 (RAW 적정 하한 판정 불가)
     }
 
     private static Integer firstPositivePrice(
@@ -213,14 +221,8 @@ public class TradeServiceImpl implements TradeService {
     private String validateListingPrice(String cardId, String cardStatus, int price) {
         if ("GRADED".equals(cardStatus)) return null;
         if (price > ABSOLUTE_MAX_PRICE) return "비정상적으로 높은 가격은 등록할 수 없습니다.";
-        Integer est = resolveKoReferencePrice(priceSnapshotRepository, cardId);
-        if (est == null) {
-            // 어떤 시장 ref 도 없는 카드 — 보수적 절대 fallback(1천만).
-            return price > 10_000_000 ? "비정상적으로 높은 가격은 등록할 수 없습니다." : null;
-        }
-        long[] band = priceBand(est);
-        long upper = Math.min(band[1], ABSOLUTE_MAX_PRICE);
-        if (price < band[0] || price > upper) {
+        long[] range = resolveAllowedPriceRange(priceSnapshotRepository, cardId);
+        if (price < range[0] || price > range[1]) {
             return "시세와 크게 동떨어진 가격은 등록할 수 없습니다.";
         }
         return null;
