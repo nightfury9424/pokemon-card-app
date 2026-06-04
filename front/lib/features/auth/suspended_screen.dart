@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/app_success_toast.dart';
-import 'auth_service.dart';
 
 /// 정지(suspended) 계정 전체 가림 게이트.
 /// - 진입: ApiClient 가 403 USER_SUSPENDED 감지 → AuthState.markSuspended → 라우터가 여기로.
@@ -86,15 +85,9 @@ class _SuspendedScreenState extends State<SuspendedScreen> {
     }
   }
 
-  Future<void> _logout() async {
-    final ok = await AppConfirmDialog.show(
-      context,
-      title: '로그아웃',
-      message: '로그아웃 하시겠습니까?',
-      confirmLabel: '로그아웃',
-    );
-    if (ok != true) return;
-    await AuthService.logout(); // markLoggedOut → 정지 상태 clear → 라우터 /login
+  void _quitApp() {
+    // 앱 종료 — iOS는 Apple 정책상 강제 종료 대신 백그라운드로 보냄(SystemNavigator.pop).
+    SystemNavigator.pop();
   }
 
   @override
@@ -226,8 +219,8 @@ class _SuspendedScreenState extends State<SuspendedScreen> {
                   ],
                   const SizedBox(height: 18),
                   TextButton(
-                    onPressed: _logout,
-                    child: const Text('로그아웃',
+                    onPressed: _quitApp,
+                    child: const Text('앱 종료하기',
                         style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
                   ),
                 ],

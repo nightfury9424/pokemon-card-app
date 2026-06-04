@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 
+import '../auth/auth_state.dart';
 import '../constants/api_constants.dart';
+import '../network/api_client.dart';
 import '../notifiers/chat_unread_notifier.dart';
 import '../router/app_router.dart';
 import '../storage/token_storage.dart';
@@ -22,6 +25,11 @@ class ChatSocketService {
   static StompClient? _client;
   static final _LifecycleObserver _lifecycle = _LifecycleObserver();
   static bool _observing = false;
+
+  /// foreground 정지 감지 poll — 관리자가 정지하면 재접 없이 그 즉시(최대 ~20s) 게이트로 잠금.
+  /// 정지자의 /api/users/me 는 allowlist 라 200 + suspended:true 로 오므로 body 검사.
+  static Timer? _suspendPoll;
+  static const Duration _suspendPollInterval = Duration(seconds: 20);
 
   /// 현재 열려있는 채팅방 id — 그 방의 메시지면 inbox 배너 억제(방 안에선 bubble 로 보임).
   /// chat_room_screen 의 initState 에서 set, dispose 에서 clear.
@@ -47,6 +55,29 @@ class ChatSocketService {
       WidgetsBinding.instance.addObserver(_lifecycle);
       _observing = true;
     }
+    _startSuspendPoll();
+  }
+
+  /// 정지 감지 poll 시작(중복 가드). connect 시 + resume 시 호출.
+  static void _startSuspendPoll() {
+    _suspendPoll?.cancel();
+    _suspendPoll = Timer.periodic(_suspendPollInterval, (_) => _checkSuspended());
+  }
+
+  /// /me 의 suspended 플래그 검사 → true 면 즉시 게이트(markSuspended). 이미 정지면 skip.
+  static Future<void> _checkSuspended() async {
+    if (!AuthState.instance.loggedIn || AuthState.instance.suspended) return;
+    try {
+      final res = await ApiClient.get('/api/users/me');
+      final data = res['data'] as Map<String, dynamic>?;
+      if (data != null && data['suspended'] == true) {
+        AuthState.instance.markSuspended(
+          reason: (data['suspensionReason'] as String?)?.trim(),
+        );
+      }
+    } catch (_) {
+      // 네트워크 오류는 무시(다음 tick 재시도). 가변 mutation 은 어차피 403 으로 막힘.
+    }
   }
 
   /// 앱 복귀(resumed) — iOS 가 백그라운드에서 TCP 소켓을 조용히 끊어도 라이브러리가
@@ -60,6 +91,8 @@ class ChatSocketService {
     _client = null;
     connect();
     ChatUnreadNotifier.instance.notifyChanged();
+    // 백그라운드 동안 정지됐을 수 있으니 복귀 즉시 1회 확인(poll tick 기다리지 않음).
+    _checkSuspended();
   }
 
   static void _onConnect(StompFrame frame) {
@@ -101,6 +134,8 @@ class ChatSocketService {
       WidgetsBinding.instance.removeObserver(_lifecycle);
       _observing = false;
     }
+    _suspendPoll?.cancel();
+    _suspendPoll = null;
     try {
       _client?.deactivate();
     } catch (_) {}
