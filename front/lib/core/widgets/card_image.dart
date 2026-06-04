@@ -270,7 +270,9 @@ class _RetryingNetworkImage extends StatefulWidget {
 }
 
 class _RetryingNetworkImageState extends State<_RetryingNetworkImage> {
-  static const _maxRetries = 2;
+  // 셀룰러/통화 중 일시 실패로 이미지가 있는데도 "이미지 없음"으로 굳던 문제 → 재시도 2→4.
+  // (근본 속도/실패율은 CDN 도입이 해결. 여기선 회복력만 강화.)
+  static const _maxRetries = 4;
   int _attempt = 0;
 
   @override

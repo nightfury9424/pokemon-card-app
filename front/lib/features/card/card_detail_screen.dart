@@ -4926,23 +4926,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     );
   }
 
-  Color _rarityColor(String rarity) {
-    switch (rarity) {
-      case 'SAR':
-      case 'SSR':
-        return const Color(0xFFFFD700);
-      case 'BWR':
-        return const Color(0xFFE8F5E9);
-      case 'CSR':
-      case 'CHR':
-        return const Color(0xFF00BCD4);
-      case 'SR':
-      case 'UR':
-        return const Color(0xFF9C27B0);
-      default:
-        return Colors.white54;
-    }
-  }
+  // 레어도 칩 색 — 앱 전역 단일 소스(AppColors.rarityColor)로 통일.
+  // (이전: 자체 switch 라 SSR 이 캐러셀=빨강 vs 상세=노랑 으로 불일치하던 버그.)
+  Color _rarityColor(String rarity) => AppColors.rarityColor(rarity);
 
   Widget _buildNoUsefulChartBox(String reason) {
     final msg = reason == 'FLAT_DATA'
