@@ -436,9 +436,11 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      // sheet 모드: 키보드 시 Scaffold resize 대신 스크롤뷰가 입력칸 노출 (sheet 높이 깨짐 방지).
-      resizeToAvoidBottomInset: widget.sheetScrollController == null,
+      // 키보드 시 body 가 키보드 위로 줄어듦(챗방처럼) → 포커스된 입력칸이 키보드에 안 가림.
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
+        // sheet 모드는 상태바 아래 떠 있으므로 top inset 불필요(제목 위 빈 밴드 제거). bottom 은 유지.
+        top: widget.sheetScrollController == null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
