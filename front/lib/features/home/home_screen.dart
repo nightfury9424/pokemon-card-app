@@ -330,12 +330,19 @@ class _HomeScreenState extends State<HomeScreen> {
       HomeSessionCache.hotCards = _hotCards;
       HomeSessionCache.hasData = true;
     }
-    // 첫 진입: 데이터(위에서 await 완료) + 보이는 캐러셀 이미지가 캐시되면 홈을 한 번에 노출(팝인 방지).
-    // 빠르게 — 1.2초 타임아웃 fallback. 느린 네트워크에서도 멈춤 없이 곧 보여줌. 이후/새로고침엔 비차단.
+    // 첫 진입: 깨진 빈 캐러셀("데이터 못불러옴")을 보이지 않게 — 캐러셀 데이터가 실제로 준비됐을 때만
+    // 전체 스플래시를 걷고 노출. 데이터 미도착/실패면 스플래시 유지 + 자동 재시도(네트워크 회복 시 노출).
     if (!_revealed) {
-      await _precacheCarousels()
-          .timeout(const Duration(milliseconds: 1200), onTimeout: () {});
-      if (mounted) setState(() => _revealed = true);
+      if (_hasCarouselData) {
+        await _precacheCarousels()
+            .timeout(const Duration(milliseconds: 1200), onTimeout: () {});
+        if (mounted) setState(() => _revealed = true);
+      } else if (mounted) {
+        // 데이터 없음 → 노출 보류(스플래시 유지) + 2초 후 재시도.
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted && !_revealed) _loadAll();
+        });
+      }
     } else {
       unawaited(_precacheCarousels());
     }
@@ -502,13 +509,21 @@ class _HomeScreenState extends State<HomeScreen> {
         slivers: [
           _buildAppBar(),
           // B2-11: 미입력 실거래가 슬림 배너 (있을 때만). 탭 → 해당 챗방.
+          // ★ key 필수 — 이 배너가 async 로 나중에 삽입되면 sliver 리스트 위치가 밀려서
+          //   key 없으면 캐러셀 sliver element 가 재배치→subtree rebuild→CardImage reload→회색.
+          //   key 로 위치 무관하게 캐러셀/히어로 State 보존.
           if (_pendingSettlements.isNotEmpty)
-            SliverToBoxAdapter(child: _buildSettlementBanner()),
+            SliverToBoxAdapter(
+                key: const ValueKey('home-settlement'),
+                child: _buildSettlementBanner()),
           // 1) 카드 랭킹 캐러셀
-          SliverToBoxAdapter(child: _buildCarousel()),
+          SliverToBoxAdapter(
+              key: const ValueKey('home-carousel'), child: _buildCarousel()),
           // 2) 내 자산 hero (자산 백그라운드 로드 완료 시 등장)
           if (_userId != null)
-            SliverToBoxAdapter(child: _buildHeroSection()),
+            SliverToBoxAdapter(
+                key: const ValueKey('home-hero'),
+                child: _buildHeroSection()),
           const SliverToBoxAdapter(child: SizedBox(height: 48)),
         ],
       ),
@@ -893,6 +908,11 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  /// 첫 진입 노출 게이트 — 현재 표시할 탭의 캐러셀에 아이템이 있는지(없으면 스플래시 유지).
+  bool get _hasCarouselData =>
+      (_carouselTab == 0 ? _myCardCarouselItems() : _marketCarouselItems())
+          .isNotEmpty;
 
   List<Map<String, dynamic>> _myCardCarouselItems() {
     if (_myAssets.isEmpty) {
