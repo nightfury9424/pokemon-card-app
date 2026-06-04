@@ -56,6 +56,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   bool _loading = true;
   // 카드 단위 찜(관심) — AppBar 우상단 하트. /api/card-interests.
   bool _liked = false;
+  // AppBar 아이콘 splash 원 제거 — 리스트 하트(GestureDetector)처럼 깔끔하게.
+  static const ButtonStyle _noSplash = ButtonStyle(
+    overlayColor: WidgetStatePropertyAll(Colors.transparent),
+    splashFactory: NoSplash.splashFactory,
+  );
   Map<String, dynamic>? _cardDetail;
   Map<String, dynamic>? _priceSummary;
   Map<String, dynamic>? _localAsset;
@@ -852,6 +857,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               //   기존: arrow_back(굵음) + favorite_rounded(얇음) + delete white38(흐림) → 제각각.
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back, size: 24, color: Colors.white),
+                style: _noSplash,
                 onPressed: () => context.pop(),
               ),
               actions: [
@@ -861,11 +867,13 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     size: 24,
                     color: _liked ? AppColors.red : Colors.white,
                   ),
+                  style: _noSplash,
                   onPressed: _toggleInterest,
                 ),
                 if (_localAsset != null)
                   IconButton(
                     icon: const Icon(Icons.delete_outline, size: 24, color: Colors.white),
+                    style: _noSplash,
                     onPressed: () => _confirmDeleteAsset(),
                   ),
               ],
