@@ -1,6 +1,34 @@
+import 'dart:collection';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../network/api_client.dart';
+
+/// 프사/업로드 이미지 세션 메모리 LRU 캐시 (2026-06-05).
+/// AuthImage 가 매 렌더마다 JWT 프록시로 재다운로드하던 문제 fix — 동일 URL 은 세션 내 1회만
+/// 받고, 채팅목록 스크롤·재진입·여러 방의 같은 유저 프사는 즉시 표시(placeholder flash 없음).
+/// 프로세스 생존 동안만 유지. 프사 변경 시 [evict] 로 무효화.
+class _AuthImageMemCache {
+  _AuthImageMemCache._();
+  static final LinkedHashMap<String, Uint8List> _mem = LinkedHashMap();
+  static const int _maxEntries = 200;
+
+  static Uint8List? get(String url) {
+    final v = _mem.remove(url);
+    if (v != null) _mem[url] = v; // LRU 터치
+    return v;
+  }
+
+  static void put(String url, Uint8List bytes) {
+    _mem.remove(url);
+    _mem[url] = bytes;
+    while (_mem.length > _maxEntries) {
+      _mem.remove(_mem.keys.first);
+    }
+  }
+
+  // ignore: unused_element
+  static void evict(String url) => _mem.remove(url);
+}
 
 /// JWT Authorization header를 자동 부착해서 사용자 업로드 이미지(/api/images/secure/**)
 /// 를 로드하는 Image 위젯.
@@ -36,12 +64,18 @@ class AuthImage extends StatefulWidget {
 }
 
 class _AuthImageState extends State<AuthImage> {
-  late Future<Uint8List?> _future;
+  Uint8List? _cached; // 메모리 캐시 히트 시 즉시 표시(placeholder flash 없음)
+  Future<Uint8List?>? _future;
 
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _init();
+  }
+
+  void _init() {
+    _cached = _AuthImageMemCache.get(widget.url);
+    _future = _cached != null ? null : _load();
   }
 
   @override
@@ -49,24 +83,36 @@ class _AuthImageState extends State<AuthImage> {
     super.didUpdateWidget(old);
     // URL 바뀌면(예: 같은 세션에서 프사 변경) 새로 로드 — stale 이미지 방지.
     if (old.url != widget.url) {
-      _future = _load();
+      setState(_init);
     }
   }
 
   Future<Uint8List?> _load() async {
-    debugPrint('[AuthImage] download start url=${widget.url}');
     try {
       final bytes = await ApiClient.downloadBytes(widget.url);
-      debugPrint('[AuthImage] download done bytes=${bytes?.length} url=${widget.url}');
-      return bytes != null ? Uint8List.fromList(bytes) : null;
-    } catch (e) {
-      debugPrint('[AuthImage] download error url=${widget.url} err=$e');
+      if (bytes == null) return null;
+      final data = Uint8List.fromList(bytes);
+      // 정상 이미지(>=100B)만 캐시 — 에러 응답 본문 등 캐싱 방지.
+      if (data.length >= 100) _AuthImageMemCache.put(widget.url, data);
+      return data;
+    } catch (_) {
       return null;
     }
   }
 
+  Widget _imageOf(Uint8List bytes) => Image.memory(
+        bytes,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        gaplessPlayback: true,
+        errorBuilder: widget.errorBuilder,
+      );
+
   @override
   Widget build(BuildContext context) {
+    // 캐시 히트 → 즉시 렌더(다운로드/placeholder 없음).
+    if (_cached != null && _cached!.length >= 100) return _imageOf(_cached!);
     return FutureBuilder<Uint8List?>(
       future: _future,
       builder: (ctx, snap) {
@@ -79,21 +125,14 @@ class _AuthImageState extends State<AuthImage> {
           );
         }
         final bytes = snap.data;
-        // B3-10: null/빈 값뿐 아니라 비정상 작은 바이트(에러 응답 본문 등)도 에러 처리 →
-        // Image.memory 가 깨진 글리프를 렌더하지 않고 errorBuilder(기본 아바타)로 폴백.
+        // B3-10: null/빈 값뿐 아니라 비정상 작은 바이트(에러 응답 본문 등)도 에러 처리.
         if (bytes == null || bytes.length < 100) {
           if (widget.errorBuilder != null) {
             return widget.errorBuilder!(ctx, snap.error ?? 'no bytes', null);
           }
           return SizedBox(width: widget.width, height: widget.height);
         }
-        return Image.memory(
-          bytes,
-          width: widget.width,
-          height: widget.height,
-          fit: widget.fit,
-          errorBuilder: widget.errorBuilder,
-        );
+        return _imageOf(bytes);
       },
     );
   }
