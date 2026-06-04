@@ -431,7 +431,11 @@ public class AdminController {
             m.put("nickname",  u.getNickname());
             m.put("email",     u.getEmail());
             m.put("createdAt", u.getCreatedAt());
-            m.put("status",    "ACTIVE");
+            // 정지 상태 반영 — 하드코딩 "ACTIVE" 버그 fix. admin Users.jsx 는 status==='BANNED' || suspended 로 정지해제 버튼 노출.
+            boolean suspended = u.isSuspended();
+            m.put("status",          suspended ? "BANNED" : "ACTIVE");
+            m.put("suspended",       suspended);
+            m.put("suspensionReason", u.getSuspensionReason());
             m.put("scanCount",  0);
             m.put("tradeCount", 0);
             content.add(m);
