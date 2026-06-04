@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
+import '../../core/notifiers/home_session_cache.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/rarity.dart';
 import '../../core/utils/price_label.dart';
@@ -78,7 +79,14 @@ class _HomeScreenState extends State<HomeScreen> {
     _carouselController = PageController(viewportFraction: 0.6, initialPage: _kCarouselStart);
     _marketCarouselController = PageController(viewportFraction: 0.6, initialPage: _kCarouselStart);
     AssetNotifier.instance.addListener(_onExternalChange);
-    _loadAll();
+    // 탭 전환으로 State 가 재생성돼도(ShellRoute) 세션 캐시가 있으면 스플래시/회색박스 없이
+    // 즉시 캐시 렌더 + silent refresh. 캐시 없으면(앱 첫 실행) 기존 첫 진입 로딩.
+    if (HomeSessionCache.hasData) {
+      _seedFromCache();
+      _loadAll(silent: true);
+    } else {
+      _loadAll();
+    }
     _startAutoAdvance();
     // B2-16: 일일 시세 안내(예상가치 고지). 하루 1회.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -133,6 +141,21 @@ class _HomeScreenState extends State<HomeScreen> {
     if (changed == true && mounted) _loadData();
   }
 
+  /// 세션 캐시에서 즉시 시드 — initState 에서 첫 build 전 호출(setState 불필요).
+  /// _revealed=true / _loading=false 로 들어가 스플래시·skeleton 없이 캐시 컨텐츠를 바로 렌더.
+  void _seedFromCache() {
+    _topCards = List<Map<String, dynamic>>.from(HomeSessionCache.topCards);
+    _hotCards = List<Map<String, dynamic>>.from(HomeSessionCache.hotCards);
+    _topGainerCards =
+        List<Map<String, dynamic>>.from(HomeSessionCache.topGainerCards);
+    _recentTrades = List<Map<String, dynamic>>.from(HomeSessionCache.recentTrades);
+    _myAssets = List<Map<String, dynamic>>.from(HomeSessionCache.myAssets);
+    _portfolio = HomeSessionCache.portfolio;
+    _userId = HomeSessionCache.userId;
+    _loading = false;
+    _revealed = true;
+  }
+
   Future<void> _loadAll({bool silent = false}) async {
     if (!mounted) return;
     final seq = ++_loadSeq;
@@ -158,14 +181,15 @@ class _HomeScreenState extends State<HomeScreen> {
       await Future.wait([
         () async {
           try {
+            // uid 없음(/me 일시 실패 등)이면 null → 기존(캐시) 자산 유지. 빈 배열로 안 덮음.
             assetRes = uid != null
                 ? await ApiClient.get(
                     ApiConstants.assets,
                     params: {'userId': uid},
                   )
-                : {'data': []};
+                : null;
           } catch (_) {
-            assetRes = {'data': []};
+            assetRes = null; // 실패 → 기존(캐시) 자산 유지, hero 안 비움
           }
         }(),
         () async {
@@ -182,9 +206,19 @@ class _HomeScreenState extends State<HomeScreen> {
       if (seq != _loadSeq || !mounted) return;
       setState(() {
         _userId = uid;
-        _myAssets = List<Map<String, dynamic>>.from(assetRes?['data'] ?? []);
-        _portfolio = portfolioRes?['data'] as Map<String, dynamic>?;
+        // 실패(assetRes/portfolioRes == null) 시 기존 값 유지 — silent refresh 중 hero 안 비움.
+        if (assetRes != null) {
+          _myAssets = List<Map<String, dynamic>>.from(assetRes?['data'] ?? []);
+        }
+        if (portfolioRes != null) {
+          _portfolio = portfolioRes?['data'] as Map<String, dynamic>?;
+        }
       });
+      if (uid != null) {
+        HomeSessionCache.userId = _userId;
+        HomeSessionCache.myAssets = _myAssets;
+        HomeSessionCache.portfolio = _portfolio;
+      }
     }());
 
     // ── 캐러셀 임계 경로: 힛카드(시장) + 호가만 await → 도착 즉시 _loading=false.
@@ -202,12 +236,12 @@ class _HomeScreenState extends State<HomeScreen> {
           params: {'size': 10},
         );
         if (!mounted || seq != _loadSeq) return;
-        setState(() {
-          _topGainerCards = list
-              .whereType<Map>()
-              .map((card) => Map<String, dynamic>.from(card))
-              .toList();
-        });
+        final gainers = list
+            .whereType<Map>()
+            .map((card) => Map<String, dynamic>.from(card))
+            .toList();
+        setState(() => _topGainerCards = gainers);
+        HomeSessionCache.topGainerCards = gainers;
       } catch (_) {}
     }());
     // 보조 섹션(캐러셀 비차단): 최근 거래 요약.
@@ -218,10 +252,10 @@ class _HomeScreenState extends State<HomeScreen> {
           params: {'size': 6},
         );
         if (!mounted || seq != _loadSeq) return;
-        setState(() {
-          _recentTrades =
-              (tradeRes['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-        });
+        final trades =
+            (tradeRes['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        setState(() => _recentTrades = trades);
+        HomeSessionCache.recentTrades = trades;
       } catch (_) {}
     }());
 
@@ -285,10 +319,17 @@ class _HomeScreenState extends State<HomeScreen> {
     // 더 최신 load가 시작됐다면 stale 응답이므로 무시.
     if (seq != _loadSeq) return;
     setState(() {
-      _topCards = topCards;
-      _hotCards = hotCards;
+      // 빈 응답(네트워크 실패 등)은 기존 캐러셀 유지 — 회색박스로 비우지 않음(특히 silent refresh).
+      if (topCards.isNotEmpty) _topCards = topCards;
+      if (hotCards.isNotEmpty) _hotCards = hotCards;
       _loading = false;
     });
+    // 캐시 기록 — 다음 탭 복귀 시 즉시 시드(스플래시/회색박스 제거). 빈 데이터면 기록 안 함.
+    if (_topCards.isNotEmpty || _hotCards.isNotEmpty) {
+      HomeSessionCache.topCards = _topCards;
+      HomeSessionCache.hotCards = _hotCards;
+      HomeSessionCache.hasData = true;
+    }
     // 첫 진입: 데이터(위에서 await 완료) + 보이는 캐러셀 이미지가 캐시되면 홈을 한 번에 노출(팝인 방지).
     // 빠르게 — 1.2초 타임아웃 fallback. 느린 네트워크에서도 멈춤 없이 곧 보여줌. 이후/새로고침엔 비차단.
     if (!_revealed) {

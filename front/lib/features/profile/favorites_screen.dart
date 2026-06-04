@@ -171,10 +171,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CardImage(imageUrl: imageUrl, width: 44, height: 60, fit: BoxFit.cover),
-            ),
+            CardThumb(imageUrl: imageUrl, width: 44, height: 60),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -266,10 +263,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CardImage(imageUrl: imageUrl, width: 44, height: 60, fit: BoxFit.cover),
-            ),
+            CardThumb(imageUrl: imageUrl, width: 44, height: 60),
             const SizedBox(width: 14),
             Expanded(
               child: Column(

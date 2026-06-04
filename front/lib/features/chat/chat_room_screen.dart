@@ -35,10 +35,16 @@ class ChatRoomScreen extends StatefulWidget {
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
 
-class _ChatRoomScreenState extends State<ChatRoomScreen> {
+class _ChatRoomScreenState extends State<ChatRoomScreen>
+    with WidgetsBindingObserver {
   final _inputController = TextEditingController();
   final _scrollController = ScrollController();
   final List<Map<String, dynamic>> _messages = [];
+
+  // 키보드 open/close · 새 메시지 시 바닥 재고정 판정용. 사용자가 최신 메시지 근처를
+  // 보고 있었을 때만 바닥으로 따라붙는다(과거 대화 스크롤 중엔 강제 점프 금지).
+  bool _isNearBottom = true;
+  double _lastViewInsetBottom = 0;
 
   StompClient? _stompClient;
   String? _myUserId;
@@ -86,7 +92,30 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     super.initState();
     // 이 방을 보는 동안 전역 inbox 배너 억제 (방 안에선 메시지 bubble 로 보임).
     ChatSocketService.activeRoomId = widget.roomId;
+    // 키보드 inset 변화 감지(didChangeMetrics) + 바닥 근접 추적(_onScroll).
+    WidgetsBinding.instance.addObserver(this);
+    _scrollController.addListener(_onScroll);
     _init();
+  }
+
+  /// 스크롤 위치 추적 — 바닥에서 120px 이내면 "최신 근처"로 간주.
+  /// 키보드 변화·새 메시지 수신 시 이 플래그가 true 일 때만 자동으로 바닥 고정.
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    _isNearBottom = (pos.maxScrollExtent - pos.pixels) <= 120;
+  }
+
+  /// 키보드 open/close(viewInsets.bottom 변화) 감지 → 직전에 바닥 근처였다면
+  /// 레이아웃 갱신 후 최신 메시지로 다시 붙인다. 과거 대화 보는 중엔 유지.
+  /// (resizeToAvoidBottomInset 가 body 를 리사이즈하지만 스크롤 오프셋은 자동 재고정 안 됨.)
+  @override
+  void didChangeMetrics() {
+    if (!mounted) return;
+    final inset = View.of(context).viewInsets.bottom; // physical px — 변화 감지용
+    if (inset == _lastViewInsetBottom) return;
+    _lastViewInsetBottom = inset;
+    if (_isNearBottom) _scrollToBottom(animated: true);
   }
 
   Future<void> _init() async {
@@ -287,7 +316,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   return;
                 }
                 setState(() => _messages.add(msg));
-                _scrollToBottom();
+                // 내 메시지는 항상 바닥으로(방금 내가 보냄). 상대 메시지는 바닥 근처일 때만
+                // 따라붙고, 과거 대화 보는 중이면 강제 점프 안 함.
+                if (msg['senderUserId'] == _myUserId || _isNearBottom) {
+                  _scrollToBottom();
+                }
                 // B3-3: 내 메시지가 나가면 백엔드가 나간 상대를 재초대(clearHiddenForUser) →
                 // "상대방이 나갔어요" 배너(conversation-state notice) 재조회로 즉시 사라지게.
                 if (msg['senderUserId'] == _myUserId && _blockNotice != null) {
@@ -595,6 +628,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     if (ChatSocketService.activeRoomId == widget.roomId) {
       ChatSocketService.activeRoomId = null;
     }
+    WidgetsBinding.instance.removeObserver(this);
+    _scrollController.removeListener(_onScroll);
     _stompClient?.deactivate();
     _inputController.dispose();
     _scrollController.dispose();

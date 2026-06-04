@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../constants/api_constants.dart';
+import '../theme/app_colors.dart';
 
 const _cardBackUrl = 'https://images.scrydex.com/pokemon/card-back/medium';
 
@@ -295,6 +296,49 @@ class _RetryingNetworkImageState extends State<_RetryingNetworkImage> {
         }
         return widget.unavailable;
       },
+    );
+  }
+}
+
+/// 카드 썸네일 받침대 — 다크 배경(AppColors.bg) 위에 카드가 받침 없이 떠/잘려 붙은 느낌이
+/// 나지 않도록 surface 배경 + 약한 border 로 감싼다. 카드 이미지 자체는 [width]×[height] 유지하고
+/// 받침대만 [padding] 만큼 바깥으로 약간 커진다(이미지 축소 X). 거래 리스트·관심목록 썸네일용.
+class CardThumb extends StatelessWidget {
+  final String? imageUrl;
+  final double width;
+  final double height;
+  final double padding;
+  final double radius;
+
+  const CardThumb({
+    super.key,
+    required this.imageUrl,
+    required this.width,
+    required this.height,
+    this.padding = 3,
+    this.radius = 10,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(padding),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: AppColors.divider.withValues(alpha: 0.6),
+          width: 0.5,
+        ),
+      ),
+      child: CardImage(
+        imageUrl: imageUrl,
+        width: width,
+        height: height,
+        fit: BoxFit.cover,
+        borderRadius:
+            BorderRadius.circular((radius - padding).clamp(4.0, radius)),
+      ),
     );
   }
 }

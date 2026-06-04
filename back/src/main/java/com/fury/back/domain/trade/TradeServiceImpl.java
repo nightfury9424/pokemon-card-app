@@ -174,23 +174,44 @@ public class TradeServiceImpl implements TradeService {
         return ReturnData.success(dto);
     }
 
+    /** 시스템 보호 절대 상한 — 기준가 유무와 무관하게 이 금액 초과는 시장 교란으로 차단. */
+    static final long ABSOLUTE_MAX_PRICE = 100_000_000L;
+
+    /**
+     * KO 검증 기준가 해석 — UI 가 보여주는 {@code getCardPriceSummary().koMid} 와 정합하게 맞춘다.
+     * <p>KO_ESTIMATED 우선, 없으면(프로모 직접가 카드 등 — KO 추정 모델 미적용, OVERSEAS_REF)
+     * koMid 가 JP/EN RAW 직접가이므로 검증 base 도 동일하게 SCRYDEX_JP → SCRYDEX_EN 폴백.
+     * 이전엔 KO_ESTIMATED 단일 조회라 프로모 고가 카드(판쵸 피카츄 등 15장)가 전부 1천만 캡에 걸렸음.
+     * @return 기준가(원) 또는 어떤 시장 ref 도 없으면 null
+     */
+    static Integer resolveKoReferencePrice(
+            com.fury.back.domain.price.PriceSnapshotRepository repo, String cardId) {
+        for (String src : new String[]{"KO_ESTIMATED", "SCRYDEX_JP", "SCRYDEX_EN"}) {
+            Integer p = repo.findFirstByCardIdAndSourceOrderByTradedAtDesc(cardId, src)
+                    .map(com.fury.back.domain.price.PriceSnapshot::getPrice)
+                    .orElse(null);
+            if (p != null && p > 0) return p;
+        }
+        return null;
+    }
+
     /**
      * 매물 가격 sanity 검증 — 시장 교란 방지. 범위 밖이면 에러 메시지 반환(null=정상).
      *  - GRADED: KO 예상가가 RAW 기준이라 부정확 → skip.
-     *  - 금액대별 유동 밴드: 저가는 노이즈 커서 느슨, 고가는 ±50% 로 수렴.
-     *  - 예상가 없음: 절대 상한(1천만)만.
+     *  - 기준가({@link #resolveKoReferencePrice}) 기준 금액대별 유동 밴드: 저가는 느슨, 고가는 ±50% 수렴.
+     *  - 절대 상한({@link #ABSOLUTE_MAX_PRICE}) 항상 적용. 기준가 없는 카드만 1천만 fallback.
      */
     private String validateListingPrice(String cardId, String cardStatus, int price) {
         if ("GRADED".equals(cardStatus)) return null;
-        Integer est = priceSnapshotRepository
-                .findFirstByCardIdAndSourceOrderByTradedAtDesc(cardId, "KO_ESTIMATED")
-                .map(com.fury.back.domain.price.PriceSnapshot::getPrice)
-                .orElse(null);
-        if (est == null || est <= 0) {
+        if (price > ABSOLUTE_MAX_PRICE) return "비정상적으로 높은 가격은 등록할 수 없습니다.";
+        Integer est = resolveKoReferencePrice(priceSnapshotRepository, cardId);
+        if (est == null) {
+            // 어떤 시장 ref 도 없는 카드 — 보수적 절대 fallback(1천만).
             return price > 10_000_000 ? "비정상적으로 높은 가격은 등록할 수 없습니다." : null;
         }
         long[] band = priceBand(est);
-        if (price < band[0] || price > band[1]) {
+        long upper = Math.min(band[1], ABSOLUTE_MAX_PRICE);
+        if (price < band[0] || price > upper) {
             return "시세와 크게 동떨어진 가격은 등록할 수 없습니다.";
         }
         return null;

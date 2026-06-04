@@ -283,15 +283,17 @@ public class BuyOrderServiceImpl implements BuyOrderService {
      */
     private String validateBidPrice(String cardId, String cardStatus, int bidPrice) {
         if ("GRADED".equals(cardStatus)) return null;
-        Integer est = priceSnapshotRepository
-                .findFirstByCardIdAndSourceOrderByTradedAtDesc(cardId, "KO_ESTIMATED")
-                .map(com.fury.back.domain.price.PriceSnapshot::getPrice)
-                .orElse(null);
-        if (est == null || est <= 0) {
+        if (bidPrice > TradeServiceImpl.ABSOLUTE_MAX_PRICE) {
+            return "비정상적으로 높은 구매 희망가는 등록할 수 없습니다.";
+        }
+        // 기준가 = UI koMid 와 정합 (KO_ESTIMATED → JP → EN). 프로모 직접가 고가 카드 차단 버그 fix.
+        Integer est = TradeServiceImpl.resolveKoReferencePrice(priceSnapshotRepository, cardId);
+        if (est == null) {
             return bidPrice > 10_000_000 ? "10,000,000원을 초과하는 구매 희망가는 등록할 수 없습니다." : null;
         }
         long[] band = TradeServiceImpl.priceBand(est);
-        if (bidPrice > band[1]) {
+        long upper = Math.min(band[1], TradeServiceImpl.ABSOLUTE_MAX_PRICE);
+        if (bidPrice > upper) {
             return "시세 대비 지나치게 높은 구매 희망가는 등록할 수 없습니다.";
         }
         return null;

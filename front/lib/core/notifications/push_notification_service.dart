@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../network/api_client.dart';
 import '../notifiers/chat_unread_notifier.dart';
 import '../router/app_router.dart';
+import 'chat_socket_service.dart';
 import 'in_app_notification.dart';
 
 /// FCM 푸시 알림 — 기기 토큰 등록 + 수신/탭 처리.
@@ -106,10 +107,15 @@ class PushNotificationService {
     // 채팅 수신 → 배너 표시 여부와 무관하게 목록/하단탭 unread 즉시 갱신 (foreground 잔존 버그 fix).
     if (message.data['type'] == 'CHAT') {
       ChatUnreadNotifier.instance.notifyChanged();
+      // 이미 그 채팅방에 들어와 있으면 배너 억제 — 방 안에선 메시지 bubble 로 보임.
+      // URI 문자열 비교(_isCurrentLocation)보다 신뢰성 있는 activeRoomId 단일 신호로
+      // STOMP inbox 경로와 통일 (chat_room_screen 의 set/clear 가 진실원).
+      final roomId = message.data['roomId']?.toString();
+      if (roomId != null && roomId == ChatSocketService.activeRoomId) return;
     }
     if (title.isEmpty && body.isEmpty) return;
     final target = _routePathFor(message.data);
-    if (target != null && _isCurrentLocation(target)) return; // 이미 그 채팅방 등
+    if (target != null && _isCurrentLocation(target)) return; // 이미 그 채팅방 등(TRADE 등 보조 가드)
     InAppNotification.show(
       title: title,
       body: body,

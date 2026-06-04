@@ -3,6 +3,7 @@ import 'core/auth/auth_state.dart';
 import 'core/network/api_client.dart';
 import 'core/notifications/chat_socket_service.dart';
 import 'core/notifications/push_notification_service.dart';
+import 'core/notifiers/home_session_cache.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/token_storage.dart';
 import 'core/theme/app_colors.dart';
@@ -25,6 +26,7 @@ Future<void> main() async {
     if (info.isAuthError) {
       // 토큰 만료 → 다음 요청 자동 안 보내도록 토큰 폐기 + 라우터 상태 갱신
       TokenStorage.delete();
+      HomeSessionCache.clear(); // 재로그인 시 이전 유저 자산/포트폴리오 홈 잔존 방지(logout 경로와 동일)
       AuthState.instance.markLoggedOut();
     }
   });

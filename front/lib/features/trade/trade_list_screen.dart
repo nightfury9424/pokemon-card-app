@@ -681,14 +681,11 @@ class _TradeListScreenState extends State<TradeListScreen> {
               const SizedBox(width: 8),
             ],
             // 카드 thumbnail — 직사각형 유지 (원형 crop은 카드 아트 잘림)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CardImage(
-                imageUrl: resolveCardImageUrl(card),
-                width: 44,
-                height: 60,
-                fit: BoxFit.cover,
-              ),
+            // 다크 배경 위에 떠 보이지 않게 surface 받침대(CardThumb)로 감쌈. 이미지 크기 유지.
+            CardThumb(
+              imageUrl: resolveCardImageUrl(card),
+              width: 44,
+              height: 60,
             ),
             const SizedBox(width: 14),
             // 카드명+rarity(위) → 가격·변동률(중간) → 거래 시그널(아래) 3행 패턴.
