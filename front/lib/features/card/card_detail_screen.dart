@@ -853,44 +853,79 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               foregroundColor: Colors.white,
               expandedHeight: heroExpandedHeight,
               pinned: true,
-              // 우상단 아이콘 — 뒤로/하트/삭제 크기·색·굵기 통일(standard outline 셋, size 24, white).
-              //   기존: arrow_back(굵음) + favorite_rounded(얇음) + delete white38(흐림) → 제각각.
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, size: 24, color: Colors.white),
-                style: _noSplash,
-                onPressed: () => context.pop(),
-              ),
-              actions: [
-                IconButton(
-                  icon: Icon(
-                    _liked ? Icons.favorite : Icons.favorite_border,
-                    size: 24,
-                    color: _liked ? AppColors.red : Colors.white,
-                  ),
-                  style: _noSplash,
-                  onPressed: _toggleInterest,
-                ),
-                if (_localAsset != null)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 24, color: Colors.white),
-                    style: _noSplash,
-                    onPressed: () => _confirmDeleteAsset(),
-                  ),
-              ],
+              // 아이콘(뒤로/하트/삭제)을 toolbar(고정)가 아니라 히어로 위 overlay 로 두고,
+              //   collapse 비율로 opacity fade → 스크롤하면 아이콘만 사라짐(따라오지 않음).
+              //   구조(pinned·toolbarHeight·collapseMode·TabBar)는 그대로라 상태바/탭바 안전.
+              automaticallyImplyLeading: false,
               flexibleSpace: FlexibleSpaceBar(
                 collapseMode: CollapseMode.pin,
-                background: _buildCardHeroFull(
-                  data,
-                  name,
-                  rarity,
-                  number,
-                  productName,
-                  seriesName,
-                  productType,
-                  imageUrl,
-                  cardWidth: cardWidth,
-                  cardHeight: cardHeight,
-                  topPadding: heroTopPadding,
+                background: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildCardHeroFull(
+                      data,
+                      name,
+                      rarity,
+                      number,
+                      productName,
+                      seriesName,
+                      productType,
+                      imageUrl,
+                      cardWidth: cardWidth,
+                      cardHeight: cardHeight,
+                      topPadding: heroTopPadding,
+                    ),
+                    Builder(builder: (fctx) {
+                      final s = fctx
+                          .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+                      double t = 1.0; // 1=펼침, 0=접힘
+                      if (s != null && (s.maxExtent - s.minExtent) > 0) {
+                        t = ((s.currentExtent - s.minExtent) /
+                                (s.maxExtent - s.minExtent))
+                            .clamp(0.0, 1.0);
+                      }
+                      return Positioned(
+                        top: MediaQuery.of(fctx).padding.top + 4,
+                        left: 4,
+                        right: 4,
+                        child: IgnorePointer(
+                          ignoring: t < 0.15,
+                          child: Opacity(
+                            opacity: t,
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_back,
+                                      size: 24, color: Colors.white),
+                                  style: _noSplash,
+                                  onPressed: () => context.pop(),
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  icon: Icon(
+                                    _liked
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    size: 24,
+                                    color: _liked ? AppColors.red : Colors.white,
+                                  ),
+                                  style: _noSplash,
+                                  onPressed: _toggleInterest,
+                                ),
+                                if (_localAsset != null)
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline,
+                                        size: 24, color: Colors.white),
+                                    style: _noSplash,
+                                    onPressed: () => _confirmDeleteAsset(),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
                 ),
               ),
               bottom: PreferredSize(
