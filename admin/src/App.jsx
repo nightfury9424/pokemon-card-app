@@ -10,6 +10,7 @@ import Login from './pages/Login'
 import Alerts from './pages/Alerts'
 import Reports from './pages/Reports'
 import Inquiries from './pages/Inquiries'
+import Appeals from './pages/Appeals'
 
 function RequireAuth({ children }) {
   const token = localStorage.getItem('admin_token')
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="alerts" element={<Alerts />} />
           <Route path="reports" element={<Reports />} />
           <Route path="inquiries" element={<Inquiries />} />
+          <Route path="appeals" element={<Appeals />} />
         </Route>
       </Routes>
     </BrowserRouter>

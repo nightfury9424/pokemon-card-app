@@ -1,9 +1,9 @@
-// 2026-06 admin — 고객 문의 처리 페이지 (메일 → DB 전환).
-//   backend: GET /api/admin/inquiries + PATCH /api/admin/inquiries/{id}/reply
-//   Reports.jsx 스타일 일관 — 흰 카드 + 보라 헤더.
+// 2026-06-05 admin — 정지 이의신청 전용 페이지.
+//   고객 문의(Inquiries)에서 분리. backend: GET /api/admin/inquiries?category=SUSPENSION_APPEAL
+//   답변(reply) + 정지 해제(unsuspend) 를 한 화면에서 처리.
 
 import { useEffect, useState } from 'react'
-import { Mail, RefreshCw, Send } from 'lucide-react'
+import { Gavel, RefreshCw, Send, Undo2 } from 'lucide-react'
 import api from '../api'
 
 const S = {
@@ -16,12 +16,6 @@ const S = {
   td:     { padding: '13px 16px', fontSize: 13, color: '#475569', borderBottom: '1px solid #f8fafc', verticalAlign: 'top' },
   btnSm:  { fontSize: 11, fontWeight: 600, padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#eef2ff', color: '#4f46e5' },
   refresh:{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '8px 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' },
-}
-
-const CATEGORY_LABEL = {
-  cardAddRequest: '카드 추가', price: '시세/가격', trade: '거래/채팅',
-  account: '계정/닉네임', bug: '버그', feature: '기능 제안', etc: '기타',
-  SUSPENSION_APPEAL: '정지 이의신청',
 }
 
 const STATUS_MAP = {
@@ -37,7 +31,13 @@ function StatusBadge({ status }) {
   )
 }
 
-export default function Inquiries() {
+function SuspendBadge({ suspended }) {
+  return suspended
+    ? <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 99, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>정지중</span>
+    : <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 99, background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>해제됨</span>
+}
+
+export default function Appeals() {
   const [rows, setRows] = useState([])
   const [openCount, setOpenCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -48,8 +48,7 @@ export default function Inquiries() {
   async function load() {
     setLoading(true)
     try {
-      // 정지 이의신청은 별도 페이지(/appeals)로 분리 — 고객 문의에선 제외.
-      const r = await api.get('/admin/inquiries', { params: { excludeCategory: 'SUSPENSION_APPEAL' } })
+      const r = await api.get('/admin/inquiries', { params: { category: 'SUSPENSION_APPEAL' } })
       setRows(r.data?.data?.content ?? [])
       setOpenCount(r.data?.data?.openCount ?? 0)
     } catch {
@@ -68,7 +67,7 @@ export default function Inquiries() {
     <div style={S.page}>
       <div style={S.header}>
         <div>
-          <h1 style={S.h1}><Mail size={20} style={{ verticalAlign: -3, marginRight: 8 }} />고객 문의</h1>
+          <h1 style={S.h1}><Gavel size={20} style={{ verticalAlign: -3, marginRight: 8 }} />정지 이의신청</h1>
           <div style={S.sub}>미처리 {openCount}건 · 전체 {rows.length}건</div>
         </div>
         <button style={S.refresh} onClick={load} disabled={loading}>
@@ -80,9 +79,10 @@ export default function Inquiries() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={S.th}>분류</th>
-              <th style={S.th}>제목</th>
               <th style={S.th}>작성자</th>
+              <th style={S.th}>정지 사유</th>
+              <th style={S.th}>이의 내용</th>
+              <th style={S.th}>계정</th>
               <th style={S.th}>상태</th>
               <th style={S.th}>작성일</th>
               <th style={S.th}>처리</th>
@@ -90,20 +90,21 @@ export default function Inquiries() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td style={S.td} colSpan={6}>불러오는 중...</td></tr>
+              <tr><td style={S.td} colSpan={7}>불러오는 중...</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td style={S.td} colSpan={6}>문의가 없습니다.</td></tr>
+              <tr><td style={S.td} colSpan={7}>접수된 이의신청이 없습니다.</td></tr>
             ) : rows.map(r => (
               <tr key={r.inquiryId}>
-                <td style={S.td}>{CATEGORY_LABEL[r.category] ?? r.category}</td>
-                <td style={{ ...S.td, color: '#1e293b', fontWeight: 600, maxWidth: 320 }}>{r.title}</td>
-                <td style={S.td}>{r.nickname || <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#94a3b8' }}>{r.userId}</span>}</td>
+                <td style={{ ...S.td, fontWeight: 600, color: '#1e293b' }}>{r.nickname || <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#94a3b8' }}>{r.userId}</span>}</td>
+                <td style={{ ...S.td, maxWidth: 200, color: '#64748b' }}>{r.suspensionReason || '-'}</td>
+                <td style={{ ...S.td, maxWidth: 280 }}>
+                  <div style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.5 }}>{r.content}</div>
+                </td>
+                <td style={S.td}><SuspendBadge suspended={r.suspended} /></td>
                 <td style={S.td}><StatusBadge status={r.status} /></td>
                 <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{fmt(r.createdAt)}</td>
                 <td style={S.td}>
-                  <button style={S.btnSm} onClick={() => setModalRow(r)}>
-                    {r.status === 'OPEN' ? '답변' : '보기'}
-                  </button>
+                  <button style={S.btnSm} onClick={() => setModalRow(r)}>처리</button>
                 </td>
               </tr>
             ))}
@@ -112,54 +113,84 @@ export default function Inquiries() {
       </div>
 
       {modalRow && (
-        <ReplyModal row={modalRow} onClose={() => setModalRow(null)} onDone={() => { setModalRow(null); load() }} />
+        <AppealModal row={modalRow} onClose={() => setModalRow(null)} onDone={() => { setModalRow(null); load() }} />
       )}
     </div>
   )
 }
 
-function ReplyModal({ row, onClose, onDone }) {
+function AppealModal({ row, onClose, onDone }) {
   const [reply, setReply] = useState(row.adminReply ?? '')
   const [saving, setSaving] = useState(false)
+  const [unsuspending, setUnsuspending] = useState(false)
   const [err, setErr] = useState('')
 
-  async function submit() {
+  async function submitReply() {
     if (!reply.trim()) { setErr('답변 내용을 입력하세요.'); return }
     setSaving(true); setErr('')
     try {
       await api.patch(`/admin/inquiries/${row.inquiryId}/reply`, { reply: reply.trim() })
       onDone()
     } catch {
-      setErr('저장 실패. 다시 시도하세요.')
+      setErr('답변 저장 실패. 다시 시도하세요.')
       setSaving(false)
+    }
+  }
+
+  async function unsuspend() {
+    if (!confirm(`'${row.nickname || row.userId}' 계정의 정지를 해제할까요? 이의신청은 자동으로 종료됩니다.`)) return
+    setUnsuspending(true); setErr('')
+    try {
+      await api.post(`/admin/users/${row.userId}/unsuspend`, {})
+      onDone()
+    } catch {
+      setErr('정지 해제 실패. 다시 시도하세요.')
+      setUnsuspending(false)
     }
   }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={onClose}>
       <div style={{ width: 540, maxWidth: '92vw', maxHeight: '88vh', overflow: 'auto', background: '#fff', borderRadius: 16, padding: 24 }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>{row.title}</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>정지 이의신청</div>
         <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 14 }}>
-          {CATEGORY_LABEL[row.category] ?? row.category} · {row.nickname || row.userId}
+          {row.nickname || row.userId}
           {row.contactEmail ? ` · ${row.contactEmail}` : ''}
+          {' · '}<SuspendBadge suspended={row.suspended} />
         </div>
+
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>정지 사유</div>
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: 12, fontSize: 13, color: '#b91c1c', marginBottom: 16 }}>
+          {row.suspensionReason || '사유 미기재'}
+        </div>
+
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>이의 내용</div>
         <div style={{ background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 10, padding: 14, fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap', marginBottom: 18 }}>
           {row.content}
         </div>
+
         <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>관리자 답변</div>
         <textarea
           value={reply}
           onChange={e => setReply(e.target.value)}
-          rows={5}
+          rows={4}
           placeholder="사용자에게 전달할 답변을 입력하세요."
           style={{ width: '100%', boxSizing: 'border-box', borderRadius: 10, border: '1px solid #e2e8f0', padding: 12, fontSize: 13, fontFamily: 'inherit', resize: 'vertical' }}
         />
         {err && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 8 }}>{err}</div>}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
-          <button onClick={onClose} style={{ fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' }}>닫기</button>
-          <button onClick={submit} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, padding: '9px 18px', borderRadius: 8, border: 'none', background: '#4f46e5', color: '#fff', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
-            <Send size={14} /> {saving ? '저장 중...' : '답변 등록'}
-          </button>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 18 }}>
+          {row.suspended ? (
+            <button onClick={unsuspend} disabled={unsuspending} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, padding: '9px 16px', borderRadius: 8, border: '1px solid #16a34a', background: '#fff', color: '#16a34a', cursor: 'pointer', opacity: unsuspending ? 0.6 : 1 }}>
+              <Undo2 size={14} /> {unsuspending ? '해제 중...' : '정지 해제'}
+            </button>
+          ) : <span />}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} style={{ fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer' }}>닫기</button>
+            <button onClick={submitReply} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, padding: '9px 18px', borderRadius: 8, border: 'none', background: '#4f46e5', color: '#fff', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+              <Send size={14} /> {saving ? '저장 중...' : '답변 등록'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
