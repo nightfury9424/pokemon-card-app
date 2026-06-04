@@ -36,6 +36,8 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
   // 자동완성 suggestions (가벼운 /api/cards/search). suggestion 탭 시 _showCards=true로 본격 검색.
   List<String> _suggestions = [];
   bool _showCards = false;
+  // 카드 단위 찜(관심) 상태 — 거래 리스트와 동일 패턴(/api/card-interests).
+  final Set<String> _likedCardIds = {};
 
   @override
   void initState() {
@@ -183,9 +185,57 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
         _cards = list;
         _loading = false;
       });
+      _loadLikedStatuses();
     } catch (_) {
       if (!mounted || id != _reqId) return;
       setState(() => _loading = false);
+    }
+  }
+
+  /// 검색 결과 카드들 찜 여부 batch 조회.
+  Future<void> _loadLikedStatuses() async {
+    final cardIds = _cards
+        .map((c) => c['cardId'] as String?)
+        .whereType<String>()
+        .toList();
+    if (cardIds.isEmpty) return;
+    try {
+      final res = await ApiClient.get(
+        '/api/card-interests/statuses',
+        params: {'cardIds': cardIds.join(',')},
+      );
+      final data = (res['data'] as Map?) ?? const {};
+      if (!mounted) return;
+      setState(() {
+        _likedCardIds.clear();
+        data.forEach((k, v) {
+          if (v == true) _likedCardIds.add(k as String);
+        });
+      });
+    } catch (_) {}
+  }
+
+  /// 하트 토글 — optimistic, 실패 시 롤백.
+  Future<void> _toggleLike(String cardId) async {
+    final wasLiked = _likedCardIds.contains(cardId);
+    setState(() {
+      if (wasLiked) {
+        _likedCardIds.remove(cardId);
+      } else {
+        _likedCardIds.add(cardId);
+      }
+    });
+    try {
+      await ApiClient.post('/api/card-interests/$cardId/toggle', const {});
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (wasLiked) {
+          _likedCardIds.add(cardId);
+        } else {
+          _likedCardIds.remove(cardId);
+        }
+      });
     }
   }
 
@@ -648,6 +698,23 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
                   );
                 }),
               ],
+            ),
+            // 하트 — 카드 단위 찜 토글 (거래 리스트와 동일).
+            GestureDetector(
+              onTap: () => _toggleLike(cardId),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(
+                  _likedCardIds.contains(cardId)
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  color: _likedCardIds.contains(cardId)
+                      ? AppColors.red
+                      : AppColors.textMuted,
+                  size: 22,
+                ),
+              ),
             ),
           ],
         ),

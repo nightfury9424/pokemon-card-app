@@ -54,6 +54,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   bool _swipeLockedByChart = false;
 
   bool _loading = true;
+  // 카드 단위 찜(관심) — AppBar 우상단 하트. /api/card-interests.
+  bool _liked = false;
   Map<String, dynamic>? _cardDetail;
   Map<String, dynamic>? _priceSummary;
   Map<String, dynamic>? _localAsset;
@@ -107,7 +109,33 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     );
     _loadData();
     _loadMyUserId();
+    _loadInterestStatus();
     _maybeShowCoachMark();
+  }
+
+  /// 이 카드 찜 여부 조회 (AppBar 하트 초기 상태).
+  Future<void> _loadInterestStatus() async {
+    try {
+      final res = await ApiClient.get(
+        '/api/card-interests/statuses',
+        params: {'cardIds': widget.cardId},
+      );
+      final data = (res['data'] as Map?) ?? const {};
+      if (!mounted) return;
+      setState(() => _liked = data[widget.cardId] == true);
+    } catch (_) {}
+  }
+
+  /// 하트 토글 — optimistic, 실패 시 롤백.
+  Future<void> _toggleInterest() async {
+    final wasLiked = _liked;
+    setState(() => _liked = !wasLiked);
+    try {
+      await ApiClient.post('/api/card-interests/${widget.cardId}/toggle', const {});
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _liked = wasLiked);
+    }
   }
 
   /// 2026-05-28 BUY chat — hoga BID row 클릭 시 self-chat 차단 UI 가드용. 실패 silent.
@@ -825,6 +853,14 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 onPressed: () => context.pop(),
               ),
               actions: [
+                // 우상단 찜(관심) 하트 — 뒤로 화살표 반대편.
+                IconButton(
+                  icon: Icon(
+                    _liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                    color: _liked ? AppColors.red : Colors.white,
+                  ),
+                  onPressed: _toggleInterest,
+                ),
                 if (_localAsset != null)
                   IconButton(
                     icon: const Icon(Icons.delete_outline, color: Colors.white38),
