@@ -50,10 +50,18 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
   Future<void> _pickAndUploadImage() async {
     if (_uploadingImage) return;
     try {
+      // maxWidth 1024 + q85 로 image_picker 가 다운스케일+재인코딩(HEIC→JPEG) → 보통 수백 KB.
       final picked = await ImagePicker().pickImage(
           source: ImageSource.gallery, maxWidth: 1024, imageQuality: 85);
       if (picked == null) return;
       if (!mounted) return;
+      // B3-12: 압축 후에도 5MB 초과면(희박) 클라에서 먼저 차단 — 백엔드 5MB 한도와 일관.
+      final bytes = await File(picked.path).length();
+      if (bytes > 5 * 1024 * 1024) {
+        if (!mounted) return;
+        AppErrorToast.show(context, '이미지는 5MB 이하만 가능해요. 다른 사진을 선택해주세요.');
+        return;
+      }
       setState(() => _uploadingImage = true);
       final res = await ApiClient.postMultipart(
         '/api/users/me/profile-image',
@@ -66,6 +74,18 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
         _uploadingImage = false;
       });
       AppSuccessToast.show(context, '프로필 사진이 변경됐어요');
+    } on DioException catch (e) {
+      // B3-11: "무조건 안돼" 제거 — 백엔드 사유(이미지 형식/5MB/정지 등)를 그대로 노출.
+      if (!mounted) return;
+      setState(() => _uploadingImage = false);
+      final body = e.response?.data;
+      final reason = (body is Map && body['message'] is String &&
+              (body['message'] as String).trim().isNotEmpty)
+          ? body['message'] as String
+          : (e.response?.statusCode == 413
+              ? '이미지는 5MB 이하만 가능해요.'
+              : '사진 변경에 실패했어요. 다시 시도해주세요.');
+      AppErrorToast.show(context, reason);
     } catch (_) {
       if (!mounted) return;
       setState(() => _uploadingImage = false);

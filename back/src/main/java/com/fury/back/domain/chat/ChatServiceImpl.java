@@ -495,7 +495,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     // 2026-05-28 이미지 메시지 정책 상수 (Codex D — chat endpoint 한정 enforce).
-    private static final long MAX_IMAGE_BYTES = 10L * 1024L * 1024L; // 10MB
+    private static final long MAX_IMAGE_BYTES = 5L * 1024L * 1024L; // B3-12: 5MB 일관(프사와 동일)
 
     @Override
     @Transactional

@@ -107,7 +107,28 @@
 
 ---
 
+## B3-1 보강 (Codex 리뷰 반영) — [x] DONE
+**Codex BLOCKER**: 프론트 `_validatePrice` 가 희망가(agreedPrice)만 기준 0.5~1.5 밴드 → 희망가≪시세 카드에서 **정상값 false-positive 차단**.
+**추가 발견**: `ReturnData.badRequest` 는 controller return 값이라 **HTTP 200 바디(status=fail)** 로 내려옴(상태코드 아님). 프론트 _submit 이 status 미확인 → 백엔드 거부를 **성공으로 오인**(토스트 "기록됐어요").
+**수정**: 프론트 밴드 제거(단위 검증만), `_submit` 이 `res['status'] != 'success'` 면 `res['message']`(백엔드 시세 밴드 사유) 노출. 백엔드가 시세 기준 최종 판정.
+
+---
+
+## B3-11. 프사 변경 실패 사유 미노출 ("무조건 안돼") — [x] DONE
+**현상**: 프로필 사진 변경 실패 시 사유 없이 "사진 변경에 실패했어요"만. (사용자: 이유 알려달라)
+**원인**: edit_nickname `_pickAndUploadImage` 의 `catch(_)` 가 백엔드 ResponseStatusException 사유(400 "이미지 파일만"/413 "5MB"/403 "정지") 를 통째로 삼킴. + postMultipart 가 filename=field명("file", 무확장자)으로 보내 octet-stream → 일부 검증 거부 가능성.
+**수정**: ① DioException → `e.response.data['message']` 사유 노출 ② postMultipart 실제 파일명(확장자) 사용 → contentType 정상화(잠재 실패원인 제거). 실제 root cause 는 노출된 사유로 디바이스에서 확인.
+
+---
+
+## B3-12. 이미지 5MB 일관 + 압축 확인 — [x] DONE
+**확인**: 채팅 `pickImage(maxWidth 1600,q80)` / 프사 `pickImage(maxWidth 1024,q85)` → image_picker 가 업로드 전 **다운스케일+재인코딩**. 44MP·5.8MB 원본도 수백 KB로 압축 → 5MB 한도 거의 안 닿음(원본 크기 무관).
+**수정(일관화)**: 채팅 클라 `_kMaxImageBytes` 10MB→5MB, 채팅 백엔드 `MAX_IMAGE_BYTES` 10MB→5MB, 프사 클라 5MB 가드 추가. (프사 백엔드 이미 5MB.) Spring servlet max-file-size=10MB 는 헤더룸으로 유지 → 핸들러 5MB 메시지가 먼저 발동.
+
+---
+
 ## 진행 로그
 - (작성) 2026-06-04 — 항목 7개 확정.
-- (추가) 2026-06-04 — B3-8 앱 정보/라이선스 화면 추가 (총 8개).
-- (추가) 2026-06-04 — B3-9 다중 사진 + B3-10 아바타 깨짐 (총 10개). **B3-1~10 구현 완료, Codex 리뷰 대기.**
+- (추가) 2026-06-04 — B3-8 앱 정보/라이선스 (총 8개).
+- (추가) 2026-06-04 — B3-9 다중 사진 + B3-10 아바타 깨짐 (총 10개).
+- (추가) 2026-06-04 — Codex 리뷰 반영(B3-1 보강) + B3-11 프사 사유 + B3-12 5MB 일관 (총 12개). 백엔드=B3-1·B3-12(채팅한도), 나머지 프론트.

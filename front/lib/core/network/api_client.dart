@@ -210,9 +210,12 @@ class ApiClient {
     final formData = FormData();
     fields.forEach((k, v) => formData.fields.add(MapEntry(k, v)));
     for (final entry in files.entries) {
+      // B3-11: 확장자 있는 실제 파일명 사용 (filename=field명("file")이면 확장자 없어
+      // octet-stream 으로 전송 → 일부 서버/검증에서 거부 가능). contentType 추론도 정상화.
+      final name = entry.value.path.split('/').last;
       formData.files.add(MapEntry(
         entry.key,
-        await MultipartFile.fromFile(entry.value.path, filename: entry.key),
+        await MultipartFile.fromFile(entry.value.path, filename: name),
       ));
     }
     final options = Options(

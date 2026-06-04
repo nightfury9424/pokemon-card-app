@@ -98,23 +98,15 @@ class _TradeSettlementSheetState extends State<TradeSettlementSheet> {
     return raw.isEmpty ? null : int.tryParse(raw);
   }
 
-  /// B3-1: 실거래가 도메인 검증(프론트 즉시 피드백). 백엔드가 시세 기준 최종 게이트.
-  /// reference = 희망가(agreedPrice). 단위 1,000원↑·100원 단위 + 희망가 밴드 0.5~1.5.
+  /// B3-1: 실거래가 단위 검증(프론트 즉시 피드백). 시세 대비 밴드는 **백엔드가 최종 판정**.
+  /// (희망가만으로 밴드 잡으면 희망가≪시세 카드에서 정상값을 false-positive 차단 → Codex 지적. 제거.)
+  /// reference = 희망가(agreedPrice): 정확히 일치하면("이 금액이 맞아요") 100원 단위 예외.
   String? _validatePrice(int? price, int? reference) {
     if (price == null) return '거래 금액을 입력해주세요.';
     if (price < 1000) return '거래 금액은 1,000원 이상 입력해주세요.';
     if (price > 1000000000) return '금액이 올바르지 않습니다.';
-    // 희망가와 정확히 같으면(="이 금액이 맞아요") 신뢰 → 단위/밴드 예외.
     final trusted = reference != null && price == reference;
     if (!trusted && price % 100 != 0) return '거래 금액은 100원 단위로 입력해주세요.';
-    if (reference != null && reference > 0) {
-      if (price < reference * 0.5) {
-        return '입력한 금액이 희망가보다 너무 낮아요.\n실제 거래 금액을 다시 확인해주세요.';
-      }
-      if (price > reference * 1.5) {
-        return '입력한 금액이 희망가보다 너무 높아요.\n실제 거래 금액을 다시 확인해주세요.';
-      }
-    }
     return null;
   }
 
@@ -127,11 +119,21 @@ class _TradeSettlementSheetState extends State<TradeSettlementSheet> {
     }
     setState(() => _submitting = true);
     try {
-      await ApiClient.post(
+      final res = await ApiClient.post(
         widget.submitPath,
         {'data': {'price': price}},
       );
       if (!mounted) return;
+      // badRequest 는 HTTP 200 바디(status=fail)로 내려옴 → 시세 밴드 등 백엔드 거부 메시지 노출.
+      if (res['status'] != 'success') {
+        setState(() => _submitting = false);
+        final msg = (res['message'] is String &&
+                (res['message'] as String).trim().isNotEmpty)
+            ? res['message'] as String
+            : '기록에 실패했어요. 금액을 다시 확인해주세요.';
+        AppErrorToast.show(context, msg);
+        return;
+      }
       Navigator.pop(context, true);
       AppSuccessToast.show(context, '실거래 금액이 기록됐어요. 감사합니다!');
     } catch (_) {

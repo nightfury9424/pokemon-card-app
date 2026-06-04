@@ -47,7 +47,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   // 2026-05-28 이미지 메시지 — 업로드 중 + 버튼 spinner + 중복 전송 차단.
   bool _uploadingImage = false;
   // 10MB 제한 (백엔드 MAX_IMAGE_BYTES 동일).
-  static const int _kMaxImageBytes = 10 * 1024 * 1024;
+  static const int _kMaxImageBytes = 5 * 1024 * 1024; // B3-12: 5MB 일관(프사·채팅 동일)
   // Phase 1B: backend conversation-state — 입력창 비활성화 + 안내 banner.
   // canSendMessage=false 면 send 차단. blockNotice 있으면 sticky banner + placeholder 변경.
   bool _canSendMessage = true;
