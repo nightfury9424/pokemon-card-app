@@ -853,44 +853,61 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               foregroundColor: Colors.white,
               expandedHeight: heroExpandedHeight,
               pinned: true,
-              // 우상단 아이콘 — 뒤로/하트/삭제 크기·색·굵기 통일(standard outline 셋, size 24, white).
-              //   기존: arrow_back(굵음) + favorite_rounded(얇음) + delete white38(흐림) → 제각각.
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, size: 24, color: Colors.white),
-                style: _noSplash,
-                onPressed: () => context.pop(),
-              ),
-              actions: [
-                IconButton(
-                  icon: Icon(
-                    _liked ? Icons.favorite : Icons.favorite_border,
-                    size: 24,
-                    color: _liked ? AppColors.red : Colors.white,
-                  ),
-                  style: _noSplash,
-                  onPressed: _toggleInterest,
-                ),
-                if (_localAsset != null)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 24, color: Colors.white),
-                    style: _noSplash,
-                    onPressed: () => _confirmDeleteAsset(),
-                  ),
-              ],
+              // 헤더 아이콘(뒤로/하트/삭제)은 toolbar(고정)가 아니라 카드 히어로 위 overlay 로 둔다
+              //   → 스크롤하면 카드와 함께 위로 사라짐(따라오지 않음). collapse 시 상단=상태바+TabBar 만.
+              toolbarHeight: 0,
+              automaticallyImplyLeading: false,
               flexibleSpace: FlexibleSpaceBar(
-                collapseMode: CollapseMode.pin,
-                background: _buildCardHeroFull(
-                  data,
-                  name,
-                  rarity,
-                  number,
-                  productName,
-                  seriesName,
-                  productType,
-                  imageUrl,
-                  cardWidth: cardWidth,
-                  cardHeight: cardHeight,
-                  topPadding: heroTopPadding,
+                collapseMode: CollapseMode.parallax,
+                background: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: _buildCardHeroFull(
+                        data,
+                        name,
+                        rarity,
+                        number,
+                        productName,
+                        seriesName,
+                        productType,
+                        imageUrl,
+                        cardWidth: cardWidth,
+                        cardHeight: cardHeight,
+                        topPadding: heroTopPadding,
+                      ),
+                    ),
+                    // 카드 위 상단 아이콘 — 크기·색·굵기 통일(standard outline, size 24, white).
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 4,
+                      left: 4,
+                      right: 4,
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back, size: 24, color: Colors.white),
+                            style: _noSplash,
+                            onPressed: () => context.pop(),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: Icon(
+                              _liked ? Icons.favorite : Icons.favorite_border,
+                              size: 24,
+                              color: _liked ? AppColors.red : Colors.white,
+                            ),
+                            style: _noSplash,
+                            onPressed: _toggleInterest,
+                          ),
+                          if (_localAsset != null)
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, size: 24, color: Colors.white),
+                              style: _noSplash,
+                              onPressed: () => _confirmDeleteAsset(),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
               bottom: PreferredSize(
