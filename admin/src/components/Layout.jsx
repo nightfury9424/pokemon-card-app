@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import {
   LayoutDashboard, CreditCard, Users, ArrowLeftRight,
-  TrendingUp, ScanLine, LogOut, AlertTriangle, Flag, Mail, Gavel
+  TrendingUp, ScanLine, LogOut, AlertTriangle, Flag, Mail, Gavel, ScrollText
 } from 'lucide-react'
 import api from '../api'
 
@@ -12,6 +12,7 @@ const nav = [
   { to: '/inquiries', icon: Mail,            label: '고객 문의' },
   { to: '/users',     icon: Users,           label: '유저 관리' },
   { to: '/appeals',   icon: Gavel,           label: '정지 이의신청' },
+  { to: '/admin-actions', icon: ScrollText,  label: '운영 로그' },
   { to: '/trades',    icon: ArrowLeftRight,  label: '거래 관리' },
   { to: '/cards',     icon: CreditCard,      label: '카드 관리' },
   { to: '/price',     icon: TrendingUp,      label: '시세 관리' },

@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, CreditCard, ScanLine, ArrowLeftRight, RefreshCw, TrendingUp, TrendingDown, AlertTriangle, ExternalLink } from 'lucide-react'
+import { Users, CreditCard, ScanLine, ArrowLeftRight, RefreshCw, TrendingUp, TrendingDown, AlertTriangle, ExternalLink, ScrollText } from 'lucide-react'
 import {
-  AreaChart, Area, BarChart, Bar,
+  AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from 'recharts'
@@ -121,12 +121,20 @@ const ANOMALY_LABELS = {
   SKIPPED:                 { label: 'eBay 미검증', color: '#7c3aed', bg: '#fdf4ff' },
 }
 
+// 2026-06-07 최근 운영 로그 위젯 — admin_actions 액션/대상 한글 라벨.
+const ADMIN_ACTION_LABEL = {
+  SUSPEND: '정지', UNSUSPEND: '정지 해제', WARN: '경고', AUTO_SUSPEND: '자동 정지',
+  DELETE_TRADE: '거래글 삭제', DELETE_CHAT_MESSAGE: '채팅 삭제',
+  REVIEW_REPORT: '신고 처리', DISMISS_REPORT: '신고 기각', RESOLVE_ANOMALY: '이상가 처리',
+}
+const TARGET_LABEL = { USER: '유저', TRADE: '거래글', REPORT: '신고', CHAT_MESSAGE: '채팅', PRICE_ANOMALY: '가격이상' }
+
 /* ── 메인 ── */
 export default function Dashboard() {
   const navigate = useNavigate()
   const [stats,     setStats]     = useState(null)
   const [chartData, setChartData] = useState([])
-  const [scanChart, setScanChart] = useState([])
+  const [recentActions, setRecentActions] = useState([])  // 2026-06-07: 미연동 스캔 차트 대체
   const [spinning,  setSpinning]  = useState(false)
   const [alerts,    setAlerts]    = useState([])   // 미처리 이상 알림
   const [chartDays, setChartDays] = useState(30)   // P0 #1: 7d/30d 토글 default 30d.
@@ -165,10 +173,11 @@ export default function Dashboard() {
       .then(r => setChartData(r.data?.data ?? []))
       .catch(() => setChartData([]))
 
-    /* 스캔 추이 차트 (scan_logs 미연동) */
-    api.get('/admin/stats/scans/chart')
-      .then(r => setScanChart(r.data?.data ?? []))
-      .catch(() => setScanChart([]))
+    /* 최근 운영 로그 (admin_actions) — 2026-06-07: scan_logs 미연동 스캔 차트 대체.
+       스캔 사용 추이는 user_events(Phase 2) 연동 후 복원 예정. */
+    api.get('/admin/admin-actions', { params: { page: 0, size: 6 } })
+      .then(r => setRecentActions(r.data?.data?.content ?? []))
+      .catch(() => setRecentActions([]))
       .finally(() => setSpinning(false))
   }, [chartDays])
 
@@ -359,18 +368,38 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
-        {/* 스캔 추이 (Bar) */}
+        {/* 최근 운영 로그 — 2026-06-07: 미연동 스캔 차트 대체. admin_actions 최근 6건.
+            (스캔 사용 추이는 user_events Phase 2 연동 후 별도 복원) */}
         <div style={{ ...S.card, padding: '22px 24px' }}>
-          <div style={S.h2}>스캔 횟수 · 최근 7일</div>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={scanChart} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barSize={22}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <Tooltip content={<ChartTooltip unit="회" />} />
-              <Bar dataKey="스캔수" fill="#06b6d4" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ ...S.h2, marginBottom: 0 }}>최근 운영 로그</div>
+            <button onClick={() => navigate('/admin-actions')} style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '5px 10px', borderRadius: 8, border: '1px solid #e2e8f0',
+              background: '#fff', color: '#64748b', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            }}>전체 보기 <ExternalLink size={11} /></button>
+          </div>
+          {recentActions.length === 0 ? (
+            <div style={{ fontSize: 12, color: '#94a3b8', padding: '44px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <ScrollText size={14} /> 최근 운영 기록이 없습니다
+            </div>
+          ) : (
+            <div>
+              {recentActions.map(a => (
+                <div key={a.actionId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #f8fafc' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#eef2ff', color: '#4f46e5', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    {ADMIN_ACTION_LABEL[a.actionType] ?? a.actionType}
+                  </span>
+                  <span style={{ flex: 1, fontSize: 12, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {(a.adminNickname || a.adminUserId)} · {TARGET_LABEL[a.targetType] ?? a.targetType} {a.targetId}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#cbd5e1', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                    {a.createdAt ? new Date(a.createdAt).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

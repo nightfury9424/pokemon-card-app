@@ -65,6 +65,25 @@ public class AdminStage0Controller {
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // GET /api/admin/admin-actions — 운영(감사) 로그 뷰어 (2026-06-07 관측성 Phase 1)
+    // ─────────────────────────────────────────────────────────────────────
+    @GetMapping("/admin-actions")
+    public ApiResponse<Map<String, Object>> listAdminActions(
+            @RequestParam(required = false) String actionType,
+            @RequestParam(required = false) String targetType,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "30") int size) {
+        Page<AdminStage0Dto.AdminActionRow> result = service.listAdminActions(
+                actionType, targetType, page, size);
+        return ApiResponse.ok(Map.of(
+                "content", result.getContent(),
+                "totalElements", result.getTotalElements(),
+                "totalPages", result.getTotalPages(),
+                "page", result.getNumber(),
+                "size", result.getSize()));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // GET /api/admin/users/search
     // ─────────────────────────────────────────────────────────────────────
     @GetMapping("/users/search")

@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -38,6 +39,7 @@ public class AdminStage0Service {
     private final ChatService chatService;
     private final UserWarningRepository userWarningRepository;
     private final com.fury.back.domain.inquiry.InquiryRepository inquiryRepository;
+    private final AdminActionRepository adminActionRepository;
 
     /** 활성 경고 누적이 이 수치 도달 시 자동 정지. (신고 처리 정책) */
     @org.springframework.beans.factory.annotation.Value("${app.moderation.warning-threshold:3}")
@@ -57,6 +59,43 @@ public class AdminStage0Service {
                 .nickname(user != null ? user.getNickname() : null)
                 .email(user != null ? user.getEmail() : null)
                 .build();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // GET /api/admin/admin-actions — 운영(감사) 로그 뷰어 (2026-06-07 관측성 Phase 1)
+    //   admin_actions 는 기록만 되고 조회 UI 가 없었음. actionType/targetType 선택 필터 + 최신순 페이징.
+    // ─────────────────────────────────────────────────────────────────────
+    public Page<AdminStage0Dto.AdminActionRow> listAdminActions(String actionType, String targetType,
+                                                                int page, int size) {
+        final int safePage = Math.max(0, page);
+        final int safeSize = Math.min(Math.max(1, size), 100);
+        final String at = (actionType == null || actionType.isBlank()) ? null : actionType;
+        final String tt = (targetType == null || targetType.isBlank()) ? null : targetType;
+
+        Page<AdminAction> result = adminActionRepository.findFiltered(
+                at, tt, PageRequest.of(safePage, safeSize));
+
+        // admin nickname batch lookup — 액션 수행자는 대개 소수라 페이지당 distinct 조회 부담 미미.
+        Map<String, String> nickMap = new HashMap<>();
+        result.getContent().stream()
+                .map(AdminAction::getAdminUserId)
+                .distinct()
+                .forEach(id -> userRepository.findById(id)
+                        .ifPresent(u -> nickMap.put(id, u.getNickname())));
+
+        return result.map(a -> AdminStage0Dto.AdminActionRow.builder()
+                .actionId(a.getActionId())
+                .adminUserId(a.getAdminUserId())
+                .adminNickname(nickMap.get(a.getAdminUserId()))
+                .actionType(a.getActionType())
+                .targetType(a.getTargetType())
+                .targetId(a.getTargetId())
+                .reportId(a.getReportId())
+                .memo(a.getMemo())
+                .previousState(a.getPreviousState())
+                .newState(a.getNewState())
+                .createdAt(a.getCreatedAt())
+                .build());
     }
 
     // ─────────────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, ChevronLeft, ChevronRight, Ban, Undo2 } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, Ban, Undo2, AlertTriangle } from 'lucide-react'
 import api from '../api'
 
 // 2026-05-29 admin Stage 0 — 정지/복구 inline action.
@@ -26,6 +26,20 @@ async function unsuspendUser(userId) {
     return true
   } catch (e) {
     alert(e.response?.data?.message ?? '정지 해제 실패')
+    return false
+  }
+}
+
+// 2026-06-07 경고 발급 — 누적 임계치 도달 시 백엔드가 자동 정지. audit log 기록.
+async function warnUser(userId) {
+  const reason = prompt('경고 사유 (audit log 기록 · 누적 시 자동 정지):')
+  if (!reason || !reason.trim()) return false
+  if (!confirm(`경고를 발급할까요? 사유: ${reason}`)) return false
+  try {
+    await api.post(`/admin/users/${userId}/warn`, { reason: reason.trim() })
+    return true
+  } catch (e) {
+    alert(e.response?.data?.message ?? '경고 처리 실패')
     return false
   }
 }
@@ -144,15 +158,26 @@ export default function Users() {
                       color: '#16a34a', fontSize: 11, fontWeight: 600, cursor: 'pointer',
                     }}><Undo2 size={12} /> 정지 해제</button>
                   ) : (
-                    <button onClick={async () => {
-                      const ok = await suspendUser(u.id || u.userId)
-                      if (ok) api.get('/admin/users', { params: { page, size, search: search || undefined } }).then(r => { setUsers(r.data?.data?.content ?? []); setTotal(r.data?.data?.totalElements ?? 0) })
-                    }} style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 4,
-                      padding: '4px 10px', borderRadius: 6,
-                      background: '#fff', border: '1px solid #dc2626',
-                      color: '#dc2626', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                    }}><Ban size={12} /> 정지</button>
+                    <div style={{ display: 'inline-flex', gap: 6 }}>
+                      <button onClick={async () => {
+                        const ok = await warnUser(u.id || u.userId)
+                        if (ok) api.get('/admin/users', { params: { page, size, search: search || undefined } }).then(r => { setUsers(r.data?.data?.content ?? []); setTotal(r.data?.data?.totalElements ?? 0) })
+                      }} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '4px 10px', borderRadius: 6,
+                        background: '#fff', border: '1px solid #d97706',
+                        color: '#d97706', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                      }}><AlertTriangle size={12} /> 경고</button>
+                      <button onClick={async () => {
+                        const ok = await suspendUser(u.id || u.userId)
+                        if (ok) api.get('/admin/users', { params: { page, size, search: search || undefined } }).then(r => { setUsers(r.data?.data?.content ?? []); setTotal(r.data?.data?.totalElements ?? 0) })
+                      }} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '4px 10px', borderRadius: 6,
+                        background: '#fff', border: '1px solid #dc2626',
+                        color: '#dc2626', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                      }}><Ban size={12} /> 정지</button>
+                    </div>
                   )}
                 </td>
               </tr>

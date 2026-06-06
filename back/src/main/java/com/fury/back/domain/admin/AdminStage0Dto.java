@@ -86,4 +86,21 @@ public class AdminStage0Dto {
         private String reason;
         private String reportId;
     }
+
+    /** GET /api/admin/admin-actions — 운영(감사) 로그 row. (2026-06-07 관측성 Phase 1) */
+    @Getter
+    @Builder
+    public static class AdminActionRow {
+        private String actionId;
+        private String adminUserId;
+        private String adminNickname;       // batch lookup (없으면 null)
+        private String actionType;          // SUSPEND / UNSUSPEND / WARN / AUTO_SUSPEND / DELETE_TRADE / REVIEW_REPORT ...
+        private String targetType;          // USER / TRADE / REPORT / CHAT_MESSAGE
+        private String targetId;
+        private String reportId;            // 신고 근거 (선택)
+        private String memo;
+        private String previousState;
+        private String newState;
+        private LocalDateTime createdAt;
+    }
 }
