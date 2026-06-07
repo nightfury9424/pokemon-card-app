@@ -151,6 +151,11 @@ public class User {
         this.deletedAt = LocalDateTime.now();
     }
 
+    /** 로그인 시 이메일 변경 동기화 — 로드된 엔티티 직접변경(builder 재조립 금지: deletedAt/phone/appleId/정지 보존). */
+    public void updateEmail(String email) {
+        this.email = email;
+    }
+
     /**
      * 온보딩 완료 — 로드된 엔티티를 직접 변경(재조립 금지: appleId/정지/탈퇴 필드 NULL 덮어쓰기 방지).
      * 만 14세 자가확인 필수 (한국 PIPA). 생년월일은 저장하지 않음 — 확인값만.

@@ -51,6 +51,16 @@ public class AppleAuthService {
         String email = claims.get("email", String.class);
 
         User user = userRepository.findByAppleId(appleId)
+                .map(existing -> {
+                    // 2026-06-08: 탈퇴(deletedAt) 계정 재로그인 차단 — App Store 5.1.1 / PIPA. soft-delete row 는 3개월 보존.
+                    if (existing.getDeletedAt() != null) {
+                        // 403 — IllegalArgumentException(=200+notFound)은 앱이 성공 오인 위험이라 명시적 status.
+                        throw new org.springframework.web.server.ResponseStatusException(
+                                org.springframework.http.HttpStatus.FORBIDDEN,
+                                "탈퇴한 계정입니다. 탈퇴 후에는 다시 로그인할 수 없어요.");
+                    }
+                    return existing;
+                })
                 .orElseGet(() -> createUser(appleId, email));
 
         return new GoogleAuthService.LoginResult(jwtUtil.generate(user.getUserId()), user.isOnboarded());

@@ -58,7 +58,17 @@ public class GoogleAuthService {
         }
 
         User user = userRepository.findByGoogleId(googleId)
-                .map(existing -> syncEmailIfChanged(existing, email))
+                .map(existing -> {
+                    // 2026-06-08: 탈퇴(deletedAt) 계정 재로그인 차단 — 좀비 부활 방지(App Store 5.1.1 / PIPA).
+                    // soft-delete row 는 3개월 보존(삭제 X), 차단만. (User.java:144 의도대로 구현)
+                    if (existing.getDeletedAt() != null) {
+                        // 403 — IllegalArgumentException(=200+notFound)은 앱이 성공 오인 위험이라 명시적 status.
+                        throw new org.springframework.web.server.ResponseStatusException(
+                                org.springframework.http.HttpStatus.FORBIDDEN,
+                                "탈퇴한 계정입니다. 탈퇴 후에는 다시 로그인할 수 없어요.");
+                    }
+                    return syncEmailIfChanged(existing, email);
+                })
                 .orElseGet(() -> createUser(googleId, email));
 
         return new LoginResult(jwtUtil.generate(user.getUserId()), user.isOnboarded());
@@ -83,15 +93,10 @@ public class GoogleAuthService {
 
     private User syncEmailIfChanged(User user, String email) {
         if (email == null || email.equals(user.getEmail())) return user;
-        return userRepository.save(User.builder()
-                .userId(user.getUserId())
-                .googleId(user.getGoogleId())
-                .nickname(user.getNickname())
-                .email(email)
-                .profileImageUrl(user.getProfileImageUrl())
-                .onboarded(user.isOnboarded())
-                .nicknameChangedAt(user.getNicknameChangedAt())
-                .build());
+        // 2026-06-08: builder 재조립 금지 — deletedAt/phoneVerified/appleId/suspension/scanConsent 등
+        // 누락 필드가 NULL 로 덮이는 버그(탈퇴계정 부활·폰인증 소실). 로드된 엔티티 직접변경.
+        user.updateEmail(email);
+        return userRepository.save(user);
     }
 
     public LoginResult devLogin() {
