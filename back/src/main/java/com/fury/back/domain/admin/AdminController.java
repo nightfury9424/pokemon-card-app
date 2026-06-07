@@ -436,6 +436,9 @@ public class AdminController {
             m.put("status",          suspended ? "BANNED" : "ACTIVE");
             m.put("suspended",       suspended);
             m.put("suspensionReason", u.getSuspensionReason());
+            // 2026-06-08: 탈퇴(deletedAt) 미반영 버그 fix — Users.jsx 가 deleted/deletedAt 로 "탈퇴" 표시 + 정지버튼 숨김.
+            m.put("deleted",    u.getDeletedAt() != null);
+            m.put("deletedAt",  u.getDeletedAt());
             m.put("scanCount",  0);
             m.put("tradeCount", 0);
             content.add(m);
