@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
@@ -26,7 +27,8 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = null);
-      AppErrorToast.show(context, '구글 로그인 실패: $e');
+      if (e.toString().contains('취소')) return; // 사용자 취소는 조용히
+      AppErrorToast.show(context, _loginErrorMessage(e));
     }
   }
 
@@ -41,8 +43,31 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _busy = null);
       // 취소는 조용히 무시.
       if (e.toString().contains('취소')) return;
-      AppErrorToast.show(context, 'Apple 로그인 실패: $e');
+      AppErrorToast.show(context, _loginErrorMessage(e));
     }
+  }
+
+  /// 예외 → 사용자 친화 메시지. 백엔드 응답 message(탈퇴 등) 우선, 네트워크/타임아웃은 안내문.
+  /// (raw DioException 노출 방지 — App Store 심사서 지적된 "DioException..." 메시지 대응)
+  String _loginErrorMessage(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map &&
+          data['message'] is String &&
+          (data['message'] as String).trim().isNotEmpty) {
+        return data['message'] as String; // 백엔드 메시지(예: 탈퇴 후 3개월 재가입 제한)
+      }
+      switch (e.type) {
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.receiveTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.connectionError:
+          return '네트워크 연결이 원활하지 않아요. 잠시 후 다시 시도해주세요.';
+        default:
+          break;
+      }
+    }
+    return '로그인에 실패했어요. 잠시 후 다시 시도해주세요.';
   }
 
   @override

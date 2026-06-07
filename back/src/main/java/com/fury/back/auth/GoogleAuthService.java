@@ -65,7 +65,7 @@ public class GoogleAuthService {
                         // 403 — IllegalArgumentException(=200+notFound)은 앱이 성공 오인 위험이라 명시적 status.
                         throw new org.springframework.web.server.ResponseStatusException(
                                 org.springframework.http.HttpStatus.FORBIDDEN,
-                                "탈퇴한 계정입니다. 탈퇴 후에는 다시 로그인할 수 없어요.");
+                                "탈퇴한 계정입니다. 탈퇴 후 3개월간 동일 계정으로 재가입할 수 없어요.");
                     }
                     return syncEmailIfChanged(existing, email);
                 })
