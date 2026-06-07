@@ -32,8 +32,11 @@ class ApiClient {
 
   static final Dio _dio = Dio(BaseOptions(
     baseUrl: ApiConstants.baseUrl,
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 10),
+    // 2026-06-07: 10초 → 30초. 해외(EU) 심사 리뷰어가 서울 서버(nip.io) 연결에
+    // 10초 초과로 로그인 실패(App Store 2.1a 반려, DioException connection timeout).
+    // 먼 지역/느린 망 마진 확보. (근본해결은 도메인+CDN, 후속)
+    connectTimeout: const Duration(seconds: 30),
+    receiveTimeout: const Duration(seconds: 30),
   ))
     ..interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {

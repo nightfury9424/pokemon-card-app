@@ -82,6 +82,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   bool _pendingOrdersLoading = false;
   String _selectedMarket = 'KO';
   String _selectedGlobalGrade = 'RAW';
+  // 2026-06-07: 등급칩 직접 탭 여부. true면 빈 등급도 "데이터 없음"으로 선택 가능
+  // (자동 fallback이 수동 선택을 덮지 않음). 시장 전환 시 false 리셋.
+  bool _gradeManuallyPicked = false;
   // 2026-05-28 BUY chat — hoga BID 클릭 시 본인 호가 self-chat 차단 UX 가드.
   // initState 직후 fetch. 실패 시 null 유지 → 백엔드 IllegalState 가 최종 안전망.
   String? _myUserId;
@@ -2702,7 +2705,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       '\$',
                       const Color(0xFF2196F3),
                       selected: _selectedGlobalGrade == 'RAW',
-                      onTap: () => setState(() => _selectedGlobalGrade = 'RAW'),
+                      onTap: () => setState(() { _selectedGlobalGrade = 'RAW'; _gradeManuallyPicked = true; }),
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -2713,8 +2716,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       '\$',
                       const Color(0xFFFFD700),
                       selected: _selectedGlobalGrade == 'PSA10',
-                      onTap: () =>
-                          setState(() => _selectedGlobalGrade = 'PSA10'),
+                      onTap: () => setState(() {
+                        _selectedGlobalGrade = 'PSA10';
+                        _gradeManuallyPicked = true;
+                      }),
                     ),
                   if (activePsa9 != null) ...[
                     const SizedBox(width: 8),
@@ -2724,8 +2729,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       '\$',
                       const Color(0xFF90CAF9),
                       selected: _selectedGlobalGrade == 'PSA9',
-                      onTap: () =>
-                          setState(() => _selectedGlobalGrade = 'PSA9'),
+                      onTap: () => setState(() {
+                        _selectedGlobalGrade = 'PSA9';
+                        _gradeManuallyPicked = true;
+                      }),
                     ),
                   ],
                 ],
@@ -2889,20 +2896,20 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         if (lastRawKrw != null) ...[
           _buildPriceChip('RAW', lastRawKrw, '', AppColors.green,
               selected: _selectedGlobalGrade == 'RAW',
-              onTap: () => setState(() => _selectedGlobalGrade = 'RAW'),
+              onTap: () => setState(() { _selectedGlobalGrade = 'RAW'; _gradeManuallyPicked = true; }),
               isWon: true),
           const SizedBox(width: 8),
         ],
         if (psa10Krw != null)
           _buildPriceChip('PSA 10', psa10Krw, '', const Color(0xFFFFD700),
               selected: _selectedGlobalGrade == 'PSA10',
-              onTap: () => setState(() => _selectedGlobalGrade = 'PSA10'),
+              onTap: () => setState(() { _selectedGlobalGrade = 'PSA10'; _gradeManuallyPicked = true; }),
               isWon: true),
         if (psa9Krw != null) ...[
           const SizedBox(width: 8),
           _buildPriceChip('PSA 9', psa9Krw, '', const Color(0xFF90CAF9),
               selected: _selectedGlobalGrade == 'PSA9',
-              onTap: () => setState(() => _selectedGlobalGrade = 'PSA9'),
+              onTap: () => setState(() { _selectedGlobalGrade = 'PSA9'; _gradeManuallyPicked = true; }),
               isWon: true),
         ],
       ],
@@ -3031,6 +3038,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             setState(() {
               _selectedMarket = market;
               _selectedGlobalGrade = globalGrade;
+              _gradeManuallyPicked = false; // 시장 전환 = 새 컨텍스트, 자동 fallback 허용
             });
           },
           child: Container(
@@ -3084,7 +3092,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         _ => rawLine,
       };
 
-      if (selected == null || selected.length < 2) {
+      if ((selected == null || selected.length < 2) && !_gradeManuallyPicked) {
         String? fallback;
         if (_selectedGlobalGrade != 'PSA10' &&
             psa10Line != null &&
