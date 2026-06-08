@@ -103,7 +103,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       title: '정말 탈퇴하시겠어요?',
       message:
           '거래/채팅 기록은 분쟁 대응을 위해 보존되며 다른 사용자에게는 "탈퇴한 사용자"로 표시됩니다. '
-          '진행 중인 매수/매도 호가는 자동 취소되고, 계정은 복구할 수 없어요.',
+          '진행 중인 매수/매도 호가는 자동 취소되고, 계정은 복구할 수 없어요.\n\n'
+          '인증한 전화번호와 계정은 탈퇴 후 3개월간 동일 정보로 재가입할 수 없어요.',
       confirmLabel: '탈퇴하기',
       destructive: true,
     );

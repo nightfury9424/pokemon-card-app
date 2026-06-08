@@ -2014,9 +2014,13 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     String? gradeValue;
     // 가격 초기값 = 대표 시세(KO mid) 를 100원 단위 반올림 — 판매폼(_onSellTapImpl)과 동일 정책.
     // (이전 _floorToTick 은 1000 tick 이라 240원 등 저가 카드가 0원으로 떨어지는 버그.)
+    // raw 실시세 없는 예상가(psa 역산 등)는 호가 기본값으로 안 넣음 — psa값 자동입력 방지, 직접 입력 유도.
+    final labelType = _priceSummary?['ko']?['koPriceLabelType'] as String?;
+    final isEstimate =
+        labelType == null || labelType == 'ESTIMATED' || labelType == 'KO_ESTIMATED';
     final midPrice = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
     final initialPrice =
-        (midPrice != null && midPrice > 0) ? _roundTo100(midPrice) : null;
+        (!isEstimate && midPrice != null && midPrice > 0) ? _roundTo100(midPrice) : null;
     // 컨트롤러 dispose 는 sheet dismiss animation 중 TextField rebuild 와 충돌 (TextEditingController used after disposed).
     // 정석은 별도 StatefulWidget 으로 분리해 State.dispose 활용 — 다음 polish 에서 처리. 지금은 dispose 생략 (1회성 시트라 누수 무시).
     final priceCtrl = TextEditingController(
@@ -4098,8 +4102,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final midPrice = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
     final basePrice =
         (displayPrice != null && displayPrice > 0) ? displayPrice : midPrice;
+    // raw 실시세 없는 예상가(psa 역산)는 기본값 X — 직접 입력. 단 실제 PSA10 graded 자산은 psa가 유지.
+    final labelType = _priceSummary?['ko']?['koPriceLabelType'] as String?;
+    final basis = asset['displayPriceBasis'] as String?;
+    final isEstimate =
+        labelType == null || labelType == 'ESTIMATED' || labelType == 'KO_ESTIMATED';
     final defaultPrice =
-        (basePrice != null && basePrice > 0) ? _roundTo100(basePrice) : null;
+        ((basis == 'PSA10' || !isEstimate) && basePrice != null && basePrice > 0)
+            ? _roundTo100(basePrice)
+            : null;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final created = await context.push<bool>('/trades/create', extra: {
