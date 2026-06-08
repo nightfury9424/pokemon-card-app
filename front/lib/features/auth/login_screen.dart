@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -21,7 +22,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _onGoogleLogin() async {
     setState(() => _busy = 'google');
     try {
-      final requiresOnboarding = await AuthService.loginWithGoogle();
+      final requiresOnboarding = await AuthService.loginWithGoogle()
+          .timeout(const Duration(seconds: 90)); // 무한 스피너 방지(App Store 2.1a)
       if (!mounted) return;
       context.go(requiresOnboarding ? '/onboarding' : '/home');
     } catch (e) {
@@ -35,7 +37,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _onAppleLogin() async {
     setState(() => _busy = 'apple');
     try {
-      final requiresOnboarding = await AuthService.loginWithApple();
+      final requiresOnboarding = await AuthService.loginWithApple()
+          .timeout(const Duration(seconds: 90)); // 무한 스피너 방지(App Store 2.1a)
       if (!mounted) return;
       context.go(requiresOnboarding ? '/onboarding' : '/home');
     } catch (e) {
@@ -50,6 +53,9 @@ class _LoginScreenState extends State<LoginScreen> {
   /// 예외 → 사용자 친화 메시지. 백엔드 응답 message(탈퇴 등) 우선, 네트워크/타임아웃은 안내문.
   /// (raw DioException 노출 방지 — App Store 심사서 지적된 "DioException..." 메시지 대응)
   String _loginErrorMessage(Object e) {
+    if (e is TimeoutException) {
+      return '로그인이 지연되고 있어요. 네트워크 확인 후 다시 시도해주세요.';
+    }
     if (e is DioException) {
       final data = e.response?.data;
       if (data is Map &&

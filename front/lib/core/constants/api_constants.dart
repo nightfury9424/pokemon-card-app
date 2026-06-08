@@ -5,7 +5,9 @@ class ApiConstants {
   // TestFlight/App Store 빌드는 자동 prod URL — dart-define 누락해도 안전.
   // dev 시 맥 IP 지정: flutter run --dart-define=BASE_URL=http://192.168.x.x:8080
   static const String _override = String.fromEnvironment('BASE_URL');
-  static const String _prodBaseUrl = 'https://52.78.3.120.nip.io';
+  // 2026-06-09: nip.io → CloudFront 글로벌 엣지(해외 리뷰망 도달성 = App Store 2.1a hang 원인 해결).
+  // CloudFront origin = 52.78.3.120.nip.io:443. 비상 fallback = 'https://52.78.3.120.nip.io'.
+  static const String _prodBaseUrl = 'https://d33b273n14t3ne.cloudfront.net';
   static const String _devBaseUrl = 'http://localhost:8080';
   static String get baseUrl =>
       _override.isNotEmpty ? _override : (kReleaseMode ? _prodBaseUrl : _devBaseUrl);
