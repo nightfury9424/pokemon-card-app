@@ -615,7 +615,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      '내 자산',
+                      '내 카드',
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
@@ -814,7 +814,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '내 자산',
+                            '내 카드',
                             style: AppText.label.copyWith(
                               color: Colors.white.withValues(alpha: 0.92),
                               fontSize: 14,
@@ -825,7 +825,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Row(
                             children: [
                               Text(
-                                '자산 보기',
+                                '카드 보기',
                                 style: AppText.caption.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w800,

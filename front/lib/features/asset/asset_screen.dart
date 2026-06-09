@@ -814,8 +814,8 @@ class _AssetScreenState extends State<AssetScreen> {
         automaticallyImplyLeading: false,
         backgroundColor: AppColors.bg,
         foregroundColor: Colors.white,
-        title: const Text('내 자산'),
-        // Polish: 상단 + 버튼 제거. 자산 등록 동선은 하단 스캐너 버튼(FAB) 단일화 (feedback_scanner_only_asset_entry).
+        title: const Text('내 카드'),
+        // Polish: 상단 + 버튼 제거. 카드 등록 동선은 하단 스캐너 버튼(FAB) 단일화 (feedback_scanner_only_asset_entry).
       ),
       body: _loading
           ? const Center(

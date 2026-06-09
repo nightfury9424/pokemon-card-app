@@ -176,7 +176,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
       debugPrint('[TradeCreate] _loadAssetImages error: $e\n$st');
       if (mounted) {
         setState(() {
-          _assetImageError = '자산 사진을 불러오지 못했어요. 직접 사진을 추가해주세요.';
+          _assetImageError = '카드 사진을 불러오지 못했어요. 직접 사진을 추가해주세요.';
         });
       }
     } finally {
@@ -597,7 +597,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    '자산 사진을 불러오는 중...',
+                    '카드 사진을 불러오는 중...',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
                   ),
                 ],

@@ -233,7 +233,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _HubTile(
             icon: Icons.style_rounded,
             iconColor: AppColors.blue,
-            label: '내 자산',
+            label: '내 카드',
             onTap: () => context.push('/assets'),
           ),
           _HubTile(

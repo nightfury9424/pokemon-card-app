@@ -349,7 +349,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
     if (!mounted) return;
     final assetId = widget.assetId;
     if (assetId == null || assetId.isEmpty) {
-      AppErrorToast.show(context, '자산 정보를 확인할 수 없어요. 다시 시도해 주세요.');
+      AppErrorToast.show(context, '카드 정보를 확인할 수 없어요. 다시 시도해 주세요.');
       // Codex 사후 (a) WARN: _shutter 의 _isCapturing=true 가 남아있음 → reset 보장.
       setState(() => _isCapturing = false);
       return;
