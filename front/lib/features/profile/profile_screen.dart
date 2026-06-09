@@ -106,27 +106,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildServiceGrid(),
                         const SizedBox(height: 24),
                         _buildSectionLabel('고객 지원'),
-                        const SizedBox(height: 8),
-                        _buildMenuGroup([
-                          _MenuItem(
-                            icon: Icons.chat_bubble_outline_rounded,
-                            iconColor: AppColors.blueLight,
-                            label: '문의하기',
-                            onTap: () => context.push('/support'),
-                          ),
-                          _MenuItem(
-                            icon: Icons.inbox_outlined,
-                            iconColor: AppColors.blueLight,
-                            label: '내 문의 내역',
-                            onTap: () => context.push('/profile/inquiries'),
-                          ),
-                          _MenuItem(
-                            icon: Icons.flag_rounded,
-                            iconColor: const Color(0xFFF59E0B),
-                            label: '신고 진행 상황',
-                            onTap: () => context.push('/profile/reports'),
-                          ),
-                        ]),
+                        const SizedBox(height: 10),
+                        _buildSupportGrid(),
                         const SizedBox(height: 28),
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 8),
@@ -231,98 +212,111 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // 한 행을 등간격 Expanded 타일로. IntrinsicHeight+stretch → 같은 행 타일은 항상 동일 높이
+  // (준비중 핀이 붙어 높이가 달라져도 행 내 정렬 안 깨짐).
+  Widget _gridRow(List<Widget> tiles) {
+    final children = <Widget>[];
+    for (var i = 0; i < tiles.length; i++) {
+      if (i > 0) children.add(const SizedBox(width: 12));
+      children.add(Expanded(child: tiles[i]));
+    }
+    return IntrinsicHeight(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+    );
+  }
+
   // 내 거래 = 2x2 그리드. 핵심 숫자는 stat row에 두고, 타일엔 '바로 처리할' 액션 배지만(매수 OPEN/판매 진행중).
   Widget _buildTradeGrid() {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _HubTile(
-                icon: Icons.style_rounded,
-                iconColor: AppColors.blue,
-                label: '내 자산',
-                onTap: () => context.push('/assets'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _HubTile(
-                icon: Icons.shopping_cart_rounded,
-                iconColor: const Color(0xFFF59E0B),
-                label: '매수',
-                badgeCount: _activeBuyOrders,
-                onTap: () => context.push('/assets?tab=buy'),
-              ),
-            ),
-          ],
-        ),
+        _gridRow([
+          _HubTile(
+            icon: Icons.style_rounded,
+            iconColor: AppColors.blue,
+            label: '내 자산',
+            onTap: () => context.push('/assets'),
+          ),
+          _HubTile(
+            icon: Icons.shopping_cart_rounded,
+            iconColor: const Color(0xFFF59E0B),
+            label: '매수',
+            badgeCount: _activeBuyOrders,
+            onTap: () => context.push('/assets?tab=buy'),
+          ),
+        ]),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _HubTile(
-                icon: Icons.receipt_long_rounded,
-                iconColor: const Color(0xFF10B981),
-                label: '판매',
-                badgeCount: _activeTrades,
-                // _userId null이면 sellerId 누락 → trade_list가 메인 거래 화면으로 잘못 진입.
-                onTap: _userId == null
-                    ? null
-                    : () => context.push('/my-trades', extra: {'sellerId': _userId}),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _HubTile(
-                icon: Icons.favorite_rounded,
-                iconColor: AppColors.red,
-                label: '관심',
-                onTap: () => context.push('/favorites'),
-              ),
-            ),
-          ],
-        ),
+        _gridRow([
+          _HubTile(
+            icon: Icons.receipt_long_rounded,
+            iconColor: const Color(0xFF10B981),
+            label: '판매',
+            badgeCount: _activeTrades,
+            // _userId null이면 sellerId 누락 → trade_list가 메인 거래 화면으로 잘못 진입.
+            onTap: _userId == null
+                ? null
+                : () => context.push('/my-trades', extra: {'sellerId': _userId}),
+          ),
+          _HubTile(
+            icon: Icons.favorite_rounded,
+            iconColor: AppColors.red,
+            label: '관심',
+            onTap: () => context.push('/favorites'),
+          ),
+        ]),
       ],
     );
   }
 
   // 서비스 = 3-col 그리드. 게시판(활성) + 오리파/경매(준비중 회색).
   Widget _buildServiceGrid() {
-    return Row(
-      children: [
-        Expanded(
-          child: _HubTile(
-            icon: Icons.forum_rounded,
-            iconColor: AppColors.blueLight,
-            label: '게시판',
-            // 게시판은 아직 go_router route 아님 — 공지배너와 동일하게 Navigator.push.
-            onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const BoardScreen())),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _HubTile(
-            icon: Icons.card_giftcard_rounded,
-            iconColor: AppColors.textMuted,
-            label: '오리파',
-            comingSoon: true,
-            onTap: () => AppInfoToast.show(context, '오리파는 오픈 준비 중이에요'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _HubTile(
-            icon: Icons.gavel_rounded,
-            iconColor: AppColors.textMuted,
-            label: '경매',
-            comingSoon: true,
-            onTap: () => AppInfoToast.show(context, '경매는 오픈 준비 중이에요'),
-          ),
-        ),
-      ],
-    );
+    return _gridRow([
+      _HubTile(
+        icon: Icons.forum_rounded,
+        iconColor: AppColors.blueLight,
+        label: '게시판',
+        // 게시판은 아직 go_router route 아님 — 공지배너와 동일하게 Navigator.push.
+        onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const BoardScreen())),
+      ),
+      _HubTile(
+        icon: Icons.card_giftcard_rounded,
+        iconColor: AppColors.textMuted,
+        label: '오리파',
+        comingSoon: true,
+        onTap: () => AppInfoToast.show(context, '오리파는 오픈 준비 중이에요'),
+      ),
+      _HubTile(
+        icon: Icons.gavel_rounded,
+        iconColor: AppColors.textMuted,
+        label: '경매',
+        comingSoon: true,
+        onTap: () => AppInfoToast.show(context, '경매는 오픈 준비 중이에요'),
+      ),
+    ]);
+  }
+
+  // 고객 지원 = 3-col 그리드 (서비스와 톤 일치).
+  Widget _buildSupportGrid() {
+    return _gridRow([
+      _HubTile(
+        icon: Icons.chat_bubble_outline_rounded,
+        iconColor: AppColors.blueLight,
+        label: '문의하기',
+        onTap: () => context.push('/support'),
+      ),
+      _HubTile(
+        icon: Icons.inbox_outlined,
+        iconColor: AppColors.blueLight,
+        label: '내 문의',
+        onTap: () => context.push('/profile/inquiries'),
+      ),
+      _HubTile(
+        icon: Icons.flag_rounded,
+        iconColor: const Color(0xFFF59E0B),
+        label: '신고내역',
+        onTap: () => context.push('/profile/reports'),
+      ),
+    ]);
   }
 
   Widget _buildSectionLabel(String label) {
@@ -340,22 +334,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildMenuGroup(List<_MenuItem> items) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Column(
-        children: List.generate(items.length, (i) {
-          final item = items[i];
-          final isLast = i == items.length - 1;
-          return _MenuRow(item: item, isLast: isLast);
-        }),
-      ),
-    );
-  }
 }
 
 /// 허브 그리드 타일 — 아이콘 칩 + 라벨. 준비중이면 회색 + '준비중' 핀, 액션 배지(매수/판매)는 우상단.
@@ -383,14 +361,16 @@ class _HubTile extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.divider),
         ),
+        // stretch 된 높이 안에서 아이콘+라벨(+핀)을 세로 중앙 정렬.
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(
               width: 44,
@@ -461,76 +441,6 @@ class _HubTile extends StatelessWidget {
             ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _MenuItem {
-  final IconData icon;
-  final Color iconColor;
-  final String label;
-  final VoidCallback onTap;
-
-  const _MenuItem({
-    required this.icon,
-    required this.iconColor,
-    required this.label,
-    required this.onTap,
-  });
-}
-
-class _MenuRow extends StatelessWidget {
-  final _MenuItem item;
-  final bool isLast;
-
-  const _MenuRow({required this.item, required this.isLast});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: item.onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: item.iconColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(item.icon, color: item.iconColor, size: 18),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    item.label,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.textMuted,
-                  size: 18,
-                ),
-              ],
-            ),
-          ),
-          if (!isLast)
-            Padding(
-              padding: const EdgeInsets.only(left: 66),
-              child: Container(height: 0.5, color: AppColors.divider),
-            ),
-        ],
       ),
     );
   }
