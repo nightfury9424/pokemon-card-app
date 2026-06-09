@@ -1605,24 +1605,24 @@ class _AssetScreenState extends State<AssetScreen> {
         decoration: BoxDecoration(
           color: AppColors.surfaceElevated,
           borderRadius: BorderRadius.circular(AppRadius.lg),
+          // UX 테스트(토스풍): 레어도 glow 테두리/그림자 밀도 완화(트레이딩 느낌 ↓).
           border: Border.all(
             color: premium
-                ? AppColors.rarityGlow(rarity).withValues(alpha: 0.55)
+                ? AppColors.rarityGlow(rarity).withValues(alpha: 0.30)
                 : AppColors.divider,
-            width: premium ? 1.2 : 0.6,
+            width: premium ? 0.8 : 0.6,
           ),
           boxShadow: premium
               ? [
                   BoxShadow(
-                    color: AppColors.rarityGlow(rarity).withValues(alpha: 0.30),
-                    blurRadius: 18,
-                    spreadRadius: 0.5,
-                    offset: const Offset(0, 4),
+                    color: AppColors.rarityGlow(rarity).withValues(alpha: 0.12),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
                   ),
                 ]
               : AppShadows.light(Colors.black),
@@ -1650,8 +1650,8 @@ class _AssetScreenState extends State<AssetScreen> {
                       colors: [
                         Colors.transparent,
                         Colors.transparent,
-                        Colors.black.withValues(alpha: 0.55),
-                        Colors.black.withValues(alpha: 0.92),
+                        Colors.black.withValues(alpha: 0.48),
+                        Colors.black.withValues(alpha: 0.82),
                       ],
                     ),
                   ),
@@ -1824,10 +1824,12 @@ class _AssetScreenState extends State<AssetScreen> {
                         ),
                         if (rate != null)
                           Text(
-                            '${rate >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%',
+                            '${rate > 0.05 ? '+' : ''}${rate.toStringAsFixed(1)}%',
                             style: TextStyle(
-                              // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
-                              color: rate >= 0 ? AppColors.red : AppColors.blue,
+                              // 색상 정책: 양=빨강, 음=파랑, 변동없음(±0.05% 이내)=회색(요약과 통일).
+                              color: rate.abs() < 0.05
+                                  ? AppColors.textMuted
+                                  : (rate >= 0 ? AppColors.red : AppColors.blue),
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                               shadows: const [
