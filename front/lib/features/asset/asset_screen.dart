@@ -15,7 +15,6 @@ import '../../core/widgets/card_image.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pressable.dart';
 import '../../core/widgets/rarity_aura.dart';
-import '../../core/widgets/user_avatar.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_info_toast.dart';
 import 'dex/dex_view.dart';
@@ -32,10 +31,7 @@ class AssetScreen extends StatefulWidget {
   State<AssetScreen> createState() => _AssetScreenState();
 }
 
-enum _SortMode { rarity, price, rate, name, quantity }
-
-// Phase1-④: 컬렉션 탭 내 verified 필터 (전체/Verified/미인증).
-enum _VerifiedFilter { all, verified, unverified }
+enum _SortMode { rarity, price, name, quantity }
 
 class _AssetScreenState extends State<AssetScreen> {
   /// 연속 reload race 방지용 시퀀스 토큰.
@@ -51,25 +47,12 @@ class _AssetScreenState extends State<AssetScreen> {
   _SortMode _sortMode = _SortMode.rarity;
   bool _sortAscending = true;
   String? _langFilter; // null=전체, 'KO'/'JP'/'EN' — 언어별 필터(다국어 보유 시만 노출)
-  // Phase1-②: 금액 숨김 — 로컬 UI 상태만(저장/공개설정 아님). 요약·그리드·스팟라이트 가격성 정보 마스킹.
-  bool _valueHidden = false;
-  // Phase1-④: 컬렉션 탭 verified 필터 상태.
-  _VerifiedFilter _verifiedFilter = _VerifiedFilter.all;
-  // Phase1-①: 쇼케이스 헤더용 프로필 데이터(읽기 only — /api/users/me).
-  String? _nickname;
-  String? _profileImageUrl;
-  int _verifiedCount = 0;
 
   List<Map<String, dynamic>> get _filteredAssets {
     Iterable<Map<String, dynamic>> list = _assets;
     if (_tabIndex == 1) list = list.where((a) => a['isSelling'] == true);
     if (_langFilter != null) {
       list = list.where((a) => ((a['language'] as String?) ?? 'KO') == _langFilter);
-    }
-    // 컬렉션 탭에서만 verified 필터 적용.
-    if (_tabIndex == 0 && _verifiedFilter != _VerifiedFilter.all) {
-      final want = _verifiedFilter == _VerifiedFilter.verified;
-      list = list.where((a) => (a['cardVerified'] == true) == want);
     }
     return list.toList();
   }
@@ -114,22 +97,6 @@ class _AssetScreenState extends State<AssetScreen> {
           if (pb == null) return -1;
           return pa.compareTo(pb) * asc;
         });
-      case _SortMode.rate:
-        // 상승률순 — (시세-구매가)/구매가. 구매가/시세 없으면 하단.
-        _assets.sort((a, b) {
-          double? rateOf(Map m) {
-            final pp = (m['purchasePrice'] as num?)?.toDouble();
-            final mp = (m['displayPrice'] as num?)?.toDouble();
-            if (pp == null || pp <= 0 || mp == null) return null;
-            return (mp - pp) / pp;
-          }
-          final ra = rateOf(a);
-          final rb = rateOf(b);
-          if (ra == null && rb == null) return 0;
-          if (ra == null) return 1;
-          if (rb == null) return -1;
-          return ra.compareTo(rb) * asc;
-        });
       case _SortMode.name:
         _assets.sort(
           (a, b) =>
@@ -153,9 +120,8 @@ class _AssetScreenState extends State<AssetScreen> {
         _sortAscending = !_sortAscending;
       } else {
         _sortMode = mode;
-        // 가격순·상승률순은 기본 내림차순 (비싼 것/많이 오른 것 먼저)
-        _sortAscending =
-            (mode == _SortMode.price || mode == _SortMode.rate) ? false : true;
+        // 가격순은 기본 내림차순 (비싼 것 먼저)
+        _sortAscending = mode == _SortMode.price ? false : true;
       }
       _applySortInPlace();
     });
@@ -196,11 +162,7 @@ class _AssetScreenState extends State<AssetScreen> {
     final seq = ++_loadSeq;
     try {
       final meRes = await ApiClient.get('/api/users/me');
-      final me = meRes['data'] as Map<String, dynamic>?;
-      // Codex 리뷰: 닉/아바타는 _loadSeq 가드 통과 후 setState에서 대입(stale 덮어쓰기 방지).
-      final meNickname = me?['nickname'] as String?;
-      final meProfileImageUrl = me?['profileImageUrl'] as String?;
-      _userId = me?['userId'] as String?; // 아래 자산 fetch params에 필요 — 가드 전 설정.
+      _userId = meRes['data']['userId'] as String?;
       if (_userId == null) return;
 
       final assetRes = await ApiClient.get(
@@ -217,8 +179,6 @@ class _AssetScreenState extends State<AssetScreen> {
         if (dp != null && dp > 0) totalMarketValue += dp * qty;
       }
       final cardIds = assets.map((a) => a['cardId'] as String).toSet();
-      final verifiedCount =
-          assets.where((a) => a['cardVerified'] == true).length;
 
       if (!mounted) return;
       // 더 최신 load가 시작됐다면 stale 응답이므로 무시.
@@ -233,9 +193,6 @@ class _AssetScreenState extends State<AssetScreen> {
           'distinctCardCount': cardIds.length,
           'totalMarketValue': totalMarketValue,
         };
-        _verifiedCount = verifiedCount;
-        _nickname = meNickname;
-        _profileImageUrl = meProfileImageUrl;
         _loading = false;
         _applySortInPlace();
       });
@@ -881,8 +838,6 @@ class _AssetScreenState extends State<AssetScreen> {
                   SliverToBoxAdapter(child: _buildTabAndSortRow()),
                   if (_tabIndex == 0 || _tabIndex == 1)
                     SliverToBoxAdapter(child: _buildLangFilter()),
-                  if (_tabIndex == 0)
-                    SliverToBoxAdapter(child: _buildVerifiedFilter()),
                   // 2026-05-29 Phase B (fix): 도감 탭 (index 3) — SliverFillRemaining 안에 DexView.
                   //   외부 RefreshIndicator + CustomScrollView 공유 → portfolio summary
                   //   시각 일관성 확보 (사용자 명시 — 탭마다 다르게 보이면 안 됨).
@@ -921,16 +876,11 @@ class _AssetScreenState extends State<AssetScreen> {
                   else if (_filteredAssets.isEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
-                      // Codex 리뷰: verified 필터로 비었을 땐 '카드 없음'(추가 유도) 대신 필터 전용 안내.
-                      child: (_tabIndex == 0 &&
-                              _verifiedFilter != _VerifiedFilter.all &&
-                              _assets.isNotEmpty)
-                          ? _buildFilterEmpty()
-                          : EmptyState.noAssets(
-                              onAdd: _tabIndex == 0
-                                  ? () => context.go('/scanner')
-                                  : null,
-                            ),
+                      child: EmptyState.noAssets(
+                        onAdd: _tabIndex == 0
+                            ? () => context.go('/scanner')
+                            : null,
+                      ),
                     )
                   else ...[
                     // 4차-Round3 Bento: 4장+이면 첫 카드 spotlight + 나머지 격자.
@@ -966,45 +916,6 @@ class _AssetScreenState extends State<AssetScreen> {
                 ],
               ),
             ),
-    );
-  }
-
-  // Phase1-②: 금액 숨김 토글 (눈 아이콘). 로컬 상태만 — 공개설정/저장 아님.
-  Widget _valueHideToggle() {
-    return GestureDetector(
-      onTap: () => setState(() {
-        _valueHidden = !_valueHidden;
-        // Codex nit: 금액숨김 시 가격순·상승률순은 상대순서가 새므로 등급순으로 되돌림.
-        if (_valueHidden &&
-            (_sortMode == _SortMode.price || _sortMode == _SortMode.rate)) {
-          _sortMode = _SortMode.rarity;
-          _applySortInPlace();
-        }
-      }),
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _valueHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-              size: 15,
-              color: AppColors.textMuted,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              _valueHidden ? '금액 표시' : '금액 숨김',
-              style: const TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1057,87 +968,31 @@ class _AssetScreenState extends State<AssetScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Phase1-①: 프로필/쇼케이스 헤더 행 — 아바타 + 닉네임 + 보유/인증 수.
-            Row(
-              children: [
-                UserAvatar(imageUrl: _profileImageUrl, size: 44),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _nickname ?? '-',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$distinctCount종 보유 · 인증 $_verifiedCount장',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            const Divider(height: 1, color: AppColors.divider),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                const Text(
-                  '총 평가 자산',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-                const Spacer(),
-                _valueHideToggle(),
-              ],
+            const Text(
+              '총 평가 자산',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                letterSpacing: -0.2,
+              ),
             ),
             const SizedBox(height: 4),
             // 4차-Round1: TweenedCounter — 자산 추가/삭제 시 부드러운 보간
-            // Phase1-②: 금액 숨김 시 동일 스타일로 마스킹.
-            _valueHidden
-                ? const Text(
-                    '••••••',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 2.0,
-                      height: 1.05,
-                    ),
-                  )
-                : TweenedCounter(
-                    value: totalMarketValue,
-                    formatter: (v) => _formatPrice(v.toDouble()),
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -1.0,
-                      height: 1.05,
-                    ),
-                  ),
+            TweenedCounter(
+              value: totalMarketValue,
+              formatter: (v) => _formatPrice(v.toDouble()),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1.0,
+                height: 1.05,
+              ),
+            ),
             const SizedBox(height: 6),
-            // 수익률 + 보유 종수 한 줄. hasRate 없거나 금액숨김이면 보유 종수만.
-            (hasRate && !_valueHidden)
+            // 수익률 + 보유 종수 한 줄. hasRate 없으면 보유 종수만.
+            hasRate
                 ? RichText(
                     text: TextSpan(
                       style: const TextStyle(
@@ -1189,93 +1044,6 @@ class _AssetScreenState extends State<AssetScreen> {
   /// - sort = 우측 dropdown trigger (secondary, BottomSheet popup)
   /// - 기존 chip pill 두 row (sort row 40 + tab row 56)을 한 row로
   /// 언어별 필터 — KO/JP/EN 혼합 보유 시만 노출. 단일 언어면 SizedBox.shrink (clutter 방지).
-  // Phase1-④: 컬렉션 탭 verified 필터칩 (전체/Verified/미인증). 보유 카드 있을 때만 노출.
-  Widget _buildVerifiedFilter() {
-    if (_assets.isEmpty) return const SizedBox.shrink();
-    Widget chip(_VerifiedFilter value, String label, {IconData? icon}) {
-      final sel = _verifiedFilter == value;
-      return GestureDetector(
-        onTap: () => setState(() => _verifiedFilter = value),
-        behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.only(right: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: sel ? AppColors.blueDeep : AppColors.surfaceCard,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: sel ? AppColors.blue : AppColors.divider, width: 1),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (icon != null) ...[
-              Icon(icon,
-                  size: 13,
-                  color: sel ? AppColors.textPrimary : AppColors.textSecondary),
-              const SizedBox(width: 4),
-            ],
-            Text(label,
-                style: TextStyle(
-                  color: sel ? AppColors.textPrimary : AppColors.textSecondary,
-                  fontSize: 13,
-                  fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                  letterSpacing: -0.2,
-                )),
-          ]),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Row(children: [
-        chip(_VerifiedFilter.all, '전체'),
-        chip(_VerifiedFilter.verified, 'Verified', icon: Icons.verified_rounded),
-        chip(_VerifiedFilter.unverified, '미인증'),
-      ]),
-    );
-  }
-
-  // Codex 리뷰: verified 필터 결과가 빈 경우 전용 빈 상태(카드 추가 유도와 구분).
-  Widget _buildFilterEmpty() {
-    final isVerified = _verifiedFilter == _VerifiedFilter.verified;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(isVerified ? Icons.verified_outlined : Icons.style_outlined,
-                color: AppColors.textMuted, size: 40),
-            const SizedBox(height: 12),
-            Text(
-              isVerified ? '인증된 카드가 아직 없어요' : '미인증 카드가 없어요',
-              style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              isVerified ? '실물 앞/뒷면을 등록하면 인증 카드로 표시돼요' : '보유 카드가 모두 인증됐어요',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: AppColors.textMuted, fontSize: 12, height: 1.4),
-            ),
-            const SizedBox(height: 14),
-            TextButton(
-              onPressed: () =>
-                  setState(() => _verifiedFilter = _VerifiedFilter.all),
-              child: const Text('전체 보기',
-                  style: TextStyle(
-                      color: AppColors.blue, fontWeight: FontWeight.w700)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildLangFilter() {
     final langs = _availableLangs;
     if (langs.length < 2) return const SizedBox.shrink();
@@ -1325,7 +1093,7 @@ class _AssetScreenState extends State<AssetScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _tabText('컬렉션', 0),
+          _tabText('전체', 0),
           const SizedBox(width: 18),
           _tabText('판매중', 1),
           const SizedBox(width: 18),
@@ -1395,8 +1163,6 @@ class _AssetScreenState extends State<AssetScreen> {
         return '등급순';
       case _SortMode.price:
         return '가격순';
-      case _SortMode.rate:
-        return '상승률순';
       case _SortMode.name:
         return '이름순';
       case _SortMode.quantity:
@@ -1475,8 +1241,7 @@ class _AssetScreenState extends State<AssetScreen> {
             ),
             const SizedBox(height: 8),
             _sortOption(ctx, '등급순', _SortMode.rarity),
-            if (!_valueHidden) _sortOption(ctx, '가격순', _SortMode.price),
-            if (!_valueHidden) _sortOption(ctx, '상승률순', _SortMode.rate),
+            _sortOption(ctx, '가격순', _SortMode.price),
             _sortOption(ctx, '이름순', _SortMode.name),
             const SizedBox(height: 12),
           ],
@@ -1604,9 +1369,7 @@ class _AssetScreenState extends State<AssetScreen> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  _valueHidden
-                      ? '비공개'
-                      : (price != null ? '${_formatPrice(price)}에 매수 희망' : '-'),
+                  price != null ? '${_formatPrice(price)}에 매수 희망' : '-',
                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                 ),
               ],
@@ -1756,11 +1519,7 @@ class _AssetScreenState extends State<AssetScreen> {
                           ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
-                        if (_valueHidden)
-                          Text('••••',
-                              style: AppText.display
-                                  .copyWith(fontSize: 22, letterSpacing: 2))
-                        else if (marketPrice != null)
+                        if (marketPrice != null)
                           TweenedCounter(
                             value: marketPrice,
                             formatter: (v) => _formatPrice(v.toDouble()),
@@ -1770,7 +1529,7 @@ class _AssetScreenState extends State<AssetScreen> {
                           )
                         else
                           Text('—', style: AppText.title.copyWith(color: AppColors.textMuted)),
-                        if (diff != null && rate != null && !_valueHidden) ...[
+                        if (diff != null && rate != null) ...[
                           const SizedBox(height: AppSpacing.xs),
                           Text(
                             '${diff >= 0 ? '+' : ''}${_formatPrice(diff)} (${diff >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%)',
@@ -2031,22 +1790,18 @@ class _AssetScreenState extends State<AssetScreen> {
                             children: [
                               Flexible(
                                 child: Text(
-                                  _valueHidden
-                                      ? '비공개'
-                                      : (marketPrice != null ? _formatPrice(marketPrice) : '시세 없음'),
+                                  marketPrice != null ? _formatPrice(marketPrice) : '시세 없음',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: _valueHidden
-                                        ? Colors.white70
-                                        : (marketPrice != null ? Colors.white : Colors.white60),
+                                    color: marketPrice != null ? Colors.white : Colors.white60,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: -0.3,
                                   ),
                                 ),
                               ),
-                              if (isRawFallback && !_valueHidden) ...[
+                              if (isRawFallback) ...[
                                 const SizedBox(width: 4),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -2067,7 +1822,7 @@ class _AssetScreenState extends State<AssetScreen> {
                             ],
                           ),
                         ),
-                        if (rate != null && !_valueHidden)
+                        if (rate != null)
                           Text(
                             '${rate >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%',
                             style: TextStyle(
