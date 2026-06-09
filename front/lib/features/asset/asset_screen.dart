@@ -32,7 +32,7 @@ class AssetScreen extends StatefulWidget {
   State<AssetScreen> createState() => _AssetScreenState();
 }
 
-enum _SortMode { rarity, price, name, quantity }
+enum _SortMode { rarity, price, rate, name, quantity }
 
 // Phase1-④: 컬렉션 탭 내 verified 필터 (전체/Verified/미인증).
 enum _VerifiedFilter { all, verified, unverified }
@@ -114,6 +114,22 @@ class _AssetScreenState extends State<AssetScreen> {
           if (pb == null) return -1;
           return pa.compareTo(pb) * asc;
         });
+      case _SortMode.rate:
+        // 상승률순 — (시세-구매가)/구매가. 구매가/시세 없으면 하단.
+        _assets.sort((a, b) {
+          double? rateOf(Map m) {
+            final pp = (m['purchasePrice'] as num?)?.toDouble();
+            final mp = (m['displayPrice'] as num?)?.toDouble();
+            if (pp == null || pp <= 0 || mp == null) return null;
+            return (mp - pp) / pp;
+          }
+          final ra = rateOf(a);
+          final rb = rateOf(b);
+          if (ra == null && rb == null) return 0;
+          if (ra == null) return 1;
+          if (rb == null) return -1;
+          return ra.compareTo(rb) * asc;
+        });
       case _SortMode.name:
         _assets.sort(
           (a, b) =>
@@ -137,8 +153,9 @@ class _AssetScreenState extends State<AssetScreen> {
         _sortAscending = !_sortAscending;
       } else {
         _sortMode = mode;
-        // 가격순은 기본 내림차순 (비싼 것 먼저)
-        _sortAscending = mode == _SortMode.price ? false : true;
+        // 가격순·상승률순은 기본 내림차순 (비싼 것/많이 오른 것 먼저)
+        _sortAscending =
+            (mode == _SortMode.price || mode == _SortMode.rate) ? false : true;
       }
       _applySortInPlace();
     });
@@ -957,8 +974,9 @@ class _AssetScreenState extends State<AssetScreen> {
     return GestureDetector(
       onTap: () => setState(() {
         _valueHidden = !_valueHidden;
-        // Codex nit: 금액숨김 시 가격순은 상대순서가 새므로 등급순으로 되돌림.
-        if (_valueHidden && _sortMode == _SortMode.price) {
+        // Codex nit: 금액숨김 시 가격순·상승률순은 상대순서가 새므로 등급순으로 되돌림.
+        if (_valueHidden &&
+            (_sortMode == _SortMode.price || _sortMode == _SortMode.rate)) {
           _sortMode = _SortMode.rarity;
           _applySortInPlace();
         }
@@ -1377,6 +1395,8 @@ class _AssetScreenState extends State<AssetScreen> {
         return '등급순';
       case _SortMode.price:
         return '가격순';
+      case _SortMode.rate:
+        return '상승률순';
       case _SortMode.name:
         return '이름순';
       case _SortMode.quantity:
@@ -1456,6 +1476,7 @@ class _AssetScreenState extends State<AssetScreen> {
             const SizedBox(height: 8),
             _sortOption(ctx, '등급순', _SortMode.rarity),
             if (!_valueHidden) _sortOption(ctx, '가격순', _SortMode.price),
+            if (!_valueHidden) _sortOption(ctx, '상승률순', _SortMode.rate),
             _sortOption(ctx, '이름순', _SortMode.name),
             const SizedBox(height: 12),
           ],
