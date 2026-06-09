@@ -8,14 +8,15 @@ import 'board_detail_screen.dart';
 /// 게시판 — 공지·소식(관리자) / 커뮤니티 / Q&A 3섹션.
 /// post-launch 신기능. 현재 목업 데이터, 백엔드는 승인 후 연결.
 class BoardScreen extends StatefulWidget {
-  const BoardScreen({super.key});
+  final BoardSection initialSection;
+  const BoardScreen({super.key, this.initialSection = BoardSection.official});
 
   @override
   State<BoardScreen> createState() => _BoardScreenState();
 }
 
 class _BoardScreenState extends State<BoardScreen> {
-  BoardSection _section = BoardSection.official;
+  late BoardSection _section = widget.initialSection;
   BoardType? _filter; // null = 전체
 
   void _selectSection(BoardSection s) {

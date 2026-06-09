@@ -11,6 +11,8 @@ import '../../core/notifiers/home_session_cache.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/rarity.dart';
 import '../board/home_notice_banner.dart';
+import '../board/home_board_section.dart';
+import '../board/models/board_post.dart' show BoardSection;
 import '../../core/utils/price_label.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/animated_counter.dart';
@@ -534,6 +536,16 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverToBoxAdapter(
                 key: const ValueKey('home-hero'),
                 child: _buildHeroSection()),
+          // 3) 게시판 미리보기 (공지·소식 / 커뮤니티 / Q&A) — 한 줄씩 + 더보기 → 게시판
+          const SliverToBoxAdapter(
+              key: ValueKey('home-board-official'),
+              child: HomeBoardSection(section: BoardSection.official)),
+          const SliverToBoxAdapter(
+              key: ValueKey('home-board-community'),
+              child: HomeBoardSection(section: BoardSection.community)),
+          const SliverToBoxAdapter(
+              key: ValueKey('home-board-qna'),
+              child: HomeBoardSection(section: BoardSection.qna)),
           const SliverToBoxAdapter(child: SizedBox(height: 48)),
         ],
       ),
