@@ -181,7 +181,9 @@ class CardImage extends StatelessWidget {
       child: Icon(
         Icons.catching_pokemon,
         color: Colors.white.withValues(alpha: 0.10),
-        size: width > 0 ? width * 0.32 : 44,
+        // width=double.infinity(레이아웃이 크기 결정)면 width*계수가 ♾️ → Icon fontSize 무한
+        //   → 'fontSize.isFinite' assert(디버그 폭주 / 릴리즈 무음). 무한이면 상수로 클램프.
+        size: width.isFinite && width > 0 ? width * 0.32 : 64,
       ),
     );
   }
@@ -205,7 +207,8 @@ class CardImage extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.image_not_supported_outlined,
-                      color: Colors.white54, size: width * 0.28),
+                      color: Colors.white54,
+                      size: width.isFinite ? width * 0.28 : 56),
                   if (height >= 80) ...[
                     const SizedBox(height: 4),
                     Text(
@@ -213,7 +216,7 @@ class CardImage extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white54,
-                        fontSize: width * 0.16,
+                        fontSize: width.isFinite ? width * 0.16 : 13,
                         height: 1.2,
                       ),
                     ),
@@ -235,7 +238,8 @@ class CardImage extends StatelessWidget {
         color: const Color(0xFF1A1A2E),
         borderRadius: borderRadius,
       ),
-      child: Icon(Icons.catching_pokemon, color: Colors.white24, size: width * 0.4),
+      child: Icon(Icons.catching_pokemon, color: Colors.white24,
+          size: width.isFinite ? width * 0.4 : 64),
     );
   }
 }
