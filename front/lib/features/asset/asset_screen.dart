@@ -15,6 +15,7 @@ import '../../core/widgets/card_image.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pressable.dart';
 import '../../core/widgets/rarity_aura.dart';
+import '../../core/widgets/user_avatar.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_info_toast.dart';
 import 'dex/dex_view.dart';
@@ -49,6 +50,10 @@ class _AssetScreenState extends State<AssetScreen> {
   String? _langFilter; // null=전체, 'KO'/'JP'/'EN' — 언어별 필터(다국어 보유 시만 노출)
   // Phase1-②: 금액 숨김 — 로컬 UI 상태만(저장/공개설정 아님). 요약·그리드·스팟라이트 가격성 정보 마스킹.
   bool _valueHidden = false;
+  // Phase1-①: 쇼케이스 헤더용 프로필 데이터(읽기 only — /api/users/me).
+  String? _nickname;
+  String? _profileImageUrl;
+  int _verifiedCount = 0;
 
   List<Map<String, dynamic>> get _filteredAssets {
     Iterable<Map<String, dynamic>> list = _assets;
@@ -164,7 +169,10 @@ class _AssetScreenState extends State<AssetScreen> {
     final seq = ++_loadSeq;
     try {
       final meRes = await ApiClient.get('/api/users/me');
-      _userId = meRes['data']['userId'] as String?;
+      final me = meRes['data'] as Map<String, dynamic>?;
+      _userId = me?['userId'] as String?;
+      _nickname = me?['nickname'] as String?;
+      _profileImageUrl = me?['profileImageUrl'] as String?;
       if (_userId == null) return;
 
       final assetRes = await ApiClient.get(
@@ -181,6 +189,8 @@ class _AssetScreenState extends State<AssetScreen> {
         if (dp != null && dp > 0) totalMarketValue += dp * qty;
       }
       final cardIds = assets.map((a) => a['cardId'] as String).toSet();
+      final verifiedCount =
+          assets.where((a) => a['cardVerified'] == true).length;
 
       if (!mounted) return;
       // 더 최신 load가 시작됐다면 stale 응답이므로 무시.
@@ -195,6 +205,7 @@ class _AssetScreenState extends State<AssetScreen> {
           'distinctCardCount': cardIds.length,
           'totalMarketValue': totalMarketValue,
         };
+        _verifiedCount = verifiedCount;
         _loading = false;
         _applySortInPlace();
       });
@@ -1001,6 +1012,44 @@ class _AssetScreenState extends State<AssetScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Phase1-①: 프로필/쇼케이스 헤더 행 — 아바타 + 닉네임 + 보유/인증 수.
+            Row(
+              children: [
+                UserAvatar(imageUrl: _profileImageUrl, size: 44),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _nickname ?? '-',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$distinctCount종 보유 · 인증 $_verifiedCount장',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const Divider(height: 1, color: AppColors.divider),
+            const SizedBox(height: 14),
             Row(
               children: [
                 const Text(
