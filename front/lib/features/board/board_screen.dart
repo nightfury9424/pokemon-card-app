@@ -5,31 +5,39 @@ import 'models/board_post.dart';
 import 'data/board_mock.dart';
 import 'board_detail_screen.dart';
 
-/// 게시판 — 공지·소식(관리자) / 커뮤니티 / Q&A 3섹션.
-/// post-launch 신기능. 현재 목업 데이터, 백엔드는 승인 후 연결.
+/// 게시판 — 공지·소식 + 커뮤니티 **통합 단일 피드** (Q&A 제거).
+/// 상단 카테고리 칩(공지/이벤트/패치/자유/거래후기/사기주의)으로 필터, 글 앞 타입칩.
 class BoardScreen extends StatefulWidget {
-  final BoardSection initialSection;
-  const BoardScreen({super.key, this.initialSection = BoardSection.official});
+  const BoardScreen({super.key});
 
   @override
   State<BoardScreen> createState() => _BoardScreenState();
 }
 
-class _BoardScreenState extends State<BoardScreen> {
-  late BoardSection _section = widget.initialSection;
-  BoardType? _filter; // null = 전체
+/// 게시판 노출 타입 (Q&A 제외). 공지성 + 커뮤니티 통합.
+const List<BoardType> _boardTypes = [
+  BoardType.notice,
+  BoardType.event,
+  BoardType.patch,
+  BoardType.free,
+  BoardType.tradeReview,
+  BoardType.scamAlert,
+];
 
-  void _selectSection(BoardSection s) {
-    if (s == _section) return;
-    setState(() {
-      _section = s;
-      _filter = null;
-    });
-  }
+class _BoardScreenState extends State<BoardScreen> {
+  BoardType? _filter; // null = 전체
 
   @override
   Widget build(BuildContext context) {
-    final posts = BoardMock.bySection(_section, filter: _filter);
+    final posts = BoardMock.posts
+        .where((p) =>
+            _boardTypes.contains(p.type) && (_filter == null || p.type == _filter))
+        .toList()
+      ..sort((a, b) {
+        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+        return b.createdAt.compareTo(a.createdAt);
+      });
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
@@ -38,25 +46,25 @@ class _BoardScreenState extends State<BoardScreen> {
         scrolledUnderElevation: 0,
         titleSpacing: 20,
         title: const Text('게시판',
-            style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 20)),
+            style: TextStyle(
+                color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 20)),
       ),
-      floatingActionButton: _section.userWritable
-          ? FloatingActionButton.extended(
-              backgroundColor: AppColors.blue,
-              onPressed: () => AppInfoToast.show(context, '작성 화면은 다음 단계에서 추가돼요'),
-              icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.white),
-              label: const Text('글쓰기', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-            )
-          : null,
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: AppColors.blue,
+        onPressed: () => AppInfoToast.show(context, '작성 화면은 다음 단계에서 추가돼요'),
+        icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.white),
+        label: const Text('글쓰기',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+      ),
       body: Column(
         children: [
-          _sectionTabs(),
-          if (_section.types.length > 1) _categoryChips(),
+          _categoryChips(),
           const SizedBox(height: 4),
           Expanded(
             child: posts.isEmpty
                 ? const Center(
-                    child: Text('아직 글이 없어요', style: TextStyle(color: AppColors.textMuted)))
+                    child: Text('아직 글이 없어요',
+                        style: TextStyle(color: AppColors.textMuted)))
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
                     itemCount: posts.length,
@@ -70,46 +78,7 @@ class _BoardScreenState extends State<BoardScreen> {
     );
   }
 
-  Widget _sectionTabs() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: BoardSection.values.map((s) {
-          final sel = s == _section;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => _selectSection(s),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: sel ? AppColors.blueDeep : Colors.transparent,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  s.label,
-                  style: TextStyle(
-                    color: sel ? Colors.white : AppColors.textSecondary,
-                    fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                    fontSize: 13.5,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
   Widget _categoryChips() {
-    final types = _section.types;
     return SizedBox(
       height: 36,
       child: ListView(
@@ -117,7 +86,7 @@ class _BoardScreenState extends State<BoardScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           _chip('전체', _filter == null, () => setState(() => _filter = null), AppColors.blue),
-          for (final t in types)
+          for (final t in _boardTypes)
             _chip(t.label, _filter == t, () => setState(() => _filter = t), t.color),
         ],
       ),
@@ -172,18 +141,6 @@ class _PostRow extends StatelessWidget {
                   const SizedBox(width: 6),
                   const Icon(Icons.push_pin, size: 13, color: AppColors.gold),
                 ],
-                if (post.type == BoardType.qna && post.isAnswered) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.green.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text('답변완료',
-                        style: TextStyle(color: AppColors.green, fontSize: 10.5, fontWeight: FontWeight.w700)),
-                  ),
-                ],
               ],
             ),
             const SizedBox(height: 8),
@@ -196,12 +153,16 @@ class _PostRow extends StatelessWidget {
             Text(post.body.replaceAll('\n', ' '),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.35)),
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 13, height: 1.35)),
             const SizedBox(height: 9),
             Row(
               children: [
                 Text(post.author,
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600)),
                 const _Dot(),
                 Text(BoardMock.relativeTime(post.createdAt),
                     style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5)),
