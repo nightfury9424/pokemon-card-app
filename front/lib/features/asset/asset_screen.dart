@@ -180,9 +180,10 @@ class _AssetScreenState extends State<AssetScreen> {
     try {
       final meRes = await ApiClient.get('/api/users/me');
       final me = meRes['data'] as Map<String, dynamic>?;
-      _userId = me?['userId'] as String?;
-      _nickname = me?['nickname'] as String?;
-      _profileImageUrl = me?['profileImageUrl'] as String?;
+      // Codex 리뷰: 닉/아바타는 _loadSeq 가드 통과 후 setState에서 대입(stale 덮어쓰기 방지).
+      final meNickname = me?['nickname'] as String?;
+      final meProfileImageUrl = me?['profileImageUrl'] as String?;
+      _userId = me?['userId'] as String?; // 아래 자산 fetch params에 필요 — 가드 전 설정.
       if (_userId == null) return;
 
       final assetRes = await ApiClient.get(
@@ -216,6 +217,8 @@ class _AssetScreenState extends State<AssetScreen> {
           'totalMarketValue': totalMarketValue,
         };
         _verifiedCount = verifiedCount;
+        _nickname = meNickname;
+        _profileImageUrl = meProfileImageUrl;
         _loading = false;
         _applySortInPlace();
       });
@@ -901,11 +904,16 @@ class _AssetScreenState extends State<AssetScreen> {
                   else if (_filteredAssets.isEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
-                      child: EmptyState.noAssets(
-                        onAdd: _tabIndex == 0
-                            ? () => context.go('/scanner')
-                            : null,
-                      ),
+                      // Codex 리뷰: verified 필터로 비었을 땐 '카드 없음'(추가 유도) 대신 필터 전용 안내.
+                      child: (_tabIndex == 0 &&
+                              _verifiedFilter != _VerifiedFilter.all &&
+                              _assets.isNotEmpty)
+                          ? _buildFilterEmpty()
+                          : EmptyState.noAssets(
+                              onAdd: _tabIndex == 0
+                                  ? () => context.go('/scanner')
+                                  : null,
+                            ),
                     )
                   else ...[
                     // 4차-Round3 Bento: 4장+이면 첫 카드 spotlight + 나머지 격자.
@@ -947,7 +955,14 @@ class _AssetScreenState extends State<AssetScreen> {
   // Phase1-②: 금액 숨김 토글 (눈 아이콘). 로컬 상태만 — 공개설정/저장 아님.
   Widget _valueHideToggle() {
     return GestureDetector(
-      onTap: () => setState(() => _valueHidden = !_valueHidden),
+      onTap: () => setState(() {
+        _valueHidden = !_valueHidden;
+        // Codex nit: 금액숨김 시 가격순은 상대순서가 새므로 등급순으로 되돌림.
+        if (_valueHidden && _sortMode == _SortMode.price) {
+          _sortMode = _SortMode.rarity;
+          _applySortInPlace();
+        }
+      }),
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -1203,6 +1218,46 @@ class _AssetScreenState extends State<AssetScreen> {
     );
   }
 
+  // Codex 리뷰: verified 필터 결과가 빈 경우 전용 빈 상태(카드 추가 유도와 구분).
+  Widget _buildFilterEmpty() {
+    final isVerified = _verifiedFilter == _VerifiedFilter.verified;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(isVerified ? Icons.verified_outlined : Icons.style_outlined,
+                color: AppColors.textMuted, size: 40),
+            const SizedBox(height: 12),
+            Text(
+              isVerified ? '인증된 카드가 아직 없어요' : '미인증 카드가 없어요',
+              style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isVerified ? '실물 앞/뒷면을 등록하면 인증 카드로 표시돼요' : '보유 카드가 모두 인증됐어요',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: AppColors.textMuted, fontSize: 12, height: 1.4),
+            ),
+            const SizedBox(height: 14),
+            TextButton(
+              onPressed: () =>
+                  setState(() => _verifiedFilter = _VerifiedFilter.all),
+              child: const Text('전체 보기',
+                  style: TextStyle(
+                      color: AppColors.blue, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildLangFilter() {
     final langs = _availableLangs;
     if (langs.length < 2) return const SizedBox.shrink();
@@ -1400,7 +1455,7 @@ class _AssetScreenState extends State<AssetScreen> {
             ),
             const SizedBox(height: 8),
             _sortOption(ctx, '등급순', _SortMode.rarity),
-            _sortOption(ctx, '가격순', _SortMode.price),
+            if (!_valueHidden) _sortOption(ctx, '가격순', _SortMode.price),
             _sortOption(ctx, '이름순', _SortMode.name),
             const SizedBox(height: 12),
           ],
@@ -1528,7 +1583,9 @@ class _AssetScreenState extends State<AssetScreen> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  price != null ? '${_formatPrice(price)}에 매수 희망' : '-',
+                  _valueHidden
+                      ? '비공개'
+                      : (price != null ? '${_formatPrice(price)}에 매수 희망' : '-'),
                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                 ),
               ],
