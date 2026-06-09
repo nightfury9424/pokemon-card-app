@@ -47,6 +47,8 @@ class _AssetScreenState extends State<AssetScreen> {
   _SortMode _sortMode = _SortMode.rarity;
   bool _sortAscending = true;
   String? _langFilter; // null=전체, 'KO'/'JP'/'EN' — 언어별 필터(다국어 보유 시만 노출)
+  // Phase1-②: 금액 숨김 — 로컬 UI 상태만(저장/공개설정 아님). 요약·그리드·스팟라이트 가격성 정보 마스킹.
+  bool _valueHidden = false;
 
   List<Map<String, dynamic>> get _filteredAssets {
     Iterable<Map<String, dynamic>> list = _assets;
@@ -919,6 +921,37 @@ class _AssetScreenState extends State<AssetScreen> {
     );
   }
 
+  // Phase1-②: 금액 숨김 토글 (눈 아이콘). 로컬 상태만 — 공개설정/저장 아님.
+  Widget _valueHideToggle() {
+    return GestureDetector(
+      onTap: () => setState(() => _valueHidden = !_valueHidden),
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _valueHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+              size: 15,
+              color: AppColors.textMuted,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              _valueHidden ? '금액 표시' : '금액 숨김',
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPortfolioSummary() {
     final totalMarketValue =
         (_portfolio?['totalMarketValue'] as num?)?.toDouble() ?? 0;
@@ -968,31 +1001,49 @@ class _AssetScreenState extends State<AssetScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              '총 평가 자산',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                letterSpacing: -0.2,
-              ),
+            Row(
+              children: [
+                const Text(
+                  '총 평가 자산',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const Spacer(),
+                _valueHideToggle(),
+              ],
             ),
             const SizedBox(height: 4),
             // 4차-Round1: TweenedCounter — 자산 추가/삭제 시 부드러운 보간
-            TweenedCounter(
-              value: totalMarketValue,
-              formatter: (v) => _formatPrice(v.toDouble()),
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 30,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -1.0,
-                height: 1.05,
-              ),
-            ),
+            // Phase1-②: 금액 숨김 시 동일 스타일로 마스킹.
+            _valueHidden
+                ? const Text(
+                    '••••••',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2.0,
+                      height: 1.05,
+                    ),
+                  )
+                : TweenedCounter(
+                    value: totalMarketValue,
+                    formatter: (v) => _formatPrice(v.toDouble()),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1.0,
+                      height: 1.05,
+                    ),
+                  ),
             const SizedBox(height: 6),
-            // 수익률 + 보유 종수 한 줄. hasRate 없으면 보유 종수만.
-            hasRate
+            // 수익률 + 보유 종수 한 줄. hasRate 없거나 금액숨김이면 보유 종수만.
+            (hasRate && !_valueHidden)
                 ? RichText(
                     text: TextSpan(
                       style: const TextStyle(
@@ -1519,7 +1570,11 @@ class _AssetScreenState extends State<AssetScreen> {
                           ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
-                        if (marketPrice != null)
+                        if (_valueHidden)
+                          Text('••••',
+                              style: AppText.display
+                                  .copyWith(fontSize: 22, letterSpacing: 2))
+                        else if (marketPrice != null)
                           TweenedCounter(
                             value: marketPrice,
                             formatter: (v) => _formatPrice(v.toDouble()),
@@ -1529,7 +1584,7 @@ class _AssetScreenState extends State<AssetScreen> {
                           )
                         else
                           Text('—', style: AppText.title.copyWith(color: AppColors.textMuted)),
-                        if (diff != null && rate != null) ...[
+                        if (diff != null && rate != null && !_valueHidden) ...[
                           const SizedBox(height: AppSpacing.xs),
                           Text(
                             '${diff >= 0 ? '+' : ''}${_formatPrice(diff)} (${diff >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%)',
@@ -1790,18 +1845,22 @@ class _AssetScreenState extends State<AssetScreen> {
                             children: [
                               Flexible(
                                 child: Text(
-                                  marketPrice != null ? _formatPrice(marketPrice) : '시세 없음',
+                                  _valueHidden
+                                      ? '비공개'
+                                      : (marketPrice != null ? _formatPrice(marketPrice) : '시세 없음'),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: marketPrice != null ? Colors.white : Colors.white60,
+                                    color: _valueHidden
+                                        ? Colors.white70
+                                        : (marketPrice != null ? Colors.white : Colors.white60),
                                     fontSize: 11,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: -0.3,
                                   ),
                                 ),
                               ),
-                              if (isRawFallback) ...[
+                              if (isRawFallback && !_valueHidden) ...[
                                 const SizedBox(width: 4),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -1822,7 +1881,7 @@ class _AssetScreenState extends State<AssetScreen> {
                             ],
                           ),
                         ),
-                        if (rate != null)
+                        if (rate != null && !_valueHidden)
                           Text(
                             '${rate >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%',
                             style: TextStyle(
