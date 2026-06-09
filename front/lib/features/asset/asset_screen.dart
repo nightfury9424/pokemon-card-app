@@ -34,6 +34,9 @@ class AssetScreen extends StatefulWidget {
 
 enum _SortMode { rarity, price, name, quantity }
 
+// Phase1-④: 컬렉션 탭 내 verified 필터 (전체/Verified/미인증).
+enum _VerifiedFilter { all, verified, unverified }
+
 class _AssetScreenState extends State<AssetScreen> {
   /// 연속 reload race 방지용 시퀀스 토큰.
   int _loadSeq = 0;
@@ -50,6 +53,8 @@ class _AssetScreenState extends State<AssetScreen> {
   String? _langFilter; // null=전체, 'KO'/'JP'/'EN' — 언어별 필터(다국어 보유 시만 노출)
   // Phase1-②: 금액 숨김 — 로컬 UI 상태만(저장/공개설정 아님). 요약·그리드·스팟라이트 가격성 정보 마스킹.
   bool _valueHidden = false;
+  // Phase1-④: 컬렉션 탭 verified 필터 상태.
+  _VerifiedFilter _verifiedFilter = _VerifiedFilter.all;
   // Phase1-①: 쇼케이스 헤더용 프로필 데이터(읽기 only — /api/users/me).
   String? _nickname;
   String? _profileImageUrl;
@@ -60,6 +65,11 @@ class _AssetScreenState extends State<AssetScreen> {
     if (_tabIndex == 1) list = list.where((a) => a['isSelling'] == true);
     if (_langFilter != null) {
       list = list.where((a) => ((a['language'] as String?) ?? 'KO') == _langFilter);
+    }
+    // 컬렉션 탭에서만 verified 필터 적용.
+    if (_tabIndex == 0 && _verifiedFilter != _VerifiedFilter.all) {
+      final want = _verifiedFilter == _VerifiedFilter.verified;
+      list = list.where((a) => (a['cardVerified'] == true) == want);
     }
     return list.toList();
   }
@@ -851,6 +861,8 @@ class _AssetScreenState extends State<AssetScreen> {
                   SliverToBoxAdapter(child: _buildTabAndSortRow()),
                   if (_tabIndex == 0 || _tabIndex == 1)
                     SliverToBoxAdapter(child: _buildLangFilter()),
+                  if (_tabIndex == 0)
+                    SliverToBoxAdapter(child: _buildVerifiedFilter()),
                   // 2026-05-29 Phase B (fix): 도감 탭 (index 3) — SliverFillRemaining 안에 DexView.
                   //   외부 RefreshIndicator + CustomScrollView 공유 → portfolio summary
                   //   시각 일관성 확보 (사용자 명시 — 탭마다 다르게 보이면 안 됨).
@@ -1144,6 +1156,53 @@ class _AssetScreenState extends State<AssetScreen> {
   /// - sort = 우측 dropdown trigger (secondary, BottomSheet popup)
   /// - 기존 chip pill 두 row (sort row 40 + tab row 56)을 한 row로
   /// 언어별 필터 — KO/JP/EN 혼합 보유 시만 노출. 단일 언어면 SizedBox.shrink (clutter 방지).
+  // Phase1-④: 컬렉션 탭 verified 필터칩 (전체/Verified/미인증). 보유 카드 있을 때만 노출.
+  Widget _buildVerifiedFilter() {
+    if (_assets.isEmpty) return const SizedBox.shrink();
+    Widget chip(_VerifiedFilter value, String label, {IconData? icon}) {
+      final sel = _verifiedFilter == value;
+      return GestureDetector(
+        onTap: () => setState(() => _verifiedFilter = value),
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: sel ? AppColors.blueDeep : AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+                color: sel ? AppColors.blue : AppColors.divider, width: 1),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (icon != null) ...[
+              Icon(icon,
+                  size: 13,
+                  color: sel ? AppColors.textPrimary : AppColors.textSecondary),
+              const SizedBox(width: 4),
+            ],
+            Text(label,
+                style: TextStyle(
+                  color: sel ? AppColors.textPrimary : AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                  letterSpacing: -0.2,
+                )),
+          ]),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(children: [
+        chip(_VerifiedFilter.all, '전체'),
+        chip(_VerifiedFilter.verified, 'Verified', icon: Icons.verified_rounded),
+        chip(_VerifiedFilter.unverified, '미인증'),
+      ]),
+    );
+  }
+
   Widget _buildLangFilter() {
     final langs = _availableLangs;
     if (langs.length < 2) return const SizedBox.shrink();
@@ -1193,7 +1252,7 @@ class _AssetScreenState extends State<AssetScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _tabText('전체', 0),
+          _tabText('컬렉션', 0),
           const SizedBox(width: 18),
           _tabText('판매중', 1),
           const SizedBox(width: 18),
