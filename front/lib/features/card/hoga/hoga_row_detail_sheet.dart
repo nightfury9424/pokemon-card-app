@@ -268,25 +268,25 @@ class _ListingTile extends StatelessWidget {
     final bool isAsk = side == HogaSide.ask;
     final String? tradeId = listing.tradeId;
     final String? buyOrderId = listing.buyOrderId;
-    // 2026-05-28: BID 도 채팅 진입 가능. listing.userId == myUserId 면 자기 호가 → self-chat 차단.
+    // BID 도 본인 호가 포함 진입 가능 — 구매글 상세 페이지에서 본인은 관리(가격수정/삭제),
+    // 비본인은 채팅. self-chat 차단은 페이지에서(본인은 채팅 버튼 자체가 없음). (판매글 대칭)
     final bool isOwnBuyOrder = !isAsk &&
         myUserId != null &&
         myUserId == listing.userId;
     final bool clickable = isAsk
         ? (tradeId != null && tradeId.isNotEmpty)
-        : (buyOrderId != null && buyOrderId.isNotEmpty && !isOwnBuyOrder);
+        : (buyOrderId != null && buyOrderId.isNotEmpty);
 
     // 정책 (feedback_hoga_design_invariants.md):
     // - ASK → tradeId 결손 시 disabled + inline 결함 안내.
-    // - BID → 본인 호가는 disabled + "본인 구매 호가에는 채팅을 시작할 수 없어요" 안내.
-    //          buyOrderId 결손 시 결함 안내. clickable 일 땐 helperText null.
+    // - BID → buyOrderId 결손 시 결함 안내. 본인 호가 포함 clickable 일 땐 helperText null.
     final String? helperText;
     if (isAsk) {
       helperText = clickable ? null : '판매글 정보를 불러올 수 없습니다';
-    } else if (isOwnBuyOrder) {
-      helperText = '본인 구매 호가에는 채팅을 시작할 수 없어요';
     } else if (buyOrderId == null || buyOrderId.isEmpty) {
       helperText = '구매 호가 정보를 불러올 수 없습니다';
+    } else if (isOwnBuyOrder) {
+      helperText = null; // 본인 구매 호가 — 탭하면 상세에서 관리
     } else {
       helperText = null;
     }

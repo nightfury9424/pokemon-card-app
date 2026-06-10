@@ -1883,31 +1883,25 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   myUserId: _myUserId,
                 );
                 if (listingId == null || !context.mounted) return;
-                // 거래 시작 게이트 — 하단 CTA와 동일하게 호가창 row 경로도 전화인증 요구.
-                if (!await PhoneVerifySheet.ensureVerified(context)) return;
-                if (!context.mounted) return;
 
                 if (side == HogaSide.ask) {
-                  // 기존 ASK 경로 — trade_detail 진입. status 변경/삭제 시 pop(true)로 hoga 갱신.
+                  // ASK — trade_detail 진입. 거래 시작 게이트(전화인증)는 ASK 경로에만.
+                  if (!await PhoneVerifySheet.ensureVerified(context)) return;
+                  if (!context.mounted) return;
+                  // status 변경/삭제 시 pop(true)로 hoga 갱신.
                   final changed = await context.push<bool>('/trades/$listingId');
                   if (changed == true && context.mounted) {
                     await _refreshAfterOrderMutation();
                   }
                 } else {
-                  // 2026-05-28: BID 경로 — BuyOrder 양방향 채팅 신규 진입.
-                  // self-chat 가드는 sheet UI + 백엔드 양쪽. 호출 실패 시 toast.
-                  try {
-                    final res = await ApiClient.post(
-                      '/api/chat/rooms/from-buy-order',
-                      {'buyOrderId': listingId},
-                    );
-                    final room = (res['data'] as Map?)?.cast<String, dynamic>();
-                    if (room == null || !context.mounted) return;
-                    await context.push('/chat/${room['chatRoomId']}', extra: room);
-                  } catch (e) {
-                    if (context.mounted) {
-                      AppErrorToast.show(context, _chatStartErrorMessage(e));
-                    }
+                  // BID 경로 — 구매글 상세 페이지(판매글 대칭). 채팅/신고/본인관리는 페이지 내부.
+                  // 가격수정·삭제 시 페이지가 pop(true) → hoga 갱신.
+                  final changed = await context.push<bool>(
+                    '/buy-order/$listingId',
+                    extra: {'cardId': widget.cardId},
+                  );
+                  if (changed == true && context.mounted) {
+                    await _refreshAfterOrderMutation();
                   }
                 }
               },
@@ -2132,7 +2126,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     onChanged: (_) => setSheet(() {}),
                     style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
                     decoration: InputDecoration(
-                      hintText: '예: 26,200,000',
+                      hintText: (midPrice != null && midPrice > 0)
+                          ? '예: ${_formatThousands(midPrice)}'
+                          : '매수 희망 가격을 입력하세요',
                       hintStyle: const TextStyle(color: Colors.white24),
                       suffixText: '원',
                       suffixStyle: const TextStyle(color: AppColors.textSecondary),

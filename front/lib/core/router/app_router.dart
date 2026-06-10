@@ -36,6 +36,7 @@ import '../../features/legal/inquiry_compose_screen.dart';
 import '../../features/trade/trade_list_screen.dart';
 import '../../features/trade/trade_detail_screen.dart';
 import '../../features/trade/trade_create_screen.dart';
+import '../../features/trade/buy_order_detail_screen.dart';
 import '../auth/auth_state.dart';
 
 // 인앱 푸시 배너 OverlayEntry 주입 등 BuildContext 없는 전역 접근용으로 공개.
@@ -247,6 +248,19 @@ final appRouter = GoRouter(
       path: '/trades/:tradeId',
       builder: (context, state) =>
           TradeDetailScreen(tradeId: state.pathParameters['tradeId']!),
+    ),
+    GoRoute(
+      // 구매글(매수 호가) 상세 — 판매글 대칭 풀페이지. extra={cardId} (단건 조회 API 부재 우회).
+      path: '/buy-order/:buyOrderId',
+      builder: (context, state) {
+        final extra = state.extra is Map
+            ? Map<String, dynamic>.from(state.extra as Map)
+            : const <String, dynamic>{};
+        return BuyOrderDetailScreen(
+          buyOrderId: state.pathParameters['buyOrderId']!,
+          cardId: (extra['cardId'] as String?) ?? '',
+        );
+      },
     ),
     GoRoute(
       path: '/chat/:roomId',

@@ -14,6 +14,7 @@ import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_info_toast.dart';
 import '../auth/phone_verify_sheet.dart';
 import '../../core/notifiers/asset_notifier.dart';
+import 'report_sheet.dart';
 
 class TradeDetailScreen extends StatefulWidget {
   final String tradeId;
@@ -1122,188 +1123,22 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     }
   }
 
+  // 신고 — 공용 ReportSheet (판매/구매/채팅 디자인 통일). 기존 사유 sheet + AlertDialog 2단계 대체.
   void _showReportSheet() {
-    const reasons = <Map<String, String>>[
-      {'code': 'FRAUD', 'label': '사기 의심', 'desc': '입금 후 잠적, 허위 매물 등'},
-      {'code': 'FAKE', 'label': '가품 / 위조', 'desc': '가품으로 의심되는 카드'},
-      {'code': 'ABUSIVE_PRICE', 'label': '시세 교란', 'desc': '비정상적 가격으로 시장 교란'},
-      {'code': 'INSULT', 'label': '욕설 / 비방', 'desc': '부적절한 언행'},
-      {'code': 'SPAM', 'label': '스팸 / 광고', 'desc': '도배, 광고성 글'},
-      {'code': 'OTHER', 'label': '기타', 'desc': '직접 사유 입력'},
-    ];
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.surfaceCard,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetCtx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '신고 사유 선택',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.gold.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.shield_outlined, color: AppColors.gold, size: 16),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '신고하면 해당 판매자가 자동으로 차단됩니다. 차단은 해제할 수 있지만 접수된 신고는 취소되지 않아요.\n'
-                            '신중하게 신고해 주세요. 허위·악의적 신고는 이용 제재 대상이 될 수 있습니다.',
-                            style: TextStyle(
-                              color: AppColors.gold.withValues(alpha: 0.95),
-                              fontSize: 12,
-                              height: 1.45,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const Divider(color: AppColors.divider, height: 1),
-                ...reasons.map((r) {
-                  return ListTile(
-                    title: Text(
-                      r['label']!,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(
-                      r['desc']!,
-                      style: const TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 12,
-                      ),
-                    ),
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                      color: AppColors.textMuted,
-                      size: 18,
-                    ),
-                    onTap: () {
-                      Navigator.of(sheetCtx).pop();
-                      _askReportDetail(r['code']!, r['label']!);
-                    },
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
+    ReportSheet.show(
+      context,
+      targetType: 'TRADE',
+      targetId: _currentTradeId,
+      targetNoun: '판매자',
+      reasons: const [
+        {'code': 'FRAUD', 'label': '사기 의심', 'desc': '입금 후 잠적, 허위 매물 등'},
+        {'code': 'FAKE', 'label': '가품 / 위조', 'desc': '가품으로 의심되는 카드'},
+        {'code': 'ABUSIVE_PRICE', 'label': '시세 교란', 'desc': '비정상적 가격으로 시장 교란'},
+        {'code': 'INSULT', 'label': '욕설 / 비방', 'desc': '부적절한 언행'},
+        {'code': 'SPAM', 'label': '스팸 / 광고', 'desc': '도배, 광고성 글'},
+        {'code': 'OTHER', 'label': '기타', 'desc': '직접 사유 입력'},
+      ],
     );
-  }
-
-  Future<void> _askReportDetail(String reasonCode, String reasonLabel) async {
-    final controller = TextEditingController();
-    final detail = await showDialog<String>(
-      context: context,
-      builder: (dialogCtx) {
-        return AlertDialog(
-          backgroundColor: AppColors.surfaceCard,
-          title: Text(
-            '신고: $reasonLabel',
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
-          ),
-          content: TextField(
-            controller: controller,
-            maxLines: 4,
-            maxLength: 500,
-            style: const TextStyle(color: AppColors.textPrimary),
-            decoration: const InputDecoration(
-              hintText: '상세 내용을 입력해 주세요 (선택)',
-              hintStyle: TextStyle(color: AppColors.textMuted),
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(),
-              child: const Text(
-                '취소',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(dialogCtx).pop(controller.text.trim()),
-              child: const Text(
-                '신고 접수',
-                style: TextStyle(
-                  color: AppColors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-    controller.dispose();
-    if (detail == null) return;
-    await _submitReport(reasonCode, detail);
-  }
-
-  Future<void> _submitReport(String reasonCode, String detail) async {
-    try {
-      final res = await ApiClient.post('/api/reports', {
-        'data': {
-          'targetType': 'TRADE',
-          'targetId': _currentTradeId,
-          'reason': reasonCode,
-          if (detail.isNotEmpty) 'detail': detail,
-        },
-      });
-      if (!mounted) return;
-      if (res['status'] != 'success') {
-        AppErrorToast.show(
-            context,
-            (res['message'] is String &&
-                    (res['message'] as String).trim().isNotEmpty)
-                ? res['message'] as String
-                : '신고 접수에 실패했어요.');
-        return;
-      }
-      AppSuccessToast.show(context, '신고가 접수되었어요.\n검토 후 처리할게요.');
-    } catch (e) {
-      if (!mounted) return;
-      final msg = e.toString().contains('이미 신고하신')
-          ? '이미 신고하신 항목입니다.'
-          : '신고 접수 실패. 잠시 후 다시 시도해 주세요.';
-      AppErrorToast.show(context, msg);
-    }
   }
 
   Future<void> _deleteTrade() async {
