@@ -60,6 +60,54 @@ function StatusBadge({ status }) {
   )
 }
 
+// ── SLA — App Review 1.2 자체 약속 "24h 내 조치". createdAt 기준 마감/잔여/초과 계산. ──
+const SLA_HOURS = 24
+function slaInfo(row) {
+  const open = row.status === 'PENDING' || row.status === 'REVIEWED'
+  const created = row.createdAt ? new Date(row.createdAt).getTime() : null
+  if (created == null) return { open, unknown: true }
+  const remainingMs = created + SLA_HOURS * 3600000 - Date.now()
+  return {
+    open,
+    remainingMs,
+    breached: open && remainingMs < 0,
+    soon: open && remainingMs >= 0 && remainingMs < 4 * 3600000,
+  }
+}
+function fmtDur(ms) {
+  const abs = Math.abs(ms)
+  const h = Math.floor(abs / 3600000)
+  const m = Math.floor((abs % 3600000) / 60000)
+  return h > 0 ? `${h}시간 ${m}분` : `${m}분`
+}
+function SlaBadge({ row }) {
+  const s = slaInfo(row)
+  if (!s.open) return <span style={{ fontSize: 11, color: '#cbd5e1' }}>—</span>
+  if (s.unknown) return <span style={{ fontSize: 11, color: '#94a3b8' }}>-</span>
+  const tone = s.breached
+    ? { bg: '#fef2f2', color: '#dc2626', border: '#fecaca' }
+    : s.soon
+    ? { bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' }
+    : { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' }
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 99,
+      background: tone.bg, color: tone.color, border: `1px solid ${tone.border}`, whiteSpace: 'nowrap',
+    }}>
+      {s.breached ? `초과 ${fmtDur(s.remainingMs)}` : `${fmtDur(s.remainingMs)} 남음`}
+    </span>
+  )
+}
+
+function StatCard({ label, value, color }) {
+  return (
+    <div style={{ flex: 1, background: '#fff', borderRadius: 12, border: '1px solid #e8edf4', padding: '14px 16px' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 800, color: color ?? '#1e293b', marginTop: 4, letterSpacing: -0.5 }}>{value}</div>
+    </div>
+  )
+}
+
 export default function Reports() {
   const [rows, setRows] = useState([])
   const [pendingCount, setPendingCount] = useState(0)
@@ -97,6 +145,18 @@ export default function Reports() {
 
   const totalPages = Math.ceil(total / size)
 
+  // 워크벤치: open(미처리) 먼저 + 오래된(마감 임박/초과)순 정렬 — 급한 게 위로.
+  const displayRows = [...rows].sort((a, b) => {
+    const ao = a.status === 'PENDING' || a.status === 'REVIEWED'
+    const bo = b.status === 'PENDING' || b.status === 'REVIEWED'
+    if (ao !== bo) return ao ? -1 : 1
+    return new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+  })
+  // SLA 지표 — 현재 로드된 행 기준 (초기 운영 규모에선 충분, 추후 백엔드 집계로 정확화).
+  const openRows = displayRows.filter(r => r.status === 'PENDING' || r.status === 'REVIEWED')
+  const breachedN = openRows.filter(r => slaInfo(r).breached).length
+  const soonN = openRows.filter(r => slaInfo(r).soon).length
+
   return (
     <div style={S.page}>
       <div style={S.header}>
@@ -116,6 +176,18 @@ export default function Reports() {
           <RefreshCw size={13} /> 새로고침
         </button>
       </div>
+
+      {/* SLA 지표바 — App Review 1.2 자체 약속 24h 추적 */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+        <StatCard label="대기 (전체)" value={pendingCount.toLocaleString()} color="#c2410c" />
+        <StatCard label="24h 초과 ⚠" value={breachedN} color={breachedN > 0 ? '#dc2626' : '#16a34a'} />
+        <StatCard label="4h 내 마감" value={soonN} color={soonN > 0 ? '#c2410c' : '#16a34a'} />
+      </div>
+      {(breachedN > 0 || soonN > 0) && (
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: -8, marginBottom: 12 }}>
+          ※ 초과·임박 수치는 현재 페이지 기준 (전체 집계는 백엔드 연동 예정)
+        </div>
+      )}
 
       {/* 필터 row */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -160,19 +232,20 @@ export default function Reports() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              {['상태', '대상', '사유', '신고자', '내용', '처리', ''].map(h => (
+              {['상태', 'SLA', '대상', '사유', '신고자', '내용', '처리', ''].map(h => (
                 <th key={h} style={S.th}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>로딩 중...</td></tr>
+              <tr><td colSpan={8} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>로딩 중...</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={7} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>신고 없음</td></tr>
-            ) : rows.map(r => (
+              <tr><td colSpan={8} style={{ ...S.td, textAlign: 'center', color: '#94a3b8', padding: '40px' }}>신고 없음</td></tr>
+            ) : displayRows.map(r => (
               <tr key={r.reportId}>
                 <td style={S.td}><StatusBadge status={r.status} /></td>
+                <td style={S.td}><SlaBadge row={r} /></td>
                 <td style={S.td}>
                   <div style={{ fontWeight: 600, color: '#1e293b' }}>{r.targetType}</div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{r.targetSummary || r.targetId}</div>
