@@ -36,6 +36,12 @@ public interface ImageStorageService {
     /** key 기반 stream load (proxy controller에서 사용). */
     InputStream load(String key) throws IOException;
 
+    /**
+     * 고정 key 에 raw bytes 덮어쓰기 저장. store()는 UUID 재할당이라 정해진 경로
+     * (app-config/maintenance.json 등 설정 파일)엔 부적합 — 이건 key 그대로 PUT.
+     */
+    void putRaw(String key, byte[] bytes, String contentType) throws IOException;
+
     /** key의 content-type 반환 (proxy response header). */
     String contentType(String key);
 

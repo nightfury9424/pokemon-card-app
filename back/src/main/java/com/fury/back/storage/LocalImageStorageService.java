@@ -68,6 +68,14 @@ public class LocalImageStorageService implements ImageStorageService {
     }
 
     @Override
+    public void putRaw(String key, byte[] bytes, String contentType) throws IOException {
+        Path target = resolveSafe(key);
+        Files.createDirectories(target.getParent());
+        Files.write(target, bytes);
+        log.debug("[LocalImageStorage] putRaw key={} size={}", key, bytes.length);
+    }
+
+    @Override
     public InputStream load(String key) throws IOException {
         Path resolved = resolveSafe(key);
         return Files.newInputStream(resolved);

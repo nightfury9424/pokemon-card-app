@@ -38,6 +38,8 @@ public class AdminController {
     private final RawPsa10RatioCalculator rawPsa10RatioCalculator;
     private final RawPsa10RatioRepository rawPsa10RatioRepository;
     private final com.fury.back.domain.user.UserService userService;
+    private final com.fury.back.storage.ImageStorageService imageStorage;
+    private final AdminActionService adminActionService;
 
     /** 2026-05-29 P-1: 스캐너 stats proxy. brower → backend → scanner (docker network). */
     @Value("${scanner.base-url:http://localhost:8082}")
@@ -497,17 +499,97 @@ public class AdminController {
         } else {
             m.put("nickname", u.getNickname());
             m.put("email",    u.getEmail());
+            // 확장 정보 — native 조회(Lombok boolean getter 네이밍 회피, 기존 카운트 쿼리와 동일 스타일).
+            Object[] r = (Object[]) em.createNativeQuery(
+                    "SELECT google_id, apple_id, suspended_at, suspension_reason, " +
+                    "phone_verified, phone_e164, phone_verified_at, is_over_14, age_checked_at, " +
+                    "onboarded, scan_image_consent, scan_image_consent_at " +
+                    "FROM users WHERE user_id = :uid")
+                    .setParameter("uid", userId).getSingleResult();
+            m.put("provider",           r[0] != null ? "GOOGLE" : (r[1] != null ? "APPLE" : "-"));
+            m.put("suspended",          r[2] != null);
+            m.put("suspendedAt",        toLdt(r[2]));
+            m.put("suspensionReason",   r[3]);
+            m.put("phoneVerified",      r[4]);
+            m.put("phoneE164",          maskPhone((String) r[5]));
+            m.put("phoneVerifiedAt",    toLdt(r[6]));
+            m.put("isOver14",           r[7]);
+            m.put("ageCheckedAt",       toLdt(r[8]));
+            m.put("onboarded",          r[9]);
+            m.put("scanImageConsent",   r[10]);
+            m.put("scanImageConsentAt", toLdt(r[11]));
         }
         // 보존된 활동 (탈퇴해도 안 지워짐).
         m.put("assetCount",       auditCount("SELECT COUNT(*) FROM assets WHERE user_id=:uid", userId));
         m.put("tradePostCount",   auditCount("SELECT COUNT(*) FROM trade_posts WHERE seller_id=:uid", userId));
         m.put("buyOrderCount",    auditCount("SELECT COUNT(*) FROM buy_orders WHERE buyer_id=:uid", userId));
-        m.put("scanCaptureCount", auditCount("SELECT COUNT(*) FROM scan_captures WHERE user_id=:uid", userId));
+        m.put("scanCaptureCount", auditCount("SELECT COUNT(*) FROM scan_captures WHERE user_id=:uid AND deleted_at IS NULL", userId));
         return ReturnData.success(m);
     }
 
     private long auditCount(String sql, String userId) {
         return ((Number) em.createNativeQuery(sql).setParameter("uid", userId).getSingleResult()).longValue();
+    }
+
+    /** native 쿼리 timestamp → LocalDateTime (기존 LocalDateTime 필드와 동일 ISO 직렬화 보장). */
+    private Object toLdt(Object o) {
+        return o == null ? null : ((Timestamp) o).toLocalDateTime();
+    }
+
+    /** 휴대폰 번호 마스킹 — admin 화면 노출용(+821012345678 → 010-****-5678). */
+    private String maskPhone(String e164) {
+        if (e164 == null || e164.isBlank()) return null;
+        String d = e164.replaceAll("[^0-9]", "");
+        if (d.startsWith("82")) d = "0" + d.substring(2);
+        if (d.length() < 8) return "***";
+        return d.substring(0, 3) + "-****-" + d.substring(d.length() - 4);
+    }
+
+    /**
+     * 유저 스캔 캡처 목록 + 실제 스캔 사진(presigned, TTL 10분). 동의(scan_image_consent) 유저만 사진 보관.
+     * ★실제 PII(스캔 사진) 열람이므로 AdminAction(VIEW_USER_SCANS) 감사 기록 — 유저에겐 노출/통지 X(내부 기록).
+     */
+    @GetMapping("/users/{userId}/scans")
+    @SuppressWarnings("unchecked")
+    public ReturnData<?> userScans(@PathVariable String userId,
+                                   @org.springframework.security.core.annotation.AuthenticationPrincipal String adminUserId) {
+        var u = em.find(com.fury.back.domain.user.User.class, userId);
+        if (u == null) return ReturnData.notFound("사용자를 찾을 수 없습니다. userId=" + userId);
+
+        List<Object[]> rows = em.createNativeQuery(
+                "SELECT s.capture_id, s.card_id, c.name, s.s3_key, s.match_confidence, " +
+                "s.image_quality, s.created_at, s.consent_version " +
+                "FROM scan_captures s LEFT JOIN cards c ON c.card_id = s.card_id " +
+                "WHERE s.user_id = :uid AND s.deleted_at IS NULL ORDER BY s.created_at DESC")
+                .setParameter("uid", userId).getResultList();
+
+        List<Map<String, Object>> scans = new ArrayList<>();
+        for (Object[] r : rows) {
+            Map<String, Object> sm = new LinkedHashMap<>();
+            sm.put("captureId",       r[0]);
+            sm.put("cardId",          r[1]);
+            sm.put("cardName",        r[2]);
+            try {
+                sm.put("imageUrl", imageStorage.presignedGetUrl((String) r[3], Duration.ofMinutes(10)));
+            } catch (Exception e) {
+                sm.put("imageUrl", null); // 한 장 실패가 전체 막지 않게.
+            }
+            sm.put("matchConfidence", r[4]);
+            sm.put("imageQuality",    r[5]);
+            sm.put("createdAt",       toLdt(r[6]));
+            sm.put("consentVersion",  r[7]);
+            scans.add(sm);
+        }
+
+        // 스캔 데이터 열람 시도 자체를 감사 기록(빈 목록 포함 — 접근 사실이 audit 대상).
+        // adminUserId null(로컬 admin-auth bypass)이면 NOT NULL 제약 회피 위해 UNKNOWN.
+        String actor = (adminUserId == null || adminUserId.isBlank()) ? "UNKNOWN" : adminUserId;
+        adminActionService.record(actor, "VIEW_USER_SCANS", "USER", userId,
+                null, scans.size() + "장 스캔 이미지 열람", null, null);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("scans", scans);
+        return ReturnData.success(out);
     }
 
     /* ════════════════════════════════
