@@ -63,12 +63,12 @@ public class PriceSyncScheduler {
     }
 
     /**
-     * 매일 21:45: KREAM 메타몽 Pokemon Town 2025 프로모 체결가 수집.
-     * 12개 등급 옵션(Ungraded/PSA10/9/8 + BRG 10/9/8.5/8 영문·한글) 분리 적층.
-     * curl_cffi 의존성 때문에 별도 venv python 사용.
-     * exit code 2 = 토큰 만료, 3 = 차단, 4 = 응답 구조 변경 — 운영 알림 대상.
+     * KREAM 메타몽 Pokemon Town 2025 프로모 체결가 수집.
+     * ★자동 cron 비활성 (2026-06-11) — KREAM 봇탐지가 prod 서버 IP를 막아 prod에선 수집 불가.
+     *   prod 컨테이너엔 venv_kream도 없어 매번 "No such file" 실패 → 운영 알림 스팸.
+     *   → 수집은 맥북 agent 수동(admin '메타몽 시세 가져오기' 버튼 → KreamFetchController.ingest)으로 이전.
+     *   메서드는 보존(수동 호출 여지)하되 @Scheduled 제거.
      */
-    @Scheduled(cron = "0 45 21 * * *")
     public void syncKreamDittoPromo() {
         log.info("[PriceSync] KREAM 메타몽 프로모 시세 수집 시작");
         runWithPython(venvKreamPython, script("kream_ditto.py"));
