@@ -15,6 +15,7 @@ import com.fury.back.domain.trade.TradePostRepository;
 import com.fury.back.storage.ImageStorageService;
 import com.fury.back.storage.StorageKeyUrls;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -372,8 +374,27 @@ public class AssetServiceImpl implements AssetService {
         if (hasActiveTrade) {
             throw new IllegalStateException("판매 중인 자산은 삭제할 수 없습니다. assetId=" + assetId);
         }
+        // S3 정리 — asset_images(FRONT/BACK/SLAB)의 S3 파일 삭제. DB row는 FK ON DELETE CASCADE.
+        // ★moat(scan_captures)는 별개 테이블이라 영향 없음 — 카드당 warp-crop 20장은 그대로 보존.
+        cleanupAssetImageFiles(assetId);
         assetRepository.delete(optAsset.get());
         return ReturnData.success();
+    }
+
+    /**
+     * 자산 이미지(FRONT/BACK/SLAB)의 S3 파일 정리. best-effort — 일부 실패해도 자산 삭제는 진행.
+     * 향후 탈퇴 purge cron 도입 시 유저 자산 일괄 정리에 재사용 가능.
+     */
+    private void cleanupAssetImageFiles(String assetId) {
+        for (AssetImage img : assetImageRepository.findByAssetId(assetId)) {
+            String key = img.getImageUrl();
+            if (key == null || key.isBlank()) continue;
+            try {
+                imageStorageService.delete(key);
+            } catch (Exception e) {
+                log.warn("[AssetDelete] S3 이미지 삭제 실패(계속) assetId={} key={}", assetId, key, e);
+            }
+        }
     }
 
     @Override
