@@ -371,7 +371,7 @@ class _ScannerScreenState extends State<ScannerScreen>
     String? gradeValue;
     bool submitting = false;
 
-    const grades = ['10', '9', '8']; // 등급 10·9·8 (등록·호가 동일)
+    const grades = ['10', '9', '8', '7', '6', '5'];
 
     await showModalBottomSheet(
       context: context,
