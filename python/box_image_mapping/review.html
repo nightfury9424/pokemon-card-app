@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>도감 박스 이미지 매핑 리뷰</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #0f172a; color: #e2e8f0; }
+  header { position: sticky; top: 0; z-index: 10;
+           background: #1e293b; border-bottom: 1px solid #334155;
+           padding: 14px 24px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; }
+  header .stat { font-size: 13px; color: #94a3b8; }
+  header .stat b { color: #f1f5f9; }
+  header .actions { margin-left: auto; display: flex; gap: 8px; }
+  header button { padding: 7px 14px; border-radius: 8px; border: 1px solid #475569;
+                  background: #334155; color: #e2e8f0; cursor: pointer; font-size: 13px; }
+  header button.primary { background: #6366f1; border-color: #6366f1; color: #fff; font-weight: 600; }
+  header button:hover { filter: brightness(1.15); }
+  .filter { display: flex; gap: 6px; }
+  .filter button.active { background: #6366f1; border-color: #6366f1; }
+
+  main { padding: 16px 24px; max-width: 1400px; margin: 0 auto; }
+  .row { background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+         padding: 14px 16px; margin-bottom: 12px; display: grid;
+         grid-template-columns: 280px 1fr 180px; gap: 16px; align-items: start; }
+  .row.confirmed { border-color: #16a34a; box-shadow: 0 0 0 1px #16a34a40; }
+  .row.passed    { opacity: 0.45; border-color: #475569; }
+  .row.manual    { border-color: #f59e0b; box-shadow: 0 0 0 1px #f59e0b40; }
+
+  .db-col .pid { font-family: monospace; font-size: 10px; color: #64748b; }
+  .db-col .name { font-size: 14px; font-weight: 700; margin: 4px 0 8px; line-height: 1.4; }
+  .db-col .meta { font-size: 11px; color: #94a3b8; }
+
+  .cands { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .cand { background: #0f172a; border: 1px solid #334155; border-radius: 10px;
+          padding: 8px; cursor: pointer; transition: all 0.15s; }
+  .cand:hover { border-color: #6366f1; }
+  .cand.selected { border-color: #16a34a; background: #14271a; box-shadow: 0 0 0 1px #16a34a; }
+  .cand img { width: 100%; height: 100px; object-fit: contain; background: #fff;
+              border-radius: 6px; }
+  .cand .score { font-size: 11px; font-weight: 700; margin-top: 6px; }
+  .cand .score.high { color: #4ade80; }
+  .cand .score.mid  { color: #facc15; }
+  .cand .score.low  { color: #f87171; }
+  .cand .title { font-size: 11px; color: #cbd5e1; margin-top: 3px; line-height: 1.3;
+                 display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+                 overflow: hidden; }
+
+  .actions-col { display: flex; flex-direction: column; gap: 6px; }
+  .actions-col button { padding: 7px 10px; border-radius: 7px; font-size: 12px;
+                        border: 1px solid #475569; background: #334155; color: #e2e8f0;
+                        cursor: pointer; font-family: inherit; }
+  .actions-col button.confirm { background: #16a34a; border-color: #16a34a; color: #fff; }
+  .actions-col button.manual  { background: transparent; border-color: #f59e0b; color: #fbbf24; }
+  .actions-col button.pass    { background: transparent; border-color: #ef4444; color: #f87171; }
+  .actions-col input { padding: 6px 8px; border-radius: 6px; border: 1px solid #475569;
+                       background: #0f172a; color: #e2e8f0; font-size: 11px; font-family: inherit;
+                       width: 100%; }
+  .status { font-size: 11px; text-align: center; padding: 6px 0;
+            border-radius: 6px; margin-top: 4px; font-weight: 600; }
+  .status.confirmed { background: #14271a; color: #4ade80; }
+  .status.passed    { background: #2a1f1f; color: #f87171; }
+  .status.manual    { background: #2a200f; color: #fbbf24; }
+
+  .preview { max-height: 60px; max-width: 100%; object-fit: contain;
+             border-radius: 4px; background: #fff; margin-top: 4px; display: block; }
+  .empty-cands { color: #64748b; font-size: 12px; padding: 20px; text-align: center;
+                 border: 1px dashed #475569; border-radius: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>도감 박스 이미지 매핑</h1>
+  <span class="stat">전체 <b id="cnt-all">0</b></span>
+  <span class="stat">자동 <b id="cnt-auto">0</b></span>
+  <span class="stat">확정 <b id="cnt-conf">0</b></span>
+  <span class="stat">pass <b id="cnt-pass">0</b></span>
+  <span class="stat">수동 <b id="cnt-man">0</b></span>
+  <span class="stat">남음 <b id="cnt-rem">0</b></span>
+
+  <div class="filter">
+    <button data-f="all" class="active">전체</button>
+    <button data-f="todo">남은 것만</button>
+    <button data-f="auto">자동(≥0.90)</button>
+    <button data-f="mid">검토(0.70~0.89)</button>
+    <button data-f="low">pass권장(&lt;0.70)</button>
+  </div>
+
+  <div class="actions">
+    <button id="auto-check">자동 일괄 확정 (≥0.90)</button>
+    <button id="export" class="primary">Export CSV</button>
+    <button id="reset">초기화</button>
+  </div>
+</header>
+
+<main id="list"></main>
+
+<script>
+const LS_KEY = 'box_mapping_v1';
+
+let DATA = [];      // match_candidates.json 내용
+let STATE = {};     // { product_id: { action: 'confirmed'|'pass'|'manual', image_url, official_title, score, category, site_card_id } }
+let FILTER = 'all';
+
+function loadState() {
+  try { STATE = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); }
+  catch (e) { STATE = {}; }
+}
+function saveState() {
+  localStorage.setItem(LS_KEY, JSON.stringify(STATE));
+}
+
+function fetchData() {
+  return fetch('match_candidates.json')
+    .then(r => r.json())
+    .then(d => { DATA = d; })
+    .catch(() => {
+      document.body.innerHTML = '<div style="padding:40px;color:#f87171">match_candidates.json 못 읽음. python3 match.py 먼저 실행.</div>';
+    });
+}
+
+function classOfRow(pid) {
+  const st = STATE[pid];
+  if (!st) return '';
+  return st.action;
+}
+
+function scoreClass(s) {
+  if (s >= 0.90) return 'high';
+  if (s >= 0.70) return 'mid';
+  return 'low';
+}
+
+function renderCand(cand, i, pid) {
+  const st = STATE[pid];
+  const selected = st && st.action === 'confirmed' && st.image_url === cand.image_url;
+  return `
+    <div class="cand ${selected ? 'selected' : ''}" onclick="selectCand('${pid}', ${i})">
+      <img src="${cand.image_url}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.opacity=0.3">
+      <div class="score ${scoreClass(cand.score)}">${(cand.score * 100).toFixed(0)}%</div>
+      <div class="title">${cand.official_title}</div>
+    </div>
+  `;
+}
+
+function renderRow(r) {
+  const st = STATE[r.product_id];
+  const stClass = classOfRow(r.product_id);
+  const top1Score = r.candidates[0] ? r.candidates[0].score : 0;
+
+  // manual URL 으로 확정된 경우 preview
+  let manualPreview = '';
+  if (st && st.action === 'manual' && st.image_url) {
+    manualPreview = `<img class="preview" src="${st.image_url}" referrerpolicy="no-referrer" onerror="this.style.opacity=0.3">`;
+  }
+
+  let cands = '';
+  if (r.candidates.length === 0) {
+    cands = '<div class="empty-cands">사이트 후보 없음 — 수동 URL 또는 pass</div>';
+  } else {
+    cands = `<div class="cands">${r.candidates.map((c, i) => renderCand(c, i, r.product_id)).join('')}</div>`;
+  }
+
+  let statusHtml = '';
+  if (st) {
+    const labelMap = { confirmed: '✓ 확정', pass: '✗ pass', manual: '✎ 수동' };
+    statusHtml = `<div class="status ${st.action}">${labelMap[st.action] || st.action}</div>`;
+  }
+
+  return `
+    <div class="row ${stClass}" data-pid="${r.product_id}" data-top1="${top1Score}">
+      <div class="db-col">
+        <div class="pid">${r.product_id}</div>
+        <div class="name">${r.db_name}</div>
+        <div class="meta">KO ${r.ko_visible}장 · 최신 ${r.latest_card_at ? r.latest_card_at.slice(0,10) : '-'}</div>
+      </div>
+      <div>${cands}</div>
+      <div class="actions-col">
+        ${r.candidates[0] ? `<button class="confirm" onclick="confirmTop('${r.product_id}')">top-1 확정 (${(top1Score * 100).toFixed(0)}%)</button>` : ''}
+        <input placeholder="수동 URL (사이트 직접 복사)" data-pid="${r.product_id}"
+               value="${st && st.action === 'manual' ? st.image_url : ''}"
+               onchange="confirmManual('${r.product_id}', this.value)">
+        <button class="pass" onclick="passRow('${r.product_id}')">매칭 안 함 / pass</button>
+        ${manualPreview}
+        ${statusHtml}
+      </div>
+    </div>
+  `;
+}
+
+function selectCand(pid, i) {
+  const r = DATA.find(x => x.product_id === pid);
+  if (!r || !r.candidates[i]) return;
+  const c = r.candidates[i];
+  STATE[pid] = {
+    action: 'confirmed',
+    image_url: c.image_url,
+    official_title: c.official_title,
+    score: c.score,
+    category: c.category,
+    site_card_id: c.site_card_id,
+  };
+  saveState();
+  refresh();
+}
+
+function confirmTop(pid) { selectCand(pid, 0); }
+
+function passRow(pid) {
+  STATE[pid] = { action: 'pass' };
+  saveState();
+  refresh();
+}
+
+function confirmManual(pid, url) {
+  if (!url || !url.trim()) { delete STATE[pid]; saveState(); refresh(); return; }
+  STATE[pid] = { action: 'manual', image_url: url.trim(), official_title: null, score: null };
+  saveState();
+  refresh();
+}
+
+function autoCheckAll() {
+  let n = 0;
+  for (const r of DATA) {
+    if (STATE[r.product_id]) continue; // 이미 처리됨
+    const top = r.candidates[0];
+    if (top && top.score >= 0.90) {
+      STATE[r.product_id] = {
+        action: 'confirmed',
+        image_url: top.image_url,
+        official_title: top.official_title,
+        score: top.score,
+        category: top.category,
+        site_card_id: top.site_card_id,
+      };
+      n++;
+    }
+  }
+  saveState();
+  refresh();
+  alert(`자동 확정 ${n}개 추가`);
+}
+
+function resetAll() {
+  if (!confirm('localStorage 모든 매핑 결과 초기화. 정말?')) return;
+  STATE = {};
+  saveState();
+  refresh();
+}
+
+function exportCsv() {
+  const headers = ['product_id', 'db_name', 'ko_visible', 'action', 'image_url', 'official_title', 'score', 'category', 'site_card_id'];
+  const lines = [headers.join(',')];
+  for (const r of DATA) {
+    const st = STATE[r.product_id];
+    if (!st) continue;  // 처리 안 한 행 제외
+    const row = [
+      r.product_id,
+      `"${(r.db_name || '').replace(/"/g, '""')}"`,
+      r.ko_visible,
+      st.action,
+      st.image_url ? `"${st.image_url}"` : '',
+      st.official_title ? `"${st.official_title.replace(/"/g, '""')}"` : '',
+      st.score ?? '',
+      st.category ?? '',
+      st.site_card_id ?? '',
+    ];
+    lines.push(row.join(','));
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  a.download = `product_image_mapping_confirmed_${ts}.csv`;
+  a.click();
+}
+
+function applyFilter(r) {
+  const top1 = r.candidates[0] ? r.candidates[0].score : 0;
+  const st = STATE[r.product_id];
+  if (FILTER === 'all')  return true;
+  if (FILTER === 'todo') return !st;
+  if (FILTER === 'auto') return top1 >= 0.90;
+  if (FILTER === 'mid')  return top1 >= 0.70 && top1 < 0.90;
+  if (FILTER === 'low')  return top1 < 0.70;
+  return true;
+}
+
+function refresh() {
+  // 카운트.
+  const all = DATA.length;
+  const auto = DATA.filter(r => r.candidates[0] && r.candidates[0].score >= 0.90).length;
+  let conf = 0, pas = 0, man = 0;
+  for (const st of Object.values(STATE)) {
+    if (st.action === 'confirmed') conf++;
+    else if (st.action === 'pass') pas++;
+    else if (st.action === 'manual') man++;
+  }
+  const rem = all - conf - pas - man;
+  document.getElementById('cnt-all').textContent = all;
+  document.getElementById('cnt-auto').textContent = auto;
+  document.getElementById('cnt-conf').textContent = conf;
+  document.getElementById('cnt-pass').textContent = pas;
+  document.getElementById('cnt-man').textContent = man;
+  document.getElementById('cnt-rem').textContent = rem;
+
+  // 렌더.
+  const list = DATA.filter(applyFilter).map(renderRow).join('');
+  document.getElementById('list').innerHTML = list ||
+    '<div style="padding:40px;text-align:center;color:#64748b">필터 결과 없음</div>';
+}
+
+function init() {
+  loadState();
+  fetchData().then(refresh);
+  document.querySelectorAll('.filter button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      FILTER = btn.dataset.f;
+      document.querySelectorAll('.filter button').forEach(b => b.classList.toggle('active', b === btn));
+      refresh();
+    });
+  });
+  document.getElementById('auto-check').addEventListener('click', autoCheckAll);
+  document.getElementById('export').addEventListener('click', exportCsv);
+  document.getElementById('reset').addEventListener('click', resetAll);
+}
+
+init();
+</script>
+</body>
+</html>
