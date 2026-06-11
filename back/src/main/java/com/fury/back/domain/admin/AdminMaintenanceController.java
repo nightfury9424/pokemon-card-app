@@ -32,7 +32,8 @@ public class AdminMaintenanceController {
 
     private final ImageStorageService imageStorage;
     private final AdminActionService adminActionService;
-    private final ObjectMapper objectMapper;
+    // ObjectMapper 빈이 이 컨텍스트에 없음 → 직접 생성(final+initializer라 @RequiredArgsConstructor 주입 대상 제외).
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 현재 점검 상태 — S3에서 직접 읽음(CDN 캐시 우회 = 최신값 보장). */
     @GetMapping
