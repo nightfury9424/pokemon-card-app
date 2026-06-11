@@ -37,6 +37,7 @@ public class AdminController {
 
     private final RawPsa10RatioCalculator rawPsa10RatioCalculator;
     private final RawPsa10RatioRepository rawPsa10RatioRepository;
+    private final com.fury.back.domain.user.UserService userService;
 
     /** 2026-05-29 P-1: 스캐너 stats proxy. brower → backend → scanner (docker network). */
     @Value("${scanner.base-url:http://localhost:8082}")
@@ -461,6 +462,52 @@ public class AdminController {
             "totalPages",    (int) Math.ceil((double) total / size),
             "page",          page
         ));
+    }
+
+    /* ════════════════════════════════
+       탈퇴 유저 — 관리자 삭제 + 상세(원본 PII audit)
+       ════════════════════════════════ */
+
+    /** 관리자가 특정 유저 탈퇴 처리. deleteAccount 재사용 → 마스킹 전 원본 PII가 audit에 보존됨. */
+    @PostMapping("/users/{userId}/delete")
+    public ReturnData<?> deleteUser(@PathVariable String userId) {
+        return userService.deleteAccount(userId);
+    }
+
+    /** 유저 상세 — 탈퇴자는 audit에서 원본 PII(admin 전용) + 보존된 활동 카운트. */
+    @GetMapping("/users/{userId}")
+    public ReturnData<?> userDetail(@PathVariable String userId) {
+        var u = em.find(com.fury.back.domain.user.User.class, userId);
+        if (u == null) return ReturnData.notFound("사용자를 찾을 수 없습니다. userId=" + userId);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id",        u.getUserId());
+        m.put("createdAt", u.getCreatedAt());
+        boolean deleted = u.getDeletedAt() != null;
+        m.put("deleted",   deleted);
+        m.put("deletedAt", u.getDeletedAt());
+        if (deleted) {
+            var a = em.find(com.fury.back.domain.user.DeletedUserAudit.class, userId);
+            if (a != null) {
+                m.put("originalNickname",        a.getOriginalNickname());
+                m.put("originalEmail",           a.getOriginalEmail());
+                m.put("originalProfileImageUrl", a.getOriginalProfileImageUrl());
+                m.put("purgeAfter",              a.getPurgeAfter());
+            }
+            m.put("maskedNickname", u.getNickname());
+        } else {
+            m.put("nickname", u.getNickname());
+            m.put("email",    u.getEmail());
+        }
+        // 보존된 활동 (탈퇴해도 안 지워짐).
+        m.put("assetCount",       auditCount("SELECT COUNT(*) FROM assets WHERE user_id=:uid", userId));
+        m.put("tradePostCount",   auditCount("SELECT COUNT(*) FROM trade_posts WHERE seller_id=:uid", userId));
+        m.put("buyOrderCount",    auditCount("SELECT COUNT(*) FROM buy_orders WHERE buyer_id=:uid", userId));
+        m.put("scanCaptureCount", auditCount("SELECT COUNT(*) FROM scan_captures WHERE user_id=:uid", userId));
+        return ReturnData.success(m);
+    }
+
+    private long auditCount(String sql, String userId) {
+        return ((Number) em.createNativeQuery(sql).setParameter("uid", userId).getSingleResult()).longValue();
     }
 
     /* ════════════════════════════════
