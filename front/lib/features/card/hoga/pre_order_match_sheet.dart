@@ -143,15 +143,17 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          // 조건 토글(RAW/PSA/BRG +등급) — 항상 표시, 빈 조건에서도 전환 가능.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: HogaStatusChipBar(
-              selectedStatus: _status,
-              selectedGrade: _grade,
-              onChanged: _onStatusChanged,
+          // 조건 토글(RAW/PSA/BRG +등급) — 구매(매수자 탐색)만 표시.
+          // 판매는 자산 등급으로 락(initialStatus/Grade) → 선택기 숨김(다른 등급으로 바꾸는 혼란 방지).
+          if (_isBuy)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: HogaStatusChipBar(
+                selectedStatus: _status,
+                selectedGrade: _grade,
+                onChanged: _onStatusChanged,
+              ),
             ),
-          ),
           Expanded(
             child: FutureBuilder<HogaListings>(
               future: _future,
