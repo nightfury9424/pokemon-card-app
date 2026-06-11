@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -40,6 +41,10 @@ public class UserService {
     private final BuyOrderRepository buyOrderRepository;
     private final TradePostRepository tradePostRepository;
     private final PhoneVerifyAttemptRepository phoneVerifyAttemptRepository;
+    private final DeletedUserAuditRepository deletedUserAuditRepository;
+
+    /** 탈퇴 후 원본 PII 보존 기간(일). 전자상거래법 §6 거래기록 3개월 보존 기준. 경과 시 purge cron이 완전 삭제. */
+    private static final int DELETION_RETENTION_DAYS = 90;
 
     // 휴대폰 OTP 발송 strict 가드 — Firebase quota 보강(우리 측 영속 추적).
     private static final int OTP_COOLDOWN_SECONDS = 60;
@@ -76,7 +81,12 @@ public class UserService {
             post.markDeleted();
         }
 
-        // 3. PII 마스킹 + deletedAt 설정
+        // 3. 원본 PII를 admin audit에 보관 (★마스킹 전!) — 분쟁/사기 대응 90일 보존 후 purge cron이 완전삭제.
+        //    동일 @Transactional — audit 저장 실패 시 마스킹도 롤백(원본 보존 없이 탈퇴되는 일 방지).
+        deletedUserAuditRepository.save(
+                DeletedUserAudit.capture(user, LocalDateTime.now(), DELETION_RETENTION_DAYS));
+
+        // 4. PII 마스킹 + deletedAt 설정
         String maskedNickname = "탈퇴한 사용자 #" + computeShortHash(userId);
         user.markDeletedAndMask(maskedNickname);
         userRepository.save(user);
