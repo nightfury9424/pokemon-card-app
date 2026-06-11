@@ -45,14 +45,20 @@ cd front && flutter run
 - 우선순위: 로컬(`/images/cards/{cardId}_jp.png`) → scrydex CDN → null(카드 뒷면)
 - `pokemonkorea.co.kr` URL 절대 사용 금지
 
-**시세**: KO 예상가 = EN RAW scrydex × 환율 × 계수
-- 백엔드에서 `koEstimatedPrice`로 계산해서 반환
+**시세**: v6 종결 (2026-05-28). KO 예상가 = JP × 비율(메인) + chase rarity-tier floor + EN→JP 브릿지 + DAANGN obs + MANUAL_FLOOR.
+- 단순 EN × 환율 × 계수 아님 — 다중 분기. 자세한 source 별 통계는 `/opt/pokefolio/data/logs/v6_apply_YYYYMMDD.log`
+- 불변식: KO < JP 100% / KO < EN 99.9% 매일 검증
+- prod cron: KST **23:50/23:52/23:55** (hold_outliers / v6_apply / sanity_cap) — `[[project-daily-price-batch-timing]]`
 - 가격 포맷: 1의 자리 반올림 + 콤마 + "원"
 
-**DB**: KO 노출 3,425 / 감춤 270 / KO 전체 3,695 (`@SQLRestriction is_visible=true`). ddl-auto: validate
-- `nightfury` 유저, `pokemon_card_db` DB
-- 감춤 270 = S rarity 258 + K rarity 12 (베이직 포켓몬 commons). C/U/R rarity 는 row 자체 삭제 (legacy)
-- 2026-05-29 prod 기준 — Card.java `@SQLRestriction("is_visible = true")` 적용 후 JPQL 카운트가 visible 만 반환
+**DB**: KO 노출 3,451 / 감춤 271 / KO 전체 3,722 (`@SQLRestriction is_visible=true`). ddl-auto: validate
+- **로컬**: `nightfury` 유저
+- **prod**: `pokefolio` 유저 (`POSTGRES_USER`), DB = `pokemon_card_db`
+- table 명 **복수형** (`cards`, `assets`, `asset_images`, `price_snapshots`, `card_interests` 등)
+- 감춤 = S rarity 258 + K rarity 12 (베이직 포켓몬 commons). C/U/R rarity 는 row 자체 삭제 (legacy)
+- 2026-06-02 prod 검증 — Card.java `@SQLRestriction("is_visible = true")` 적용 후 JPQL 카운트가 visible 만 반환
+
+**Hotfix 10 cycle 진행 상태**: `[[project-hotfix-10-release-handoff]]` — AI 그레이딩 retreat → 실카드 검증 (scanner cardId 매칭) + cardVerified badge + AppBar 전역 fix. prod=763c6558, front 89cec8a1 push (IPA 빌드 대기).
 
 ## 상세 문서
 | 문서 | 내용 |
