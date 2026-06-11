@@ -495,7 +495,7 @@ class _AssetScreenState extends State<AssetScreen> {
     bool created = false;
 
     const gradingCompanies = ['PSA', 'BRG'];
-    const gradeValues = ['10', '9.5', '9', '8.5', '8', '7.5', '7', '6', '5'];
+    const gradeValues = ['10', '9', '8']; // 등급 10·9·8 (등록·호가 동일)
 
     try {
       await showModalBottomSheet(
@@ -2120,7 +2120,7 @@ class _AssetScreenState extends State<AssetScreen> {
     String selectedLanguage = 'KO';
 
     const companies = ['PSA', 'BRG'];
-    const grades = ['10', '9', '8', '7', '6', '5'];
+    const grades = ['10', '9', '8']; // 등급 10·9·8 (등록·호가 동일)
 
     Future<void> doSearch(String q, StateSetter setModal) async {
       if (q.trim().isEmpty) {

@@ -2153,7 +2153,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: ['10', '9'].map((v) {
+                      children: ['10', '9', '8'].map((v) {
                         final sel = gradeValue == v;
                         return GestureDetector(
                           onTap: () => setSheet(() => gradeValue = v),
