@@ -5321,7 +5321,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       final sub = (price % 10000) ~/ 1000;
       return sub == 0 ? '$man만' : '$man.${sub}만';
     }
-    return '${price ~/ 1000}천';
+    if (price >= 1000) {
+      final sub = (price % 1000) ~/ 100;
+      return sub == 0 ? '${price ~/ 1000}천' : '${price ~/ 1000}.${sub}천';
+    }
+    // B4: 1000원 미만은 '0천'으로 깨졌었음 → 원 단위 그대로(콤마).
+    return _formatPrice(price);
   }
 
   bool _hasScrydexRef(Object? ref) {
