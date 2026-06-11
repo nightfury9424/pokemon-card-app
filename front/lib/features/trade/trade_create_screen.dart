@@ -131,7 +131,9 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
           '${images.map((i) => i['imageType']).toList()}');
       final autoPhotos = <_TradePhoto>[];
 
-      for (final imageType in ['FRONT', 'BACK']) {
+      // SLAB 추가: 등급 카드는 판매 게이트에서 슬랩 실사진을 올림 → 판매글에도 자동첨부.
+      // (RAW는 SLAB 없으므로 무해. SLAB은 제출 시 otherPhotos 로 처리됨.)
+      for (final imageType in ['FRONT', 'BACK', 'SLAB']) {
         final image = images
             .where((i) => i['imageType'] == imageType)
             .firstOrNull;
