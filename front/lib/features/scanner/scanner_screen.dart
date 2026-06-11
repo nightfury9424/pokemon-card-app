@@ -371,7 +371,7 @@ class _ScannerScreenState extends State<ScannerScreen>
     String? gradeValue;
     bool submitting = false;
 
-    const grades = ['10', '9', '8', '7', '6', '5'];
+    const grades = ['10', '9']; // 판매·호가가 10·9만 → 등록도 10·9 (8은 시세 붙으면 추가)
 
     await showModalBottomSheet(
       context: context,
