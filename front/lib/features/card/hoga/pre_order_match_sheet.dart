@@ -28,6 +28,8 @@ class PreOrderMatchSheet {
     required HogaSide side,
     String language = 'KO',
     String? myUserId,
+    HogaStatus initialStatus = HogaStatus.raw, // B9: 보드/자산 등급 컨텍스트 상속(RAW로 리셋 X)
+    HogaGrade? initialGrade,
   }) {
     return showModalBottomSheet<Map<String, dynamic>>(
       context: context,
@@ -45,6 +47,8 @@ class PreOrderMatchSheet {
           side: side,
           language: language,
           myUserId: myUserId,
+          initialStatus: initialStatus,
+          initialGrade: initialGrade,
           scrollController: scroll,
         ),
       ),
@@ -58,6 +62,8 @@ class _PreOrderMatchBody extends StatefulWidget {
   final HogaSide side;
   final String language;
   final String? myUserId;
+  final HogaStatus initialStatus;
+  final HogaGrade? initialGrade;
   final ScrollController scrollController;
 
   const _PreOrderMatchBody({
@@ -66,6 +72,8 @@ class _PreOrderMatchBody extends StatefulWidget {
     required this.side,
     required this.language,
     required this.myUserId,
+    required this.initialStatus,
+    required this.initialGrade,
     required this.scrollController,
   });
 
@@ -75,7 +83,7 @@ class _PreOrderMatchBody extends StatefulWidget {
 
 class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
   late Future<HogaListings> _future;
-  HogaStatus _status = HogaStatus.raw;
+  late HogaStatus _status;
   HogaGrade? _grade;
 
   bool get _isBuy => widget.side == HogaSide.ask; // 구매하기 → 매도 호가(asks)
@@ -83,6 +91,8 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
   @override
   void initState() {
     super.initState();
+    _status = widget.initialStatus; // B9: 보드/자산 등급 상속 (기존 RAW 고정 제거)
+    _grade = widget.initialGrade;
     _future = _fetch();
   }
 

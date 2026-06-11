@@ -27,7 +27,7 @@ import 'hoga/hoga_board.dart';
 import 'hoga/hoga_row_detail_sheet.dart';
 import 'hoga/pre_order_match_sheet.dart';
 import '../auth/phone_verify_sheet.dart';
-import 'hoga/models/hoga_board_model.dart' show HogaSide;
+import 'hoga/models/hoga_board_model.dart' show HogaSide, HogaStatus, HogaGrade;
 import '../../core/widgets/app_info_toast.dart';
 
 class CardDetailScreen extends StatefulWidget {
@@ -124,7 +124,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         final candidate = '$company$grade'; // 예: 'PSA9'
         if (boardGrades.contains(candidate)) {
           _selectedGlobalGrade = candidate;
-          _gradeManuallyPicked = true; // 자동 fallback이 덮지 않게
+          // B1 Option C: _gradeManuallyPicked=true 제거 — 등급 시세 데이터가 있으면
+          //   보드가 보유등급(PSA9) 표시, 없으면(KO 대부분) fallback이 RAW로 자동 전환.
+          //   초기 데이터 없을 때 PSA9에 갇혀 "데이터없음"으로 깨지던 것 방지.
         }
       }
     }
@@ -1276,6 +1278,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final displayPrice = (asset['displayPrice'] as num?)?.toInt();
     final priceBasis = asset['displayPriceBasis'] as String?;
     final isRawFallback = priceBasis == 'RAW_FALLBACK';
+    // B8: 안내 문구가 'PSA 10' 고정이었음 → 실제 보유 등급(PSA 9 등) 반영.
+    final fbCompany = (asset['gradingCompany'] as String?)?.toUpperCase();
+    final fbGrade = (asset['gradeValue'] as String?)?.trim();
+    final fbGradeLabel = (fbCompany != null && fbGrade != null && fbGrade.isNotEmpty)
+        ? '$fbCompany $fbGrade'
+        : '등급';
 
     return CustomScrollView(
       slivers: [
@@ -1301,7 +1309,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'PSA 10 시세 데이터가 아직 없어 RAW 시세 기준으로 표시됩니다.',
+                            '$fbGradeLabel 시세 데이터가 아직 없어 RAW 시세 기준으로 표시됩니다.',
                             style: TextStyle(
                               color: Colors.amber.shade200,
                               fontSize: 12,
@@ -4100,6 +4108,14 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     }
     // 거래 UX (2026-06-03): 판매 전 "사려는 사람(매수 호가)" 먼저 보여주기.
     // 탭 → 그 buyer와 채팅(판매 협상) / 없거나 원하면 → 아래 판매글 등록 플로우 계속.
+    // B9: 판매 = 자산 등급으로 호가 컨텍스트(시트가 RAW로 리셋되던 것 방지).
+    final sellAsset = _localAsset ?? widget.myAsset;
+    final sellGlobalGrade =
+        (sellAsset?['cardStatus'] as String?)?.toUpperCase() == 'GRADED'
+            ? '${(sellAsset?['gradingCompany'] as String?)?.toUpperCase() ?? ''}'
+                '${(sellAsset?['gradeValue'] as String?)?.trim() ?? ''}'
+            : 'RAW';
+    final (sellStatus, sellGrade) = _hogaFromGlobalGrade(sellGlobalGrade);
     final preSell = await PreOrderMatchSheet.show(
       context,
       cardId: widget.cardId,
@@ -4107,6 +4123,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       side: HogaSide.bid, // 판매 → 매수 호가(사려는 사람)
       language: _selectedMarket,
       myUserId: _myUserId,
+      initialStatus: sellStatus,
+      initialGrade: sellGrade,
     );
     if (!mounted) return;
     if (preSell == null) return; // 닫힘 = 취소
@@ -4649,6 +4667,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     // 거래 UX (2026-06-03): 구매 전 "이미 파는 사람" 먼저 보여주기.
     // 탭하면 그 거래로(즉시 구매) / 없거나 원하는 가격 없으면 → 매수 희망가 등록(삽니다).
     final cardName = (_cardDetail?['name'] as String?) ?? widget.cardId;
+    // B9: 구매 = 보드 현재 등급 상속(시트가 RAW로 리셋되던 것 방지). 구매는 다 열려있어 변경 가능.
+    final (buyStatus, buyGrade) = _hogaFromGlobalGrade(_selectedGlobalGrade);
     final result = await PreOrderMatchSheet.show(
       context,
       cardId: widget.cardId,
@@ -4656,6 +4676,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       side: HogaSide.ask, // 구매 → 매도 호가(파는 사람)
       language: _selectedMarket,
       myUserId: _myUserId,
+      initialStatus: buyStatus,
+      initialGrade: buyGrade,
     );
     if (!mounted || result == null) return;
     if (result['action'] == 'open') {
@@ -5313,6 +5335,17 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         ],
       ),
     );
+  }
+
+  /// B9: 전역 등급('RAW'/'PSA9'/'PSA10'/'BRG9'/'BRG10') → 호가 status/grade.
+  (HogaStatus, HogaGrade?) _hogaFromGlobalGrade(String g) {
+    if (g.startsWith('PSA')) {
+      return (HogaStatus.psa, g.endsWith('10') ? HogaGrade.ten : HogaGrade.nine);
+    }
+    if (g.startsWith('BRG')) {
+      return (HogaStatus.brg, g.endsWith('10') ? HogaGrade.ten : HogaGrade.nine);
+    }
+    return (HogaStatus.raw, null);
   }
 
   String _formatCompactWon(int price) {
