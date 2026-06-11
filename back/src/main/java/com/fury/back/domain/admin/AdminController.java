@@ -445,10 +445,10 @@ public class AdminController {
                     "SELECT COUNT(s) FROM ScanCapture s WHERE s.userId = :uid AND s.deletedAt IS NULL")
                     .setParameter("uid", uid).getSingleResult()).longValue();
             long sellCount = ((Number) em.createQuery(
-                    "SELECT COUNT(t) FROM TradePost t WHERE t.sellerId = :uid AND t.deletedAt IS NULL")
+                    "SELECT COUNT(t) FROM TradePost t WHERE t.sellerId = :uid AND t.deletedAt IS NULL AND t.status <> 'DELETED'")
                     .setParameter("uid", uid).getSingleResult()).longValue();
             long buyCount = ((Number) em.createQuery(
-                    "SELECT COUNT(b) FROM BuyOrder b WHERE b.buyerId = :uid")
+                    "SELECT COUNT(b) FROM BuyOrder b WHERE b.buyerId = :uid AND b.status <> 'CANCELED'")
                     .setParameter("uid", uid).getSingleResult()).longValue();
             m.put("scanCount",  scanCount);
             m.put("tradeCount", sellCount + buyCount);
@@ -502,7 +502,10 @@ public class AdminController {
             m.put("nameEn",     null);
             m.put("setName",    c.getProductId());
             m.put("rarity",     c.getRarityCode());
-            m.put("scanCount",  0);
+            // 카드별 스캔수 = scan_captures(삭제 제외) of this card. 기존 하드코딩 0 버그 fix.
+            m.put("scanCount",  ((Number) em.createQuery(
+                    "SELECT COUNT(s) FROM ScanCapture s WHERE s.cardId = :cid AND s.deletedAt IS NULL")
+                    .setParameter("cid", c.getCardId()).getSingleResult()).longValue());
             m.put("enScrydexRef", c.getEnScrydexRef());
             content.add(m);
         }
