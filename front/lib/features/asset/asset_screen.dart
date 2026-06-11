@@ -1804,46 +1804,39 @@ class _AssetScreenState extends State<AssetScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
+                        // 가격 = 왼쪽 Expanded(풀폭·짤림방지). 수익률은 위 등급 줄로(Issue 3).
                         Expanded(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  marketPrice != null ? _formatPrice(marketPrice) : '시세 없음',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: marketPrice != null ? Colors.white : Colors.white60,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.3,
-                                  ),
-                                ),
-                              ),
-                              if (isRawFallback) ...[
-                                const SizedBox(width: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: Colors.amber.withValues(alpha: 0.85),
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                  child: const Text(
-                                    'RAW 기준',
-                                    style: TextStyle(
-                                      color: Colors.black87,
-                                      fontSize: 7.5,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
+                          child: Text(
+                            marketPrice != null ? _formatPrice(marketPrice) : '시세 없음',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: marketPrice != null ? Colors.white : Colors.white60,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.3,
+                            ),
                           ),
                         ),
-                        // 수익률은 위 등급 줄로 이동(Issue 3) — 가격행은 풀폭 확보.
+                        // RAW 기준 배지 = 가격행 오른쪽(위 수익률과 같은 우측 정렬). 가격에 안 붙임.
+                        if (isRawFallback) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withValues(alpha: 0.85),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: const Text(
+                              'RAW 기준',
+                              style: TextStyle(
+                                color: Colors.black87,
+                                fontSize: 7.5,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
