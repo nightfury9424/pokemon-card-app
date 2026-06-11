@@ -213,7 +213,11 @@ class ApiClient {
       receiveTimeout: receiveTimeout,
     );
     final res = await _dio.post(path, data: formData, options: options);
-    return res.data;
+    // 빈 응답(ResponseEntity<Void> = 204/빈 바디, 예: slab-image) 처리.
+    // res.data 가 null/빈 String 이면 Map 캐스팅 TypeError → 업로드 성공인데 "실패" 표시되던 버그.
+    return res.data is Map<String, dynamic>
+        ? res.data as Map<String, dynamic>
+        : <String, dynamic>{};
   }
 
   static Future<Map<String, dynamic>> postMultipart(
