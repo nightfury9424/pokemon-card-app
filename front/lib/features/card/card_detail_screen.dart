@@ -117,8 +117,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       final company = (widget.myAsset?['gradingCompany'] as String?)?.toUpperCase();
       final grade = (widget.myAsset?['gradeValue'] as String?)?.trim();
       if (company != null && grade != null && grade.isNotEmpty) {
-        _selectedGlobalGrade = '$company$grade'; // 예: 'PSA9'
-        _gradeManuallyPicked = true; // 자동 fallback이 덮지 않게
+        // 보드 칩/시세가 지원하는 등급만(PSA10/PSA9) default. PSA8·BRG는 보드 칩 없어
+        // 선택 시 차트가 RAW로 falling-through되며 보드 깨짐 → RAW 유지(Codex 지적).
+        // 판매는 자산 등급으로 락되므로 보드 default와 무관.
+        const boardGrades = {'PSA10', 'PSA9'};
+        final candidate = '$company$grade'; // 예: 'PSA9'
+        if (boardGrades.contains(candidate)) {
+          _selectedGlobalGrade = candidate;
+          _gradeManuallyPicked = true; // 자동 fallback이 덮지 않게
+        }
       }
     }
     // 탭 순서 = [시세, 거래, 내 자산]. 기본 진입 = 시세 (index 0).
