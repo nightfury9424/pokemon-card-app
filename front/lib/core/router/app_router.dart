@@ -227,6 +227,7 @@ final appRouter = GoRouter(
                 rarity: extra['rarity'] as String?,
                 imageUrl: extra['imageUrl'] as String?,
                 assetId: extra['assetId'] as String?,
+                language: extra['language'] as String?,
                 cardStatus: extra['cardStatus'] as String?,
                 estimatedGrade: extra['estimatedGrade'] is num
                     ? (extra['estimatedGrade'] as num).toDouble()
