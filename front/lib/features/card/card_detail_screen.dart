@@ -4386,13 +4386,47 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       ),
       builder: (sheetCtx) => StatefulBuilder(
         builder: (ctx, setSheet) {
-          Future<void> pick() async {
+          Future<void> pickFrom(ImageSource source) async {
             final picked = await ImagePicker().pickImage(
-              source: ImageSource.gallery,
+              source: source,
               imageQuality: 90,
               maxWidth: 1200,
             );
             if (picked != null) setSheet(() => slab = File(picked.path));
+          }
+
+          Future<void> pick() async {
+            // 카메라 우선(실물 소지 증명) + 갤러리.
+            final source = await showModalBottomSheet<ImageSource>(
+              context: ctx,
+              backgroundColor: AppColors.surfaceCard,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              builder: (c) => SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 8),
+                    ListTile(
+                      leading: const Icon(Icons.camera_alt_rounded, color: AppColors.blue),
+                      title: const Text('카메라로 촬영',
+                          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                      onTap: () => Navigator.pop(c, ImageSource.camera),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.photo_library_rounded, color: AppColors.textSecondary),
+                      title: const Text('갤러리에서 선택',
+                          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                      onTap: () => Navigator.pop(c, ImageSource.gallery),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            );
+            if (source != null) await pickFrom(source);
           }
 
           Future<void> submit() async {
@@ -4408,10 +4442,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 field: 'slab_image',
               );
               if (ctx.mounted) Navigator.pop(ctx, true);
-            } catch (_) {
+            } catch (e) {
               setSheet(() {
                 uploading = false;
-                err = '업로드에 실패했어요. 다시 시도해주세요.';
+                err = e is DioException
+                    ? '업로드 실패 (${e.response?.statusCode ?? e.type.name}). 다시 시도해주세요.'
+                    : '업로드에 실패했어요. 다시 시도해주세요.';
               });
             }
           }

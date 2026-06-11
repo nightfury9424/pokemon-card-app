@@ -200,8 +200,13 @@ class ApiClient {
   }) async {
     // 2026-05-28 Codex 사후 리뷰: 10MB 업로드를 100KB/s 회선에서 send 가 무한 hang 가능.
     // 기본 60s sendTimeout (10MB ÷ 170KB/s ≈ 60s 마진), 30s receiveTimeout.
+    // B3-11: filename 없으면 octet-stream 으로 전송돼 Spring 의 @RequestParam MultipartFile
+    // 바인딩 실패(400) → 슬랩 업로드 등 실패. 실제 파일명(확장자 포함) 명시.
     final formData = FormData.fromMap({
-      field: await MultipartFile.fromFile(filePath),
+      field: await MultipartFile.fromFile(
+        filePath,
+        filename: filePath.split('/').last,
+      ),
     });
     final options = Options(
       sendTimeout: sendTimeout,
