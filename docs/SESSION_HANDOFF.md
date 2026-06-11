@@ -12,6 +12,7 @@
 - **작업 트리 정리 완료**: 미커밋 더미를 논리 8커밋으로 분리(1.0.1빌드설정·gitignore·admin대시보드·scanner증분도구·box매핑파이프라인·크롤러·docs·handoff). 쓰레기(`<stdin>`·ios/build·로그CSV·box 스크랩산출물) gitignore. **`origin/dev`에 푸시됨** (ff, `ad58a78f→4a063981`) + 태그 `v1.0.1-rc` 푸시됨.
 - **통합 브랜치**: `feat/admin-erp` = `dev` (ff 동기화 완료) = 최신 통합 tip = `origin/dev`. **새 개발은 `dev`에서 분기.**
 - **방금 끝낸 것**: 브랜치 모델 복원(working tree 정리 → dev 동기화) + 1.0.1 소스 태그 고정.
+- **버전별 작업 기록**: `docs/releases/v1.0.md`(출시본) · `v1.0.1.md`(심사중) · **`v1.0.2.md`(라이브 트래커 — 강제 업뎃 게이트 등 할거/한거)**.
 
 ---
 
