@@ -9,8 +9,8 @@
 - **심사 중**: **1.0.1** — 빌드 `202606111444` (발매판 거래 분리 + 버그픽스 + **iPhone 전용**). 제출 완료, ~1-2일 대기.
   - ★1.0.1 제출 소스 = 태그 **`v1.0.1-rc`** @ `8cf1ef04` (iPhone 전용 빌드설정 포함). **승인 시 `main`을 이 태그로 ff** + `v1.0.1` 태그.
 - **prod 백엔드**: LIVE. 배포 브랜치 `origin/feat/trade-active-counterparty` @ `9033afa4` (발매판 BE 포함). 로컬 동명 ref는 stale — origin이 진실.
-- **작업 트리 정리 완료**: 미커밋 더미를 논리 단위 7커밋으로 분리(1.0.1빌드설정·gitignore·admin대시보드·scanner증분도구·box매핑파이프라인·크롤러·docs). 쓰레기(`<stdin>`·ios/build·로그CSV·box 스크랩산출물) gitignore. **모두 로컬, 미푸시.**
-- **통합 브랜치**: `feat/admin-erp` = `dev` (ff 동기화 완료) = 최신 통합 tip. **새 개발은 `dev`에서 분기.**
+- **작업 트리 정리 완료**: 미커밋 더미를 논리 8커밋으로 분리(1.0.1빌드설정·gitignore·admin대시보드·scanner증분도구·box매핑파이프라인·크롤러·docs·handoff). 쓰레기(`<stdin>`·ios/build·로그CSV·box 스크랩산출물) gitignore. **`origin/dev`에 푸시됨** (ff, `ad58a78f→4a063981`) + 태그 `v1.0.1-rc` 푸시됨.
+- **통합 브랜치**: `feat/admin-erp` = `dev` (ff 동기화 완료) = 최신 통합 tip = `origin/dev`. **새 개발은 `dev`에서 분기.**
 - **방금 끝낸 것**: 브랜치 모델 복원(working tree 정리 → dev 동기화) + 1.0.1 소스 태그 고정.
 
 ---
@@ -108,9 +108,8 @@ ssh -i ~/pem/... ubuntu@52.78.3.120 \
 
 ## ▶️ 다음 작업
 1. **1.0.1 심사 결과 대기** (~1-2일) — 승인 시: `git checkout main && git merge --ff-only v1.0.1-rc && git tag v1.0.1` → 자동출시. 반려 시 사유 대응.
-2. ~~브랜치 dev 동기화~~ ✅ 완료 (working tree 정리 + dev=admin-erp ff)
-3. **(선택) 푸시**: 로컬 7커밋·태그·dev를 origin에 푸시 (사용자 신호 시)
-4. 로드맵: 게시판 → 경매 (`[[project-board-auction-roadmap]]`) — **dev에서 분기**
+2. ~~브랜치 dev 동기화 + origin 푸시~~ ✅ 완료 (working tree 정리 + dev=admin-erp ff + `origin/dev`·태그 푸시)
+3. 로드맵: 게시판 → 경매 (`[[project-board-auction-roadmap]]`) — **dev에서 분기**
 
 ---
 
