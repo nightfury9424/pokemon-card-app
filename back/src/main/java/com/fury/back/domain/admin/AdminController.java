@@ -439,8 +439,19 @@ public class AdminController {
             // 2026-06-08: 탈퇴(deletedAt) 미반영 버그 fix — Users.jsx 가 deleted/deletedAt 로 "탈퇴" 표시 + 정지버튼 숨김.
             m.put("deleted",    u.getDeletedAt() != null);
             m.put("deletedAt",  u.getDeletedAt());
-            m.put("scanCount",  0);
-            m.put("tradeCount", 0);
+            // 스캔 = scan_captures(삭제 제외), 거래 = 판매글(삭제 제외) + 매수주문. 기존 하드코딩 0 버그 fix.
+            String uid = u.getUserId();
+            long scanCount = ((Number) em.createQuery(
+                    "SELECT COUNT(s) FROM ScanCapture s WHERE s.userId = :uid AND s.deletedAt IS NULL")
+                    .setParameter("uid", uid).getSingleResult()).longValue();
+            long sellCount = ((Number) em.createQuery(
+                    "SELECT COUNT(t) FROM TradePost t WHERE t.sellerId = :uid AND t.deletedAt IS NULL")
+                    .setParameter("uid", uid).getSingleResult()).longValue();
+            long buyCount = ((Number) em.createQuery(
+                    "SELECT COUNT(b) FROM BuyOrder b WHERE b.buyerId = :uid")
+                    .setParameter("uid", uid).getSingleResult()).longValue();
+            m.put("scanCount",  scanCount);
+            m.put("tradeCount", sellCount + buyCount);
             content.add(m);
         }
 
