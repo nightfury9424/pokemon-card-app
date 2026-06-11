@@ -4410,13 +4410,14 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               imageQuality: 90,
               maxWidth: 1200,
             );
-            if (picked != null) setSheet(() => slab = File(picked.path));
+            if (picked != null && ctx.mounted) setSheet(() => slab = File(picked.path));
           }
 
           Future<void> pick() async {
             // 카메라 우선(실물 소지 증명) + 갤러리.
             final source = await showModalBottomSheet<ImageSource>(
               context: ctx,
+              useRootNavigator: true, // 바깥 시트(useRootNavigator)와 같은 navigator로 — 뒤에 깔리는 문제 방지
               backgroundColor: AppColors.surfaceCard,
               shape: const RoundedRectangleBorder(
                 borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
