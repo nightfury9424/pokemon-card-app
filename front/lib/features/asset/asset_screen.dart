@@ -1763,21 +1763,42 @@ class _AssetScreenState extends State<AssetScreen> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    // 정보 line — KO · RAW 6.5 (좌상단에서 이동)
-                    Text(
-                      '$language · $badgeLabel',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.2,
-                        height: 1.0,
-                        shadows: const [
-                          Shadow(color: Colors.black, blurRadius: 3),
+                    // 정보 line — KO · PSA 9 + 수익률(오른쪽). 수익률을 이 줄로 올려
+                    // 가격행이 풀폭을 갖게 → 'RAW 기준' 배지 있어도 가격 안 짤림(Issue 3).
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '$language · $badgeLabel',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.7),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                              height: 1.0,
+                              shadows: const [
+                                Shadow(color: Colors.black, blurRadius: 3),
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (rate != null) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            '${rate >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              color: rate >= 0 ? AppColors.red : AppColors.blue,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              shadows: const [
+                                Shadow(color: Colors.black54, blurRadius: 3),
+                              ],
+                            ),
+                          ),
                         ],
-                      ),
+                      ],
                     ),
                     const SizedBox(height: 3),
                     Row(
@@ -1822,19 +1843,7 @@ class _AssetScreenState extends State<AssetScreen> {
                             ],
                           ),
                         ),
-                        if (rate != null)
-                          Text(
-                            '${rate >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%',
-                            style: TextStyle(
-                              // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
-                              color: rate >= 0 ? AppColors.red : AppColors.blue,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              shadows: const [
-                                Shadow(color: Colors.black54, blurRadius: 3),
-                              ],
-                            ),
-                          ),
+                        // 수익률은 위 등급 줄로 이동(Issue 3) — 가격행은 풀폭 확보.
                       ],
                     ),
                   ],
