@@ -46,13 +46,15 @@ public class HogaController {
             @PathVariable String cardId,
             @RequestParam(defaultValue = "RAW") String status,
             @RequestParam(required = false) String grade,
-            @RequestParam(defaultValue = "5") int limit) {
+            @RequestParam(defaultValue = "5") int limit,
+            @RequestParam(defaultValue = "KO") String language) {
         HogaStatus parsed = parseStatus(status);
         String parsedGrade = parseGrade(parsed, grade);
+        String parsedLang = parseLanguage(language);
         int bound = Math.max(1, Math.min(limit, MAX_LIMIT));
         // Phase 4: viewer 식별 — 익명 호출 시 null (hasMine=false fallback).
         String viewerUserId = extractUserId(request);
-        return hogaService.getBoard(cardId, parsed, parsedGrade, bound, viewerUserId);
+        return hogaService.getBoard(cardId, parsed, parsedGrade, parsedLang, bound, viewerUserId);
     }
 
     /** Bearer JWT 추출 — 토큰 없거나 무효면 null (anonymous OK). */
@@ -72,15 +74,17 @@ public class HogaController {
             @PathVariable long price,
             @RequestParam(defaultValue = "RAW") String status,
             @RequestParam(required = false) String grade,
-            @RequestParam String side) {
+            @RequestParam String side,
+            @RequestParam(defaultValue = "KO") String language) {
         HogaStatus parsedStatus = parseStatus(status);
         String parsedGrade = parseGrade(parsedStatus, grade);
+        String parsedLang = parseLanguage(language);
         HogaSide parsedSide = parseSide(side);
         if (price <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "price must be positive");
         }
         return hogaService.getListingsAtPrice(
-                cardId, parsedStatus, parsedGrade, parsedSide, price, extractUserId(request));
+                cardId, parsedStatus, parsedGrade, parsedLang, parsedSide, price, extractUserId(request));
     }
 
     /**
@@ -95,13 +99,25 @@ public class HogaController {
             @RequestParam(defaultValue = "RAW") String status,
             @RequestParam(required = false) String grade,
             @RequestParam String side,
-            @RequestParam(defaultValue = "10") int limit) {
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(defaultValue = "KO") String language) {
         HogaStatus parsedStatus = parseStatus(status);
         String parsedGrade = parseGrade(parsedStatus, grade);
+        String parsedLang = parseLanguage(language);
         HogaSide parsedSide = parseSide(side);
         int bound = Math.max(1, Math.min(limit, MAX_LIMIT));
         return hogaService.getTopListings(
-                cardId, parsedStatus, parsedGrade, parsedSide, bound, extractUserId(request));
+                cardId, parsedStatus, parsedGrade, parsedLang, parsedSide, bound, extractUserId(request));
+    }
+
+    private String parseLanguage(String raw) {
+        if (raw == null || raw.isBlank()) return "KO";
+        String v = raw.trim().toUpperCase();
+        if (!v.equals("KO") && !v.equals("JP") && !v.equals("EN")) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "unsupported language: " + raw + " (allowed: KO, JP, EN)");
+        }
+        return v;
     }
 
     private HogaStatus parseStatus(String raw) {

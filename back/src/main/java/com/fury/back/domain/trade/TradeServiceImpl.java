@@ -67,12 +67,13 @@ public class TradeServiceImpl implements TradeService {
     private String tradeImageDir;  // Phase 1-7: legacy static handler 호환용 (신규 업로드는 ImageStorageService 사용)
 
     @Override
-    public ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId, String status, String viewerUserId) {
+    public ReturnData<Page<TradePostDto>> getTrades(int page, int size, String cardId, String sellerId, String status, String language, String viewerUserId) {
         PageRequest pageable = PageRequest.of(page, size);
         Page<TradePost> posts;
         final boolean hasSeller = sellerId != null && !sellerId.isBlank();
         final boolean hasCard = cardId != null && !cardId.isBlank();
         final boolean hasStatus = status != null && !status.isBlank();
+        final String lang = (language != null && !language.isBlank()) ? language.trim().toUpperCase() : null;
         final List<String> blockedSellerIds = viewerUserId == null || viewerUserId.isBlank()
                 ? List.of()
                 : blockRepository.findAllByBlockerId(viewerUserId).stream()
@@ -84,6 +85,7 @@ public class TradeServiceImpl implements TradeService {
             posts = tradePostRepository.findFilteredExcludingSellers(
                     hasSeller ? sellerId : null,
                     hasCard ? cardId : null,
+                    lang,
                     statuses,
                     blockedSellerIds,
                     pageable);
@@ -99,7 +101,7 @@ public class TradeServiceImpl implements TradeService {
             posts = tradePostRepository.findBySellerIdAndStatusInOrderByCreatedAtDesc(
                     sellerId, List.of("OPEN", "RESERVED"), pageable);
         } else if (hasCard) {
-            posts = tradePostRepository.findOpenByCardId(cardId, pageable);
+            posts = tradePostRepository.findOpenByCardId(cardId, lang, pageable);
         } else {
             // status 파라미터 있으면 그대로 / 없으면 OPEN+RESERVED active 상태 (COMPLETED/DELETED 제외)
             posts = hasStatus
@@ -188,21 +190,32 @@ public class TradeServiceImpl implements TradeService {
      * <p>③ 어떤 ref 도 없음: 보수적 절대 fallback 1천만.
      */
     static long[] resolveAllowedPriceRange(
-            com.fury.back.domain.price.PriceSnapshotRepository repo, String cardId) {
+            com.fury.back.domain.price.PriceSnapshotRepository repo, String cardId, String language) {
         java.util.List<String> ids = java.util.List.of(cardId);
-        Integer ko = firstPositivePrice(repo.findLatestKoEstimatedByCardIds(ids));
-        if (ko != null) {
-            long[] band = priceBand(ko);
-            return new long[]{ band[0], Math.min(band[1], ABSOLUTE_MAX_PRICE) };
+        String lang = (language == null || language.isBlank()) ? "KO" : language.toUpperCase();
+        // 발매판별 기준가: KO=KO_ESTIMATED(타이트 밴드), JP=SCRYDEX_JP / EN=SCRYDEX_EN(참고가 느슨 ×3 상한만).
+        if ("KO".equals(lang)) {
+            Integer ko = firstPositivePrice(repo.findLatestKoEstimatedByCardIds(ids));
+            if (ko != null) {
+                long[] band = priceBand(ko);
+                return new long[]{ band[0], Math.min(band[1], ABSOLUTE_MAX_PRICE) };
+            }
+        } else if ("JP".equals(lang)) {
+            Integer jp = firstPositivePrice(repo.findLatestScrydexJpByCardIds(ids));
+            if (jp != null) return new long[]{ 0L, Math.min((long) jp * 3, ABSOLUTE_MAX_PRICE) };
+        } else if ("EN".equals(lang)) {
+            Integer en = firstPositivePrice(repo.findLatestScrydexEnByCardIds(ids));
+            if (en != null) return new long[]{ 0L, Math.min((long) en * 3, ABSOLUTE_MAX_PRICE) };
         }
-        // RAW 기준가 없음 — 해외참고가(JP RAW → JP PSA10 → EN RAW)를 느슨한 스케일로만.
+        // 해당 발매판 기준가 없음 — 다른 참고가(JP RAW → JP PSA10 → EN RAW → KO)로 느슨한 상한만.
         Integer ref = firstPositivePrice(repo.findLatestScrydexJpByCardIds(ids));
         if (ref == null) ref = firstPositivePrice(repo.findLatestScrydexJpPsa10ByCardIds(ids));
         if (ref == null) ref = firstPositivePrice(repo.findLatestScrydexEnByCardIds(ids));
+        if (ref == null) ref = firstPositivePrice(repo.findLatestKoEstimatedByCardIds(ids));
         long upper = (ref != null)
                 ? Math.min((long) ref * 3, ABSOLUTE_MAX_PRICE)
-                : 10_000_000L; // 어떤 ref 도 없음 — 보수적 fallback
-        return new long[]{ 0L, upper }; // 하한 없음 (RAW 적정 하한 판정 불가)
+                : 10_000_000L;
+        return new long[]{ 0L, upper };
     }
 
     private static Integer firstPositivePrice(
@@ -218,10 +231,10 @@ public class TradeServiceImpl implements TradeService {
      *  - 기준가({@link #resolveKoReferencePrice}) 기준 금액대별 유동 밴드: 저가는 느슨, 고가는 ±50% 수렴.
      *  - 절대 상한({@link #ABSOLUTE_MAX_PRICE}) 항상 적용. 기준가 없는 카드만 1천만 fallback.
      */
-    private String validateListingPrice(String cardId, String cardStatus, int price) {
+    private String validateListingPrice(String cardId, String cardStatus, String language, int price) {
         if ("GRADED".equals(cardStatus)) return null;
         if (price > ABSOLUTE_MAX_PRICE) return "비정상적으로 높은 가격은 등록할 수 없습니다.";
-        long[] range = resolveAllowedPriceRange(priceSnapshotRepository, cardId);
+        long[] range = resolveAllowedPriceRange(priceSnapshotRepository, cardId, language);
         if (price < range[0] || price > range[1]) {
             return "시세와 크게 동떨어진 가격은 등록할 수 없습니다.";
         }
@@ -277,6 +290,26 @@ public class TradeServiceImpl implements TradeService {
             if (!hasAsset) return ReturnData.badRequest("내 자산에 등록된 카드만 판매할 수 있습니다.");
         }
 
+        // 발매판(언어) 결정 — 매도는 판매 자산의 언어를 서버가 확정(클라 입력 무시). 호가창 언어별 분리 기준.
+        //   assetId 지정 → 그 자산 언어. cardId-only → 내 자산 언어(단일이면 사용, 복수면 모호 차단, 없으면 카드/KO).
+        String language;
+        if (asset != null && asset.getLanguage() != null && !asset.getLanguage().isBlank()) {
+            language = asset.getLanguage();
+        } else {
+            java.util.Set<String> langs = assetRepository.findByUserIdAndCardId(sellerId, cardId).stream()
+                    .map(Asset::getLanguage).filter(l -> l != null && !l.isBlank())
+                    .collect(java.util.stream.Collectors.toSet());
+            if (langs.size() == 1) {
+                language = langs.iterator().next();
+            } else if (langs.isEmpty()) {
+                language = (card.getLanguage() != null && !card.getLanguage().isBlank()) ? card.getLanguage() : "KO";
+            } else {
+                return ReturnData.badRequest("판매할 발매판이 여러 개예요(KO/JP/EN). 자산에서 특정 카드를 선택해 판매해주세요.");
+            }
+        }
+        // MULTI/비표준 언어 방어 — card.language='MULTI' 등이 DB CHECK(KO/JP/EN) 위반하지 않게.
+        if (!"KO".equals(language) && !"JP".equals(language) && !"EN".equals(language)) language = "KO";
+
         // 판매 가격 필수 (Phase 2: "가격 협의" 폐지. 호가창 ASK 쿼리는 price IS NOT NULL 조건).
         Integer price = parameterData.getInteger("price");
         if (price == null || price <= 0) {
@@ -305,7 +338,7 @@ public class TradeServiceImpl implements TradeService {
             condition = String.format("%.1f", asset.getEstimatedGrade().doubleValue());
         }
         // 가격 sanity 검증 (시장 교란 방지) — front 우회 방지용 서버측 가드.
-        String priceErr = validateListingPrice(cardId, cardStatus, price);
+        String priceErr = validateListingPrice(cardId, cardStatus, language, price);
         if (priceErr != null) return ReturnData.badRequest(priceErr);
         String effectiveGradingCompany = gradingCompany != null
                 ? gradingCompany
@@ -331,6 +364,7 @@ public class TradeServiceImpl implements TradeService {
                 .description(description)
                 .price(price)
                 .cardStatus(cardStatus != null ? cardStatus : "RAW")
+                .language(language)
                 .condition(condition)
                 .gradingCompany(effectiveGradingCompany)
                 .gradeValue(effectiveGradeValue)
@@ -344,10 +378,12 @@ public class TradeServiceImpl implements TradeService {
         // 같은 카드에 OPEN 매수 호가 등록한 사용자들에게 알림 (본인 제외)
         try {
             final String cardIdFinal = cardId;
+            final String langFinal = post.getLanguage();
             final Integer priceFinal = post.getPrice();
             if (priceFinal != null) {
                 var buyerIds = buyOrderRepository.findOpenByCardIdOrderByBidPriceDesc(cardIdFinal)
                         .stream()
+                        .filter(bo -> langFinal.equals(bo.getLanguage())) // 같은 발매판 매수자에게만
                         .map(BuyOrder::getBuyerId)
                         .filter(uid -> uid != null && !uid.equals(sellerId))
                         .distinct()
@@ -402,8 +438,14 @@ public class TradeServiceImpl implements TradeService {
             return ReturnData.success(TradePostDto.fromWithDetails(activePost, seller, card));
         }
 
-        // 가격 sanity 검증 (시장 교란 방지).
-        String priceErr = validateListingPrice(asset.getCardId(), asset.getCardStatus(), price);
+        // 발매판 = 판매 자산의 언어 (없으면 카드/KO). MULTI/비표준 방어. 호가창 분리 + 가격밴드 기준.
+        String language = (asset.getLanguage() != null && !asset.getLanguage().isBlank())
+                ? asset.getLanguage()
+                : (card.getLanguage() != null && !card.getLanguage().isBlank() ? card.getLanguage() : "KO");
+        if (!"KO".equals(language) && !"JP".equals(language) && !"EN".equals(language)) language = "KO";
+
+        // 가격 sanity 검증 (시장 교란 방지) — 발매판별 기준가.
+        String priceErr = validateListingPrice(asset.getCardId(), asset.getCardStatus(), language, price);
         if (priceErr != null) return ReturnData.badRequest(priceErr);
 
         String rarity = card.getRarityCode() != null && !card.getRarityCode().isBlank()
@@ -435,6 +477,7 @@ public class TradeServiceImpl implements TradeService {
                 .description(buildAssetTradeDescription(asset, optionalMemo))
                 .price(price)
                 .cardStatus(asset.getCardStatus() != null ? asset.getCardStatus() : "RAW")
+                .language(language)
                 .gradingCompany(asset.getGradingCompany())
                 .gradeValue(asset.getGradeValue())
                 .certNumber(asset.getCertNumber())
@@ -457,7 +500,7 @@ public class TradeServiceImpl implements TradeService {
         // 수정 시 가격도 sanity 검증 (정상 등록 후 99.9M 으로 변경 차단).
         Integer newPrice = parameterData.getInteger("price");
         if (newPrice != null && newPrice > 0) {
-            String updErr = validateListingPrice(post.getCardId(), post.getCardStatus(), newPrice);
+            String updErr = validateListingPrice(post.getCardId(), post.getCardStatus(), post.getLanguage(), newPrice);
             if (updErr != null) return ReturnData.badRequest(updErr);
         }
         post.update(parameterData.getString("title"), parameterData.getString("description"),

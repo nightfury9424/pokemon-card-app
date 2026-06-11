@@ -26,6 +26,7 @@ class PreOrderMatchSheet {
     required String cardId,
     required String cardName,
     required HogaSide side,
+    String language = 'KO',
     String? myUserId,
   }) {
     return showModalBottomSheet<Map<String, dynamic>>(
@@ -42,6 +43,7 @@ class PreOrderMatchSheet {
           cardId: cardId,
           cardName: cardName,
           side: side,
+          language: language,
           myUserId: myUserId,
           scrollController: scroll,
         ),
@@ -54,6 +56,7 @@ class _PreOrderMatchBody extends StatefulWidget {
   final String cardId;
   final String cardName;
   final HogaSide side;
+  final String language;
   final String? myUserId;
   final ScrollController scrollController;
 
@@ -61,6 +64,7 @@ class _PreOrderMatchBody extends StatefulWidget {
     required this.cardId,
     required this.cardName,
     required this.side,
+    required this.language,
     required this.myUserId,
     required this.scrollController,
   });
@@ -88,6 +92,7 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
         grade: _grade,
         side: widget.side,
         limit: 10,
+        language: widget.language,
       );
 
   // RAW/PSA/BRG(+등급) 전환 — 그레이딩 카드도 거래이므로 조건별 호가 조회.

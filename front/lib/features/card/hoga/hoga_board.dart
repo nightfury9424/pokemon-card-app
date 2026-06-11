@@ -24,6 +24,8 @@ class HogaBoard extends StatefulWidget {
   final HogaCountsChanged? onCountsChanged;
   /// 외부 trigger — TradePost/BuyOrder 생성·취소 후 부모가 ++ 하면 캐시 비우고 재조회.
   final int refreshKey;
+  /// 발매판 (KO/JP/EN) — 호가창 언어별 분리. 차트 _selectedMarket 과 동기화.
+  final String language;
 
   const HogaBoard({
     super.key,
@@ -31,6 +33,7 @@ class HogaBoard extends StatefulWidget {
     this.onRowTap,
     this.onCountsChanged,
     this.refreshKey = 0,
+    this.language = 'KO',
   });
 
   @override
@@ -42,14 +45,16 @@ class _HogaBoardState extends State<HogaBoard> {
   HogaGrade? _grade;
 
   String _cacheKey(HogaStatus s, HogaGrade? g) =>
-      s.requiresGrade ? '${widget.cardId}_${s.wire}_${g?.wire ?? "10"}' : '${widget.cardId}_${s.wire}';
+      s.requiresGrade
+          ? '${widget.cardId}_${widget.language}_${s.wire}_${g?.wire ?? "10"}'
+          : '${widget.cardId}_${widget.language}_${s.wire}';
   final Map<String, Future<HogaBoardData>> _cache = {};
 
   Future<HogaBoardData> _load(HogaStatus status, HogaGrade? grade) {
     final key = _cacheKey(status, grade);
     return _cache.putIfAbsent(
       key,
-      () => HogaApi.fetchBoard(widget.cardId, status: status, grade: grade),
+      () => HogaApi.fetchBoard(widget.cardId, status: status, grade: grade, language: widget.language),
     );
   }
 
@@ -60,7 +65,7 @@ class _HogaBoardState extends State<HogaBoard> {
   @override
   void didUpdateWidget(covariant HogaBoard old) {
     super.didUpdateWidget(old);
-    if (old.cardId != widget.cardId || old.refreshKey != widget.refreshKey) {
+    if (old.cardId != widget.cardId || old.refreshKey != widget.refreshKey || old.language != widget.language) {
       _cache.clear();
     }
   }

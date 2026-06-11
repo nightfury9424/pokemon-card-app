@@ -1856,6 +1856,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             child: _buildOrderBookHeader(),
           ),
         ),
+        // 발매판 탭 (KO/JP/EN) — 차트와 동일 컴포넌트(이질감 0). RAW/PSA/BRG 위.
+        // 발매판 2개 이상일 때만 노출 (KO 전용 카드는 탭 불필요).
+        if (_availableMarkets().length > 1)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: _buildMarketTabs(forChart: false),
+            ),
+          ),
         // 호가창 (Phase G 임시 통합 — KREAM/StockX hybrid)
         SliverToBoxAdapter(
           child: Padding(
@@ -1863,6 +1872,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             child: HogaBoard(
               cardId: widget.cardId,
               refreshKey: _hogaRefreshKey,
+              language: _selectedMarket,
               onCountsChanged: (ask, bid) {
                 if (mounted &&
                     (_hogaAskCount != ask || _hogaBidCount != bid)) {
@@ -1882,6 +1892,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   grade: grade,
                   side: side,
                   price: price,
+                  language: _selectedMarket,
                   myUserId: _myUserId,
                 );
                 if (listingId == null || !context.mounted) return;
@@ -1922,10 +1933,17 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
   /// 호가창 상단 — 현재가 + 매도/매수 카운트 한 줄
   Widget _buildOrderBookHeader() {
+    // 발매판별 대표가 + 라벨 (선택 발매판 _selectedMarket 기준). JP/EN은 BE representativeKrw(KRW).
     final koMid = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
+    final repKrw = (_priceSummary?['representativeKrw']
+            ?[_selectedMarket.toLowerCase()] as num?)?.toInt();
+    final repPrice = _selectedMarket == 'KO' ? koMid : repKrw;
     final labelType = _priceSummary?['ko']?['koPriceLabelType'] as String?;
-    // 라벨 통일 (2026-05-28): OVERSEAS_REF → "해외 참고가" / ESTIMATED 등 → "국내 예상가" / 가격 없음 → "시세 준비중".
-    final priceLabel = PriceLabel.resolve(labelType: labelType, price: koMid);
+    final priceLabel = _selectedMarket == 'JP'
+        ? '일본판 시세'
+        : _selectedMarket == 'EN'
+            ? '영문판 시세'
+            : PriceLabel.resolve(labelType: labelType, price: koMid);
     // 호가창 chip 기준 카운트 우선. HogaBoard에서 setState로 받음.
     final sellCount = _hogaAskCount ?? _listings.length;
     final buyCount = _hogaBidCount ?? _buyOrders.length;
@@ -1951,7 +1969,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  koMid != null ? _formatPrice(koMid) : '시세 없음',
+                  repPrice != null ? _formatPrice(repPrice) : '시세 없음',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 22,
@@ -2008,15 +2026,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     String cardStatus = 'RAW';
     String? gradingCompany;
     String? gradeValue;
-    // 가격 초기값 = 대표 시세(KO mid) 를 100원 단위 반올림 — 판매폼(_onSellTapImpl)과 동일 정책.
-    // (이전 _floorToTick 은 1000 tick 이라 240원 등 저가 카드가 0원으로 떨어지는 버그.)
-    // raw 실시세 없는 예상가(psa 역산 등)는 호가 기본값으로 안 넣음 — psa값 자동입력 방지, 직접 입력 유도.
-    final labelType = _priceSummary?['ko']?['koPriceLabelType'] as String?;
-    final isEstimate =
-        labelType == null || labelType == 'ESTIMATED' || labelType == 'KO_ESTIMATED';
-    final midPrice = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
+    // 예상가 자동입력 — 선택 발매판(_selectedMarket)의 대표가(KRW)를 100원 단위로 prefill.
+    // KO=koMid / JP=SCRYDEX_JP / EN=SCRYDEX_EN (전부 KRW, BE representativeKrw). 추정가도 채움(사용자 요청, 편집 가능).
+    final koLabel = _priceSummary?['ko']?['koPriceLabelType'] as String?;
+    final repKrw = (_priceSummary?['representativeKrw']
+            ?[_selectedMarket.toLowerCase()] as num?)?.toInt();
+    // KO OVERSEAS_REF(표시가=해외 PSA 역산값)는 RAW 매수호가에 부적합(과대) → prefill 스킵, 직접 입력 유도.
+    final skipPrefill = _selectedMarket == 'KO' && koLabel == 'OVERSEAS_REF';
     final initialPrice =
-        (!isEstimate && midPrice != null && midPrice > 0) ? _roundTo100(midPrice) : null;
+        (!skipPrefill && repKrw != null && repKrw > 0) ? _roundTo100(repKrw) : null;
     // 컨트롤러 dispose 는 sheet dismiss animation 중 TextField rebuild 와 충돌 (TextEditingController used after disposed).
     // 정석은 별도 StatefulWidget 으로 분리해 State.dispose 활용 — 다음 polish 에서 처리. 지금은 dispose 생략 (1회성 시트라 누수 무시).
     final priceCtrl = TextEditingController(
@@ -2065,11 +2083,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   Row(
                     children: [
                       _statusChip('RAW (등급 무관)', 'RAW', cardStatus, () {
-                        setSheet(() { cardStatus = 'RAW'; gradingCompany = null; gradeValue = null; });
+                        setSheet(() { cardStatus = 'RAW'; gradingCompany = null; gradeValue = null; priceCtrl.text = initialPrice != null ? _formatThousands(initialPrice) : ''; });
                       }),
                       const SizedBox(width: 8),
                       _statusChip('등급 카드', 'GRADED', cardStatus, () {
-                        setSheet(() { cardStatus = 'GRADED'; });
+                        setSheet(() { cardStatus = 'GRADED'; priceCtrl.clear(); }); // 등급=KO 시세 없음 → prefill 비움
                       }),
                     ],
                   ),
@@ -2128,8 +2146,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     onChanged: (_) => setSheet(() {}),
                     style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
                     decoration: InputDecoration(
-                      hintText: (midPrice != null && midPrice > 0)
-                          ? '예: ${_formatThousands(midPrice)}'
+                      hintText: (repKrw != null && repKrw > 0)
+                          ? '예: ${_formatThousands(repKrw)}'
                           : '매수 희망 가격을 입력하세요',
                       hintStyle: const TextStyle(color: Colors.white24),
                       suffixText: '원',
@@ -2223,6 +2241,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                                   final res = await ApiClient.post('/api/buy-orders', {
                                     'data': {
                                       'cardId': widget.cardId,
+                                      'language': _selectedMarket,
                                       'bidPrice': priceVal,
                                       'qty': 1,
                                       'cardStatus': cardStatus,
@@ -3002,7 +3021,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     return list;
   }
 
-  Widget _buildMarketTabs() {
+  Widget _buildMarketTabs({bool forChart = true}) {
     final available = _availableMarkets();
     // _selectedMarket이 available에 없으면 다음 frame에 자동 전환.
     // OVERSEAS_REF 카드는 초기 'KO' → 'JP'(또는 'EN')로 1프레임 내 보정.
@@ -3039,8 +3058,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             }
             setState(() {
               _selectedMarket = market;
-              _selectedGlobalGrade = globalGrade;
-              _gradeManuallyPicked = false; // 시장 전환 = 새 컨텍스트, 자동 fallback 허용
+              // 차트 탭에서만 등급 컨텍스트 리셋. 거래 탭 발매판 전환은 차트 등급 상태를 건드리지 않음.
+              if (forChart) {
+                _selectedGlobalGrade = globalGrade;
+                _gradeManuallyPicked = false; // 시장 전환 = 새 컨텍스트, 자동 fallback 허용
+              }
             });
           },
           child: Container(
@@ -4029,6 +4051,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       cardId: widget.cardId,
       cardName: cardName,
       side: HogaSide.bid, // 판매 → 매수 호가(사려는 사람)
+      language: _selectedMarket,
       myUserId: _myUserId,
     );
     if (!mounted) return;
@@ -4100,13 +4123,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final midPrice = (_priceSummary?['ko']?['mid'] as num?)?.toInt();
     final basePrice =
         (displayPrice != null && displayPrice > 0) ? displayPrice : midPrice;
-    // raw 실시세 없는 예상가(psa 역산)는 기본값 X — 직접 입력. 단 실제 PSA10 graded 자산은 psa가 유지.
-    final labelType = _priceSummary?['ko']?['koPriceLabelType'] as String?;
-    final basis = asset['displayPriceBasis'] as String?;
-    final isEstimate =
-        labelType == null || labelType == 'ESTIMATED' || labelType == 'KO_ESTIMATED';
+    // 예상가 자동입력 — RAW 자산만 발매판가(displayPrice, KRW) prefill (편집 가능).
+    // 등급(GRADED=PSA/BRG)은 한국 등급 시세가 없으므로(예상가치 부재) prefill 스킵 → 직접 입력 유도.
+    final isGradedAsset = asset['cardStatus'] == 'GRADED';
     final defaultPrice =
-        ((basis == 'PSA10' || !isEstimate) && basePrice != null && basePrice > 0)
+        (!isGradedAsset && basePrice != null && basePrice > 0)
             ? _roundTo100(basePrice)
             : null;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -4388,6 +4409,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       cardId: widget.cardId,
       cardName: cardName,
       side: HogaSide.ask, // 구매 → 매도 호가(파는 사람)
+      language: _selectedMarket,
       myUserId: _myUserId,
     );
     if (!mounted || result == null) return;

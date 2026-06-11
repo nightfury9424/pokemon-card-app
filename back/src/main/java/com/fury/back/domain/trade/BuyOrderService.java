@@ -9,7 +9,7 @@ import java.util.List;
 
 public interface BuyOrderService {
     /** 카드별 매수 호가 (호가창용, OPEN, bid 높은 순) */
-    ReturnData<List<BuyOrderDto>> getByCard(String cardId);
+    ReturnData<List<BuyOrderDto>> getByCard(String cardId, String language);
 
     /** 페이징 카드별 호가 */
     ReturnData<Page<BuyOrderDto>> getByCardPaged(String cardId, int page, int size);

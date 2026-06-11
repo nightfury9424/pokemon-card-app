@@ -40,6 +40,10 @@ public class TradePost {
     @Column(name = "card_status", nullable = false, length = 20)
     private String cardStatus;
 
+    /** 발매판 KO/JP/EN — 매도 시 asset.language 서버 상속(클라 입력 무시). 호가창 언어별 분리 기준. */
+    @Column(name = "language", nullable = false, length = 10)
+    private String language;
+
     @Column(name = "grading_company", length = 20)
     private String gradingCompany;
 

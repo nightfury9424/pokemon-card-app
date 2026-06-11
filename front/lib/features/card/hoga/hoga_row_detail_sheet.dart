@@ -21,6 +21,8 @@ class HogaRowDetailSheet extends StatefulWidget {
   final HogaGrade? grade;
   final HogaSide side;
   final int price;
+  /// 발매판 (KO/JP/EN) — 호가창 언어별 분리. fetchListings 필터.
+  final String language;
 
   /// ASK row 탭 시 sheet pop 후 호출됨. 호출자가 parent context 로 라우팅한다.
   final void Function(String tradeId)? onOpenTradeDetail;
@@ -38,6 +40,7 @@ class HogaRowDetailSheet extends StatefulWidget {
     required this.grade,
     required this.side,
     required this.price,
+    this.language = 'KO',
     this.onOpenTradeDetail,
     this.scrollController,
     this.myUserId,
@@ -55,6 +58,7 @@ class HogaRowDetailSheet extends StatefulWidget {
     required HogaGrade? grade,
     required HogaSide side,
     required int price,
+    String language = 'KO',
     String? myUserId,
     void Function(String tradeId)? onOpenTradeDetail,
   }) {
@@ -73,6 +77,7 @@ class HogaRowDetailSheet extends StatefulWidget {
           grade: grade,
           side: side,
           price: price,
+          language: language,
           onOpenTradeDetail: onOpenTradeDetail,
           scrollController: scroll,
           myUserId: myUserId,
@@ -97,6 +102,7 @@ class _HogaRowDetailSheetState extends State<HogaRowDetailSheet> {
       status: widget.status,
       grade: widget.grade,
       side: widget.side,
+      language: widget.language,
     );
   }
 

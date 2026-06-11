@@ -40,6 +40,7 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
             WHERE bo.cardId = :cardId
               AND bo.status = 'OPEN'
               AND bo.cardStatus = :cardStatus
+              AND bo.language = :language
               AND ((:gradingCompany IS NULL) OR bo.gradingCompany = :gradingCompany)
               AND ((:gradeValue IS NULL) OR bo.gradeValue = :gradeValue)
             GROUP BY bo.bidPrice
@@ -48,6 +49,7 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
     List<HogaLevelDto> findHogaLevels(
             @Param("cardId") String cardId,
             @Param("cardStatus") String cardStatus,
+            @Param("language") String language,
             @Param("gradingCompany") String gradingCompany,
             @Param("gradeValue") String gradeValue);
 
@@ -59,6 +61,7 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
             WHERE bo.cardId = :cardId
               AND bo.status = 'OPEN'
               AND bo.cardStatus = :cardStatus
+              AND bo.language = :language
               AND bo.bidPrice = :price
               AND ((:gradingCompany IS NULL) OR bo.gradingCompany = :gradingCompany)
               AND ((:gradeValue IS NULL) OR bo.gradeValue = :gradeValue)
@@ -67,6 +70,7 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
     List<BuyOrder> findHogaListings(
             @Param("cardId") String cardId,
             @Param("cardStatus") String cardStatus,
+            @Param("language") String language,
             @Param("gradingCompany") String gradingCompany,
             @Param("gradeValue") String gradeValue,
             @Param("price") Integer price);
@@ -80,6 +84,7 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
             WHERE bo.cardId = :cardId
               AND bo.status = 'OPEN'
               AND bo.cardStatus = :cardStatus
+              AND bo.language = :language
               AND ((:gradingCompany IS NULL) OR bo.gradingCompany = :gradingCompany)
               AND ((:gradeValue IS NULL) OR bo.gradeValue = :gradeValue)
             ORDER BY bo.bidPrice DESC, bo.createdAt ASC
@@ -87,6 +92,7 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
     List<BuyOrder> findTopHogaBidListings(
             @Param("cardId") String cardId,
             @Param("cardStatus") String cardStatus,
+            @Param("language") String language,
             @Param("gradingCompany") String gradingCompany,
             @Param("gradeValue") String gradeValue,
             Pageable pageable);
@@ -105,6 +111,7 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
               AND b.status = 'OPEN'
               AND b.bidPrice IS NOT NULL
               AND b.cardStatus = :cardStatus
+              AND b.language = :language
               AND ((:gradingCompany IS NULL) OR b.gradingCompany = :gradingCompany)
               AND ((:gradeValue IS NULL) OR b.gradeValue = :gradeValue)
             """)
@@ -112,11 +119,15 @@ public interface BuyOrderRepository extends JpaRepository<BuyOrder, String> {
             @Param("buyerId") String buyerId,
             @Param("cardId") String cardId,
             @Param("cardStatus") String cardStatus,
+            @Param("language") String language,
             @Param("gradingCompany") String gradingCompany,
             @Param("gradeValue") String gradeValue);
 
     /** 동일 사용자 + 동일 카드 + OPEN 존재 여부 (1개만 제약) */
     Optional<BuyOrder> findFirstByBuyerIdAndCardIdAndStatus(String buyerId, String cardId, String status);
+
+    /** 발매판별 — 동일 사용자 + 동일 카드 + 동일 언어 + OPEN (언어별 1개 제약, V20260611 unique 대응) */
+    Optional<BuyOrder> findFirstByBuyerIdAndCardIdAndLanguageAndStatus(String buyerId, String cardId, String language, String status);
 
     /** 페이징 — 카드별 호가 list */
     @Query("SELECT bo FROM BuyOrder bo WHERE bo.cardId = :cardId AND bo.status = 'OPEN' ORDER BY bo.bidPrice DESC, bo.createdAt ASC")

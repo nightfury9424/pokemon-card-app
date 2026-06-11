@@ -43,6 +43,10 @@ public class BuyOrder {
     @Column(name = "card_status", nullable = false, length = 20)
     private String cardStatus;
 
+    /** 발매판 KO/JP/EN — 매수자가 구하는 발매판 선택. 호가창 언어별 분리 기준. */
+    @Column(name = "language", nullable = false, length = 10)
+    private String language;
+
     /** PSA / BRG — GRADED일 때만 (CGC/BGS 미지원) */
     @Column(name = "grading_company", length = 20)
     private String gradingCompany;

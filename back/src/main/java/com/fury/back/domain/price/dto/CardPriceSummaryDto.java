@@ -7,8 +7,12 @@ public record CardPriceSummaryDto(
         KoPrice ko,
         Charts charts,
         PsaPrices enPsa,   // EN PSA 10/9 (USD), null if unavailable
-        PsaPrices jpPsa    // JP PSA 10/9 (USD), null if unavailable
+        PsaPrices jpPsa,   // JP PSA 10/9 (USD), null if unavailable
+        RepresentativeKrw representativeKrw  // 발매판별 대표가(KRW) — 호가 등록 prefill용
 ) {
+    /** 발매판별 대표가(KRW). KO=KO_ESTIMATED, JP=SCRYDEX_JP, EN=SCRYDEX_EN 최신 스냅샷. null=해당 발매판 데이터 없음. */
+    public record RepresentativeKrw(Integer ko, Integer jp, Integer en) {}
+
     public record KoPrice(
             Integer mid,
             Integer low,

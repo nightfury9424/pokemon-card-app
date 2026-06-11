@@ -54,11 +54,16 @@ public class BuyOrderServiceImpl implements BuyOrderService {
     private boolean phoneGateEnabled;
 
     @Override
-    public ReturnData<List<BuyOrderDto>> getByCard(String cardId) {
+    public ReturnData<List<BuyOrderDto>> getByCard(String cardId, String language) {
         if (cardId == null || cardId.isBlank()) {
             return ReturnData.badRequest("cardId는 필수입니다.");
         }
         List<BuyOrder> orders = buyOrderRepository.findOpenByCardIdOrderByBidPriceDesc(cardId);
+        // 발매판 필터 (optional) — null/blank면 전체(하위호환), 지정 시 해당 발매판만.
+        if (language != null && !language.isBlank()) {
+            final String lang = language.trim().toUpperCase();
+            orders = orders.stream().filter(o -> lang.equals(o.getLanguage())).toList();
+        }
         return ReturnData.success(enrichWithDetails(orders));
     }
 
@@ -120,6 +125,13 @@ public class BuyOrderServiceImpl implements BuyOrderService {
         String gradingCompany = params.getString("gradingCompany");
         String gradeValue = params.getString("gradeValue");
         String memo = params.getString("memo");
+        // 발매판(언어) — 매수자가 구하는 발매판 선택. 구버전 클라 하위호환 위해 미전달 시 KO default.
+        String language = params.getString("language");
+        if (language == null || language.isBlank()) language = "KO";
+        language = language.trim().toUpperCase();
+        if (!language.equals("KO") && !language.equals("JP") && !language.equals("EN")) {
+            return ReturnData.badRequest("language는 KO/JP/EN 중 하나여야 합니다.");
+        }
 
         if (cardId == null || cardId.isBlank() || bidPrice == null || bidPrice <= 0) {
             return ReturnData.badRequest("cardId, bidPrice(>0)는 필수입니다.");
@@ -137,12 +149,17 @@ public class BuyOrderServiceImpl implements BuyOrderService {
             gradingCompany = null;
             gradeValue = null;
         }
-        if (cardRepository.findById(cardId).isEmpty()) {
+        Card card = cardRepository.findById(cardId).orElse(null);
+        if (card == null) {
             return ReturnData.notFound("카드를 찾을 수 없습니다.");
+        }
+        // 존재 발매판 검증 — 그 카드가 실제 가진 발매판(KO/JP/EN)만 매수 가능 (없는 판 차단).
+        if (!availableLanguages(card).contains(language)) {
+            return ReturnData.badRequest("이 카드는 " + language + " 발매판이 없어요. 존재하는 발매판으로 매수해주세요.");
         }
 
         // 호가 교란 방지 — 시세 대비 과도한 고가 입찰 차단 (상한만, 저가 입찰은 무해하므로 허용)
-        String priceErr = validateBidPrice(cardId, cardStatus, bidPrice);
+        String priceErr = validateBidPrice(cardId, cardStatus, language, bidPrice);
         if (priceErr != null) return ReturnData.badRequest(priceErr);
 
         // 5개 한도 체크
@@ -152,14 +169,15 @@ public class BuyOrderServiceImpl implements BuyOrderService {
                     "매수 호가는 최대 " + MAX_OPEN_ORDERS_PER_USER + "개까지 등록 가능합니다.");
         }
         // 동일 카드 OPEN 1개 체크 (DB unique도 있지만 user-friendly 에러 위해 먼저)
-        if (buyOrderRepository.findFirstByBuyerIdAndCardIdAndStatus(buyerId, cardId, "OPEN").isPresent()) {
-            return ReturnData.badRequest("이미 같은 카드에 매수 호가가 등록되어 있습니다. 수정/취소 후 다시 시도해주세요.");
+        if (buyOrderRepository.findFirstByBuyerIdAndCardIdAndLanguageAndStatus(buyerId, cardId, language, "OPEN").isPresent()) {
+            return ReturnData.badRequest("이미 같은 카드(같은 발매판)에 매수 호가가 등록되어 있습니다. 수정/취소 후 다시 시도해주세요.");
         }
 
         BuyOrder order = BuyOrder.builder()
                 .buyOrderId(IdGenerator.generate())
                 .buyerId(buyerId)
                 .cardId(cardId)
+                .language(language)
                 .bidPrice(bidPrice)
                 .qty(qty != null && qty > 0 ? qty : 1)
                 .cardStatus(cardStatus)
@@ -170,9 +188,11 @@ public class BuyOrderServiceImpl implements BuyOrderService {
                 .build();
         BuyOrder saved = buyOrderRepository.save(order);
 
-        // 같은 카드 보유한 사용자들에게 알림 (본인 제외)
+        // 같은 카드 + 같은 발매판 보유자에게만 알림 (본인 제외)
         try {
+            final String langFinal = saved.getLanguage();
             var holders = assetRepository.findByCardId(cardId).stream()
+                    .filter(a -> langFinal.equals(a.getLanguage())) // 같은 발매판 보유자만
                     .map(a -> a.getUserId())
                     .filter(uid -> uid != null && !uid.equals(buyerId))
                     .distinct()
@@ -200,7 +220,7 @@ public class BuyOrderServiceImpl implements BuyOrderService {
             return ReturnData.badRequest("OPEN 상태에서만 수정 가능합니다.");
         }
         // 수정 시점의 현재 예상가로 재검증 (등록 후 시세 이동 + 의도적 과대 수정 차단)
-        String priceErr = validateBidPrice(order.getCardId(), order.getCardStatus(), newPrice);
+        String priceErr = validateBidPrice(order.getCardId(), order.getCardStatus(), order.getLanguage(), newPrice);
         if (priceErr != null) return ReturnData.badRequest(priceErr);
         order.updateBidPrice(newPrice);
         return ReturnData.success(enrichWithDetails(List.of(order)).get(0));
@@ -281,17 +301,33 @@ public class BuyOrderServiceImpl implements BuyOrderService {
      *
      * @return 위반 메시지(있으면), 통과 시 null
      */
-    private String validateBidPrice(String cardId, String cardStatus, int bidPrice) {
+    private String validateBidPrice(String cardId, String cardStatus, String language, int bidPrice) {
         if ("GRADED".equals(cardStatus)) return null;
         if (bidPrice > TradeServiceImpl.ABSOLUTE_MAX_PRICE) {
             return "비정상적으로 높은 구매 희망가는 등록할 수 없습니다.";
         }
-        // KO_ESTIMATED 있으면 타이트 밴드, 없으면(프로모/PSA-only) 표시값×3 느슨한 상한만 — 상한만 검사(하한 없음).
-        long[] range = TradeServiceImpl.resolveAllowedPriceRange(priceSnapshotRepository, cardId);
+        // 발매판별 기준가: KO=KO_ESTIMATED(타이트), JP/EN=SCRYDEX 참고가 느슨 상한 — 상한만 검사(하한 없음).
+        long[] range = TradeServiceImpl.resolveAllowedPriceRange(priceSnapshotRepository, cardId, language);
         if (bidPrice > range[1]) {
             return "시세 대비 지나치게 높은 구매 희망가는 등록할 수 없습니다.";
         }
         return null;
+    }
+
+    /** 카드가 실제 가진 발매판(KO/JP/EN) — language=KO 또는 jp/enScrydexRef 존재 기준 (스캐너 등록과 동일 원칙). */
+    private java.util.Set<String> availableLanguages(Card card) {
+        java.util.Set<String> langs = new java.util.LinkedHashSet<>();
+        String lang = card.getLanguage();
+        if ("KO".equalsIgnoreCase(lang)) langs.add("KO");
+        if ("JP".equalsIgnoreCase(lang) || hasScrydexRef(card.getJpScrydexRef())) langs.add("JP");
+        if ("EN".equalsIgnoreCase(lang) || hasScrydexRef(card.getEnScrydexRef())) langs.add("EN");
+        if (langs.isEmpty()) langs.add("KO");
+        return langs;
+    }
+
+    /** scrydex ref 유효성 — null/blank/"NO_..."(결측 sentinel)는 없는 것으로 (코드베이스 관습). */
+    private static boolean hasScrydexRef(String ref) {
+        return ref != null && !ref.isBlank() && !ref.startsWith("NO_");
     }
 
     private List<BuyOrderDto> enrichWithDetails(List<BuyOrder> orders) {

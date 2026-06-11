@@ -30,8 +30,10 @@ public class BuyOrderController {
 
     @Operation(summary = "카드별 매수 호가 list", description = "OPEN 상태, bid 높은 순 (호가창용)")
     @GetMapping("/cards/{cardId}")
-    public ReturnData<List<BuyOrderDto>> getByCard(@PathVariable String cardId) {
-        return buyOrderService.getByCard(cardId);
+    public ReturnData<List<BuyOrderDto>> getByCard(
+            @PathVariable String cardId,
+            @RequestParam(required = false) String language) {
+        return buyOrderService.getByCard(cardId, language);
     }
 
     @Operation(summary = "카드별 매수 호가 페이징")

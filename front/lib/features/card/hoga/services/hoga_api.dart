@@ -18,10 +18,12 @@ class HogaApi {
     HogaStatus status = HogaStatus.raw,
     HogaGrade? grade,
     int limit = 5,
+    String language = 'KO',
   }) async {
     final params = <String, dynamic>{
       'status': status.wire,
       'limit': '$limit',
+      'language': language,
     };
     if (status.requiresGrade && grade != null) {
       params['grade'] = grade.wire;
@@ -40,10 +42,12 @@ class HogaApi {
     HogaStatus status = HogaStatus.raw,
     HogaGrade? grade,
     required HogaSide side,
+    String language = 'KO',
   }) async {
     final params = <String, dynamic>{
       'status': status.wire,
       'side': side.wire,
+      'language': language,
     };
     if (status.requiresGrade && grade != null) {
       params['grade'] = grade.wire;
@@ -63,11 +67,13 @@ class HogaApi {
     HogaGrade? grade,
     required HogaSide side,
     int limit = 10,
+    String language = 'KO',
   }) async {
     final params = <String, dynamic>{
       'status': status.wire,
       'side': side.wire,
       'limit': '$limit',
+      'language': language,
     };
     if (status.requiresGrade && grade != null) {
       params['grade'] = grade.wire;

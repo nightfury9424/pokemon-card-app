@@ -21,6 +21,7 @@ public class BuyOrderDto {
     private Integer bidPrice;
     private Integer qty;
     private String cardStatus;       // RAW / GRADED
+    private String language;         // KO / JP / EN (구하는 발매판)
     private String gradingCompany;
     private String gradeValue;
     private String memo;
@@ -37,6 +38,7 @@ public class BuyOrderDto {
                 .bidPrice(o.getBidPrice())
                 .qty(o.getQty())
                 .cardStatus(o.getCardStatus())
+                .language(o.getLanguage())
                 .gradingCompany(o.getGradingCompany())
                 .gradeValue(o.getGradeValue())
                 .memo(o.getMemo())

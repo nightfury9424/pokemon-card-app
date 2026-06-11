@@ -40,15 +40,15 @@ public class HogaServiceImpl implements HogaService {
     private final BlockRepository blockRepository;
 
     @Override
-    public HogaBoardResponse getBoard(String cardId, HogaStatus status, String grade, int limit, String viewerUserId) {
+    public HogaBoardResponse getBoard(String cardId, HogaStatus status, String grade, String language, int limit, String viewerUserId) {
         String cardStatus = status.dbCardStatus();
         String gradingCompany = status.dbGradingCompany();
         String gradeValue = status.requiresGrade() ? grade : null;
 
         List<HogaLevelDto> rawAsks =
-                tradePostRepository.findHogaLevels(cardId, cardStatus, gradingCompany, gradeValue);
+                tradePostRepository.findHogaLevels(cardId, cardStatus, language, gradingCompany, gradeValue);
         List<HogaLevelDto> rawBids =
-                buyOrderRepository.findHogaLevels(cardId, cardStatus, gradingCompany, gradeValue);
+                buyOrderRepository.findHogaLevels(cardId, cardStatus, language, gradingCompany, gradeValue);
 
         long askCount = rawAsks.stream().mapToLong(HogaLevelDto::countLong).sum();
         long bidCount = rawBids.stream().mapToLong(HogaLevelDto::countLong).sum();
@@ -72,12 +72,12 @@ public class HogaServiceImpl implements HogaService {
         java.util.Set<Long> myAskPrices = (viewerUserId == null || viewerUserId.isBlank())
                 ? java.util.Set.of()
                 : tradePostRepository
-                        .findMyOpenAskPrices(viewerUserId, cardId, cardStatus, gradingCompany, gradeValue)
+                        .findMyOpenAskPrices(viewerUserId, cardId, cardStatus, language, gradingCompany, gradeValue)
                         .stream().map(Integer::longValue).collect(Collectors.toSet());
         java.util.Set<Long> myBidPrices = (viewerUserId == null || viewerUserId.isBlank())
                 ? java.util.Set.of()
                 : buyOrderRepository
-                        .findMyOpenBidPrices(viewerUserId, cardId, cardStatus, gradingCompany, gradeValue)
+                        .findMyOpenBidPrices(viewerUserId, cardId, cardStatus, language, gradingCompany, gradeValue)
                         .stream().map(Integer::longValue).collect(Collectors.toSet());
 
         List<HogaLevelResponse> asks = toLevels(rawAsks, limit, myAskPrices);
@@ -98,7 +98,7 @@ public class HogaServiceImpl implements HogaService {
 
     @Override
     public HogaListingsResponse getListingsAtPrice(
-            String cardId, HogaStatus status, String grade, HogaSide side, long price, String viewerUserId) {
+            String cardId, HogaStatus status, String grade, String language, HogaSide side, long price, String viewerUserId) {
         String cardStatus = status.dbCardStatus();
         String gradingCompany = status.dbGradingCompany();
         String gradeValue = status.requiresGrade() ? grade : null;
@@ -107,9 +107,9 @@ public class HogaServiceImpl implements HogaService {
 
         List<HogaListingResponse> listings = (side == HogaSide.ASK)
                 ? buildAskListings(tradePostRepository.findHogaListings(
-                        cardId, cardStatus, gradingCompany, gradeValue, priceI), blocked)
+                        cardId, cardStatus, language, gradingCompany, gradeValue, priceI), blocked)
                 : buildBidListings(buyOrderRepository.findHogaListings(
-                        cardId, cardStatus, gradingCompany, gradeValue, priceI), blocked);
+                        cardId, cardStatus, language, gradingCompany, gradeValue, priceI), blocked);
 
         return new HogaListingsResponse(
                 cardId, status.name(), side.name(), price, listings.size(), listings);
@@ -117,7 +117,7 @@ public class HogaServiceImpl implements HogaService {
 
     @Override
     public HogaListingsResponse getTopListings(
-            String cardId, HogaStatus status, String grade, HogaSide side, int limit, String viewerUserId) {
+            String cardId, HogaStatus status, String grade, String language, HogaSide side, int limit, String viewerUserId) {
         String cardStatus = status.dbCardStatus();
         String gradingCompany = status.dbGradingCompany();
         String gradeValue = status.requiresGrade() ? grade : null;
@@ -127,9 +127,9 @@ public class HogaServiceImpl implements HogaService {
 
         List<HogaListingResponse> listings = (side == HogaSide.ASK)
                 ? buildAskListings(tradePostRepository.findTopHogaAskListings(
-                        cardId, cardStatus, gradingCompany, gradeValue, page), blocked)
+                        cardId, cardStatus, language, gradingCompany, gradeValue, page), blocked)
                 : buildBidListings(buyOrderRepository.findTopHogaBidListings(
-                        cardId, cardStatus, gradingCompany, gradeValue, page), blocked);
+                        cardId, cardStatus, language, gradingCompany, gradeValue, page), blocked);
 
         // price=0: 전 가격 flat — 각 listing 의 자체 price 사용.
         return new HogaListingsResponse(

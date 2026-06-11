@@ -142,3 +142,9 @@ JP 스냅샷 없음 → EN 사용
 | `POST /api/prices/admin/backfill-ko-history?days=N` | 과거 N일치 KO_ESTIMATED 히스토리 백필 (이미 있는 날짜 스킵) |
 | `POST /api/prices/admin/recalc` | 계수 재계산 후 KO_ESTIMATED 전량 재계산 |
 | `POST /api/prices/admin/fetch-live` | 전체 카드 scrydex live 조회 → 스냅샷 저장 |
+
+## 2026-06-11 업데이트 (출시 후)
+- v6 모델 **freeze 유지**. 수동 오버라이드는 prod `/opt/pokefolio/scripts/v6_apply.py` **MANUAL_FLOOR(하한)에만** (CARD계수는 v6_apply가 덮어 무효).
+- 메가리자몽X SAR **411,200** / 블래키 SAR **250,000** (사용자 확정 실거래가, stale DAANGN 핀 교정). floor라 JP 상승 시 추종·하락 시 보호. dry-run 검증 후 적용, 매일 23:52 v6_apply가 floor 유지.
+- 신규 3장: 부스터/쥬피썬더 ex SAR(HIT) + 타부자고(비HIT) → 기본 **RARITY 계수**.
+- **price-summary 30분 캐시 lag**: 가격 변경 시 홈/리스트는 fresh, 상세 차트는 `cardPriceSummary` 캐시(30min) 때문에 늦게 반영(데이터 정상·표시지연). 1.0.x에서 야간 갱신 후 cache evict 검토.

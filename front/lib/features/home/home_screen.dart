@@ -1773,6 +1773,10 @@ class _CarouselCardState extends State<_CarouselCard>
   Widget build(BuildContext context) {
     final card = widget.item['card'] as Map<String, dynamic>? ?? {};
     final cardId = widget.item['cardId'] as String? ?? '';
+    // 발매판 라벨 = 보유 asset.language (내 카드만). 시장랭킹/비자산은 기존 KO 라벨 유지(가격소스도 KO).
+    final isMyCard = widget.item['isMyCard'] == true;
+    final assetLang =
+        ((widget.item['asset'] as Map<String, dynamic>?)?['language'] as String?)?.toUpperCase();
     final name = card['name'] as String? ?? cardId;
     final rarity = card['rarityCode'] as String? ?? '';
     final price = widget.item['price'] as int?;
@@ -1882,7 +1886,7 @@ class _CarouselCardState extends State<_CarouselCard>
                     ),
                   ),
                 ),
-                if ((card['language'] as String? ?? 'KO') == 'KO') ...[
+                if (isMyCard || (card['language'] as String? ?? 'KO') == 'KO') ...[
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -1892,10 +1896,14 @@ class _CarouselCardState extends State<_CarouselCard>
                       border: Border.all(color: AppColors.divider, width: 0.5),
                     ),
                     child: Text(
-                      PriceLabel.resolve(
-                        labelType: card['koPriceLabelType'] as String?,
-                        price: price,
-                      ),
+                      (isMyCard && assetLang == 'JP')
+                          ? '일본판 시세'
+                          : (isMyCard && assetLang == 'EN')
+                              ? '영문판 시세'
+                              : PriceLabel.resolve(
+                                  labelType: card['koPriceLabelType'] as String?,
+                                  price: price,
+                                ),
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 10,

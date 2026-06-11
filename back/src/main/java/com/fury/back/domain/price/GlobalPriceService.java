@@ -1829,6 +1829,12 @@ public class GlobalPriceService {
                 : koDomesticCount >= 4  ? "B"
                 : koDomesticCount >= 1  ? "C" : "D";
 
+        // 발매판별 대표가(KRW) — 호가 등록 prefill용. KO=koMid(이미 KRW), JP/EN=최신 SCRYDEX 스냅샷(KRW).
+        Integer repJp = priceSnapshotRepository.findLatestScrydexJpByCardIds(java.util.List.of(cardId))
+                .stream().findFirst().map(PriceSnapshot::getPrice).filter(p -> p > 0).orElse(null);
+        Integer repEn = priceSnapshotRepository.findLatestScrydexEnByCardIds(java.util.List.of(cardId))
+                .stream().findFirst().map(PriceSnapshot::getPrice).filter(p -> p > 0).orElse(null);
+
         return new CardPriceSummaryDto(
                 cardId,
                 new CardPriceSummaryDto.KoPrice(
@@ -1840,7 +1846,8 @@ public class GlobalPriceService {
                         buildLineChart(enLine, enPsa10Line, enPsa9Line),
                         buildLineChart(jpLine, jpPsa10Line, jpPsa9Line)),
                 enPsa,
-                jpPsa
+                jpPsa,
+                new CardPriceSummaryDto.RepresentativeKrw(koMid, repJp, repEn)
         );
     }
 

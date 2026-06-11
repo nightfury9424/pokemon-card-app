@@ -24,6 +24,7 @@ public class TradePostDto {
     private String imageUrl;
     private List<String> imageUrls;
     private String cardStatus;
+    private String language;         // KO / JP / EN (판매하는 발매판)
     private String condition;
     private String gradingCompany;
     private String gradeValue;
@@ -53,6 +54,7 @@ public class TradePostDto {
                 .imageUrl(StorageKeyUrls.toProxyCsv(post.getImageUrl()))
                 .imageUrls(splitImageUrls(post.getImageUrl()))
                 .cardStatus(post.getCardStatus())
+                .language(post.getLanguage())
                 .condition(post.getCondition())
                 .gradingCompany(post.getGradingCompany())
                 .gradeValue(post.getGradeValue())
@@ -74,6 +76,7 @@ public class TradePostDto {
                 .imageUrl(StorageKeyUrls.toProxyCsv(post.getImageUrl()))
                 .imageUrls(splitImageUrls(post.getImageUrl()))
                 .cardStatus(post.getCardStatus())
+                .language(post.getLanguage())
                 .condition(post.getCondition())
                 .gradingCompany(post.getGradingCompany())
                 .gradeValue(post.getGradeValue())

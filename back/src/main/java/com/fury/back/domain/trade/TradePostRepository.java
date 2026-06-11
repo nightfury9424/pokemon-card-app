@@ -23,11 +23,12 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
     Page<TradePost> findBySellerIdAndStatusInOrderByCreatedAtDesc(
             String sellerId, List<String> statuses, Pageable pageable);
 
-    /** 카드별 active 거래 — RESERVED도 호가/거래 탭에 보임. */
+    /** 카드별 active 거래 — RESERVED도 호가/거래 탭에 보임. language null이면 전체(하위호환). */
     @Query("SELECT t FROM TradePost t WHERE t.status IN ('OPEN', 'RESERVED') AND " +
-           "(:cardId IS NULL OR t.cardId = :cardId) " +
+           "(:cardId IS NULL OR t.cardId = :cardId) AND " +
+           "(:language IS NULL OR t.language = :language) " +
            "ORDER BY t.createdAt DESC")
-    Page<TradePost> findOpenByCardId(@Param("cardId") String cardId, Pageable pageable);
+    Page<TradePost> findOpenByCardId(@Param("cardId") String cardId, @Param("language") String language, Pageable pageable);
 
     List<TradePost> findBySellerIdAndStatus(String sellerId, String status);
 
@@ -56,6 +57,7 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
             SELECT t FROM TradePost t
             WHERE (:sellerId IS NULL OR t.sellerId = :sellerId)
               AND (:cardId IS NULL OR t.cardId = :cardId)
+              AND (:language IS NULL OR t.language = :language)
               AND t.status IN :statuses
               AND t.sellerId NOT IN :excludedSellerIds
             ORDER BY t.createdAt DESC
@@ -63,6 +65,7 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
     Page<TradePost> findFilteredExcludingSellers(
             @Param("sellerId") String sellerId,
             @Param("cardId") String cardId,
+            @Param("language") String language,
             @Param("statuses") List<String> statuses,
             @Param("excludedSellerIds") List<String> excludedSellerIds,
             Pageable pageable);
@@ -75,6 +78,7 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
               AND t.status IN ('OPEN', 'RESERVED')
               AND t.price IS NOT NULL
               AND t.cardStatus = :cardStatus
+              AND t.language = :language
               AND ((:gradingCompany IS NULL) OR t.gradingCompany = :gradingCompany)
               AND ((:gradeValue IS NULL) OR t.gradeValue = :gradeValue)
             """)
@@ -82,6 +86,7 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
             @Param("sellerId") String sellerId,
             @Param("cardId") String cardId,
             @Param("cardStatus") String cardStatus,
+            @Param("language") String language,
             @Param("gradingCompany") String gradingCompany,
             @Param("gradeValue") String gradeValue);
 
@@ -114,6 +119,7 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
               AND t.status IN ('OPEN', 'RESERVED')
               AND t.price IS NOT NULL
               AND t.cardStatus = :cardStatus
+              AND t.language = :language
               AND ((:gradingCompany IS NULL) OR t.gradingCompany = :gradingCompany)
               AND ((:gradeValue IS NULL) OR t.gradeValue = :gradeValue)
             GROUP BY t.price
@@ -122,6 +128,7 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
     List<HogaLevelDto> findHogaLevels(
             @Param("cardId") String cardId,
             @Param("cardStatus") String cardStatus,
+            @Param("language") String language,
             @Param("gradingCompany") String gradingCompany,
             @Param("gradeValue") String gradeValue);
 
@@ -133,6 +140,7 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
             WHERE t.cardId = :cardId
               AND t.status IN ('OPEN', 'RESERVED')
               AND t.cardStatus = :cardStatus
+              AND t.language = :language
               AND t.price = :price
               AND ((:gradingCompany IS NULL) OR t.gradingCompany = :gradingCompany)
               AND ((:gradeValue IS NULL) OR t.gradeValue = :gradeValue)
@@ -141,6 +149,7 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
     List<TradePost> findHogaListings(
             @Param("cardId") String cardId,
             @Param("cardStatus") String cardStatus,
+            @Param("language") String language,
             @Param("gradingCompany") String gradingCompany,
             @Param("gradeValue") String gradeValue,
             @Param("price") Integer price);
@@ -155,6 +164,7 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
               AND t.status IN ('OPEN', 'RESERVED')
               AND t.price IS NOT NULL
               AND t.cardStatus = :cardStatus
+              AND t.language = :language
               AND ((:gradingCompany IS NULL) OR t.gradingCompany = :gradingCompany)
               AND ((:gradeValue IS NULL) OR t.gradeValue = :gradeValue)
             ORDER BY t.price ASC, t.createdAt ASC
@@ -162,6 +172,7 @@ public interface TradePostRepository extends JpaRepository<TradePost, String> {
     List<TradePost> findTopHogaAskListings(
             @Param("cardId") String cardId,
             @Param("cardStatus") String cardStatus,
+            @Param("language") String language,
             @Param("gradingCompany") String gradingCompany,
             @Param("gradeValue") String gradeValue,
             Pageable pageable);
