@@ -110,6 +110,17 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     if (assetLang == 'JP' || assetLang == 'EN') {
       _selectedMarket = assetLang!;
     }
+    // 보유 등급 default 보정 — 등급(PSA/BRG) 자산에서 진입 시 등급 탭을 보유 등급으로.
+    // "PSA 9로 등록 → 판매글/보드도 PSA 9" 일관성 (RAW 등록은 기본 RAW 유지).
+    // 발매판 보정과 동일 원칙: 사용자는 자기가 등록한 데이터가 뜨길 기대.
+    if ((widget.myAsset?['cardStatus'] as String?)?.toUpperCase() == 'GRADED') {
+      final company = (widget.myAsset?['gradingCompany'] as String?)?.toUpperCase();
+      final grade = (widget.myAsset?['gradeValue'] as String?)?.trim();
+      if (company != null && grade != null && grade.isNotEmpty) {
+        _selectedGlobalGrade = '$company$grade'; // 예: 'PSA9'
+        _gradeManuallyPicked = true; // 자동 fallback이 덮지 않게
+      }
+    }
     // 탭 순서 = [시세, 거래, 내 자산]. 기본 진입 = 시세 (index 0).
     // 사용자 흐름: "얼마야 → 사고팔 수 있어 → 내 거/주문은" (feedback_hoga_design_invariants.md 가드레일 8).
     _tabController = TabController(
