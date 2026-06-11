@@ -141,10 +141,16 @@ public class ImageProxyController {
 
         StreamingResponseBody body = out -> out.write(bytes);
 
+        // 캐시 정책: 채팅 이미지는 참여자 게이트(위에서 검증)라 CloudFront 공유캐시 금지(private).
+        // 그 외(asset/trade/grading/scan/profile)는 키=UUID(추측불가 capability) + immutable →
+        // CloudFront가 캐시하도록 public + 장기 max-age (S3 재fetch 제거, CDN 적중).
+        CacheControl cacheControl = key.startsWith(CHAT_PREFIX)
+                ? CacheControl.maxAge(1, TimeUnit.HOURS).cachePrivate()
+                : CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic();
         return ResponseEntity.ok()
                 .contentType(mt)
                 .contentLength(bytes.length)
-                .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePrivate())
+                .cacheControl(cacheControl)
                 .body(body);
     }
 
