@@ -35,7 +35,7 @@ public class HogaController {
 
     private static final int DEFAULT_LIMIT = 5;
     private static final int MAX_LIMIT = 20;
-    private static final Set<String> ALLOWED_GRADES = Set.of("10", "9", "8");
+    private static final Set<String> ALLOWED_GRADES = Set.of("10", "9");
 
     private final HogaService hogaService;
     private final JwtUtil jwtUtil;
@@ -137,13 +137,13 @@ public class HogaController {
         if (raw == null || raw.isBlank()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "grade required for " + status + " (allowed: 10, 9, 8)");
+                    "grade required for " + status + " (allowed: 10, 9)");
         }
         String g = raw.trim();
         if (!ALLOWED_GRADES.contains(g)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "unsupported grade: " + raw + " (allowed: 10, 9, 8)");
+                    "unsupported grade: " + raw + " (allowed: 10, 9)");
         }
         return g;
     }
