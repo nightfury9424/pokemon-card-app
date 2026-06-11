@@ -1776,8 +1776,22 @@ public class GlobalPriceService {
             koBasis = formulaBasis;
         }
 
-        Integer koLow  = koMid != null ? roundPrice((int) Math.round(koMid * 0.85)) : null;
-        Integer koHigh = koMid != null ? roundPrice((int) Math.round(koMid * 1.15)) : null;
+        // 예상가치 표시 밴드 ±20% (koMid=시세 본체는 불변, 밴드 비율만). B3:
+        // roundPrice가 <10000을 100원 내림 → 저가 카드는 lo/hi가 같은 100원 버킷으로 붕괴(예: 160 → 100~100).
+        // 붕괴 시에만 10원 단위로 finer 라운딩(큰 카드는 기존 100원/1000원 단위 유지).
+        Integer koLow = null, koHigh = null;
+        if (koMid != null) {
+            double lowRaw  = koMid * 0.80;
+            double highRaw = koMid * 1.20;
+            int lo = roundPrice((int) Math.round(lowRaw));
+            int hi = roundPrice((int) Math.round(highRaw));
+            if (lo == hi) {
+                lo = (int) (Math.round(lowRaw / 10.0) * 10);
+                hi = (int) (Math.round(highRaw / 10.0) * 10);
+            }
+            koLow = lo;
+            koHigh = hi;
+        }
 
         // ── EN/JP 차트 (앞서 로드한 히스토리 재사용, filterJumps로 scrydex 데이터 오류 제거)
         List<CardPriceSummaryDto.ChartPoint> enLine      = filterJumps(snapsToPoints(enSnapsHistory, exchangeRate), 0.6);
