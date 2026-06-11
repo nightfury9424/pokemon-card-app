@@ -352,8 +352,14 @@ class _ScannerScreenState extends State<ScannerScreen>
     // ★카드가 실제 가진 발매판만 노출 — EN 전용 promo(고흐 피카츄 등)를 KO로
     //   오등록하던 문제 방지. language(주발매판) + jp/enScrydexRef(타판 존재)로 판단.
     final cardLang = (card['language'] as String?)?.trim().toUpperCase();
-    final hasJpRef = (card['jpScrydexRef'] as String?)?.trim().isNotEmpty ?? false;
-    final hasEnRef = (card['enScrydexRef'] as String?)?.trim().isNotEmpty ?? false;
+    // B7: 'NO_JP'/'NO_EN' placeholder ref도 isNotEmpty라 true였음 → 타판 없는데 JP/EN 탭 노출.
+    //     NO_ 제외(card_detail _hasScrydexRef 규칙) = 실제 발매판/시세 있는 언어만 탭.
+    bool hasRealRef(String? ref) {
+      final s = ref?.trim();
+      return s != null && s.isNotEmpty && !s.startsWith('NO_');
+    }
+    final hasJpRef = hasRealRef(card['jpScrydexRef'] as String?);
+    final hasEnRef = hasRealRef(card['enScrydexRef'] as String?);
     final langsForCard = <String>[
       if (cardLang == 'KO') 'KO',
       if (cardLang == 'JP' || hasJpRef) 'JP',
