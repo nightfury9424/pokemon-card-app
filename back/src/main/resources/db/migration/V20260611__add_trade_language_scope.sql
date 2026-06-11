@@ -23,9 +23,13 @@ WHERE bo.language IS NULL;
 UPDATE trade_posts SET language = 'KO' WHERE language IS NOT NULL AND language NOT IN ('KO','JP','EN');
 UPDATE buy_orders  SET language = 'KO' WHERE language IS NOT NULL AND language NOT IN ('KO','JP','EN');
 
--- 3) NOT NULL + CHECK (KO/JP/EN 만)
+-- 3) NOT NULL + DEFAULT + CHECK (KO/JP/EN 만)
+--    DEFAULT 'KO': 배포 윈도우(마이그 후 ~ 신규코드 배포 전)에 구버전 코드가 language 없이 INSERT 해도
+--    NOT NULL 위반 안 나게. 신규 코드는 항상 language 명시 → default 안 탐.
 ALTER TABLE trade_posts ALTER COLUMN language SET NOT NULL;
 ALTER TABLE buy_orders  ALTER COLUMN language SET NOT NULL;
+ALTER TABLE trade_posts ALTER COLUMN language SET DEFAULT 'KO';
+ALTER TABLE buy_orders  ALTER COLUMN language SET DEFAULT 'KO';
 ALTER TABLE trade_posts ADD CONSTRAINT chk_trade_posts_language CHECK (language IN ('KO','JP','EN'));
 ALTER TABLE buy_orders  ADD CONSTRAINT chk_buy_orders_language  CHECK (language IN ('KO','JP','EN'));
 
