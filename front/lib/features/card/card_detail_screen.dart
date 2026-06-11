@@ -1096,6 +1096,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       width: cardWidth,
                       height: cardHeight,
                       borderRadius: BorderRadius.circular(16),
+                      // 데이터(_cardDetail/cardData) 도착 전엔 '이미지 없음' 대신 skeleton.
+                      isLoading: _loading && data == null,
                     ),
                   ),
                 ),

@@ -28,7 +28,10 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   Timer? _debounce;
-  int _reqId = 0;
+  // 자동완성/카드검색 별도 카운터 — 공유 시 뒤늦은 suggestion이 검색 응답을
+  // stale 처리해 _loading 영구 true(무한 스피너) 되던 버그 방지.
+  int _suggestReqId = 0;
+  int _searchReqId = 0;
 
   bool _loading = false;
   List<Map<String, dynamic>> _cards = [];
@@ -127,13 +130,13 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
   Future<void> _loadSuggestions() async {
     final query = _query.trim();
     if (query.isEmpty) return;
-    final id = ++_reqId;
+    final id = ++_suggestReqId;
     try {
       final res = await ApiClient.get(
         '/api/cards/search',
         params: {'name': query},
       );
-      if (!mounted || id != _reqId || query != _query.trim()) return;
+      if (!mounted || id != _suggestReqId || query != _query.trim()) return;
       final list = (res['data'] as List?) ?? const [];
       final names = <String>{};
       for (final item in list) {
@@ -159,17 +162,21 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
   Future<void> _runCardSearch(String query) async {
     final q = query.trim();
     if (q.isEmpty) return;
+    // 검색 실행 = 자동완성 흐름 종료 → pending suggestion debounce 취소.
+    _debounce?.cancel();
     _focusNode.unfocus();
     _controller.text = q;
     _controller.selection =
         TextSelection.fromPosition(TextPosition(offset: q.length));
+    // ★검색 전용 id를 setState/네트워크 전에 확보 (suggestion과 분리).
+    final id = ++_searchReqId;
     setState(() {
       _query = q;
       _showCards = true;
       _loading = true;
     });
-    await _saveRecent(q);
-    final id = ++_reqId;
+    // storage write가 검색 시작/완료를 막지 않게 (await 제거).
+    unawaited(_saveRecent(q));
     try {
       final res = await ApiClient.get('/api/cards/market', params: {
         'name': q,
@@ -179,22 +186,23 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
         'size': 200,
         'rarities': _rarities,
       });
-      if (!mounted || id != _reqId) return;
+      if (!mounted || id != _searchReqId) return;
       final data = res['data'] as Map<String, dynamic>?;
       final list = List<Map<String, dynamic>>.from(data?['content'] ?? []);
-      setState(() {
-        _cards = list;
-        _loading = false;
-      });
-      _loadLikedStatuses();
+      setState(() => _cards = list);
+      _loadLikedStatuses(id);
     } catch (_) {
-      if (!mounted || id != _reqId) return;
-      setState(() => _loading = false);
+      // 에러 시 _loading 정리는 finally에서 (빈 결과 화면 노출).
+    } finally {
+      // ★최신 검색일 때만 _loading 해제 — stale guard 밖이라 무한 스피너 원천 차단.
+      if (mounted && id == _searchReqId) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   /// 검색 결과 카드들 찜 여부 batch 조회.
-  Future<void> _loadLikedStatuses() async {
+  Future<void> _loadLikedStatuses(int searchId) async {
     final cardIds = _cards
         .map((c) => c['cardId'] as String?)
         .whereType<String>()
@@ -205,8 +213,9 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
         '/api/card-interests/statuses',
         params: {'cardIds': cardIds.join(',')},
       );
+      // ★늦게 온 예전 검색의 찜 응답이 새 결과 _likedCardIds를 덮지 않게.
+      if (!mounted || searchId != _searchReqId) return;
       final data = (res['data'] as Map?) ?? const {};
-      if (!mounted) return;
       setState(() {
         _likedCardIds.clear();
         data.forEach((k, v) {
@@ -608,7 +617,7 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
       onTap: () async {
         _focusNode.unfocus();
         await context.push('/card/$cardId', extra: {'cardData': card});
-        if (mounted) _loadLikedStatuses(); // 상세에서 찜 토글했을 수 있어 재동기화.
+        if (mounted) _loadLikedStatuses(_searchReqId); // 상세에서 찜 토글했을 수 있어 재동기화.
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),

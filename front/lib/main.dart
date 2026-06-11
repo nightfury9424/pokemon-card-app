@@ -4,6 +4,7 @@ import 'core/network/api_client.dart';
 import 'core/notifications/chat_socket_service.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'core/notifiers/home_session_cache.dart';
+import 'core/config/maintenance_gate.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/token_storage.dart';
 import 'core/theme/app_colors.dart';
@@ -75,7 +76,8 @@ class PokemonCardApp extends StatelessWidget {
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-            child: child!,
+            // 점검 게이트 — maintenance.json(백엔드 독립) 기반 전역 점검 화면.
+            child: MaintenanceGate(child: child!),
           ),
         );
       },

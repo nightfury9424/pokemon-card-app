@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_state.dart';
+import 'auth_service.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_error_toast.dart';
@@ -85,9 +86,17 @@ class _SuspendedScreenState extends State<SuspendedScreen> {
     }
   }
 
-  void _quitApp() {
-    // 앱 종료 — iOS는 Apple 정책상 강제 종료 대신 백그라운드로 보냄(SystemNavigator.pop).
-    SystemNavigator.pop();
+  Future<void> _logout() async {
+    // iOS는 Apple 정책상 강제 종료 불가 → 로그아웃으로 처리(세션 클리어 → 로그인 화면).
+    // 정지 상태면 재로그인 시 다시 게이트로 막힘. (SystemNavigator.pop은 iOS에서
+    // 백그라운드/이전화면일 뿐 종료가 안 돼 '종료 안 됨' 버그였음.)
+    try {
+      await AuthService.logout();
+    } catch (_) {
+      // 일부 정리 실패해도 로그인 화면으로 진행 (세션 무효화는 best-effort).
+    }
+    if (!mounted) return;
+    context.go('/login');
   }
 
   @override
@@ -223,8 +232,8 @@ class _SuspendedScreenState extends State<SuspendedScreen> {
                   ],
                   const SizedBox(height: 18),
                   TextButton(
-                    onPressed: _quitApp,
-                    child: const Text('앱 종료하기',
+                    onPressed: _logout,
+                    child: const Text('로그아웃',
                         style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
                   ),
                 ],

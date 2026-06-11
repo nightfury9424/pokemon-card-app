@@ -102,6 +102,10 @@ class CardImage extends StatelessWidget {
   final double height;
   final BoxFit fit;
   final BorderRadius? borderRadius;
+  // true = 데이터 fetch 중(URL 아직 미산출) → '이미지 없음'(unavailable) 대신 다크
+  // skeleton. 상세 첫진입에 cardData 없이 들어와 _cardDetail 로드 전까지 '이미지
+  // 없음' 깜빡이던 버그 방지 — "아직 모름"과 "정말 없음" 분리.
+  final bool isLoading;
 
   const CardImage({
     super.key,
@@ -110,6 +114,7 @@ class CardImage extends StatelessWidget {
     required this.height,
     this.fit = BoxFit.cover,
     this.borderRadius,
+    this.isLoading = false,
   });
 
   bool get _isUnavailable =>
@@ -139,7 +144,10 @@ class CardImage extends StatelessWidget {
       //   다크 카드 배경이 보이게 — 로드가 느려도 '회색박스' 없이 깔끔한 다크 placeholder.
       child: ColoredBox(
         color: AppColors.surfaceCard,
-        child: _isUnavailable ? _buildUnavailable() : _buildNetwork(),
+        // 로딩 중(데이터 미도착)엔 '이미지 없음' 대신 다크 placeholder.
+        child: isLoading
+            ? const SizedBox.expand()
+            : (_isUnavailable ? _buildUnavailable() : _buildNetwork()),
       ),
     );
   }
