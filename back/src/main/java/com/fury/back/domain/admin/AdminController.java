@@ -531,9 +531,11 @@ public class AdminController {
         return ((Number) em.createNativeQuery(sql).setParameter("uid", userId).getSingleResult()).longValue();
     }
 
-    /** native 쿼리 timestamp → LocalDateTime (기존 LocalDateTime 필드와 동일 ISO 직렬화 보장). */
+    /** native 쿼리 timestamp → LocalDateTime. ★Hibernate 6은 timestamp 컬럼을 LocalDateTime으로 반환할 수
+        있어 직접 (Timestamp) 캐스트는 ClassCastException → instanceof로 처리(기존 toIso와 동일 패턴). */
     private Object toLdt(Object o) {
-        return o == null ? null : ((Timestamp) o).toLocalDateTime();
+        if (o instanceof Timestamp ts) return ts.toLocalDateTime();
+        return o; // 이미 LocalDateTime/Instant 이거나 null — Jackson ISO 직렬화.
     }
 
     /** 휴대폰 번호 마스킹 — admin 화면 노출용(+821012345678 → 010-****-5678). */
