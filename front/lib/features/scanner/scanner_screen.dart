@@ -349,8 +349,24 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   Future<void> _addToAsset(String cardId, Map<String, dynamic> card) async {
     final cardName = card['name'] as String? ?? '';
+    // ★카드가 실제 가진 발매판만 노출 — EN 전용 promo(고흐 피카츄 등)를 KO로
+    //   오등록하던 문제 방지. language(주발매판) + jp/enScrydexRef(타판 존재)로 판단.
+    final cardLang = (card['language'] as String?)?.trim().toUpperCase();
+    final hasJpRef = (card['jpScrydexRef'] as String?)?.trim().isNotEmpty ?? false;
+    final hasEnRef = (card['enScrydexRef'] as String?)?.trim().isNotEmpty ?? false;
+    final langsForCard = <String>[
+      if (cardLang == 'KO') 'KO',
+      if (cardLang == 'JP' || hasJpRef) 'JP',
+      if (cardLang == 'EN' || hasEnRef) 'EN',
+    ];
+    // 언어 정보 없으면(방어) 기존처럼 3개 다 — 등록 자체를 막지 않게.
+    final availableLanguages =
+        langsForCard.isNotEmpty ? langsForCard : const ['KO', 'JP', 'EN'];
     String? selectedType;
-    String selectedLanguage = 'KO';
+    String selectedLanguage =
+        (cardLang != null && availableLanguages.contains(cardLang))
+            ? cardLang
+            : availableLanguages.first;
     String? gradingCompany;
     String? gradeValue;
     bool submitting = false;
@@ -487,11 +503,10 @@ class _ScannerScreenState extends State<ScannerScreen>
                   const SizedBox(height: 8),
                   // 토글 통일 (Hotfix 10-5): 공통 AppSegmentedToggle 로 일관.
                   AppSegmentedToggle(
-                    labels: const ['KO', 'JP', 'EN'],
-                    selectedIndex:
-                        const ['KO', 'JP', 'EN'].indexOf(selectedLanguage),
+                    labels: availableLanguages,
+                    selectedIndex: availableLanguages.indexOf(selectedLanguage),
                     onChanged: (i) => setModal(
-                      () => selectedLanguage = const ['KO', 'JP', 'EN'][i],
+                      () => selectedLanguage = availableLanguages[i],
                     ),
                   ),
                   const SizedBox(height: 20),
