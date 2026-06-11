@@ -6,6 +6,7 @@ import '../../core/notifications/chat_socket_service.dart';
 import '../../core/notifications/push_notification_service.dart';
 import '../../core/notifiers/home_session_cache.dart';
 import '../../core/storage/token_storage.dart';
+import '../../core/widgets/auth_image.dart';
 import 'onboarding_draft.dart';
 
 final _googleSignIn = GoogleSignIn(
@@ -94,6 +95,7 @@ class AuthService {
     await TokenStorage.delete();
     OnboardingDraft.instance.clear(); // 계정전환/재가입 시 이전 온보딩 입력(특히 14세미만 차단) 잔존 방지
     HomeSessionCache.clear(); // 계정전환 시 이전 유저 자산/포트폴리오 홈 노출 방지
+    await clearAuthImageCache(); // 계정전환 시 이전 유저 private 이미지(자산/채팅/프사) 디스크캐시 잔존 방지
     AuthState.instance.markLoggedOut();
   }
 }

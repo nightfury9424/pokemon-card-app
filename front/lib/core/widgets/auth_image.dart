@@ -45,6 +45,15 @@ class _AuthImageDiskCache {
   );
 }
 
+/// 로그아웃/계정전환 시 호출 — private 이미지(자산·채팅·프사) 캐시 전체 무효화.
+/// 같은 기기에 다른 사용자 로그인 시 이전 사용자 사진 device 잔존 방지(방어적).
+Future<void> clearAuthImageCache() async {
+  _AuthImageMemCache._mem.clear();
+  try {
+    await _AuthImageDiskCache.instance.emptyCache();
+  } catch (_) {}
+}
+
 /// JWT Authorization header를 자동 부착해서 사용자 업로드 이미지(/api/images/secure/**)
 /// 를 로드하는 Image 위젯.
 ///
