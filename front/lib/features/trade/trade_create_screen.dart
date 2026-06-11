@@ -38,6 +38,8 @@ class TradeCreateScreen extends StatefulWidget {
   final String? gradingCompany;
   final String? gradeValue;
   final String? certNumber;
+  /// Issue 2: 슬랩 게이트에서 방금 찍어 업로드한 슬랩 로컬 path — S3 재다운로드 없이 바로 첨부.
+  final String? slabLocalPath;
   final int? defaultPrice;
   /// DraggableScrollableSheet로 띄울 때 sheet 스크롤 컨트롤러 (부분→스크롤 시 full 확장).
   /// null = 기존 풀스크린 라우트 모드.
@@ -56,6 +58,7 @@ class TradeCreateScreen extends StatefulWidget {
     this.gradingCompany,
     this.gradeValue,
     this.certNumber,
+    this.slabLocalPath,
     this.defaultPrice,
     this.sheetScrollController,
   });
@@ -131,9 +134,22 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
           '${images.map((i) => i['imageType']).toList()}');
       final autoPhotos = <_TradePhoto>[];
 
+      // Issue 2: 슬랩을 방금 찍어 올렸으면 로컬 파일 바로 첨부 (S3 재다운로드=느림/실패 방지).
+      if (widget.slabLocalPath != null) {
+        final slabFile = File(widget.slabLocalPath!);
+        if (await slabFile.exists()) {
+          autoPhotos.add(_TradePhoto(
+              file: slabFile, isAutoFilled: true, imageType: 'SLAB'));
+          debugPrint('[TradeCreate] _loadAssetImages — slab from local (no download)');
+        }
+      }
+
       // SLAB 추가: 등급 카드는 판매 게이트에서 슬랩 실사진을 올림 → 판매글에도 자동첨부.
-      // (RAW는 SLAB 없으므로 무해. SLAB은 제출 시 otherPhotos 로 처리됨.)
-      for (final imageType in ['FRONT', 'BACK', 'SLAB']) {
+      // (RAW는 SLAB 없으므로 무해. 로컬 path로 이미 붙였으면 SLAB 다운로드 스킵.)
+      final types = widget.slabLocalPath != null
+          ? const ['FRONT', 'BACK']
+          : const ['FRONT', 'BACK', 'SLAB'];
+      for (final imageType in types) {
         final image = images
             .where((i) => i['imageType'] == imageType)
             .firstOrNull;

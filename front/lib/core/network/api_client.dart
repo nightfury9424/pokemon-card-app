@@ -95,7 +95,11 @@ class ApiClient {
     try {
       final res = await _dio.get<List<int>>(
         url,
-        options: Options(responseType: ResponseType.bytes),
+        // Issue 2: 자산 이미지는 프록시(S3 fetch) 서빙이라 느림 — 무한 대기 방지 graceful 타임아웃.
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 12),
+        ),
       );
       debugPrint('[ApiClient.downloadBytes] ${res.statusCode} bytes=${res.data?.length} url=$url');
       return res.statusCode == 200 ? res.data : null;

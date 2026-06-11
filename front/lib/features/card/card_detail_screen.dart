@@ -4183,16 +4183,17 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     }
 
     // 등급 카드 판매 전 슬랩 실사진 게이트 — 슬랩 사진 1장 필수 (등급/cert 진위 증명).
+    String? slabLocalPath; // Issue 2: 방금 찍은 슬랩 로컬 path → trade_create가 재다운로드 없이 첨부.
     if (cardStatus == 'GRADED' && assetIdForPhotos != null && assetIdForPhotos.isNotEmpty) {
       final hasSlab = await _hasSlabPhotoForAsset(assetIdForPhotos);
       if (!mounted) return;
       if (!hasSlab) {
-        final uploaded = await _showSlabPhotoRequiredSheet(
+        slabLocalPath = await _showSlabPhotoRequiredSheet(
           assetId: assetIdForPhotos,
           cardName: cardName,
         );
         if (!mounted) return;
-        if (uploaded != true) return; // 취소/미업로드 → 판매 진입 막음
+        if (slabLocalPath == null) return; // 취소/미업로드 → 판매 진입 막음
       }
     }
 
@@ -4231,6 +4232,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         'gradeValue': asset['gradeValue'],
         'certNumber': asset['certNumber'],
         if (defaultPrice != null) 'defaultPrice': defaultPrice,
+        if (slabLocalPath != null) 'slabLocalPath': slabLocalPath,
       });
       if (created == true && mounted) {
         await _refreshAfterOrderMutation();
@@ -4405,14 +4407,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   }
 
   /// 등급 카드 판매 전 슬랩 실사진 게이트 — 슬랩 사진 1장 업로드 필수. 성공 시 true.
-  Future<bool?> _showSlabPhotoRequiredSheet({
+  // Issue 2: 반환을 업로드된 슬랩 로컬 path로 — trade_create가 S3 재다운로드 없이 바로 첨부.
+  Future<String?> _showSlabPhotoRequiredSheet({
     required String assetId,
     required String cardName,
   }) {
     File? slab;
     bool uploading = false;
     String? err;
-    return showModalBottomSheet<bool>(
+    return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       useRootNavigator: true,
@@ -4478,7 +4481,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 slab!.path,
                 field: 'slab_image',
               );
-              if (ctx.mounted) Navigator.pop(ctx, true);
+              if (ctx.mounted) Navigator.pop(ctx, slab!.path);
             } catch (e) {
               setSheet(() {
                 uploading = false;

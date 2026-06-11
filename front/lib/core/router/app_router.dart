@@ -235,6 +235,7 @@ final appRouter = GoRouter(
                 gradingCompany: extra['gradingCompany'] as String?,
                 gradeValue: extra['gradeValue'] as String?,
                 certNumber: extra['certNumber'] as String?,
+                slabLocalPath: extra['slabLocalPath'] as String?,
                 defaultPrice: extra['defaultPrice'] is num
                     ? (extra['defaultPrice'] as num).toInt()
                     : int.tryParse('${extra['defaultPrice'] ?? ''}'),
