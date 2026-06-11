@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui' show ImageFilter;
 import 'package:dio/dio.dart' show DioException;
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -6,6 +7,7 @@ import 'package:flutter/services.dart' show TextInputFormatter, TextEditingValue
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/network/api_client.dart';
 import '../../core/widgets/app_success_toast.dart';
 import '../../core/widgets/app_error_toast.dart';
@@ -4144,6 +4146,20 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       }
     }
 
+    // 등급 카드 판매 전 슬랩 실사진 게이트 — 슬랩 사진 1장 필수 (등급/cert 진위 증명).
+    if (cardStatus == 'GRADED' && assetIdForPhotos != null && assetIdForPhotos.isNotEmpty) {
+      final hasSlab = await _hasSlabPhotoForAsset(assetIdForPhotos);
+      if (!mounted) return;
+      if (!hasSlab) {
+        final uploaded = await _showSlabPhotoRequiredSheet(
+          assetId: assetIdForPhotos,
+          cardName: cardName,
+        );
+        if (!mounted) return;
+        if (uploaded != true) return; // 취소/미업로드 → 판매 진입 막음
+      }
+    }
+
     // 자산 보유 + 비활성 + 판매 가능 — 거래 탭 이동 + 바로 /trades/create push.
     // 판매 상태 확인 sheet 폐기 (사용자 정책 2026-05-18): 카드당 자산 1개, 판매는 등록된 자산 상태 그대로.
     if (_tabController.index != 1) {
@@ -4338,6 +4354,145 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     } catch (_) {
       return false;
     }
+  }
+
+  /// 등급 자산에 슬랩(SLAB) 실사진이 등록돼 있나.
+  Future<bool> _hasSlabPhotoForAsset(String assetId) async {
+    if (assetId.isEmpty) return false;
+    try {
+      final res = await ApiClient.get(ApiConstants.assetImages(assetId));
+      final list = (res['data'] is List) ? res['data'] as List : const [];
+      return list.any((i) => i is Map && i['imageType'] == 'SLAB');
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 등급 카드 판매 전 슬랩 실사진 게이트 — 슬랩 사진 1장 업로드 필수. 성공 시 true.
+  Future<bool?> _showSlabPhotoRequiredSheet({
+    required String assetId,
+    required String cardName,
+  }) {
+    File? slab;
+    bool uploading = false;
+    String? err;
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useRootNavigator: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          Future<void> pick() async {
+            final picked = await ImagePicker().pickImage(
+              source: ImageSource.gallery,
+              imageQuality: 90,
+              maxWidth: 1200,
+            );
+            if (picked != null) setSheet(() => slab = File(picked.path));
+          }
+
+          Future<void> submit() async {
+            if (slab == null || uploading) return;
+            setSheet(() {
+              uploading = true;
+              err = null;
+            });
+            try {
+              await ApiClient.uploadFile(
+                '${ApiConstants.assets}/$assetId/slab-image',
+                slab!.path,
+                field: 'slab_image',
+              );
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            } catch (_) {
+              setSheet(() {
+                uploading = false;
+                err = '업로드에 실패했어요. 다시 시도해주세요.';
+              });
+            }
+          }
+
+          return SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.divider,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    '슬랩 실사진 등록',
+                    style: TextStyle(color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$cardName\n등급 카드는 판매 전 실제 슬랩(케이스) 사진 1장이 필요해요. 등급·인증번호가 잘 보이게 촬영해 주세요.',
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.5),
+                  ),
+                  const SizedBox(height: 18),
+                  GestureDetector(
+                    onTap: uploading ? null : pick,
+                    child: Container(
+                      height: 200,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceElevated,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                      child: slab == null
+                          ? const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_a_photo_outlined, color: AppColors.textSecondary, size: 32),
+                                SizedBox(height: 8),
+                                Text('슬랩 사진 선택', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                              ],
+                            )
+                          : ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: Image.file(slab!, fit: BoxFit.cover, width: double.infinity),
+                            ),
+                    ),
+                  ),
+                  if (err != null) ...[
+                    const SizedBox(height: 10),
+                    Text(err!, style: const TextStyle(color: AppColors.red, fontSize: 12)),
+                  ],
+                  const SizedBox(height: 18),
+                  FilledButton(
+                    onPressed: (slab == null || uploading) ? null : submit,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.blue,
+                      disabledBackgroundColor: AppColors.surfaceElevated,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      uploading ? '업로드 중...' : '등록하고 판매 계속',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   /// RAW 자산 + 자체 그레이딩 미완료 → 판매 전 분석 안내 sheet.
