@@ -726,6 +726,9 @@ class _TradeListScreenState extends State<TradeListScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
+                    // 반응형: 좁은 화면(예: iPhone 15 Pro 393pt)에서 가격+라벨+변동률 합산
+                    // 폭이 부모 Expanded 를 넘으면 Row 가 clip 안 해서 하트 위로 overflow(글자 겹침).
+                    // → 라벨만 Flexible(ellipsis) 로 먼저 줄이고, 가격·변동률은 항상 full 노출.
                     Row(
                       children: [
                         Text(
@@ -738,25 +741,35 @@ class _TradeListScreenState extends State<TradeListScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        // 가격 옆 inline 라벨 — 국내 예상가 / 해외 참고가 / 시세 준비중.
-                        Text(
-                          priceLabelText,
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
+                        if (priceLabelText.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          // 가격 옆 inline 라벨 — 국내 예상가 / 해외 참고가 / 시세 준비중.
+                          // 공간 부족 시 가장 먼저 줄어듦(가격·변동률 보존 우선).
+                          Flexible(
+                            child: Text(
+                              priceLabelText,
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          pctLabel,
-                          style: TextStyle(
-                            color: pctColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
+                        ],
+                        if (pctLabel.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            pctLabel,
+                            style: TextStyle(
+                              color: pctColor,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 3),
