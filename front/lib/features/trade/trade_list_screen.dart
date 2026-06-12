@@ -727,59 +727,51 @@ class _TradeListScreenState extends State<TradeListScreen> {
                     ),
                     const SizedBox(height: 4),
                     // 반응형: 좁은 화면(예: iPhone 15 Pro 393pt)에서 가격+라벨+변동률 합산
-                    // 폭이 부모 Expanded 를 넘으면 Row 가 clip 안 해서 하트 위로 overflow(글자 겹침).
-                    // → 라벨만 Flexible(ellipsis) 로 먼저 줄이고, 가격·변동률은 항상 full 노출.
-                    Row(
-                      children: [
-                        Text(
-                          price != null ? AppColors.formatPrice(price) : '시세 없음',
-                          style: TextStyle(
-                            color: price != null
-                                ? AppColors.textSecondary
-                                : AppColors.textMuted,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                    // 폭이 넘칠 때 잘라내지(ellipsis) 말고 FittedBox(scaleDown)로 줄 전체를
+                    // 폭에 맞게 축소 → 변동률% 포함 전 정보 100% 노출. 넓은 화면은 scaleDown이라
+                    // 확대 안 함 = 기존 크기 그대로(regression 0). Row는 mainAxisSize.min 필수
+                    // (FittedBox가 unbounded로 측정하므로).
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            price != null ? AppColors.formatPrice(price) : '시세 없음',
+                            style: TextStyle(
+                              color: price != null
+                                  ? AppColors.textSecondary
+                                  : AppColors.textMuted,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        if (priceLabelText.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          // 가격 옆 inline 라벨 — 국내 예상가 / 해외 참고가 / 시세 준비중.
-                          // flex 2: 공간 부족 시 변동률(flex 3)보다 먼저 줄어듦.
-                          Flexible(
-                            flex: 2,
-                            child: Text(
+                          if (priceLabelText.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            // 가격 옆 inline 라벨 — 국내 예상가 / 해외 참고가 / 시세 준비중.
+                            Text(
                               priceLabelText,
-                              maxLines: 1,
-                              softWrap: false,
-                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: AppColors.textMuted,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                          ),
-                        ],
-                        if (pctLabel.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          // 변동률도 Flexible — 가격만 고정. 최악(좁은폰+큰가격+큰%)에도
-                          // overflow 0 보장(Codex 검토: label만 Flexible이면 가격+% 단독으로 231pt 초과 가능).
-                          Flexible(
-                            flex: 3,
-                            child: Text(
+                          ],
+                          if (pctLabel.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Text(
                               pctLabel,
-                              maxLines: 1,
-                              softWrap: false,
-                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: pctColor,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                          ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 3),
                     // 거래 시그널 — 색 정책: 매도=blue(호가창 ASK 컨벤션), 매수=red(BID), 관심=neutral.

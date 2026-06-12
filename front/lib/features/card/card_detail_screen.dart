@@ -2730,31 +2730,39 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       };
                     }
                   }
+                  // 잘림 대신 텍스트만 FittedBox(scaleDown)로 축소 → 변동률 포함 전 정보 노출.
+                  // chip 은 FittedBox 밖에 고정(Codex 리뷰: 칩을 scale하면 테두리·radius·padding
+                  // 일그러짐). 텍스트 run만 Expanded 안 FittedBox로 폭 맞춰 축소.
                   return Row(
                     children: [
                       _priceLabelChip(priceLabelText),
                       const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          '$koLabel  ·  대표가 ${_formatPrice(koMid)}',
-                          style: const TextStyle(color: Colors.white38, fontSize: 11),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (changeLabel != null) ...[
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            changeLabel,
-                            style: TextStyle(
-                              color: changeColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                      Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '$koLabel  ·  대표가 ${_formatPrice(koMid)}',
+                                style: const TextStyle(color: Colors.white38, fontSize: 11),
+                              ),
+                              if (changeLabel != null) ...[
+                                const SizedBox(width: 6),
+                                Text(
+                                  changeLabel,
+                                  style: TextStyle(
+                                    color: changeColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ],
                   );
                 }),
