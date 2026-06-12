@@ -315,6 +315,9 @@ public class TradeServiceImpl implements TradeService {
         if (price == null || price <= 0) {
             return ReturnData.badRequest("판매 가격은 필수입니다.");
         }
+        if (!HogaTickResolver.isValidTick(price)) {
+            return ReturnData.badRequest("가격은 " + HogaTickResolver.resolve(price) + "원 단위로 입력해주세요.");
+        }
 
         // 동일 assetId OPEN 판매글 중복 차단 (1 자산 = 1 OPEN 판매글).
         if (assetId != null && !assetId.isBlank()) {
@@ -417,6 +420,9 @@ public class TradeServiceImpl implements TradeService {
         }
         if (assetId == null || assetId.isBlank() || price == null) {
             return ReturnData.badRequest("assetId, price는 필수입니다.");
+        }
+        if (!HogaTickResolver.isValidTick(price)) {
+            return ReturnData.badRequest("가격은 " + HogaTickResolver.resolve(price) + "원 단위로 입력해주세요.");
         }
 
         Asset asset = assetRepository.findById(assetId).orElse(null);

@@ -136,6 +136,9 @@ public class BuyOrderServiceImpl implements BuyOrderService {
         if (cardId == null || cardId.isBlank() || bidPrice == null || bidPrice <= 0) {
             return ReturnData.badRequest("cardId, bidPrice(>0)는 필수입니다.");
         }
+        if (!HogaTickResolver.isValidTick(bidPrice)) {
+            return ReturnData.badRequest("가격은 " + HogaTickResolver.resolve(bidPrice) + "원 단위로 입력해주세요.");
+        }
         if (cardStatus == null || (!cardStatus.equals("RAW") && !cardStatus.equals("GRADED"))) {
             return ReturnData.badRequest("cardStatus는 RAW 또는 GRADED여야 합니다.");
         }
@@ -212,6 +215,9 @@ public class BuyOrderServiceImpl implements BuyOrderService {
     public ReturnData<BuyOrderDto> updateBidPrice(String buyOrderId, String buyerId, Integer newPrice) {
         if (newPrice == null || newPrice <= 0) {
             return ReturnData.badRequest("bidPrice(>0)는 필수입니다.");
+        }
+        if (!HogaTickResolver.isValidTick(newPrice)) {
+            return ReturnData.badRequest("가격은 " + HogaTickResolver.resolve(newPrice) + "원 단위로 입력해주세요.");
         }
         BuyOrder order = buyOrderRepository.findById(buyOrderId).orElse(null);
         if (order == null) return ReturnData.notFound("매수 호가를 찾을 수 없습니다.");
