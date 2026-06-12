@@ -744,8 +744,9 @@ class _TradeListScreenState extends State<TradeListScreen> {
                         if (priceLabelText.isNotEmpty) ...[
                           const SizedBox(width: 6),
                           // 가격 옆 inline 라벨 — 국내 예상가 / 해외 참고가 / 시세 준비중.
-                          // 공간 부족 시 가장 먼저 줄어듦(가격·변동률 보존 우선).
+                          // flex 2: 공간 부족 시 변동률(flex 3)보다 먼저 줄어듦.
                           Flexible(
+                            flex: 2,
                             child: Text(
                               priceLabelText,
                               maxLines: 1,
@@ -761,12 +762,20 @@ class _TradeListScreenState extends State<TradeListScreen> {
                         ],
                         if (pctLabel.isNotEmpty) ...[
                           const SizedBox(width: 8),
-                          Text(
-                            pctLabel,
-                            style: TextStyle(
-                              color: pctColor,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
+                          // 변동률도 Flexible — 가격만 고정. 최악(좁은폰+큰가격+큰%)에도
+                          // overflow 0 보장(Codex 검토: label만 Flexible이면 가격+% 단독으로 231pt 초과 가능).
+                          Flexible(
+                            flex: 3,
+                            child: Text(
+                              pctLabel,
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: pctColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],
