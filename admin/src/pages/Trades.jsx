@@ -28,13 +28,14 @@ const S = {
   td:     { padding: '13px 16px', fontSize: 13, color: '#475569', borderBottom: '1px solid #f8fafc' },
 }
 
-const TABS = ['전체', '진행중', '완료', '취소']
-const TAB_STATUS = { '진행중': 'ACTIVE', '완료': 'COMPLETED', '취소': 'CANCELLED' }
+const TABS = ['전체', '진행중', '완료', '취소', '삭제됨']
+const TAB_STATUS = { '진행중': 'ACTIVE', '완료': 'COMPLETED', '취소': 'CANCELLED', '삭제됨': 'DELETED' }
 
 const STATUS_MAP = {
   ACTIVE:    { label: '진행중', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
   COMPLETED: { label: '완료',   bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
   CANCELLED: { label: '취소',   bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
+  DELETED:   { label: '삭제됨', bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0' },
   PENDING:   { label: '대기중', bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
 }
 
@@ -138,14 +139,14 @@ export default function Trades() {
                   <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title ?? '-'}</span>
                 </td>
                 <td style={S.td}>{t.authorNickname ?? '-'}</td>
-                <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{t.tradeType === 'EXCHANGE' ? '교환' : t.tradeType === 'SELL' ? '판매' : '-'}</td>
+                <td style={{ ...S.td, whiteSpace: 'nowrap' }}>{t.tradeType === 'BUY' ? '구매' : t.tradeType === 'EXCHANGE' ? '교환' : t.tradeType === 'SELL' ? '판매' : '-'}</td>
                 <td style={{ ...S.td, fontSize: 12, whiteSpace: 'nowrap' }}>{t.wantCardName ?? '-'}</td>
                 <td style={{ ...S.td, fontSize: 12, whiteSpace: 'nowrap' }}>{t.offerCardName ?? '-'}</td>
                 <td style={{ ...S.td, fontSize: 12, whiteSpace: 'nowrap' }}>{t.createdAt ? t.createdAt.slice(0, 10) : '-'}</td>
                 <td style={{ ...S.td, whiteSpace: 'nowrap' }}><StatusBadge status={t.status} /></td>
                 <td style={{ ...S.td, whiteSpace: 'nowrap' }}>
-                  {isDeleted ? (
-                    <span style={{ color: '#cbd5e1', fontSize: 11 }}>삭제됨</span>
+                  {(isDeleted || t.tradeType !== 'SELL') ? (
+                    <span style={{ color: '#cbd5e1', fontSize: 11 }}>{isDeleted ? '삭제됨' : '—'}</span>
                   ) : (
                     <button onClick={async () => {
                       const ok = await adminDeleteTrade(tradeId)

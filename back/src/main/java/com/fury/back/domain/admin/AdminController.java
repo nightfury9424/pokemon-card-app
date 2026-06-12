@@ -741,40 +741,71 @@ public class AdminController {
             @RequestParam(required = false)    String status,
             @RequestParam(required = false)    String search
     ) {
-        StringBuilder where = new StringBuilder(" WHERE 1=1");
-        if (status != null && !status.isBlank()) where.append(" AND t.status = :status");
-        if (search != null && !search.isBlank()) where.append(" AND t.title LIKE :search");
-
-        var countQ = em.createQuery("SELECT COUNT(t) FROM TradePost t" + where);
-        var listQ  = em.createQuery("SELECT t FROM TradePost t" + where + " ORDER BY t.createdAt DESC");
-
-        if (status != null && !status.isBlank()) {
-            countQ.setParameter("status", status);
-            listQ .setParameter("status", status);
+        // 탭 → 엔티티별 원시 status. 전체(=null)는 DELETED 제외. 판매(TradePost)+매수(BuyOrder) 합침.
+        String tab = (status == null || status.isBlank()) ? "ALL" : status;
+        List<String> tpSt, boSt;
+        switch (tab) {
+            case "ACTIVE"    -> { tpSt = List.of("OPEN", "RESERVED"); boSt = List.of("OPEN"); }
+            case "COMPLETED" -> { tpSt = List.of("COMPLETED");        boSt = List.of("MATCHED"); }
+            case "CANCELLED" -> { tpSt = List.of("CANCELED");         boSt = List.of("CANCELED"); }
+            case "DELETED"   -> { tpSt = List.of("DELETED");          boSt = List.of(); }
+            default          -> { tpSt = List.of("OPEN", "RESERVED", "COMPLETED", "CANCELED");  // 전체 = DELETED 제외
+                                  boSt = List.of("OPEN", "MATCHED", "CANCELED"); }
         }
+
+        List<Map<String, Object>> all = new ArrayList<>();
+        if (!tpSt.isEmpty()) {
+            for (var t : em.createQuery(
+                    "SELECT t FROM TradePost t WHERE t.status IN :st ORDER BY t.createdAt DESC",
+                    com.fury.back.domain.trade.TradePost.class).setParameter("st", tpSt).getResultList()) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("id",             t.getTradeId());
+                m.put("title",          t.getTitle());
+                m.put("authorNickname", t.getSellerId());
+                m.put("tradeType",      "SELL");
+                m.put("wantCardName",   t.getCardId());
+                m.put("offerCardName",  null);
+                m.put("status",         normTradeStatus(t.getStatus(), false));
+                m.put("createdAt",      t.getCreatedAt());
+                all.add(m);
+            }
+        }
+        if (!boSt.isEmpty()) {
+            for (var b : em.createQuery(
+                    "SELECT b FROM BuyOrder b WHERE b.status IN :st ORDER BY b.createdAt DESC",
+                    com.fury.back.domain.trade.BuyOrder.class).setParameter("st", boSt).getResultList()) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("id",             b.getBuyOrderId());
+                m.put("title",          "[매수] " + b.getCardId());
+                m.put("authorNickname", b.getBuyerId());
+                m.put("tradeType",      "BUY");
+                m.put("wantCardName",   b.getCardId());
+                m.put("offerCardName",  null);
+                m.put("status",         normTradeStatus(b.getStatus(), true));
+                m.put("createdAt",      b.getCreatedAt());
+                all.add(m);
+            }
+        }
+        // 제목 검색(판매·매수 통합 post-filter)
         if (search != null && !search.isBlank()) {
-            countQ.setParameter("search", "%" + search + "%");
-            listQ .setParameter("search", "%" + search + "%");
+            String s = search.toLowerCase(java.util.Locale.ROOT);
+            all.removeIf(m -> {
+                Object tt = m.get("title");
+                return tt == null || !tt.toString().toLowerCase(java.util.Locale.ROOT).contains(s);
+            });
         }
-
-        long total = ((Number) countQ.getSingleResult()).longValue();
-        @SuppressWarnings("unchecked")
-        List<?> rows = listQ.setFirstResult(page * size).setMaxResults(size).getResultList();
-
-        List<Map<String, Object>> content = new ArrayList<>();
-        for (Object obj : rows) {
-            var t = (com.fury.back.domain.trade.TradePost) obj;
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id",             t.getTradeId());
-            m.put("title",          t.getTitle());
-            m.put("authorNickname", t.getSellerId());
-            m.put("tradeType",      "SELL");
-            m.put("wantCardName",   t.getCardId());
-            m.put("offerCardName",  null);
-            m.put("status",         t.getStatus());
-            m.put("createdAt",      t.getCreatedAt());
-            content.add(m);
-        }
+        all.sort((a, b) -> {
+            var ca = (java.time.LocalDateTime) a.get("createdAt");
+            var cb = (java.time.LocalDateTime) b.get("createdAt");
+            if (ca == null && cb == null) return 0;
+            if (ca == null) return 1;
+            if (cb == null) return -1;
+            return cb.compareTo(ca);
+        });
+        long total = all.size();
+        int from = Math.min(page * size, all.size());
+        int to   = Math.min(from + size, all.size());
+        List<Map<String, Object>> content = new ArrayList<>(all.subList(from, to));
 
         return ReturnData.success(Map.of(
             "content",       content,
@@ -782,6 +813,20 @@ public class AdminController {
             "totalPages",    (int) Math.ceil((double) total / size),
             "page",          page
         ));
+    }
+
+    /** 판매(TradePost)/매수(BuyOrder) 원시 status → 프론트 표시 그룹(ACTIVE/COMPLETED/CANCELLED/DELETED). */
+    private String normTradeStatus(String s, boolean isBuyOrder) {
+        if (s == null) return "ACTIVE";
+        if (isBuyOrder) {
+            return switch (s) { case "MATCHED" -> "COMPLETED"; case "CANCELED" -> "CANCELLED"; default -> "ACTIVE"; };
+        }
+        return switch (s) {
+            case "COMPLETED" -> "COMPLETED";
+            case "CANCELED"  -> "CANCELLED";
+            case "DELETED"   -> "DELETED";
+            default          -> "ACTIVE";
+        };
     }
 
     /* ════════════════════════════════
