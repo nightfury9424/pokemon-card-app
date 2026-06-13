@@ -1,5 +1,6 @@
 package com.fury.back.domain.inquiry;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -54,7 +55,12 @@ public class Inquiry {
     @Column(name = "replied_at")
     private LocalDateTime repliedAt;
 
-    /** 첨부 사진 storage key CSV (trade.image_url 패턴). 모든 카테고리 공통. 응답 시 toProxyCsv 변환. */
+    /**
+     * 첨부 사진 storage key CSV (trade.image_url 패턴). 모든 카테고리 공통.
+     * ★@JsonIgnore — raw storage key 가 사용자 응답(getMine=Inquiry 직렬화)/admin reply 응답으로
+     * 새어나가는 것 차단(Codex 리뷰 P1). admin 목록은 getImageKeys() 게터로 presigned URL 매핑해 노출.
+     */
+    @JsonIgnore
     @Column(name = "image_keys", columnDefinition = "TEXT")
     private String imageKeys;
 
