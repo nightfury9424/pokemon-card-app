@@ -22,9 +22,11 @@ public class InquiryController {
 
     private static final Set<String> VALID_CATEGORIES = Set.of(
             "cardAddRequest", "price", "trade", "account", "bug", "feature", "etc");
+    private static final int MAX_IMAGES = 5;
 
     private final InquiryRepository inquiryRepository;
     private final JwtUtil jwtUtil;
+    private final com.fury.back.storage.ImageStorageService imageStorage;
 
     @Operation(summary = "문의 등록", description = "메일 대신 DB 저장 → 관리자 페이지 처리")
     @PostMapping
@@ -65,6 +67,30 @@ public class InquiryController {
                 .build();
         Inquiry saved = inquiryRepository.save(inquiry);
         return ReturnData.success(Map.of("inquiryId", saved.getInquiryId()));
+    }
+
+    @Operation(summary = "문의 사진 첨부", description = "문의 생성 후 사진 업로드(최대 5장). 모든 카테고리 공통.")
+    @PostMapping(value = "/{inquiryId}/image", consumes = "multipart/form-data")
+    public ReturnData<String> uploadImage(
+            HttpServletRequest request,
+            @PathVariable String inquiryId,
+            @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+        String userId = extractUserId(request);
+        if (userId == null) return ReturnData.fail("F403", "인증이 필요합니다.");
+        Inquiry inquiry = inquiryRepository.findById(inquiryId).orElse(null);
+        if (inquiry == null) return ReturnData.notFound("문의를 찾을 수 없습니다.");
+        if (!inquiry.getUserId().equals(userId)) return ReturnData.fail("F403", "권한이 없습니다.");
+        int current = (inquiry.getImageKeys() == null || inquiry.getImageKeys().isBlank())
+                ? 0 : inquiry.getImageKeys().split(",").length;
+        if (current >= MAX_IMAGES) return ReturnData.badRequest("사진은 최대 " + MAX_IMAGES + "장까지입니다.");
+        try {
+            String key = imageStorage.store("uploads/inquiry/" + inquiryId, file.getOriginalFilename(), file);
+            inquiry.appendImageKey(key);
+            inquiryRepository.save(inquiry);
+            return ReturnData.success(com.fury.back.storage.StorageKeyUrls.toProxyUrl(key));
+        } catch (java.io.IOException e) {
+            return ReturnData.fail("F500", "이미지 저장 실패: " + e.getMessage());
+        }
     }
 
     @Operation(summary = "내 문의 내역")

@@ -71,6 +71,7 @@ public class InquiryAdminController {
             m.put("category", i.getCategory());
             m.put("title", i.getTitle());
             m.put("content", i.getContent());
+            m.put("imageUrls", com.fury.back.storage.StorageKeyUrls.toProxyCsv(i.getImageKeys())); // 첨부 사진 프록시 URL CSV
             m.put("contactEmail", i.getContactEmail());
             m.put("status", i.getStatus());
             m.put("createdAt", i.getCreatedAt());

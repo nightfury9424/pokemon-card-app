@@ -54,6 +54,16 @@ public class Inquiry {
     @Column(name = "replied_at")
     private LocalDateTime repliedAt;
 
+    /** 첨부 사진 storage key CSV (trade.image_url 패턴). 모든 카테고리 공통. 응답 시 toProxyCsv 변환. */
+    @Column(name = "image_keys", columnDefinition = "TEXT")
+    private String imageKeys;
+
+    /** 사진 첨부 시 key 를 CSV 에 append. */
+    public void appendImageKey(String key) {
+        if (key == null || key.isBlank()) return;
+        this.imageKeys = (this.imageKeys == null || this.imageKeys.isBlank()) ? key : this.imageKeys + "," + key;
+    }
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();
