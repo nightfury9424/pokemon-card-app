@@ -2,14 +2,23 @@ package com.fury.back.domain.user;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByGoogleId(String googleId);
+
+    /** 활동 시각 갱신 — 엔티티 로드 없이 단일 UPDATE. 호출측(UserActivityService)이 60s throttle 후만 호출. */
+    @Modifying
+    @Transactional
+    @Query("UPDATE User u SET u.lastSeenAt = :now WHERE u.userId = :id")
+    void touchLastSeen(@Param("id") String id, @Param("now") LocalDateTime now);
     Optional<User> findByAppleId(String appleId);
     /** 번호당 인증계정 1개 — 명의 도용/중복 방지 (DB partial unique 와 정렬). */
     Optional<User> findByPhoneE164AndPhoneVerifiedTrue(String phoneE164);

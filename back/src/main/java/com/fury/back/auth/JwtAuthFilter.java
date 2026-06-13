@@ -19,6 +19,7 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final com.fury.back.domain.user.UserActivityService userActivityService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -31,6 +32,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(userId, null, List.of());
             SecurityContextHolder.getContext().setAuthentication(auth);
+
+            // 활동 추적(DAU/접속중) — 앱 유저만(관리자 웹 /api/admin 제외). throttled + best-effort라
+            // 요청 성능/성공에 영향 없음.
+            if (!request.getRequestURI().startsWith("/api/admin")) {
+                try {
+                    userActivityService.touch(userId);
+                } catch (Exception ignore) { /* best-effort */ }
+            }
         }
 
         filterChain.doFilter(request, response);

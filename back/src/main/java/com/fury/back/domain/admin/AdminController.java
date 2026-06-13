@@ -150,6 +150,21 @@ public class AdminController {
         return ReturnData.success(Map.of("total", 0, "today", 0, "weeklyDelta", 0));
     }
 
+    /** 오늘 접속(DAU) + 접속중 — last_seen_at 기반(앱 유저만). 가입(stats/users.today)과 별개.
+     *  접속중 = 최근 5분 활동 근사. last_seen_at 은 배포 후부터 쌓임(과거치 없음). */
+    @GetMapping("/stats/active")
+    public ReturnData<?> statsActive() {
+        java.time.LocalDateTime todayStart = LocalDate.now().atStartOfDay();
+        java.time.LocalDateTime onlineCut  = java.time.LocalDateTime.now().minusMinutes(5);
+        long dauToday = ((Number) em.createQuery(
+            "SELECT COUNT(u) FROM User u WHERE u.lastSeenAt >= :t")
+            .setParameter("t", todayStart).getSingleResult()).longValue();
+        long onlineNow = ((Number) em.createQuery(
+            "SELECT COUNT(u) FROM User u WHERE u.lastSeenAt >= :t")
+            .setParameter("t", onlineCut).getSingleResult()).longValue();
+        return ReturnData.success(Map.of("dauToday", dauToday, "onlineNow", onlineNow));
+    }
+
     /* ════════════════════════════════
        2026-05-29 P-1: 운영 현황 (사이드바 박스 교체)
        — 사이드바 하드코딩 "서비스 정상 운영 중" 문구 대신 실제 cron 실행 시각.

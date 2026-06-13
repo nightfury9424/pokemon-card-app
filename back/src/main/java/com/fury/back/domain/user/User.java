@@ -46,6 +46,10 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    /** 마지막 활동 시각 — 인증 요청 시 throttled(60s) 갱신. DAU(오늘 접속)/접속중 집계용. nullable(아직 활동 없는 유저). */
+    @Column(name = "last_seen_at")
+    private LocalDateTime lastSeenAt;
+
     /**
      * 계정 탈퇴 시각 (soft delete). null = 활성. App Review 5.1.1 대응.
      * deletedAt != null 인 계정은 DeletedUserGuardFilter에서 401 차단.
