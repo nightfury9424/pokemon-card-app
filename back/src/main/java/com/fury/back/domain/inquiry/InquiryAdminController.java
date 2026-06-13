@@ -31,6 +31,20 @@ public class InquiryAdminController {
     private final InquiryRepository inquiryRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final com.fury.back.storage.ImageStorageService imageStorage;
+
+    /** 첨부 사진 key CSV → presigned URL 리스트. admin <img> 는 JWT 프록시 인증 못 보내서 presigned 필요. */
+    private List<String> presignImages(String csv) {
+        if (csv == null || csv.isBlank()) return List.of();
+        List<String> out = new ArrayList<>();
+        for (String key : csv.split(",")) {
+            String k = key.trim();
+            if (k.isEmpty()) continue;
+            try { out.add(imageStorage.presignedGetUrl(k, java.time.Duration.ofMinutes(15))); }
+            catch (Exception e) { /* skip 실패 이미지 */ }
+        }
+        return out;
+    }
 
     /**
      * 문의 목록 — 작성자 닉네임/정지상태 resolve + 분류 필터.
@@ -71,7 +85,7 @@ public class InquiryAdminController {
             m.put("category", i.getCategory());
             m.put("title", i.getTitle());
             m.put("content", i.getContent());
-            m.put("imageUrls", com.fury.back.storage.StorageKeyUrls.toProxyCsv(i.getImageKeys())); // 첨부 사진 프록시 URL CSV
+            m.put("imageUrls", presignImages(i.getImageKeys())); // 첨부 사진 presigned URL 리스트(admin img 직접 표시)
             m.put("contactEmail", i.getContactEmail());
             m.put("status", i.getStatus());
             m.put("createdAt", i.getCreatedAt());
