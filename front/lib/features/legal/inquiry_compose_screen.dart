@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
@@ -15,7 +18,8 @@ import 'inquiry_category.dart';
 ///  - 그 외 카테고리 → 공통 자유 텍스트 1개.
 ///  - 제출 → POST /api/inquiries (DB 저장 → 관리자 페이지 처리). flutter_email_sender 폐기.
 ///  - 답변은 '신고/문의 내역'에서 확인 (관리자 답변 status).
-///  - 사진 첨부는 후속 증분(S3 multipart)에서. 현재 텍스트 전용.
+///  - 사진 첨부(2026-06): 모든 카테고리 공통, 최대 5장. 문의 생성 후 inquiryId 로
+///    multipart 업로드 (POST /api/inquiries/{id}/image — trade 패턴 재사용).
 class InquiryComposeScreen extends StatefulWidget {
   final InquiryCategory category;
   const InquiryComposeScreen({super.key, required this.category});
@@ -35,6 +39,10 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
   final _cardExtra = TextEditingController();
   // 공통 자유 텍스트
   final _freeText = TextEditingController();
+
+  // 사진 첨부 (모든 카테고리 공통, 최대 5장)
+  static const int _maxPhotos = 5;
+  final List<XFile> _photos = [];
 
   bool _sending = false;
   String? _email;
@@ -139,8 +147,8 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
         },
       });
       if (!mounted) return;
-      setState(() => _sending = false);
       if (res['status'] != 'success') {
+        setState(() => _sending = false);
         AppErrorToast.show(
             context,
             (res['message'] is String &&
@@ -149,7 +157,29 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
                 : '문의 접수에 실패했어요. 잠시 후 다시 시도해주세요.');
         return;
       }
-      AppSuccessToast.show(context, '문의가 접수됐어요. 답변은 문의 내역에서 확인할 수 있어요.');
+      // 사진 첨부 — 문의 생성 후 inquiryId 로 multipart 업로드 (trade 패턴).
+      // 본문은 이미 접수됐으므로 사진 일부 실패해도 문의는 성공 처리, 실패 건수만 안내.
+      final inquiryId = res['data']?['inquiryId'] as String?;
+      int imgFail = 0;
+      if (inquiryId != null && _photos.isNotEmpty) {
+        for (final photo in _photos) {
+          try {
+            await ApiClient.uploadFile(
+                '/api/inquiries/$inquiryId/image', photo.path);
+          } catch (_) {
+            imgFail++;
+          }
+        }
+      }
+      if (!mounted) return;
+      setState(() => _sending = false);
+      if (imgFail > 0) {
+        AppInfoToast.show(
+            context, '문의는 접수됐지만 사진 $imgFail장은 업로드에 실패했어요.');
+      } else {
+        AppSuccessToast.show(
+            context, '문의가 접수됐어요. 답변은 문의 내역에서 확인할 수 있어요.');
+      }
       await Future<void>.delayed(const Duration(milliseconds: 300));
       // 5-1: 제출 후 고객지원(카테고리)으로 안 돌아가고 내 문의 내역으로 — 방금 보낸 문의+상태 바로 보이게.
       if (mounted) context.pushReplacement('/profile/inquiries');
@@ -193,6 +223,8 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
                       _buildCardAddFields()
                     else
                       _buildFreeTextField(),
+                    const SizedBox(height: 20),
+                    _buildPhotoSection(),
                   ],
                 ),
               ),
@@ -263,6 +295,138 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
             maxLines: 8),
       ],
     );
+  }
+
+  Widget _buildPhotoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label('사진 첨부'),
+        const Text(
+          '사진은 필수는 아니지만, 없으면 확인이 늦거나 처리가 어려울 수 있어요.\n'
+          '문제 화면·카드 사진을 함께 보내주시면 더 빠르게 도와드릴 수 있어요. (최대 5장)',
+          style: TextStyle(
+              color: AppColors.textMuted, fontSize: 11.5, height: 1.5),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (int i = 0; i < _photos.length; i++) _photoThumb(i, _photos[i]),
+            if (_photos.length < _maxPhotos) _addPhotoButton(),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _photoThumb(int index, XFile photo) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.file(
+            File(photo.path),
+            width: 84,
+            height: 84,
+            fit: BoxFit.cover,
+          ),
+        ),
+        Positioned(
+          top: 2,
+          right: 2,
+          child: GestureDetector(
+            onTap: _sending
+                ? null
+                : () => setState(() => _photos.removeAt(index)),
+            child: Container(
+              decoration: const BoxDecoration(
+                  color: Colors.black54, shape: BoxShape.circle),
+              padding: const EdgeInsets.all(3),
+              child: const Icon(Icons.close, size: 14, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _addPhotoButton() {
+    return GestureDetector(
+      onTap: _sending ? null : _showPhotoPicker,
+      child: Container(
+        width: 84,
+        height: 84,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.add_a_photo_outlined,
+                size: 22, color: AppColors.textSecondary),
+            const SizedBox(height: 4),
+            Text('${_photos.length}/$_maxPhotos',
+                style:
+                    const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showPhotoPicker() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined,
+                  color: AppColors.textPrimary),
+              title: const Text('카메라로 촬영',
+                  style: TextStyle(color: AppColors.textPrimary)),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined,
+                  color: AppColors.textPrimary),
+              title: const Text('갤러리에서 선택',
+                  style: TextStyle(color: AppColors.textPrimary)),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    await _pickPhoto(source);
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    if (_photos.length >= _maxPhotos) return;
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1600,
+      );
+      if (picked == null) return;
+      if (!mounted) return;
+      setState(() => _photos.add(picked));
+    } catch (_) {
+      if (!mounted) return;
+      AppErrorToast.show(context, '사진을 불러오지 못했어요.');
+    }
   }
 
   Widget _buildSendBar() {
