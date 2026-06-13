@@ -10,3 +10,6 @@
 -- 멱등: IF NOT EXISTS 라 재실행 안전.
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP;
+
+-- DAU/접속중 COUNT(WHERE last_seen_at >= t) full-scan 방지 (현재 규모 무관·미래 대비 — Codex F1).
+CREATE INDEX IF NOT EXISTS idx_users_last_seen_at ON users (last_seen_at);
