@@ -615,7 +615,7 @@ public class AdminController {
         // assets × asset_images LEFT JOIN — 자산당 이미지(FRONT/BACK/SLAB) 여러 row. cards.is_visible 제약은
         // native 라 우회(admin은 숨김카드 등록 자산도 봐야 함). 과대 포트폴리오 방지 row LIMIT 500.
         List<Object[]> rows = em.createNativeQuery(
-                "SELECT a.asset_id, a.card_id, c.name, c.rarity, a.language, a.card_status, " +
+                "SELECT a.asset_id, a.card_id, c.name, c.rarity_code, a.language, a.card_status, " +
                 "a.grading_company, a.grade_value, a.estimated_grade, a.created_at, " +
                 "ai.image_id, ai.image_type, ai.image_url " +
                 "FROM assets a LEFT JOIN cards c ON c.card_id = a.card_id " +
