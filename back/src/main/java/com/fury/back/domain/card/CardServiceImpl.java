@@ -128,6 +128,68 @@ public class CardServiceImpl implements CardService {
                 "priceFetch", priceFetch);
     }
 
+    /**
+     * 관리자 폼 카드 추가(INSERT 만). official_card_code / super / sub 보존 + is_visible=true 명시.
+     * ★isVisible 은 Boolean 인데 @Builder.Default 가 없어 미지정 시 null INSERT → 비가시 회귀.
+     * 시세/이미지 보강은 호출측(AdminController)이 커밋 후 enrichCardAfterAdd 로 분리(틱 교훈: 보강 실패가
+     * 카드 추가 자체를 롤백하지 않도록).
+     */
+    @Override
+    @Transactional
+    public Map<String, Object> addCardFromAdmin(AdminAddCardRequest req) {
+        if (req == null) throw new IllegalArgumentException("요청 본문은 필수입니다.");
+        if (blankToNull(req.name()) == null)       throw new IllegalArgumentException("name은 필수입니다.");
+        if (blankToNull(req.productId()) == null)  throw new IllegalArgumentException("productId는 필수입니다.");
+        if (blankToNull(req.rarityCode()) == null) throw new IllegalArgumentException("rarityCode는 필수입니다.");
+
+        String language = "KO".equals(req.type()) ? "KO" : "EN".equals(req.type()) ? "EN" : "JP";
+        String officialCode = blankToNull(req.officialCardCode());
+        String cardId = generateCardId();
+
+        Card card = Card.builder()
+                .cardId(cardId)
+                .productId(req.productId())
+                .officialCardCode(officialCode != null ? officialCode : "")
+                .name(req.name())
+                .collectionNumber(blankToNull(req.collectionNumber()))
+                .rarityCode(blankToNull(req.rarityCode()))
+                .language(language)
+                .superType(blankToNull(req.superType()) != null ? req.superType() : "POKEMON")
+                .subType(blankToNull(req.subType()))
+                .enScrydexRef(blankToNull(req.enScrydexRef()))
+                .jpScrydexRef(blankToNull(req.jpScrydexRef()))
+                .isVisible(true)
+                .isPromoExclusive(false)
+                .build();
+        Card saved = cardRepository.save(card);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("cardId", saved.getCardId());
+        out.put("name", saved.getName());
+        out.put("type", req.type());
+        out.put("officialCardCode", saved.getOfficialCardCode());
+        out.put("isVisible", saved.getIsVisible());
+        return out;
+    }
+
+    /**
+     * 추가 직후 보강 — scrydex 이미지 다운로드 + KO 예상가 즉시 계산/저장.
+     * 카드가 이미 커밋된 뒤 별도 트랜잭션에서 호출되며, 실패해도 호출측 try-catch 로 카드 추가엔 영향 없음.
+     */
+    @Override
+    @Transactional
+    public Map<String, Object> enrichCardAfterAdd(String cardId, String enScrydexRef, String jpScrydexRef) {
+        String enRef = blankToNull(enScrydexRef);
+        String jpRef = blankToNull(jpScrydexRef);
+        Map<String, Object> priceFetch = globalPriceService.triggerPriceFetchForCard(cardId);
+        List<String> images = downloadImagesAfterCommit(cardId, jpRef, enRef);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("cardId", cardId);
+        out.put("images", images);
+        out.put("priceFetch", priceFetch);
+        return out;
+    }
+
     // @Transactional 없음 — 파일 I/O + DB update를 트랜잭션 밖에서 처리
     private List<String> downloadImagesAfterCommit(String cardId, String jpRef, String enRef) {
         List<String> saved = new ArrayList<>();

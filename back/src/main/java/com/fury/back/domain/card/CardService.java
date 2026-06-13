@@ -13,6 +13,10 @@ public interface CardService {
     ReturnData<CardDto> getCard(String cardId);
     ReturnData<CardDto> getCardWithPrice(String cardId);
     Map<String, Object> addCard(AddCardRequest request);
+    /** 관리자 폼 카드 추가 — official_card_code/super/sub 보존 + is_visible=true 명시. INSERT만 커밋(시세/이미지는 enrich 분리). */
+    Map<String, Object> addCardFromAdmin(AdminAddCardRequest request);
+    /** 추가 직후 보강 — scrydex 이미지 다운로드 + KO 예상가 즉시 계산/저장. 실패해도 카드 자체엔 영향 없게 호출측 try-catch. */
+    Map<String, Object> enrichCardAfterAdd(String cardId, String enScrydexRef, String jpScrydexRef);
     ReturnData<List<CardSearchDto>> searchCards(String name);
     ReturnData<List<CardSearchDto>> searchCards(String name, String language);
     ReturnData<CardDto> getCardByCode(String officialCardCode);

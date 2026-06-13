@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@lombok.extern.slf4j.Slf4j
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
@@ -40,6 +41,8 @@ public class AdminController {
     private final com.fury.back.domain.user.UserService userService;
     private final com.fury.back.storage.ImageStorageService imageStorage;
     private final AdminActionService adminActionService;
+    private final com.fury.back.domain.card.CardService cardService;
+    private final com.fury.back.domain.price.GlobalPriceService globalPriceService;
 
     /** 2026-05-29 P-1: 스캐너 stats proxy. brower → backend → scanner (docker network). */
     @Value("${scanner.base-url:http://localhost:8082}")
@@ -747,29 +750,43 @@ public class AdminController {
     }
 
     /* ════════════════════════════════
+       카드 추가 전 미리보기 — 예상가 + 투영 차트 (DB 무영속 dry-run)
+       ════════════════════════════════ */
+    @PostMapping("/cards/preview")
+    public ReturnData<?> previewCard(@RequestBody Map<String, Object> body) {
+        String rarityCode = (String) body.get("rarityCode");
+        String productId  = (String) body.get("productId");
+        String enRef      = (String) body.get("enScrydexRef");
+        String jpRef      = (String) body.get("jpScrydexRef");
+        try {
+            return ReturnData.success(globalPriceService.previewCardAdd(rarityCode, productId, enRef, jpRef));
+        } catch (Exception e) {
+            log.warn("[Admin] 카드 미리보기 실패: {}", e.getMessage());
+            return ReturnData.badRequest("미리보기 실패: " + e.getMessage());
+        }
+    }
+
+    /* ════════════════════════════════
        카드 추가 (KO/EN/JP 3가지 타입)
        ════════════════════════════════ */
     @PostMapping("/cards")
-    @org.springframework.transaction.annotation.Transactional
     public ReturnData<?> addCard(@RequestBody Map<String, Object> body) {
         String type        = (String) body.get("type");        // KO | EN | JP
         String name        = (String) body.get("name");
         String productId   = (String) body.get("productId");
         String rarityCode  = (String) body.get("rarityCode");
         String colNumber   = (String) body.get("collectionNumber");
-        String superType   = (String) body.getOrDefault("superType", "POKEMON").toString();
+        String superType   = body.get("superType") != null ? body.get("superType").toString() : "POKEMON";
         String subType     = (String) body.get("subType");
-        String cardType    = (String) body.get("cardType");
         String officialCode = (String) body.get("officialCardCode");
         String enRef       = (String) body.get("enScrydexRef");
         String jpRef       = (String) body.get("jpScrydexRef");
-        String language    = "KO".equals(type) ? "KO" : "EN".equals(type) ? "EN" : "JP";
 
         if (name == null || name.isBlank())      return ReturnData.badRequest("name은 필수입니다.");
         if (productId == null || productId.isBlank()) return ReturnData.badRequest("productId는 필수입니다.");
         if (rarityCode == null || rarityCode.isBlank()) return ReturnData.badRequest("rarityCode는 필수입니다.");
 
-        // 중복 체크: officialCardCode
+        // 중복 체크: officialCardCode (읽기 — 트랜잭션 불필요)
         if (officialCode != null && !officialCode.isBlank()) {
             Long dup = (Long) em.createQuery(
                 "SELECT COUNT(c) FROM Card c WHERE c.officialCardCode = :code")
@@ -777,32 +794,29 @@ public class AdminController {
             if (dup > 0) return ReturnData.badRequest("이미 존재하는 officialCardCode: " + officialCode);
         }
 
-        String cardId = "CRD_" + java.util.UUID.randomUUID().toString().replace("-", "").toUpperCase();
-        var now = java.time.LocalDateTime.now();
+        // 1) INSERT 만 별도 트랜잭션에서 커밋 (cardService — 프록시 경유라 메서드 반환 시 커밋 완료)
+        var req = new com.fury.back.domain.card.AdminAddCardRequest(
+                type, name, productId, rarityCode, colNumber, superType, subType, officialCode, enRef, jpRef);
+        Map<String, Object> out;
+        try {
+            out = new LinkedHashMap<>(cardService.addCardFromAdmin(req));
+        } catch (IllegalArgumentException e) {
+            return ReturnData.badRequest(e.getMessage());
+        }
+        String cardId = (String) out.get("cardId");
 
-        em.createNativeQuery("""
-            INSERT INTO cards (card_id, product_id, official_card_code, name, collection_number,
-              rarity_code, language, super_type, sub_type, card_type,
-              en_scrydex_ref, jp_scrydex_ref, is_promo_exclusive, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,false,?,?)
-            """)
-            .setParameter(1,  cardId)
-            .setParameter(2,  productId)
-            .setParameter(3,  officialCode != null ? officialCode : "")
-            .setParameter(4,  name)
-            .setParameter(5,  colNumber)
-            .setParameter(6,  rarityCode)
-            .setParameter(7,  language)
-            .setParameter(8,  superType)
-            .setParameter(9,  subType)
-            .setParameter(10, cardType)
-            .setParameter(11, enRef)
-            .setParameter(12, jpRef)
-            .setParameter(13, now)
-            .setParameter(14, now)
-            .executeUpdate();
-
-        return ReturnData.success(Map.of("cardId", cardId, "name", name, "type", type));
+        // 2) 커밋 후 보강(이미지+KO 예상가). ★실패해도 카드 추가는 유지 — try-catch 격리(틱 교훈).
+        try {
+            Map<String, Object> enrich = cardService.enrichCardAfterAdd(cardId, enRef, jpRef);
+            out.put("enriched", true);
+            out.put("images", enrich.get("images"));
+            out.put("priceFetch", enrich.get("priceFetch"));
+        } catch (Exception e) {
+            log.warn("[Admin] 카드 추가 후 보강 실패(카드는 저장됨) cardId={}: {}", cardId, e.getMessage());
+            out.put("enriched", false);
+            out.put("enrichError", e.getMessage());
+        }
+        return ReturnData.success(out);
     }
 
     /* ════════════════════════════════

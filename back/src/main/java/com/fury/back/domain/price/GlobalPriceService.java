@@ -1151,6 +1151,100 @@ public class GlobalPriceService {
         return result;
     }
 
+    /**
+     * 관리자 카드 추가 전 미리보기 — DB 한 줄도 쓰지 않는 dry-run.
+     * <p>fetchPrices/fetchHistory(읽기) + calculateKoEstimatedForCard(그대로) 재사용 → 실제 추가 시 값과 동일.
+     * ★saveKoEstimatedForCard / 스냅샷 save 절대 호출 안 함(frozen 모델 무수정·무영속).
+     * cardId 는 {@code "PREVIEW_<ref>"} stable seed → obs DB 조회 0건(JP/EN 앵커 fallback = 새 카드와 동일 경로)
+     * + 차트 noise 결정론(새로고침 시 동일).
+     */
+    public Map<String, Object> previewCardAdd(String rarityCode, String productId, String enScrydexRef, String jpScrydexRef) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        String en = (enScrydexRef == null || enScrydexRef.isBlank() || enScrydexRef.startsWith("NO_")) ? null : enScrydexRef;
+        String jp = (jpScrydexRef == null || jpScrydexRef.isBlank() || jpScrydexRef.startsWith("NO_")) ? null : jpScrydexRef;
+        if (en == null && jp == null) {
+            out.put("koEstimated", null);
+            out.put("chart", List.of());
+            out.put("message", "scrydex ref(EN/JP)가 없어 예상가를 추론할 수 없습니다. 카드는 추가 가능하며, 시세는 추후 수집됩니다.");
+            return out;
+        }
+        double usdToKrw = exchangeRateClient.getUsdToKrw();
+        double jpyToKrw = exchangeRateClient.getJpyToKrw();
+        LocalDateTime now = LocalDateTime.now();
+        String seed = "PREVIEW_" + (jp != null ? jp : en);
+        String rarity = rarityCode != null ? rarityCode : "";
+
+        Card t = Card.builder()
+                .cardId(seed).productId(productId).rarityCode(rarity).language("KO").superType("POKEMON")
+                .enScrydexRef(en).jpScrydexRef(jp).isVisible(true).build();
+
+        PriceSnapshot enSnap = fetchTransientRaw(t, en, "SCRYDEX_EN", "EN", now, usdToKrw);
+        PriceSnapshot jpSnap = fetchTransientRaw(t, jp, "SCRYDEX_JP", "JP", now, usdToKrw);
+
+        Integer ko = calculateKoEstimatedForCard(t, enSnap, jpSnap, usdToKrw);
+        PriceSnapshot anchor = selectScrydexSnapshotForKo(seed, rarity, jpSnap, enSnap, usdToKrw, jpyToKrw, null);
+
+        out.put("koEstimated", ko);
+        out.put("anchorSource", anchor != null ? anchor.getSource() : null);
+        out.put("jpRawKrw", jpSnap != null ? (int) Math.round(toLatestKrw(jpSnap, usdToKrw, jpyToKrw)) : null);
+        out.put("enRawKrw", enSnap != null ? (int) Math.round(toLatestKrw(enSnap, usdToKrw, jpyToKrw)) : null);
+        out.put("era", resolveEraFromCard(t));
+
+        boolean chaseCandidate = HIGH_RARE_CODES.contains(rarity);
+        out.put("isChaseCandidate", chaseCandidate);
+        out.put("priceDisclaimer", chaseCandidate
+                ? "즉시 추정치입니다. 이 등급(고레어)은 익일 정밀배치(23:52) 후 floor/실시장 반영으로 값이 조정될 수 있습니다."
+                : "즉시 추정치입니다. 익일 정밀배치 후 소폭 조정될 수 있습니다.");
+
+        List<CardPriceSummaryDto.ChartPoint> chart = List.of();
+        if (ko != null && ko > 0) {
+            List<PriceSnapshot> jpHist = fetchTransientHistory(t, jp, "SCRYDEX_JP", "JP", usdToKrw);
+            List<PriceSnapshot> enHist = fetchTransientHistory(t, en, "SCRYDEX_EN", "EN", usdToKrw);
+            PriceSnapshot koPoint = PriceSnapshot.builder()
+                    .priceSnapshotId(com.fury.back.common.IdGenerator.generate())
+                    .cardId(seed).source("KO_ESTIMATED").price(ko).cardStatus("RAW")
+                    .tradedAt(now).collectedAt(now).build();
+            chart = buildProjectedKoLine(seed, List.of(koPoint), jpHist, enHist);
+        }
+        out.put("chart", chart);
+        out.put("chartProjected", true);   // 새 카드는 KO 실거래 히스토리 0 → JP/EN 시장 투영임을 명시
+        out.put("collectedAt", now.toString());
+        return out;
+    }
+
+    /** 미리보기용 — 현재가 1점 transient RAW 스냅샷(저장 안 함). 없음/실패 시 null. */
+    private PriceSnapshot fetchTransientRaw(Card card, String ref, String source, String region,
+                                            LocalDateTime now, double usdToKrw) {
+        if (ref == null) return null;
+        try {
+            Optional<ScrydexLivePriceDto> live = scrydexLiveClient.fetchPrices(ref, region);
+            if (live.isEmpty() || live.get().getRawNm() == null || live.get().getRawNm() <= 0) return null;
+            return buildScrydexSnapshot(card, ref, source, live.get().getRawNm(), "RAW", null, null, now, usdToKrw);
+        } catch (Exception e) {
+            log.warn("[Preview] 현재가 조회 실패 ref={}: {}", ref, e.getMessage());
+            return null;
+        }
+    }
+
+    /** 미리보기용 — scrydex RAW 히스토리 → transient 스냅샷 리스트(저장 안 함). 차트 투영 입력. */
+    private List<PriceSnapshot> fetchTransientHistory(Card card, String ref, String source, String region, double usdToKrw) {
+        if (ref == null) return List.of();
+        try {
+            Optional<ScrydexHistoryDto> hist = scrydexLiveClient.fetchHistory(ref, region);
+            if (hist.isEmpty() || hist.get().getRawNm() == null) return List.of();
+            List<PriceSnapshot> out = new ArrayList<>();
+            for (ScrydexHistoryDto.PricePoint p : hist.get().getRawNm()) {
+                if (p.getPrice() == null || p.getPrice() <= 0 || p.getDate() == null) continue;
+                LocalDateTime d = LocalDate.parse(p.getDate()).atStartOfDay();
+                out.add(buildScrydexSnapshot(card, ref, source, p.getPrice(), "RAW", null, null, d, usdToKrw));
+            }
+            return out;
+        } catch (Exception e) {
+            log.warn("[Preview] 히스토리 조회 실패 ref={}: {}", ref, e.getMessage());
+            return List.of();
+        }
+    }
+
     private ScrydexSaveResult fetchAndSaveScrydexSnapshots(
             Card card,
             String ref,
