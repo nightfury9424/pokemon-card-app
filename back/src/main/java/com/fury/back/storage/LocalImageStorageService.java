@@ -69,6 +69,12 @@ public class LocalImageStorageService implements ImageStorageService {
 
     @Override
     public void putRaw(String key, byte[] bytes, String contentType) throws IOException {
+        putRaw(key, bytes, contentType, null);
+    }
+
+    @Override
+    public void putRaw(String key, byte[] bytes, String contentType, String cacheControl) throws IOException {
+        // 로컬 정적 서빙은 cache-control 헤더를 안 박음 → cacheControl 무시, 파일만 기록.
         Path target = resolveSafe(key);
         Files.createDirectories(target.getParent());
         Files.write(target, bytes);

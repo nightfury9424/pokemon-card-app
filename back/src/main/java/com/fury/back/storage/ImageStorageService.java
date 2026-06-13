@@ -42,6 +42,13 @@ public interface ImageStorageService {
      */
     void putRaw(String key, byte[] bytes, String contentType) throws IOException;
 
+    /**
+     * cacheControl 지정 버전. maintenance.json 처럼 즉시 반영돼야 하는 설정 파일은
+     * {@code "no-store, no-cache, must-revalidate"} 로 CDN/클라 캐싱을 막아 토글이 바로 반영되게 한다.
+     * (기본 putRaw 는 이미지 CDN 기준 max-age=30 이라 CloudFront 가 캐싱 → 점검 토글 반영 지연.)
+     */
+    void putRaw(String key, byte[] bytes, String contentType, String cacheControl) throws IOException;
+
     /** key의 content-type 반환 (proxy response header). */
     String contentType(String key);
 

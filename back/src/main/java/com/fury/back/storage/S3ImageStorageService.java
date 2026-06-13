@@ -95,15 +95,20 @@ public class S3ImageStorageService implements ImageStorageService {
 
     @Override
     public void putRaw(String key, byte[] bytes, String contentType) {
+        putRaw(key, bytes, contentType, "public, max-age=30");
+    }
+
+    @Override
+    public void putRaw(String key, byte[] bytes, String contentType, String cacheControl) {
         PutObjectRequest req = PutObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
                 .contentType(contentType != null ? contentType : "application/octet-stream")
                 .contentLength((long) bytes.length)
-                .cacheControl("public, max-age=30") // CDN/clients 빠른 갱신 — 긴급 점검 반영 지연 최소화.
+                .cacheControl(cacheControl != null ? cacheControl : "public, max-age=30")
                 .build();
         s3.putObject(req, RequestBody.fromBytes(bytes));
-        log.debug("[S3ImageStorage] putRaw bucket={} key={} size={}", bucket, key, bytes.length);
+        log.debug("[S3ImageStorage] putRaw bucket={} key={} size={} cc={}", bucket, key, bytes.length, cacheControl);
     }
 
     @Override

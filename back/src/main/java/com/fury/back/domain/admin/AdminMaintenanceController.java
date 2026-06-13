@@ -53,7 +53,10 @@ public class AdminMaintenanceController {
         json.put("maintenance", on);
         json.put("message", msg);
         try {
-            imageStorage.putRaw(KEY, objectMapper.writeValueAsBytes(json), "application/json");
+            // ★no-store — CloudFront/클라가 캐싱 못 하게 해야 토글이 앱 폴링(≤60s) 시 바로 반영.
+            //   (기본 putRaw 의 max-age=30 + d3 가 ?t cache-bust 무시 → 점검 반영 지연 버그였음.)
+            imageStorage.putRaw(KEY, objectMapper.writeValueAsBytes(json), "application/json",
+                    "no-store, no-cache, must-revalidate");
         } catch (Exception e) {
             log.error("[Maintenance] maintenance.json 쓰기 실패", e);
             return ReturnData.fail("F_MAINT", "점검 상태 저장 실패: " + e.getMessage());
