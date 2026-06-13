@@ -1,29 +1,24 @@
 package com.fury.back.domain.trade;
 
 /**
- * 호가 가격대별 tick 단위 결정.
+ * 호가/거래 tick 단위 = 전 구간 100원 통일 (2026-06-13).
  *
- * <p>1,000원 고정은 4,000만원짜리 카드에 의미 없음 → 동적 tick.
- *
- * <pre>
- *   가격대              tick
- *   < 100,000원         1,000원
- *   100,000 ~ 1,000,000 5,000원
- *   1,000,000 ~ 10,000,000 10,000원
- *   10,000,000 이상     100,000원
- * </pre>
+ * <p>기존 가격대별 차등(1,000/5,000/10,000/100,000)은 200·500원 같은 정당한 저가까지
+ * 막아 과했음 → 100원 단일 tick. `price % 100 == 0` 한 조건으로:
+ * <ul>
+ *   <li>차단: 1원·10원·50원(100 미달/비배수), 11111·222222·333333 등 junk(끝 00 아님)</li>
+ *   <li>허용: 100원부터 100원 단위 — 200·500·1500·12300 …</li>
+ * </ul>
  *
  * <p>등록 시점에 tick 검증을 강제 (Controller에서 isValidTick 호출 → false면 reject).
- * Dart 측 hoga_tick.dart와 동일 알고리즘 유지.
+ * ★Dart 측 hoga_tick.dart도 동일하게 100원 통일 필요(다음 앱 릴리즈).
  */
 public final class HogaTickResolver {
     private HogaTickResolver() {}
 
+    /** 전 구간 100원 단위. */
     public static long resolve(long price) {
-        if (price < 100_000L) return 1_000L;
-        if (price < 1_000_000L) return 5_000L;
-        if (price < 10_000_000L) return 10_000L;
-        return 100_000L;
+        return 100L;
     }
 
     public static long floorToTick(long price) {
