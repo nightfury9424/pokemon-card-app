@@ -453,6 +453,12 @@ public class AdminController {
             long buyCount = ((Number) em.createQuery(
                     "SELECT COUNT(b) FROM BuyOrder b WHERE b.buyerId = :uid AND b.status <> 'CANCELED'")
                     .setParameter("uid", uid).getSingleResult()).longValue();
+            // 등록 카드 수 = 보유 자산(assets). 스캔으로 등록한 카드 = 이게 실제 사용량.
+            // (scanCount=scan_captures는 학습동의 유저만 보관 → 0이어도 카드는 등록돼 있을 수 있음)
+            long cardCount = ((Number) em.createQuery(
+                    "SELECT COUNT(a) FROM Asset a WHERE a.userId = :uid")
+                    .setParameter("uid", uid).getSingleResult()).longValue();
+            m.put("cardCount",  cardCount);
             m.put("scanCount",  scanCount);
             m.put("tradeCount", sellCount + buyCount);
             content.add(m);
@@ -591,6 +597,74 @@ public class AdminController {
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("scans", scans);
+        return ReturnData.success(out);
+    }
+
+    /**
+     * 유저가 등록한 카드(보유 자산) 목록 + 등록 시 찍은 실제 사진(asset_images, presigned TTL 10분).
+     * ★asset_images는 앱 기능상 항상 저장 → scan_image_consent(모델 학습 동의)와 무관하게 admin 열람 가능.
+     * (학습용 raw 이미지=scan_captures는 /scans 별도.) 사용자 사진 열람이므로 VIEW_USER_ASSETS 감사 기록.
+     */
+    @GetMapping("/users/{userId}/assets")
+    @SuppressWarnings("unchecked")
+    public ReturnData<?> userAssets(@PathVariable String userId,
+                                    @org.springframework.security.core.annotation.AuthenticationPrincipal String adminUserId) {
+        var u = em.find(com.fury.back.domain.user.User.class, userId);
+        if (u == null) return ReturnData.notFound("사용자를 찾을 수 없습니다. userId=" + userId);
+
+        // assets × asset_images LEFT JOIN — 자산당 이미지(FRONT/BACK/SLAB) 여러 row. cards.is_visible 제약은
+        // native 라 우회(admin은 숨김카드 등록 자산도 봐야 함). 과대 포트폴리오 방지 row LIMIT 500.
+        List<Object[]> rows = em.createNativeQuery(
+                "SELECT a.asset_id, a.card_id, c.name, c.rarity, a.language, a.card_status, " +
+                "a.grading_company, a.grade_value, a.estimated_grade, a.created_at, " +
+                "ai.image_id, ai.image_type, ai.image_url " +
+                "FROM assets a LEFT JOIN cards c ON c.card_id = a.card_id " +
+                "LEFT JOIN asset_images ai ON ai.asset_id = a.asset_id " +
+                "WHERE a.user_id = :uid ORDER BY a.created_at DESC, ai.image_type LIMIT 500")
+                .setParameter("uid", userId).getResultList();
+
+        Map<String, Map<String, Object>> assetMap = new LinkedHashMap<>();
+        for (Object[] r : rows) {
+            String assetId = (String) r[0];
+            Map<String, Object> am = assetMap.computeIfAbsent(assetId, id -> {
+                Map<String, Object> a = new LinkedHashMap<>();
+                a.put("assetId",        id);
+                a.put("cardId",         r[1]);
+                a.put("cardName",       r[2]);
+                a.put("rarity",         r[3]);
+                a.put("language",       r[4]);
+                a.put("cardStatus",     r[5]);
+                a.put("gradingCompany", r[6]);
+                a.put("gradeValue",     r[7]);
+                a.put("estimatedGrade", r[8]);
+                a.put("createdAt",      toLdt(r[9]));
+                a.put("images",         new ArrayList<Map<String, Object>>());
+                return a;
+            });
+            if (r[10] != null) { // image_id not null = 이미지 존재
+                String key = (String) r[12];
+                String url;
+                if (key != null && !key.startsWith("/") && !key.startsWith("http")) {
+                    try { url = imageStorage.presignedGetUrl(key, Duration.ofMinutes(10)); }
+                    catch (Exception e) { url = null; } // 한 장 실패가 전체 막지 않게
+                } else {
+                    url = key; // legacy full-url 또는 null
+                }
+                Map<String, Object> img = new LinkedHashMap<>();
+                img.put("imageType", r[11]);
+                img.put("imageUrl",  url);
+                ((List<Map<String, Object>>) am.get("images")).add(img);
+            }
+        }
+        List<Map<String, Object>> assets = new ArrayList<>(assetMap.values());
+
+        // 사용자 실물 사진 열람 감사 — scan_image_consent와 무관하나 PII 준함.
+        String actor = (adminUserId == null || adminUserId.isBlank()) ? "UNKNOWN" : adminUserId;
+        adminActionService.record(actor, "VIEW_USER_ASSETS", "USER", userId,
+                null, assets.size() + "개 등록카드 열람", null, null);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("assets", assets);
         return ReturnData.success(out);
     }
 
