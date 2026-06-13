@@ -157,10 +157,10 @@ public class AdminController {
         java.time.LocalDateTime todayStart = LocalDate.now().atStartOfDay();
         java.time.LocalDateTime onlineCut  = java.time.LocalDateTime.now().minusMinutes(5);
         long dauToday = ((Number) em.createQuery(
-            "SELECT COUNT(u) FROM User u WHERE u.lastSeenAt >= :t")
+            "SELECT COUNT(u) FROM User u WHERE u.lastSeenAt >= :t AND u.deletedAt IS NULL")
             .setParameter("t", todayStart).getSingleResult()).longValue();
         long onlineNow = ((Number) em.createQuery(
-            "SELECT COUNT(u) FROM User u WHERE u.lastSeenAt >= :t")
+            "SELECT COUNT(u) FROM User u WHERE u.lastSeenAt >= :t AND u.deletedAt IS NULL")
             .setParameter("t", onlineCut).getSingleResult()).longValue();
         return ReturnData.success(Map.of("dauToday", dauToday, "onlineNow", onlineNow));
     }
@@ -189,7 +189,7 @@ public class AdminController {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("userId", r[0]);
             m.put("nickname", r[1]);
-            m.put("lastSeenAt", r[2]);
+            m.put("lastSeenAt", r[2] != null ? r[2].toString() : null);   // ISO 문자열 명시(프론트 상대시간 파싱)
             out.add(m);
         }
         return out;
