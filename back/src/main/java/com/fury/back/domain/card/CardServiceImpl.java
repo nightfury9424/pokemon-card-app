@@ -58,6 +58,8 @@ public class CardServiceImpl implements CardService {
     private final TradePostRepository tradePostRepository;
     private final BuyOrderRepository buyOrderRepository;
     private final CardInterestRepository cardInterestRepository;
+    // 카드 마스터 이미지 S3 업로드용 — prod는 S3(cards/v1/{lang}/{id}.png)에서만 서빙(로컬은 dev전용).
+    private final com.fury.back.storage.ImageStorageService imageStorage;
 
     private static final Duration MARKET_COUNT_CACHE_TTL = Duration.ofMinutes(5);
     private final Map<String, CountCacheEntry> marketCountCache = new ConcurrentHashMap<>();
@@ -174,10 +176,10 @@ public class CardServiceImpl implements CardService {
 
     /**
      * 추가 직후 보강 — scrydex 이미지 다운로드 + KO 예상가 즉시 계산/저장.
-     * 카드가 이미 커밋된 뒤 별도 트랜잭션에서 호출되며, 실패해도 호출측 try-catch 로 카드 추가엔 영향 없음.
+     * 카드가 이미 커밋된 뒤 호출됨. ★@Transactional 없음 — HTTP(scrydex)+이미지 다운로드를 트랜잭션 밖에서 돌려
+     * DB 커넥션 점유 방지(triggerPriceFetchForCard 가 자체 @Transactional). 실패해도 호출측 try-catch 로 카드 추가엔 영향 없음.
      */
     @Override
-    @Transactional
     public Map<String, Object> enrichCardAfterAdd(String cardId, String enScrydexRef, String jpScrydexRef) {
         String enRef = blankToNull(enScrydexRef);
         String jpRef = blankToNull(jpScrydexRef);
@@ -226,6 +228,13 @@ public class CardServiceImpl implements CardService {
             Files.createDirectories(dir);
             Path imgPath = dir.resolve(cardId + "_" + lang + ".png");
             Files.write(imgPath, res.body());
+            // ★prod는 카드 이미지를 S3에서만 서빙(useLocalCardImages=false). 로컬다운만으론 화면에 안 보임 →
+            // CardCdnUrls 키 구조(cards/v1/{lang}/{cardId}.png)로 S3 업로드. 실패해도 로컬은 저장됐으니 격리.
+            try {
+                imageStorage.putRaw("cards/v1/" + lang + "/" + cardId + ".png", res.body(), "image/png");
+            } catch (Exception e) {
+                log.warn("[Card] S3 업로드 실패(로컬만 저장됨): cardId={}, lang={}, err={}", cardId, lang, e.getMessage());
+            }
             return Optional.of(imgPath.toString());
         } catch (Exception e) {
             log.warn("이미지 다운로드 실패: cardId={}, ref={}, err={}", cardId, ref, e.getMessage());

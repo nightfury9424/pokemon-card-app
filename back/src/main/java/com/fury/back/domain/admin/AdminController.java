@@ -786,12 +786,13 @@ public class AdminController {
         if (productId == null || productId.isBlank()) return ReturnData.badRequest("productId는 필수입니다.");
         if (rarityCode == null || rarityCode.isBlank()) return ReturnData.badRequest("rarityCode는 필수입니다.");
 
-        // 중복 체크: officialCardCode (읽기 — 트랜잭션 불필요)
+        // 중복 체크: officialCardCode. ★네이티브 — JPQL은 Card @SQLRestriction(is_visible=true) 적용돼
+        // 숨김(visible=false) 카드 같은 코드를 못 잡아 INSERT 후 충돌함. native 로 visible 무관 전수 확인.
         if (officialCode != null && !officialCode.isBlank()) {
-            Long dup = (Long) em.createQuery(
-                "SELECT COUNT(c) FROM Card c WHERE c.officialCardCode = :code")
+            Number dup = (Number) em.createNativeQuery(
+                "SELECT COUNT(*) FROM cards WHERE official_card_code = :code")
                 .setParameter("code", officialCode).getSingleResult();
-            if (dup > 0) return ReturnData.badRequest("이미 존재하는 officialCardCode: " + officialCode);
+            if (dup.longValue() > 0) return ReturnData.badRequest("이미 존재하는 officialCardCode: " + officialCode);
         }
 
         // 1) INSERT 만 별도 트랜잭션에서 커밋 (cardService — 프록시 경유라 메서드 반환 시 커밋 완료)

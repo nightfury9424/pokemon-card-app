@@ -1168,6 +1168,12 @@ public class GlobalPriceService {
             out.put("message", "scrydex ref(EN/JP)가 없어 예상가를 추론할 수 없습니다. 카드는 추가 가능하며, 시세는 추후 수집됩니다.");
             return out;
         }
+        if (rarityCode == null || rarityCode.isBlank()) {   // 희귀도 없으면 계수가 글로벌 fallback이라 무의미 → 안내
+            out.put("koEstimated", null);
+            out.put("chart", List.of());
+            out.put("message", "희귀도(rarityCode)를 먼저 선택하세요. 등급별 계수로 예상가를 계산합니다.");
+            return out;
+        }
         double usdToKrw = exchangeRateClient.getUsdToKrw();
         double jpyToKrw = exchangeRateClient.getJpyToKrw();
         LocalDateTime now = LocalDateTime.now();
@@ -1190,7 +1196,7 @@ public class GlobalPriceService {
         out.put("enRawKrw", enSnap != null ? (int) Math.round(toLatestKrw(enSnap, usdToKrw, jpyToKrw)) : null);
         out.put("era", resolveEraFromCard(t));
 
-        boolean chaseCandidate = HIGH_RARE_CODES.contains(rarity);
+        boolean chaseCandidate = isHighRare(rarity);   // 배치 게이트(HIGH_RARE_SET)와 동일 기준 — HR/MUR 포함
         out.put("isChaseCandidate", chaseCandidate);
         out.put("priceDisclaimer", chaseCandidate
                 ? "즉시 추정치입니다. 이 등급(고레어)은 익일 정밀배치(23:52) 후 floor/실시장 반영으로 값이 조정될 수 있습니다."
