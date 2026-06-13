@@ -171,6 +171,16 @@ public class AdminStage0Service {
         return reportRepository.countByStatus(status);
     }
 
+    /** 뱃지/대시보드 — 미처리(OPEN) 고객 문의 수(정지 이의신청 제외). */
+    public long countPendingInquiries() {
+        return inquiryRepository.countByStatusAndCategoryNot("OPEN", "SUSPENSION_APPEAL");
+    }
+
+    /** 뱃지/대시보드 — 미처리(OPEN) 정지 이의신청 수. */
+    public long countPendingAppeals() {
+        return inquiryRepository.countByStatusAndCategory("OPEN", "SUSPENSION_APPEAL");
+    }
+
     // ─────────────────────────────────────────────────────────────────────
     // PATCH /api/admin/reports/{id}/status
     // ─────────────────────────────────────────────────────────────────────

@@ -18,6 +18,12 @@ public interface InquiryRepository extends JpaRepository<Inquiry, String> {
 
     long countByStatus(String status);
 
+    /** 대시보드/뱃지 — 미처리(OPEN) 고객 문의 수(정지 이의신청 제외). */
+    long countByStatusAndCategoryNot(String status, String category);
+
+    /** 대시보드/뱃지 — 미처리(OPEN) 정지 이의신청 수. */
+    long countByStatusAndCategory(String status, String category);
+
     /** 정지 이의신청 중복 방지 — 같은 유저의 OPEN 상태 이의신청 존재 여부. */
     boolean existsByUserIdAndCategoryAndStatus(String userId, String category, String status);
 

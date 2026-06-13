@@ -1,9 +1,11 @@
 package com.fury.back.domain.inquiry;
 
 import com.fury.back.common.ApiResponse;
+import com.fury.back.domain.notification.NotificationService;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -20,6 +22,7 @@ import java.util.stream.Collectors;
 /**
  * 고객 문의 — 관리자 처리. /api/admin/** 아래라 AdminAllowlistFilter 자동 게이트(비-admin 403).
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/admin/inquiries")
 @RequiredArgsConstructor
@@ -27,6 +30,7 @@ public class InquiryAdminController {
 
     private final InquiryRepository inquiryRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     /**
      * 문의 목록 — 작성자 닉네임/정지상태 resolve + 분류 필터.
@@ -96,7 +100,14 @@ public class InquiryAdminController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "REPLY_REQUIRED");
         }
         inquiry.markAnswered(reply, adminUserId);
-        return ApiResponse.ok(inquiryRepository.save(inquiry));
+        Inquiry saved = inquiryRepository.save(inquiry);  // 답변 먼저 커밋
+        // 답변 등록 알림(인앱+FCM). ★알림 실패해도 답변 등록은 절대 영향 없게 try-catch 격리(틱 교훈).
+        try {
+            notificationService.notifyInquiryAnswered(inquiry.getUserId(), inquiry.getTitle(), reply);
+        } catch (Exception e) {
+            log.warn("[Inquiry] 답변 알림 실패(답변은 저장됨) inquiryId={}: {}", inquiryId, e.getMessage());
+        }
+        return ApiResponse.ok(saved);
     }
 
     /** 종료 처리 (답변 없이 닫기 등). */

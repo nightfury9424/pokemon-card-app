@@ -125,4 +125,27 @@ public class NotificationService {
                     Map.of("type", n.getType(), "cardId", cardId == null ? "" : cardId));
         }
     }
+
+    /**
+     * 고객 문의 답변 등록 시 — 문의한 사용자에게 인앱 알림 + FCM 푸시.
+     * ★답변 내용을 body 에 담아 별도 화면 없이 벨에서 바로 확인 가능(앱 변경 불필요).
+     * 호출측(InquiryAdminController.reply)이 try-catch 로 감싸 답변 등록은 절대 영향 없음.
+     */
+    @Transactional
+    public void notifyInquiryAnswered(String userId, String inquiryTitle, String reply) {
+        if (userId == null || userId.isBlank()) return;
+        String r = reply == null ? "" : reply.trim();
+        String snippet = r.length() > 300 ? r.substring(0, 300) + "…" : r;
+        String prefix = (inquiryTitle != null && !inquiryTitle.isBlank()) ? "[" + inquiryTitle + "] " : "";
+        Notification n = Notification.builder()
+                .notificationId(IdGenerator.generate())
+                .userId(userId)
+                .type("INQUIRY_ANSWERED")
+                .title("문의 답변이 등록됐어요")
+                .body(prefix + snippet)
+                .isRead(false)
+                .build();
+        notificationRepository.save(n);
+        fcmService.sendToUser(userId, n.getTitle(), n.getBody(), Map.of("type", n.getType()));
+    }
 }

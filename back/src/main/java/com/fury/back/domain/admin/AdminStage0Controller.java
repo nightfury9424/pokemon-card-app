@@ -56,6 +56,17 @@ public class AdminStage0Controller {
                 "pendingCount", service.countByStatus("PENDING")));
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // GET /api/admin/badges — 사이드바 뱃지 + 대시보드 미처리 카운트 (한 방).
+    // ─────────────────────────────────────────────────────────────────────
+    @GetMapping("/badges")
+    public ApiResponse<Map<String, Object>> badges() {
+        return ApiResponse.ok(Map.of(
+                "pendingReports",   service.countByStatus("PENDING"),
+                "pendingInquiries", service.countPendingInquiries(),
+                "pendingAppeals",   service.countPendingAppeals()));
+    }
+
     @PatchMapping("/reports/{reportId}/status")
     public ApiResponse<AdminStage0Dto.ReportRow> updateReportStatus(
             @PathVariable String reportId,
