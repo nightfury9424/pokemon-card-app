@@ -165,6 +165,36 @@ public class AdminController {
         return ReturnData.success(Map.of("dauToday", dauToday, "onlineNow", onlineNow));
     }
 
+    /** 접속중(최근 5분) 유저 목록 — 닉네임. 대시보드 "접속중" 카드 클릭 시 "누구" 조회. */
+    @GetMapping("/stats/active/online")
+    public ReturnData<?> activeOnlineList() {
+        return ReturnData.success(activeUserList(java.time.LocalDateTime.now().minusMinutes(5)));
+    }
+
+    /** 오늘 접속(DAU) 유저 목록 — 닉네임. "오늘 접속" 카드 클릭 시 조회. */
+    @GetMapping("/stats/active/today")
+    public ReturnData<?> activeTodayList() {
+        return ReturnData.success(activeUserList(LocalDate.now().atStartOfDay()));
+    }
+
+    /** last_seen_at >= since 인 비삭제 유저 목록(닉네임 + 마지막 활동 시각), 최근순 최대 300명. */
+    private List<Map<String, Object>> activeUserList(java.time.LocalDateTime since) {
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createQuery(
+                "SELECT u.userId, u.nickname, u.lastSeenAt FROM User u " +
+                "WHERE u.lastSeenAt >= :t AND u.deletedAt IS NULL ORDER BY u.lastSeenAt DESC")
+                .setParameter("t", since).setMaxResults(300).getResultList();
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("userId", r[0]);
+            m.put("nickname", r[1]);
+            m.put("lastSeenAt", r[2]);
+            out.add(m);
+        }
+        return out;
+    }
+
     /* ════════════════════════════════
        2026-05-29 P-1: 운영 현황 (사이드바 박스 교체)
        — 사이드바 하드코딩 "서비스 정상 운영 중" 문구 대신 실제 cron 실행 시각.
