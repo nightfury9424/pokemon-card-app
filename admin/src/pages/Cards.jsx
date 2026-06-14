@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Search, Plus, ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import api from '../api'
 
 const S = {
@@ -49,340 +48,168 @@ function RarityBadge({ rarity }) {
 }
 
 function AddCardModal({ onClose, onAdded, prefill }) {
-  // prefill(문의 카드추가요청) 있으면 해당 발매판 탭 + 편집단계 바로 진입
-  const [tab, setTab] = useState(prefill?.language || 'KO')
+  // ── 3판본(KO/JP/EN) 각각 조회 상태 ──
+  const mkCol = (code = '') => ({ code, looking: false, err: '', looked: false, name: '', rarity: '', num: '', img: '', productName: '', productId: '' })
+  const pfCode = prefill ? (extractLookupCode(prefill.refLink) || '') : ''
+  const [ko, setKo] = useState(() => mkCol(prefill?.language === 'KO' ? pfCode : ''))
+  const [jp, setJp] = useState(() => mkCol(prefill?.language === 'JP' ? pfCode : ''))
+  const [en, setEn] = useState(() => mkCol(prefill?.language === 'EN' ? pfCode : ''))
+  const cols = { KO: [ko, setKo], JP: [jp, setJp], EN: [en, setEn] }
 
-  // 입력 단계 (prefill 시 참고링크에서 조회코드 추출 → admin이 '조회'로 이미지 보강 가능)
-  const [code, setCode] = useState(prefill ? extractLookupCode(prefill.refLink) : '')
-  const [looking, setLooking] = useState(false)
-  const [lookupErr, setLookupErr] = useState('')
-
-  // 조회 후 편집 필드 (prefill 시 문의 값으로 시드)
-  const [looked, setLooked] = useState(!!prefill)
+  // ── 공용(생성할 카드) ──
   const [name, setName] = useState(prefill?.name || '')
   const [rarityCode, setRarityCode] = useState(prefill ? normalizeRarity(prefill.rarity) : '')
-  const [collectionNumber, setCollectionNumber] = useState(prefill?.collectionNumber || '')
   const [productId, setProductId] = useState('')
   const [productSearch, setProductSearch] = useState(prefill?.setName || '')
-  const [enRef, setEnRef] = useState('')
-  const [jpRef, setJpRef] = useState('')
-  const [imageUrl, setImageUrl] = useState('')   // 조회된 카드 이미지(scrydex) — 시각 확인용
-
-  // 세트 목록
   const [products, setProducts] = useState([])
 
-  // 제출
+  // ── 시세 (preview dry-run) ──
+  const [prices, setPrices] = useState(null)   // {koEstimated, jpRawKrw, enRawKrw, isChaseCandidate}
+
+  // ── 제출 ──
   const [submitting, setSubmitting] = useState(false)
   const [submitErr, setSubmitErr] = useState('')
 
-  // 시세 미리보기 (DB 무영속 dry-run)
-  const [preview, setPreview] = useState(null)
-  const [previewing, setPreviewing] = useState(false)
-  const [previewErr, setPreviewErr] = useState('')
-
-  // 탭 바꾸면 전부 초기화
-  const switchTab = (t) => {
-    setTab(t); setCode(''); setLooking(false); setLookupErr(''); setLooked(false)
-    setName(''); setRarityCode(''); setCollectionNumber(''); setProductId('')
-    setProductSearch(''); setEnRef(''); setJpRef(''); setSubmitErr(''); setImageUrl('')
-    setPreview(null); setPreviewing(false); setPreviewErr('')
-  }
-
   const won = (n) => (n == null ? '—' : Number(n).toLocaleString('ko-KR') + '원')
 
-  // 추가 전 시세/차트 미리보기 — 입력 ref/희귀도로 dry-run 추론. DB 미반영.
-  const handlePreview = async () => {
-    if (!rarityCode) return setPreviewErr('희귀도를 먼저 선택하세요.')
-    const enScrydexRef = (tab === 'EN' ? code.trim() : enRef) || null
-    const jpScrydexRef = (tab === 'JP' ? code.trim() : jpRef) || null
-    setPreviewing(true); setPreviewErr(''); setPreview(null)
-    try {
-      const r = await api.post('/admin/cards/preview', {
-        rarityCode, productId: productId || null, enScrydexRef, jpScrydexRef,
-      })
-      setPreview(r.data?.data ?? null)
-    } catch (e) {
-      setPreviewErr(e.response?.data?.message ?? '미리보기 실패. 잠시 후 다시 시도하세요.')
-    } finally {
-      setPreviewing(false)
-    }
-  }
-
+  // 세트 목록
   useEffect(() => {
     api.get('/admin/products', { params: { search: productSearch || undefined } })
-      .then(r => setProducts(r.data?.data ?? []))
-      .catch(() => setProducts([]))
+      .then(r => setProducts(r.data?.data ?? [])).catch(() => setProducts([]))
   }, [productSearch])
 
-  const handleLookup = async () => {
-    if (!code.trim()) return setLookupErr('코드를 입력하세요.')
-    // ★URL 통째로 붙여넣어도 OK — ref/코드만 추출 (scrydex .../smp_ja-407?variant=… → smp_ja-407, 포켓몬코리아 .../detail/BS… → BS…)
-    const lookupCode = extractLookupCode(code) || code.trim()
-    if (lookupCode !== code.trim()) setCode(lookupCode)
-    setLooking(true); setLookupErr(''); setLooked(false)
+  // 시세 갱신 — 레어도/세트/JP·EN ref 바뀌면 (디바운스). KO=모델, JP/EN=실시장가 백필.
+  useEffect(() => {
+    if (!rarityCode) { setPrices(null); return }
+    const t = setTimeout(() => {
+      api.post('/admin/cards/preview', {
+        rarityCode, productId: productId || null,
+        jpScrydexRef: jp.code.trim() || null, enScrydexRef: en.code.trim() || null,
+      }).then(r => setPrices(r.data?.data ?? null)).catch(() => setPrices(null))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [rarityCode, productId, jp.code, en.code])
+
+  // 판본별 조회 — URL 통째로 붙여도 ref 자동추출
+  const lookup = async (ed) => {
+    const [col, set] = cols[ed]
+    const raw = col.code.trim()
+    if (!raw) return
+    const code = extractLookupCode(raw) || raw
+    set(c => ({ ...c, code, looking: true, err: '', looked: false }))
     try {
-      const r = await api.get('/admin/cards/lookup', { params: { type: tab, code: lookupCode } })
+      const r = await api.get('/admin/cards/lookup', { params: { type: ed, code } })
       const d = r.data?.data ?? {}
-      setName(d.name ?? '')
-      setRarityCode(d.rarityCode ?? '')
-      setCollectionNumber(d.collectionNumber ?? '')
-      setProductId(d.productId ?? '')
-      setImageUrl(d.imageUrl ?? '')
-      // 세트 드롭다운 검색어를 세트명 전체로 초기화해서 pre-filter (부분일치)
-      if (d.productName) setProductSearch(d.productName)
-      if (tab === 'EN') setEnRef(lookupCode)
-      if (tab === 'JP') setJpRef(lookupCode)
-      setLooked(true)
+      set(c => ({ ...c, looking: false, looked: true, name: d.name || '', rarity: d.rarityCode || '', num: d.collectionNumber || '', img: d.imageUrl || '', productName: d.productName || '', productId: d.productId || '' }))
+      if (ed === 'KO') {   // KO 조회 → 공용 필드 자동 채움
+        if (d.name) setName(d.name)
+        if (d.rarityCode) setRarityCode(normalizeRarity(d.rarityCode) || d.rarityCode)
+        if (d.productId) setProductId(d.productId)
+        if (d.productName) setProductSearch(d.productName)
+      }
     } catch (e) {
-      setLookupErr(e.response?.data?.message ?? '조회 실패. 코드를 확인하세요.')
-    } finally {
-      setLooking(false)
+      set(c => ({ ...c, looking: false, err: e.response?.data?.message ?? '조회 실패' }))
     }
   }
 
   const handleSubmit = async () => {
-    if (!name.trim())     return setSubmitErr('카드명을 입력하세요.')
-    if (!productId)       return setSubmitErr('세트를 선택하세요.')
-    if (!rarityCode)      return setSubmitErr('희귀도를 선택하세요.')
-
+    if (!name.trim())  return setSubmitErr('카드명(KO)을 입력하세요.')
+    if (!rarityCode)   return setSubmitErr('레어도를 선택하세요.')
+    const koCode = ko.code.trim(), jpRef = jp.code.trim(), enRef = en.code.trim()
+    if (!koCode && !jpRef && !enRef) return setSubmitErr('최소 한 판본의 코드를 조회하세요.')
+    const type = koCode ? 'KO' : jpRef ? 'JP' : 'EN'   // KO 있으면 KO카드(+ref연결), 없으면 단독
+    if (type === 'KO' && !productId) return setSubmitErr('세트를 선택하세요.')
     const body = {
-      type: tab,
-      name: name.trim(),
-      productId,
-      rarityCode,
-      collectionNumber: collectionNumber || null,
-      enScrydexRef: (tab === 'EN' ? code.trim() : enRef) || null,
-      jpScrydexRef: (tab === 'JP' ? code.trim() : jpRef) || null,
-      officialCardCode: tab === 'KO' ? code.trim() : null,
+      type, name: name.trim(), productId: productId || null, rarityCode,
+      collectionNumber: ko.num || jp.num || en.num || null,
+      officialCardCode: koCode || null,
+      jpScrydexRef: jpRef || null,
+      enScrydexRef: enRef || null,
     }
-
     setSubmitting(true); setSubmitErr('')
-    try {
-      await api.post('/admin/cards', body)
-      onAdded(); onClose()
-    } catch (e) {
-      setSubmitErr(e.response?.data?.message ?? '추가 실패')
-    } finally {
-      setSubmitting(false)
-    }
+    try { await api.post('/admin/cards', body); onAdded(); onClose() }
+    catch (e) { setSubmitErr(e.response?.data?.message ?? '추가 실패'); setSubmitting(false) }
   }
 
-  const inp = {
-    width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0',
-    fontSize: 13, color: '#1e293b', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
+  const META = {
+    KO: { flag: '🇰🇷', hint: 'BS2023014205 · 코리아 URL', priceLabel: '예상가(모델)',  price: () => prices?.koEstimated },
+    JP: { flag: '🇯🇵', hint: 'm3_ja-117 · scrydex URL',   priceLabel: 'JP 실시세(백필)', price: () => prices?.jpRawKrw },
+    EN: { flag: '🇺🇸', hint: 'swsh8-269 · scrydex URL',   priceLabel: 'EN 실시세(백필)', price: () => prices?.enRawKrw },
   }
-  const lbl = { fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }
-  const row = { marginBottom: 14 }
 
-  const TABS = [
-    { id: 'KO', flag: '🇰🇷', label: 'KO',  hint: 'BS2023014205',  desc: '포켓몬 코리아 오피셜 코드' },
-    { id: 'EN', flag: '🇺🇸', label: 'EN',  hint: 'swsh8-269',     desc: 'Scrydex EN ref' },
-    { id: 'JP', flag: '🇯🇵', label: 'JP',  hint: 'm3_ja-117',     desc: 'Scrydex JP ref' },
-  ]
-  const cur = TABS.find(t => t.id === tab)
+  const inp = { width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, color: '#1e293b', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
+  const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: '#fff', borderRadius: 16, width: 480, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
+      <div style={{ background: '#fff', borderRadius: 16, width: 920, maxWidth: '95vw', maxHeight: '92vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
 
         {/* 헤더 */}
         <div style={{ padding: '20px 24px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>카드 추가</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>카드 추가 <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>· KO·JP·EN 한 번에</span></span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}><X size={18} /></button>
         </div>
 
-        {/* 탭 */}
-        <div style={{ display: 'flex', padding: '14px 24px 0', gap: 2, borderBottom: '1px solid #f1f5f9' }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => switchTab(t.id)} style={{
-              padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer',
-              fontSize: 13, fontWeight: tab === t.id ? 700 : 400,
-              color: tab === t.id ? '#6366f1' : '#64748b',
-              borderBottom: tab === t.id ? '2px solid #6366f1' : '2px solid transparent',
-              marginBottom: -1, fontFamily: 'inherit',
-            }}>{t.flag} {t.label}</button>
-          ))}
+        {/* 3판본 컬럼 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, padding: '16px 24px' }}>
+          {['KO', 'JP', 'EN'].map(ed => {
+            const [col] = cols[ed]; const m = META[ed]; const price = m.price()
+            return (
+              <div key={ed} style={{ border: '1px solid #eef2f7', borderRadius: 12, padding: 12, background: '#fafbff' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>{m.flag} {ed}</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input style={{ ...inp, flex: 1 }} placeholder={m.hint} value={col.code}
+                    onChange={e => cols[ed][1](c => ({ ...c, code: e.target.value, looked: false }))}
+                    onKeyDown={e => e.key === 'Enter' && lookup(ed)} />
+                  <button onClick={() => lookup(ed)} disabled={col.looking} style={{ padding: '8px 12px', borderRadius: 8, border: 'none', cursor: col.looking ? 'wait' : 'pointer', background: col.looking ? '#e2e8f0' : '#6366f1', color: col.looking ? '#94a3b8' : '#fff', fontSize: 12, fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>{col.looking ? '...' : '조회'}</button>
+                </div>
+                {col.err && <div style={{ color: '#dc2626', fontSize: 11, marginTop: 6 }}>{col.err}</div>}
+                {col.looked && (
+                  <div style={{ marginTop: 10 }}>
+                    {col.img && <img src={col.img} alt={ed} onError={e => { e.currentTarget.style.display = 'none' }} style={{ width: '100%', borderRadius: 8, marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.12)' }} />}
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{col.name || '—'}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{[col.rarity, col.num].filter(Boolean).join(' · ') || '—'}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: '#4f46e5', marginTop: 6 }}>
+                      {won(price)} <span style={{ fontSize: 9, fontWeight: 600, color: '#94a3b8' }}>{m.priceLabel}</span>
+                    </div>
+                    {ed === 'KO' && prices?.isChaseCandidate && <div style={{ fontSize: 9, color: '#c2410c', marginTop: 2 }}>⚠ 익일 배치 후 조정 가능</div>}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
 
-        <div style={{ padding: '20px 24px' }}>
-
-          {/* ── STEP 1: 코드 입력 + 조회 ── */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={lbl}>{cur.desc} *</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                style={{ ...inp, flex: 1 }}
-                placeholder={cur.hint}
-                value={code}
-                onChange={e => { setCode(e.target.value); setLooked(false); setLookupErr(''); setPreview(null) }}
-                onKeyDown={e => e.key === 'Enter' && handleLookup()}
-              />
-              <button onClick={handleLookup} disabled={looking} style={{
-                padding: '9px 16px', borderRadius: 8, border: 'none', cursor: looking ? 'not-allowed' : 'pointer',
-                background: looking ? '#e2e8f0' : '#6366f1', color: looking ? '#94a3b8' : '#fff',
-                fontSize: 13, fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap',
-              }}>{looking ? '조회 중...' : '조회'}</button>
-            </div>
-            {lookupErr && (
-              <div style={{ marginTop: 8, padding: '8px 12px', background: '#fef2f2', borderRadius: 8, color: '#dc2626', fontSize: 12 }}>
-                {lookupErr}
-              </div>
-            )}
+        {/* 공용 필드 (생성할 카드) */}
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: 12, padding: '0 24px 8px', alignItems: 'start' }}>
+          <div><label style={lbl}>카드명 (KO) *</label><input style={inp} value={name} onChange={e => setName(e.target.value)} placeholder="카드명" /></div>
+          <div>
+            <label style={lbl}>세트 *</label>
+            <input style={{ ...inp, marginBottom: 4 }} placeholder="세트 검색..." value={productSearch} onChange={e => setProductSearch(e.target.value)} />
+            <select style={{ ...inp, background: '#fff' }} value={productId} onChange={e => setProductId(e.target.value)}>
+              <option value="">-- 선택 --</option>
+              {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
           </div>
+          <div>
+            <label style={lbl}>레어도 *</label>
+            <select style={{ ...inp, background: '#fff' }} value={rarityCode} onChange={e => setRarityCode(e.target.value)}>
+              <option value="">선택</option>
+              {RARITY_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+        </div>
 
-          {/* ── STEP 2: 조회 결과 편집 + 추가 ── */}
-          {looked && (
-            <>
-              <div style={{ height: 1, background: '#f1f5f9', margin: '0 0 16px' }} />
+        {submitErr && <div style={{ margin: '4px 24px', padding: '8px 12px', background: '#fef2f2', borderRadius: 8, color: '#dc2626', fontSize: 12 }}>{submitErr}</div>}
 
-              {/* 조회된 카드 이미지 — 맞는 카드인지 시각 확인 */}
-              {imageUrl && (
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-                  <img src={imageUrl} alt="카드"
-                    style={{ width: 180, borderRadius: 10, boxShadow: '0 2px 12px rgba(0,0,0,0.15)' }}
-                    onError={e => { e.currentTarget.style.display = 'none' }} />
-                </div>
-              )}
-
-              <div style={row}>
-                <label style={lbl}>카드명 (KO) *</label>
-                <input style={inp} value={name} onChange={e => setName(e.target.value)}
-                  placeholder="카드명을 입력하세요" />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                <div>
-                  <label style={lbl}>희귀도 *</label>
-                  <select style={{ ...inp, background: '#fff' }} value={rarityCode}
-                    onChange={e => { setRarityCode(e.target.value); setPreview(null) }}>
-                    <option value="">선택</option>
-                    {RARITY_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={lbl}>수록번호</label>
-                  <input style={inp} placeholder="117/080" value={collectionNumber}
-                    onChange={e => setCollectionNumber(e.target.value)} />
-                </div>
-              </div>
-
-              <div style={row}>
-                <label style={lbl}>세트 *</label>
-                <input style={{ ...inp, marginBottom: 6 }} placeholder="세트 검색..."
-                  value={productSearch} onChange={e => setProductSearch(e.target.value)} />
-                <select style={{ ...inp, background: '#fff' }} size={4} value={productId}
-                  onChange={e => setProductId(e.target.value)}>
-                  <option value="">-- 선택 --</option>
-                  {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-
-              {/* 크로스 ref (선택) */}
-              {tab !== 'EN' && (
-                <div style={row}>
-                  <label style={lbl}>EN Scrydex Ref (선택)</label>
-                  <input style={inp} placeholder="swsh8-269" value={enRef}
-                    onChange={e => { setEnRef(e.target.value); setPreview(null) }} />
-                </div>
-              )}
-              {tab !== 'JP' && (
-                <div style={row}>
-                  <label style={lbl}>JP Scrydex Ref (선택)</label>
-                  <input style={inp} placeholder="m3_ja-117" value={jpRef}
-                    onChange={e => { setJpRef(e.target.value); setPreview(null) }} />
-                </div>
-              )}
-
-              {/* ── 시세 미리보기 (추가 전 dry-run, DB 무영속) ── */}
-              <div style={{ height: 1, background: '#f1f5f9', margin: '4px 0 14px' }} />
-              <button onClick={handlePreview} disabled={previewing} style={{
-                width: '100%', padding: '10px', borderRadius: 10, border: '1px dashed #c7d2fe',
-                background: previewing ? '#eef2ff' : '#f5f3ff', color: '#4f46e5',
-                fontSize: 13, fontWeight: 700, cursor: previewing ? 'wait' : 'pointer', fontFamily: 'inherit', marginBottom: 12,
-              }}>{previewing ? '추론 중...' : '📈 시세 미리보기 (예상가 + 차트)'}</button>
-
-              {previewErr && (
-                <div style={{ padding: '8px 12px', background: '#fef2f2', borderRadius: 8, color: '#dc2626', fontSize: 12, marginBottom: 12 }}>{previewErr}</div>
-              )}
-
-              {preview && (
-                <div style={{ border: '1px solid #e9e7fd', borderRadius: 12, padding: 14, marginBottom: 14, background: '#fafaff' }}>
-                  {/* ★JP/EN 탭 = KO 모델 안 돌리고 scrydex 실시장가(백필) 그대로. KO 탭만 모델 예상가. */}
-                  {tab !== 'KO' ? (
-                    (tab === 'JP' ? preview.jpRawKrw : preview.enRawKrw) != null ? (
-                      <>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>{tab} 시세</span>
-                          <span style={{ fontSize: 22, fontWeight: 800, color: '#4f46e5' }}>{won(tab === 'JP' ? preview.jpRawKrw : preview.enRawKrw)}</span>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 99, padding: '2px 8px' }}>실시장가</span>
-                        </div>
-                        <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 8, lineHeight: 1.5 }}>
-                          scrydex {tab} 실시장가 그대로예요 (KO 모델 추정 아님). 단독 프로모·해외판은 이 백필값이 시세 — 추가 시 저장됩니다.
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ fontSize: 12, color: '#64748b' }}>{preview.message ?? 'scrydex에서 시세를 못 가져왔어요. 카드는 추가 가능, 시세는 추후 수집됩니다.'}</div>
-                    )
-                  ) : preview.koEstimated != null ? (
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>예상가</span>
-                        <span style={{ fontSize: 22, fontWeight: 800, color: '#4f46e5' }}>{won(preview.koEstimated)}</span>
-                        {preview.isChaseCandidate && (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#c2410c', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 99, padding: '2px 8px' }}>⚠ 익일 배치 후 조정 가능</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
-                        앵커 {preview.anchorSource === 'SCRYDEX_JP' ? 'JP' : preview.anchorSource === 'SCRYDEX_EN' ? 'EN' : '—'}
-                        {preview.jpRawKrw != null && ` · JP ${won(preview.jpRawKrw)}`}
-                        {preview.enRawKrw != null && ` · EN ${won(preview.enRawKrw)}`}
-                      </div>
-
-                      {preview.chart?.length >= 2 && (
-                        <div style={{ marginTop: 12 }}>
-                          <ResponsiveContainer width="100%" height={130}>
-                            <LineChart data={preview.chart} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
-                              <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#cbd5e1' }} axisLine={false} tickLine={false} minTickGap={28} />
-                              <YAxis tick={{ fontSize: 9, fill: '#cbd5e1' }} axisLine={false} tickLine={false} width={44}
-                                domain={['dataMin', 'dataMax']} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
-                              <Tooltip formatter={(v) => [won(v), '예상가']} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
-                              <Line type="monotone" dataKey="price" stroke="#6366f1" strokeWidth={2} dot={false} />
-                            </LineChart>
-                          </ResponsiveContainer>
-                          <div style={{ fontSize: 10, color: '#a5b4fc', textAlign: 'center', marginTop: 2 }}>
-                            JP/EN 시장 히스토리 투영 · KO 실거래 누적 시 갱신
-                          </div>
-                        </div>
-                      )}
-
-                      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 10, lineHeight: 1.5 }}>{preview.priceDisclaimer}</div>
-                    </>
-                  ) : (
-                    <div style={{ fontSize: 12, color: '#64748b' }}>{preview.message ?? 'scrydex ref가 없어 예상가를 추론할 수 없습니다. 카드는 추가 가능하며 시세는 추후 수집됩니다.'}</div>
-                  )}
-                </div>
-              )}
-
-              {submitErr && (
-                <div style={{ padding: '10px 14px', background: '#fef2f2', borderRadius: 8, color: '#dc2626', fontSize: 13, marginBottom: 14 }}>
-                  {submitErr}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button onClick={onClose} style={{
-                  padding: '9px 18px', borderRadius: 10, border: '1px solid #e2e8f0',
-                  background: '#fff', color: '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                }}>취소</button>
-                <button onClick={handleSubmit} disabled={submitting} style={{
-                  padding: '9px 18px', borderRadius: 10, border: 'none',
-                  background: submitting ? '#a5b4fc' : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                  color: '#fff', fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                }}>{submitting ? '추가 중...' : '카드 추가'}</button>
-              </div>
-            </>
-          )}
+        {/* 푸터 */}
+        <div style={{ padding: '12px 24px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>KO 코드 있으면 KO 카드(+JP/EN ref 연결) · KO 없이 JP/EN만이면 단독 추가</span>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>취소</button>
+            <button onClick={handleSubmit} disabled={submitting} style={{ padding: '9px 18px', borderRadius: 10, border: 'none', background: submitting ? '#a5b4fc' : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>{submitting ? '추가 중...' : '카드 추가'}</button>
+          </div>
         </div>
       </div>
     </div>
