@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Search, Plus, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import api from '../api'
 
 const S = {
@@ -58,11 +59,37 @@ function AddCardModal({ onClose, onAdded }) {
   const [submitting, setSubmitting] = useState(false)
   const [submitErr, setSubmitErr] = useState('')
 
+  // 시세 미리보기 (DB 무영속 dry-run)
+  const [preview, setPreview] = useState(null)
+  const [previewing, setPreviewing] = useState(false)
+  const [previewErr, setPreviewErr] = useState('')
+
   // 탭 바꾸면 전부 초기화
   const switchTab = (t) => {
     setTab(t); setCode(''); setLooking(false); setLookupErr(''); setLooked(false)
     setName(''); setRarityCode(''); setCollectionNumber(''); setProductId('')
     setProductSearch(''); setEnRef(''); setJpRef(''); setSubmitErr('')
+    setPreview(null); setPreviewing(false); setPreviewErr('')
+  }
+
+  const won = (n) => (n == null ? '—' : Number(n).toLocaleString('ko-KR') + '원')
+
+  // 추가 전 시세/차트 미리보기 — 입력 ref/희귀도로 dry-run 추론. DB 미반영.
+  const handlePreview = async () => {
+    if (!rarityCode) return setPreviewErr('희귀도를 먼저 선택하세요.')
+    const enScrydexRef = (tab === 'EN' ? code.trim() : enRef) || null
+    const jpScrydexRef = (tab === 'JP' ? code.trim() : jpRef) || null
+    setPreviewing(true); setPreviewErr(''); setPreview(null)
+    try {
+      const r = await api.post('/admin/cards/preview', {
+        rarityCode, productId: productId || null, enScrydexRef, jpScrydexRef,
+      })
+      setPreview(r.data?.data ?? null)
+    } catch (e) {
+      setPreviewErr(e.response?.data?.message ?? '미리보기 실패. 잠시 후 다시 시도하세요.')
+    } finally {
+      setPreviewing(false)
+    }
   }
 
   useEffect(() => {
@@ -168,7 +195,7 @@ function AddCardModal({ onClose, onAdded }) {
                 style={{ ...inp, flex: 1 }}
                 placeholder={cur.hint}
                 value={code}
-                onChange={e => { setCode(e.target.value); setLooked(false); setLookupErr('') }}
+                onChange={e => { setCode(e.target.value); setLooked(false); setLookupErr(''); setPreview(null) }}
                 onKeyDown={e => e.key === 'Enter' && handleLookup()}
               />
               <button onClick={handleLookup} disabled={looking} style={{
@@ -199,7 +226,7 @@ function AddCardModal({ onClose, onAdded }) {
                 <div>
                   <label style={lbl}>희귀도 *</label>
                   <select style={{ ...inp, background: '#fff' }} value={rarityCode}
-                    onChange={e => setRarityCode(e.target.value)}>
+                    onChange={e => { setRarityCode(e.target.value); setPreview(null) }}>
                     <option value="">선택</option>
                     {RARITY_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
@@ -227,14 +254,68 @@ function AddCardModal({ onClose, onAdded }) {
                 <div style={row}>
                   <label style={lbl}>EN Scrydex Ref (선택)</label>
                   <input style={inp} placeholder="swsh8-269" value={enRef}
-                    onChange={e => setEnRef(e.target.value)} />
+                    onChange={e => { setEnRef(e.target.value); setPreview(null) }} />
                 </div>
               )}
               {tab !== 'JP' && (
                 <div style={row}>
                   <label style={lbl}>JP Scrydex Ref (선택)</label>
                   <input style={inp} placeholder="m3_ja-117" value={jpRef}
-                    onChange={e => setJpRef(e.target.value)} />
+                    onChange={e => { setJpRef(e.target.value); setPreview(null) }} />
+                </div>
+              )}
+
+              {/* ── 시세 미리보기 (추가 전 dry-run, DB 무영속) ── */}
+              <div style={{ height: 1, background: '#f1f5f9', margin: '4px 0 14px' }} />
+              <button onClick={handlePreview} disabled={previewing} style={{
+                width: '100%', padding: '10px', borderRadius: 10, border: '1px dashed #c7d2fe',
+                background: previewing ? '#eef2ff' : '#f5f3ff', color: '#4f46e5',
+                fontSize: 13, fontWeight: 700, cursor: previewing ? 'wait' : 'pointer', fontFamily: 'inherit', marginBottom: 12,
+              }}>{previewing ? '추론 중...' : '📈 시세 미리보기 (예상가 + 차트)'}</button>
+
+              {previewErr && (
+                <div style={{ padding: '8px 12px', background: '#fef2f2', borderRadius: 8, color: '#dc2626', fontSize: 12, marginBottom: 12 }}>{previewErr}</div>
+              )}
+
+              {preview && (
+                <div style={{ border: '1px solid #e9e7fd', borderRadius: 12, padding: 14, marginBottom: 14, background: '#fafaff' }}>
+                  {preview.koEstimated != null ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>예상가</span>
+                        <span style={{ fontSize: 22, fontWeight: 800, color: '#4f46e5' }}>{won(preview.koEstimated)}</span>
+                        {preview.isChaseCandidate && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#c2410c', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 99, padding: '2px 8px' }}>⚠ 익일 배치 후 조정 가능</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                        앵커 {preview.anchorSource === 'SCRYDEX_JP' ? 'JP' : preview.anchorSource === 'SCRYDEX_EN' ? 'EN' : '—'}
+                        {preview.jpRawKrw != null && ` · JP ${won(preview.jpRawKrw)}`}
+                        {preview.enRawKrw != null && ` · EN ${won(preview.enRawKrw)}`}
+                      </div>
+
+                      {preview.chart?.length >= 2 && (
+                        <div style={{ marginTop: 12 }}>
+                          <ResponsiveContainer width="100%" height={130}>
+                            <LineChart data={preview.chart} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+                              <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#cbd5e1' }} axisLine={false} tickLine={false} minTickGap={28} />
+                              <YAxis tick={{ fontSize: 9, fill: '#cbd5e1' }} axisLine={false} tickLine={false} width={44}
+                                domain={['dataMin', 'dataMax']} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+                              <Tooltip formatter={(v) => [won(v), '예상가']} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
+                              <Line type="monotone" dataKey="price" stroke="#6366f1" strokeWidth={2} dot={false} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                          <div style={{ fontSize: 10, color: '#a5b4fc', textAlign: 'center', marginTop: 2 }}>
+                            JP/EN 시장 히스토리 투영 · KO 실거래 누적 시 갱신
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 10, lineHeight: 1.5 }}>{preview.priceDisclaimer}</div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 12, color: '#64748b' }}>{preview.message ?? 'scrydex ref가 없어 예상가를 추론할 수 없습니다. 카드는 추가 가능하며 시세는 추후 수집됩니다.'}</div>
+                  )}
                 </div>
               )}
 

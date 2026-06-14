@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, CreditCard, ScanLine, ArrowLeftRight, RefreshCw, TrendingUp, TrendingDown, AlertTriangle, ExternalLink, ScrollText } from 'lucide-react'
+import { Users, CreditCard, ArrowLeftRight, RefreshCw, TrendingUp, TrendingDown, AlertTriangle, ExternalLink, ScrollText, Flag, Mail, ShieldAlert, ChevronRight, UserCheck, Activity, X } from 'lucide-react'
 import {
-  AreaChart, Area,
+  BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend,
+  ResponsiveContainer,
 } from 'recharts'
 import api from '../api'
+import MaintenanceToggle from '../components/MaintenanceToggle'
 
 /* ── 공통 스타일 ── */
 const S = {
@@ -36,9 +37,9 @@ function ChartTooltip({ active, payload, label, unit = '' }) {
 /* ── 스탯 카드 ──
    2026-05-29 P-1: delta 는 명시 prop 일 때만 노출. 0% / NaN / 분모0 이면 무조건 chip 숨김.
    "누적 유저" 같은 누적 카드에는 delta prop 자체 안 넘긴다 (의미 mismatch 방지). */
-function StatCard({ icon: Icon, label, value, sub, delta, color }) {
+function StatCard({ icon: Icon, label, value, sub, delta, color, onClick }) {
   const palette = {
-    indigo: '#6366f1', cyan: '#06b6d4', emerald: '#10b981', amber: '#f59e0b',
+    indigo: '#6366f1', cyan: '#06b6d4', emerald: '#10b981', amber: '#f59e0b', red: '#ef4444', violet: '#8b5cf6',
   }
   const c = palette[color] ?? palette.indigo
   // 가드: null / undefined / NaN / 0 모두 chip 미표시. "변화 없음 / 데이터 없음" 을 0%↑ 로 잘못 보여주는 것 방지.
@@ -46,7 +47,10 @@ function StatCard({ icon: Icon, label, value, sub, delta, color }) {
   const isUp = delta > 0
 
   return (
-    <div style={{ ...S.card, padding: '20px 22px' }}>
+    <div onClick={onClick}
+      style={{ ...S.card, padding: '20px 22px', cursor: onClick ? 'pointer' : 'default', transition: 'box-shadow .15s, transform .15s' }}
+      onMouseEnter={onClick ? e => { e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.10)'; e.currentTarget.style.transform = 'translateY(-1px)' } : undefined}
+      onMouseLeave={onClick ? e => { e.currentTarget.style.boxShadow = S.card.boxShadow; e.currentTarget.style.transform = 'none' } : undefined}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
         <div style={{ width: 38, height: 38, borderRadius: 10, background: c + '18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={17} color={c} strokeWidth={2} />
@@ -129,6 +133,58 @@ const ADMIN_ACTION_LABEL = {
 }
 const TARGET_LABEL = { USER: '유저', TRADE: '거래글', REPORT: '신고', CHAT_MESSAGE: '채팅', PRICE_ANOMALY: '가격이상' }
 
+/* ── 접속 유저 목록 모달 (접속중 / 오늘 접속 카드 클릭) — 닉네임으로 "누구인지" 표시 ── */
+function ActiveUsersModal({ title, endpoint, onClose }) {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    setLoading(true)
+    api.get(endpoint).then(r => setRows(r.data?.data ?? [])).catch(() => setRows([])).finally(() => setLoading(false))
+  }, [endpoint])
+
+  const rel = (iso) => {
+    if (!iso) return ''
+    const diff = (Date.now() - new Date(iso).getTime()) / 1000
+    if (diff < 60) return '방금'
+    if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
+    if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`
+    return new Date(iso).toLocaleDateString('ko-KR')
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 460, maxWidth: '92vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 16, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px', borderBottom: '1px solid #f1f5f9' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{title}</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{loading ? '불러오는 중...' : `${rows.length}명`}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}><X size={18} /></button>
+        </div>
+        <div style={{ overflowY: 'auto', padding: '8px 0' }}>
+          {loading ? (
+            <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>불러오는 중...</div>
+          ) : rows.length === 0 ? (
+            <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>접속 유저가 없습니다.</div>
+          ) : rows.map(u => (
+            <div key={u.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 22px', borderBottom: '1px solid #f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#6366f1' }}>{(u.nickname?.[0] ?? '?').toUpperCase()}</span>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {u.nickname || <span style={{ color: '#cbd5e1', fontWeight: 400 }}>(닉네임 미설정)</span>}
+                </span>
+              </div>
+              <span style={{ fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap', marginLeft: 8 }}>{rel(u.lastSeenAt)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── 메인 ── */
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -137,8 +193,11 @@ export default function Dashboard() {
   const [recentActions, setRecentActions] = useState([])  // 2026-06-07: 미연동 스캔 차트 대체
   const [spinning,  setSpinning]  = useState(false)
   const [alerts,    setAlerts]    = useState([])   // 미처리 이상 알림
-  const [chartDays, setChartDays] = useState(30)   // P0 #1: 7d/30d 토글 default 30d.
+  const [chartDays, setChartDays] = useState(7)    // 기본 7d (30d는 출시초기라 대부분 0 → 헷갈림).
   const [services,  setServices]  = useState([])   // P0 #2: backend services-status 응답.
+  const [queue,     setQueue]     = useState(null) // 운영 대기 큐 (신고/문의/이의신청/가격이상)
+  const [anomalyTotal, setAnomalyTotal] = useState(0) // 가격이상 미처리 총량(배너용)
+  const [activeModal, setActiveModal] = useState(null) // {title, endpoint} — 접속중/오늘접속 유저 목록 모달
 
   const load = useCallback(() => {
     setSpinning(true)
@@ -154,7 +213,8 @@ export default function Dashboard() {
       api.get('/admin/stats/scans'),
       api.get('/admin/stats/trades'),
       api.get('/admin/stats/cards'),
-    ]).then(([u, sc, tr, ca]) => {
+      api.get('/admin/stats/active'),   // 오늘 접속(DAU) + 접속중
+    ]).then(([u, sc, tr, ca, ac]) => {
       setStats({
         totalUsers:   u.value?.data?.data?.total   ?? 0,
         todayUsers:   u.value?.data?.data?.today   ?? 0,
@@ -163,9 +223,28 @@ export default function Dashboard() {
         activeTrades: tr.value?.data?.data?.active ?? 0,
         totalCards:   ca.value?.data?.data?.total  ?? 0,
         hiddenCards:  ca.value?.data?.data?.hidden ?? 0,   // P-1: @SQLRestriction 으로 가려진 row 수.
+        dauToday:     ac.value?.data?.data?.dauToday  ?? null,
+        onlineNow:    ac.value?.data?.data?.onlineNow ?? null,
         weeklyUserDelta: u.value?.data?.data?.weeklyDelta ?? null,
         weeklyScanDelta: sc.value?.data?.data?.weeklyDelta ?? null,
       })
+    })
+
+    /* 운영 대기 큐 카운트 — /admin/badges 한 방(신고·문의·이의) + 가격이상 totalElements.
+       (기존엔 문의/이의를 list .length 로 셌는데 응답이 {content,openCount} 객체라 undefined→blank 버그였음) */
+    Promise.allSettled([
+      api.get('/admin/badges'),
+      api.get('/admin/price-anomalies', { params: { resolved: false, page: 0, size: 1 } }),
+    ]).then(([bdg, ano]) => {
+      const b = bdg.value?.data?.data ?? {}
+      const anoTotal = ano.value?.data?.data?.totalElements ?? 0
+      setQueue({
+        reports:   b.pendingReports ?? 0,
+        inquiries: b.pendingInquiries ?? 0,
+        appeals:   b.pendingAppeals ?? 0,
+        anomalies: anoTotal,
+      })
+      setAnomalyTotal(anoTotal)
     })
 
     /* 유저 추이 차트 — P0 #1: 누적 + 신규 분리. days param. */
@@ -215,6 +294,9 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* ── 점검 모드 토글 ── */}
+      <MaintenanceToggle />
+
       {/* ── 가격 이상 알림 배너 ── */}
       {alerts.length > 0 && (
         <div style={{
@@ -229,7 +311,7 @@ export default function Dashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <AlertTriangle size={16} color="#dc2626" />
               <span style={{ fontSize: 14, fontWeight: 700, color: '#b91c1c' }}>
-                가격 이상 알림 — 검토 필요 {alerts.length}건
+                가격 이상 — 미처리 {anomalyTotal.toLocaleString()}건 · 최근 {alerts.length}건 표시
               </span>
               <span style={{ fontSize: 11, color: '#94a3b8' }}>
                 (eBay 미검증 · 오염 확인 등 관리자 확인이 필요한 항목)
@@ -299,27 +381,45 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── 스탯 카드 4개 ──
-         2026-05-29 P-1:
-           - 누적 유저: weeklyDelta(주간 신규 증감)는 "누적"과 의미 mismatch → chip 제거. sub로 표현.
-           - 등록 카드: KO 가시 카드(@SQLRestriction). 가려진 row 수도 같이 알려줌.
-           - 누적 스캔: scan_logs 미구현 → 0회 고정. "데이터 미연동" 명시, chip 제거.
-           - 진행중 거래: 그대로. */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 16 }}>
-        <StatCard icon={Users}          label="누적 유저"   color="indigo"
-          value={stats?.totalUsers?.toLocaleString()}
-          sub={`오늘 +${stats?.todayUsers ?? 0}명 신규`} />
-        <StatCard icon={CreditCard}     label="등록 카드"   color="cyan"
-          value={stats?.totalCards?.toLocaleString()}
-          sub={stats?.hiddenCards > 0
-            ? `KO 노출 카드 · 감춤 ${stats.hiddenCards.toLocaleString()}장`
-            : 'KO 노출 카드'} />
-        <StatCard icon={ScanLine}       label="누적 스캔"   color="emerald"
-          value={stats?.totalScans?.toLocaleString()}
-          sub={stats?.totalScans > 0 ? `오늘 ${stats?.todayScans ?? 0}회` : '데이터 미연동'} />
-        <StatCard icon={ArrowLeftRight} label="진행중 거래" color="amber"
-          value={stats?.activeTrades?.toLocaleString()}
-          sub="활성 거래글" />
+      {/* ── 운영 대기 큐 4개 (2026-06-11: 성장지표→운영큐 전환) ──
+         출시직후/sparse 에도 의미있고 매일 행동할 지표. 카드 클릭 = 해당 처리 페이지.
+         죽은 "누적 스캔(미연동)" 제거. 성장/카탈로그는 아래 보조 strip 으로. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 14 }}>
+        <StatCard icon={Flag}          label="신고 대기"        color="red"    onClick={() => navigate('/reports')}
+          value={queue?.reports?.toLocaleString()}   sub="확인·처리 필요" />
+        <StatCard icon={Mail}          label="문의 대기"        color="cyan"   onClick={() => navigate('/inquiries')}
+          value={queue?.inquiries?.toLocaleString()} sub="답변 대기" />
+        <StatCard icon={ShieldAlert}   label="정지 이의신청"    color="violet" onClick={() => navigate('/appeals')}
+          value={queue?.appeals?.toLocaleString()}   sub="검토 대기" />
+        <StatCard icon={AlertTriangle} label="가격 이상 미처리" color="amber"  onClick={() => navigate('/alerts')}
+          value={queue?.anomalies?.toLocaleString()} sub="검토 필요" />
+      </div>
+
+      {/* ── 보조 현황 strip (성장/카탈로그 — 매일 행동지표 아님, 작게) ── */}
+      <div style={{ ...S.card, display: 'flex', alignItems: 'center', padding: '12px 4px', marginBottom: 16 }}>
+        {[
+          { icon: Users,          label: '누적 유저',   value: stats?.totalUsers?.toLocaleString(),  sub: `오늘 +${stats?.todayUsers ?? 0} 가입` },
+          { icon: UserCheck,      label: '오늘 접속',   value: (stats?.dauToday ?? 0).toLocaleString(),  sub: '앱 방문(DAU)',
+            onClick: () => setActiveModal({ title: '오늘 접속한 유저 (DAU)', endpoint: '/admin/stats/active/today' }) },
+          { icon: Activity,       label: '접속중',      value: (stats?.onlineNow ?? 0).toLocaleString(), sub: '최근 5분',
+            onClick: () => setActiveModal({ title: '접속중인 유저 (최근 5분)', endpoint: '/admin/stats/active/online' }) },
+          { icon: CreditCard,     label: '등록 카드',   value: stats?.totalCards?.toLocaleString(),  sub: stats?.hiddenCards > 0 ? `감춤 ${stats.hiddenCards.toLocaleString()}` : 'KO 노출' },
+          { icon: ArrowLeftRight, label: '진행중 거래', value: stats?.activeTrades?.toLocaleString(), sub: '활성 거래글' },
+        ].map((m, i) => (
+          <div key={m.label} onClick={m.onClick} title={m.onClick ? '클릭 — 누구인지 보기' : undefined}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 11, padding: '4px 18px', borderLeft: i > 0 ? '1px solid #f1f5f9' : 'none',
+              cursor: m.onClick ? 'pointer' : 'default', borderRadius: 8 }}
+            onMouseEnter={m.onClick ? e => e.currentTarget.style.background = '#f8fafc' : undefined}
+            onMouseLeave={m.onClick ? e => e.currentTarget.style.background = 'transparent' : undefined}>
+            <div style={{ width: 32, height: 32, borderRadius: 9, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <m.icon size={15} color="#94a3b8" strokeWidth={2} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 19, fontWeight: 800, color: '#334155', lineHeight: 1.1 }}>{m.value ?? '—'}</div>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{m.label} · {m.sub}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* ── 차트 2열 ── */}
@@ -341,29 +441,33 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+          {/* ★이중축(양옆 다른 기준) 제거 → 두 시리즈를 각자 단일축 차트로 분리. 위=일별 신규(막대), 아래=누적(영역). */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', marginBottom: 2 }}>일별 신규</div>
+          <ResponsiveContainer width="100%" height={96}>
+            <BarChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#cbd5e1' }} axisLine={false} tickLine={false}
+                interval={chartDays === 30 ? 4 : 0} />
+              <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} width={30} />
+              <Tooltip content={<ChartTooltip unit="명" />} />
+              <Bar dataKey="신규유저" name="일별 신규" fill="#6366f1" radius={[3, 3, 0, 0]} maxBarSize={24} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#10b981', marginTop: 10, marginBottom: 2 }}>누적 유저</div>
+          <ResponsiveContainer width="100%" height={96}>
+            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
               <defs>
-                <linearGradient id="gUser" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#6366f1" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                </linearGradient>
                 <linearGradient id="gCum" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#10b981" stopOpacity={0.18} />
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.22} />
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+              <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#cbd5e1' }} axisLine={false} tickLine={false}
                 interval={chartDays === 30 ? 4 : 0} />
-              <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#10b981' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} width={30} />
               <Tooltip content={<ChartTooltip unit="명" />} />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="circle" />
-              <Area yAxisId="left" type="monotone" dataKey="신규유저" name="일별 신규" stroke="#6366f1" strokeWidth={2.5}
-                fill="url(#gUser)" dot={{ r: 2, fill: '#6366f1', strokeWidth: 0 }} activeDot={{ r: 5 }} />
-              <Area yAxisId="right" type="monotone" dataKey="누적" name="누적 유저" stroke="#10b981" strokeWidth={2}
-                fill="url(#gCum)" dot={false} activeDot={{ r: 4 }} strokeDasharray="3 3" />
+              <Area type="monotone" dataKey="누적" name="누적 유저" stroke="#10b981" strokeWidth={2} fill="url(#gCum)" dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -381,7 +485,7 @@ export default function Dashboard() {
           </div>
           {recentActions.length === 0 ? (
             <div style={{ fontSize: 12, color: '#94a3b8', padding: '44px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <ScrollText size={14} /> 최근 운영 기록이 없습니다
+              <ScrollText size={14} /> 아직 운영 액션 기록이 없어요 · 신고·문의·가격이상 처리 시 기록돼요
             </div>
           ) : (
             <div>
@@ -428,31 +532,35 @@ export default function Dashboard() {
         <div style={{ ...S.card, padding: '20px 24px' }}>
           <div style={S.h2}>빠른 작업</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* ops 대기 큐는 상단 카드가 전담 → 빠른작업은 관리 페이지 네비(중복 회피). */}
             {[
-              { href: '/reports', label: '신고 처리',       sub: '대기 중인 신고 확인·처리',    dot: '#dc2626' },
-              { href: '/users',   label: '유저 검색',       sub: '닉네임/이메일 조회·정지',     dot: '#06b6d4' },
-              { href: '/trades',  label: '거래 검색',       sub: '거래글 목록·admin 삭제',     dot: '#8b5cf6' },
-              { href: '/alerts',  label: '가격 이상 확인', sub: '미처리 알림 검토·무시',       dot: '#f59e0b' },
+              { href: '/users',  label: '유저 관리', sub: '닉네임/이메일 조회·정지',  dot: '#06b6d4' },
+              { href: '/trades', label: '거래 관리', sub: '거래글 목록·admin 삭제',  dot: '#8b5cf6' },
+              { href: '/cards',  label: '카드 관리', sub: '카탈로그·노출 관리',       dot: '#10b981' },
+              { href: '/price',  label: '시세 관리', sub: '가격·계수 확인',           dot: '#f59e0b' },
             ].map(({ href, label, sub, dot }) => (
-              <a key={href} href={href} style={{
+              <div key={href} onClick={() => navigate(href)} style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '10px 14px', borderRadius: 10,
                 background: '#f8fafc', border: '1px solid #f1f5f9',
-                textDecoration: 'none', transition: 'all 0.15s',
+                cursor: 'pointer', transition: 'all 0.15s',
               }}
                 onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#e2e8f0' }}
                 onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#f1f5f9' }}
               >
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot, flexShrink: 0 }} />
-                <div>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, color: '#334155', fontWeight: 600 }}>{label}</div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{sub}</div>
                 </div>
-              </a>
+                <ChevronRight size={15} color="#cbd5e1" style={{ flexShrink: 0 }} />
+              </div>
             ))}
           </div>
         </div>
       </div>
+
+      {activeModal && <ActiveUsersModal {...activeModal} onClose={() => setActiveModal(null)} />}
     </div>
   )
 }

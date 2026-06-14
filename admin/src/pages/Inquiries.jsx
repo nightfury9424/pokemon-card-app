@@ -3,6 +3,7 @@
 //   Reports.jsx 스타일 일관 — 흰 카드 + 보라 헤더.
 
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Mail, RefreshCw, Send } from 'lucide-react'
 import api from '../api'
 
@@ -42,14 +43,16 @@ export default function Inquiries() {
   const [openCount, setOpenCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [modalRow, setModalRow] = useState(null)
+  const [cat, setCat] = useState('')   // 분류 필터 ('' = 전체)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [cat])
 
   async function load() {
     setLoading(true)
     try {
-      // 정지 이의신청은 별도 페이지(/appeals)로 분리 — 고객 문의에선 제외.
-      const r = await api.get('/admin/inquiries', { params: { excludeCategory: 'SUSPENSION_APPEAL' } })
+      // 분류 선택 시 그 분류만, 전체면 정지 이의신청(별도 /appeals)만 제외.
+      const params = cat ? { category: cat } : { excludeCategory: 'SUSPENSION_APPEAL' }
+      const r = await api.get('/admin/inquiries', { params })
       setRows(r.data?.data?.content ?? [])
       setOpenCount(r.data?.data?.openCount ?? 0)
     } catch {
@@ -71,9 +74,18 @@ export default function Inquiries() {
           <h1 style={S.h1}><Mail size={20} style={{ verticalAlign: -3, marginRight: 8 }} />고객 문의</h1>
           <div style={S.sub}>미처리 {openCount}건 · 전체 {rows.length}건</div>
         </div>
-        <button style={S.refresh} onClick={load} disabled={loading}>
-          <RefreshCw size={14} /> 새로고침
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <select value={cat} onChange={e => setCat(e.target.value)}
+            style={{ fontSize: 13, fontWeight: 600, padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', fontFamily: 'inherit' }}>
+            <option value="">전체 분류</option>
+            {Object.entries(CATEGORY_LABEL).filter(([k]) => k !== 'SUSPENSION_APPEAL').map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+          <button style={S.refresh} onClick={load} disabled={loading}>
+            <RefreshCw size={14} /> 새로고침
+          </button>
+        </div>
       </div>
 
       <div style={S.card}>
@@ -119,9 +131,14 @@ export default function Inquiries() {
 }
 
 function ReplyModal({ row, onClose, onDone }) {
+  const navigate = useNavigate()
   const [reply, setReply] = useState(row.adminReply ?? '')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  // 카드 추가 요청 감지 — 카테고리 또는 제목/내용(앱이 etc 로 보내는 케이스도 커버).
+  const isCardAdd = row.category === 'cardAddRequest'
+    || (row.title || '').includes('카드 추가')
+    || (row.content || '').includes('카드 추가 요청')
 
   async function submit() {
     if (!reply.trim()) { setErr('답변 내용을 입력하세요.'); return }
@@ -146,6 +163,36 @@ function ReplyModal({ row, onClose, onDone }) {
         <div style={{ background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 10, padding: 14, fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap', marginBottom: 18 }}>
           {row.content}
         </div>
+        {row.imageUrls?.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>첨부 사진 ({row.imageUrls.length})</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {row.imageUrls.map((url, i) => (
+                <a key={i} href={url} target="_blank" rel="noreferrer">
+                  <img src={url} alt={`첨부${i + 1}`} style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', cursor: 'zoom-in' }} />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        {isCardAdd && (
+          <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#4f46e5', marginBottom: 8 }}>카드 추가 요청 처리</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={() => navigate('/cards')}
+                style={{ fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 7, border: '1px solid #4f46e5', background: '#4f46e5', color: '#fff', cursor: 'pointer' }}>
+                카드 관리에서 추가하기 →
+              </button>
+              <button onClick={() => setReply('요청하신 카드를 카탈로그에 추가했어요. 앱에서 검색해 확인해 주세요. 소중한 제보 감사합니다!')}
+                style={{ fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 7, border: '1px solid #c7d2fe', background: '#fff', color: '#4f46e5', cursor: 'pointer' }}>
+                처리완료 답변 채우기
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>
+              카드 관리에서 직접 추가 후 답변을 등록하면 사용자에게 알림이 가요.
+            </div>
+          </div>
+        )}
         <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>관리자 답변</div>
         <textarea
           value={reply}

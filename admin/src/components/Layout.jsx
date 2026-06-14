@@ -9,9 +9,9 @@ import api from '../api'
 const nav = [
   { to: '/dashboard', icon: LayoutDashboard, label: '대시보드' },
   { to: '/reports',   icon: Flag,            label: '신고 처리', reportBadge: true },
-  { to: '/inquiries', icon: Mail,            label: '고객 문의' },
+  { to: '/inquiries', icon: Mail,            label: '고객 문의', inquiryBadge: true },
   { to: '/users',     icon: Users,           label: '유저 관리' },
-  { to: '/appeals',   icon: Gavel,           label: '정지 이의신청' },
+  { to: '/appeals',   icon: Gavel,           label: '정지 이의신청', appealBadge: true },
   { to: '/admin-actions', icon: ScrollText,  label: '운영 로그' },
   { to: '/trades',    icon: ArrowLeftRight,  label: '거래 관리' },
   { to: '/cards',     icon: CreditCard,      label: '카드 관리' },
@@ -25,6 +25,8 @@ export default function Layout() {
   const location = useLocation()
   const [alertCount, setAlertCount] = useState(0)
   const [reportCount, setReportCount] = useState(0)
+  const [inquiryCount, setInquiryCount] = useState(0)
+  const [appealCount, setAppealCount] = useState(0)
   // 2026-05-29 P-1: 사이드바 footer 닉네임 + 운영 현황 박스 (cron 시각).
   const [me, setMe]       = useState(null)    // { userId, nickname, email, isAdmin }
   const [ops, setOps]     = useState(null)    // { lastKoBatch, lastScrydex, lastKream, lastNaver, lastAdminAction }
@@ -33,9 +35,14 @@ export default function Layout() {
     api.get('/admin/price-anomalies', { params: { resolved: false, page: 0, size: 1 } })
       .then(r => setAlertCount(r.data?.data?.totalElements ?? 0))
       .catch(() => {})
-    // 2026-05-29 admin Stage 0 — 신고 PENDING count sidebar badge.
-    api.get('/admin/reports', { params: { status: 'PENDING', page: 0, size: 1 } })
-      .then(r => setReportCount(r.data?.data?.pendingCount ?? 0))
+    // 신고/문의/이의신청 미처리 카운트 — /admin/badges 한 방 (사이드바 빨강 뱃지 + 대시보드 공용).
+    api.get('/admin/badges')
+      .then(r => {
+        const b = r.data?.data ?? {}
+        setReportCount(b.pendingReports ?? 0)
+        setInquiryCount(b.pendingInquiries ?? 0)
+        setAppealCount(b.pendingAppeals ?? 0)
+      })
       .catch(() => {})
   }, [location.pathname])
 
@@ -90,9 +97,12 @@ export default function Layout() {
 
         {/* 메뉴 */}
         <nav style={{ flex: 1, padding: '8px 12px', overflowY: 'auto' }}>
-          {nav.map(({ to, icon: Icon, label, alertBadge, reportBadge }) => {
+          {nav.map(({ to, icon: Icon, label, alertBadge, reportBadge, inquiryBadge, appealBadge }) => {
             const active = location.pathname === to
-            const badgeCount = alertBadge ? alertCount : reportBadge ? reportCount : 0
+            const badgeCount = alertBadge ? alertCount
+              : reportBadge ? reportCount
+              : inquiryBadge ? inquiryCount
+              : appealBadge ? appealCount : 0
             const showBadge = badgeCount > 0
             return (
               <NavLink
