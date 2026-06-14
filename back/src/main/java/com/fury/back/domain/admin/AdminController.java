@@ -865,6 +865,25 @@ public class AdminController {
         return ReturnData.success(out);
     }
 
+    /** ★기존 카드 보강 재실행 — S3 이미지 미러 + 시세(triggerPriceFetchForCard) 즉시.
+     *  raw SQL 등으로 enrich를 건너뛴 카드(이미지/시세 없음) 수동 복구 + 일반 재동기화용. */
+    @PostMapping("/cards/{cardId}/refresh")
+    public ReturnData<?> refreshCardEnrich(@PathVariable String cardId) {
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery(
+            "SELECT en_scrydex_ref, jp_scrydex_ref FROM cards WHERE card_id = :id")
+            .setParameter("id", cardId).getResultList();
+        if (rows.isEmpty()) return ReturnData.notFound("카드 없음: " + cardId);
+        Object[] row = rows.get(0);
+        String enRef = row[0] != null ? row[0].toString() : null;
+        String jpRef = row[1] != null ? row[1].toString() : null;
+        try {
+            return ReturnData.success(cardService.enrichCardAfterAdd(cardId, enRef, jpRef));
+        } catch (Exception e) {
+            return ReturnData.badRequest("보강 실패: " + e.getMessage());
+        }
+    }
+
     /* ════════════════════════════════
        A: 시리즈(세트) 일괄추가 — KO (pokemoncard 순차 walk)
        ════════════════════════════════ */
@@ -1414,8 +1433,15 @@ public class AdminController {
      *  (초전브레이커 + 109/SV8 → 기존 BS2024017xxx → BS2024017109). 문의 카드추가 자동조회용. */
     @GetMapping("/cards/derive-ko-code")
     public ReturnData<?> deriveKoCode(@RequestParam String productName, @RequestParam String number) {
+        String code = deriveKoCodeInternal(productName, number);
+        if (code == null) return ReturnData.notFound("세트의 기존 카드가 없어 코드 유추 불가");
+        return ReturnData.success(Map.of("code", code));
+    }
+
+    /** productName(KO 세트명)+number → BS 오피셜코드 유추. 실패 시 null. deriveKoCode/autoResolve 공용. */
+    private String deriveKoCodeInternal(String productName, String number) {
         Matcher nm = Pattern.compile("^(\\d{1,3})").matcher(number == null ? "" : number.trim());
-        if (!nm.find()) return ReturnData.badRequest("번호 형식 오류");
+        if (!nm.find()) return null;
         String num  = String.format("%03d", Integer.parseInt(nm.group(1)));
         String norm = productName == null ? "" : productName.trim().replaceAll("\\s+", " ");
         String jpql = "SELECT c.officialCardCode FROM Card c, Product p WHERE c.productId = p.productId "
@@ -1425,8 +1451,103 @@ public class AdminController {
         if (codes.isEmpty())   // exact 실패 → LIKE fallback
             codes = em.createQuery(String.format(jpql, "LIKE :pn"), String.class)
                 .setParameter("pn", "%" + norm + "%").setMaxResults(1).getResultList();
-        if (codes.isEmpty()) return ReturnData.notFound("세트의 기존 카드가 없어 코드 유추 불가");
-        return ReturnData.success(Map.of("code", codes.get(0).substring(0, 9) + num));
+        if (codes.isEmpty()) return null;
+        return codes.get(0).substring(0, 9) + num;
+    }
+
+    /** ★카드추가 자동화: 입력 하나(JP scrydex ref 또는 scrydex URL)로 KO/JP/EN + product + KO코드 + 프로모판별 한 번에.
+     *  JP=lookupScrydex / KO이름=deriveKoCode+lookupKo / EN=resolveEnRef(인접 sibling 오프셋) / 프로모=JP_PROMO_EXCLUSIVE 자동. */
+    @GetMapping("/cards/auto-resolve")
+    public ReturnData<?> autoResolve(@RequestParam String input) {
+        if (input == null || input.isBlank()) return ReturnData.badRequest("입력이 필요합니다.");
+        String s = input.trim();
+        Matcher um = Pattern.compile("https?://scrydex\\.com/pokemon/cards/[^/]+/([a-z0-9_\\-]+)").matcher(s);
+        if (um.find()) s = um.group(1);
+        else { Matcher u2 = Pattern.compile("([a-z0-9_]+_ja-\\d+)").matcher(s); if (u2.find()) s = u2.group(1); }
+        if (!SCRYDEX_REF_PAT.matcher(s).matches() || !s.contains("_ja-"))
+            return ReturnData.badRequest("JP scrydex ref 또는 scrydex URL 형식만 지원 (예: sv8_ja-109)");
+
+        String jpRef = s;
+        int dash = jpRef.lastIndexOf('-');
+        String jpSet = jpRef.substring(0, dash);
+        int num;
+        try { num = Integer.parseInt(jpRef.substring(dash + 1)); }
+        catch (NumberFormatException e) { return ReturnData.badRequest("번호 파싱 실패: " + jpRef); }
+
+        // 1. JP 데이터
+        ReturnData<?> jpRd = lookupScrydex(jpRef, true);
+        if (!(jpRd.getData() instanceof Map)) return jpRd;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> jp = (Map<String, Object>) jpRd.getData();
+        String rarity      = (String) jp.get("rarityCode");
+        String productName = (String) jp.get("productName");
+        String productId   = (String) jp.get("productId");
+        String collNum     = (String) jp.get("collectionNumber");
+
+        // 2. 프로모 자동판별
+        boolean promo = "PR".equals(rarity)
+            || (productName != null && (productName.contains("프로모") || productName.toLowerCase().contains("promo")));
+
+        // 3. KO 이름/코드 (단독 프로모는 KO 미발매 가능 → 스킵)
+        String koName = null, koCode = null;
+        if (productName != null && !promo) {
+            koCode = deriveKoCodeInternal(productName, collNum);
+            if (koCode != null) {
+                ReturnData<?> koRd = lookupKo(koCode);
+                if (koRd.getData() instanceof Map) koName = (String) ((Map<?, ?>) koRd.getData()).get("name");
+            }
+        }
+
+        // 4. EN ref (인접 sibling 오프셋) — 단독 프로모는 스킵
+        String enRef = promo ? null : resolveEnRef(jpSet, num);
+        String enName = null;
+        if (enRef != null) {
+            ReturnData<?> enRd = lookupScrydex(enRef, false);
+            if (enRd.getData() instanceof Map) enName = (String) ((Map<?, ?>) enRd.getData()).get("name");
+            else enRef = null;  // EN 매칭 실패 → 비움
+        }
+
+        // 5. product 자동: 프로모는 JP_PROMO_EXCLUSIVE
+        if (promo) productId = "JP_PROMO_EXCLUSIVE";
+
+        Map<String, Object> draft = new LinkedHashMap<>();
+        draft.put("input", input);
+        draft.put("promo", promo);
+        draft.put("language", promo ? "JP" : "KO");
+        draft.put("name", koName != null ? koName : jp.get("name"));   // KO 우선, 없으면 JP명
+        draft.put("koName", koName);
+        draft.put("jpName", jp.get("name"));
+        draft.put("enName", enName);
+        draft.put("rarityCode", rarity);
+        draft.put("collectionNumber", collNum);
+        draft.put("officialCardCode", koCode);
+        draft.put("productName", productName);
+        draft.put("productId", productId);
+        draft.put("jpScrydexRef", jpRef);
+        draft.put("enScrydexRef", enRef);
+        draft.put("imageUrl", jp.get("imageUrl"));
+        return ReturnData.success(draft);
+    }
+
+    /** 같은 JP 세트의 인접 카드 (en번호 - jp번호) 오프셋으로 EN ref 유추.
+     *  ★JP번호≠EN(상수오프셋 아님) → 가장 가까운 sibling 의 오프셋 적용. 없으면 null. */
+    private String resolveEnRef(String jpSet, int num) {
+        List<Object[]> rows = em.createQuery(
+            "SELECT c.jpScrydexRef, c.enScrydexRef FROM Card c "
+          + "WHERE c.jpScrydexRef LIKE :p AND c.enScrydexRef IS NOT NULL AND c.enScrydexRef <> ''",
+            Object[].class).setParameter("p", jpSet + "-%").getResultList();
+        String bestEnSet = null; int bestOffset = 0, bestDist = Integer.MAX_VALUE;
+        for (Object[] r : rows) {
+            String jr = (String) r[0], er = (String) r[1];
+            try {
+                int jn = Integer.parseInt(jr.substring(jr.lastIndexOf('-') + 1));
+                int ed = er.lastIndexOf('-');
+                int en = Integer.parseInt(er.substring(ed + 1));
+                int dist = Math.abs(jn - num);
+                if (dist < bestDist) { bestDist = dist; bestOffset = en - jn; bestEnSet = er.substring(0, ed); }
+            } catch (Exception ignore) {}
+        }
+        return bestEnSet == null ? null : bestEnSet + "-" + (num + bestOffset);
     }
 
     /** scrydex 카드 상세에서 data-field 값 추출. [data-field=X]는 숨김 '라벨'이라,

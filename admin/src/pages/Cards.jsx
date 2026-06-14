@@ -81,6 +81,11 @@ function AddCardModal({ onClose, onAdded, prefill }) {
   const [submitting, setSubmitting] = useState(false)
   const [submitErr, setSubmitErr] = useState('')
 
+  // ── ★자동조회 (입력 하나 → KO/JP/EN + 세트 + 코드 전부) ──
+  const [autoInput, setAutoInput] = useState('')
+  const [autoLoading, setAutoLoading] = useState(false)
+  const [autoErr, setAutoErr] = useState('')
+
   const won = (n) => (n == null ? '—' : Number(n).toLocaleString('ko-KR') + '원')
 
   // 세트 목록
@@ -139,6 +144,26 @@ function AddCardModal({ onClose, onAdded, prefill }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // ★입력 하나(JP ref / scrydex URL) → auto-resolve → 3컬럼·공용필드 자동 채움 (재조회 없이)
+  const autoResolve = async () => {
+    const q = autoInput.trim()
+    if (!q) return
+    setAutoLoading(true); setAutoErr('')
+    try {
+      const r = await api.get('/admin/cards/auto-resolve', { params: { input: q } })
+      const d = r.data?.data ?? {}
+      setKo(c => ({ ...c, code: d.officialCardCode || '', looked: !!d.koName, err: '', name: d.koName || '', rarity: d.rarityCode || '', num: d.collectionNumber || '', productId: d.productId || '', productName: d.productName || '' }))
+      setJp(c => ({ ...c, code: d.jpScrydexRef || '', looked: !!d.jpScrydexRef, err: '', name: d.jpName || '', rarity: d.rarityCode || '', num: d.collectionNumber || '', img: d.imageUrl || '' }))
+      setEn(c => ({ ...c, code: d.enScrydexRef || '', looked: !!d.enName, err: '', name: d.enName || '', num: d.collectionNumber || '', img: d.enScrydexRef ? `https://images.scrydex.com/pokemon/${d.enScrydexRef}/medium` : '' }))
+      setName(d.name || '')
+      if (d.rarityCode) setRarityCode(normalizeRarity(d.rarityCode) || d.rarityCode)
+      if (d.productId) setProductId(d.productId)
+      if (d.productName) setProductSearch(d.productName)
+    } catch (e) {
+      setAutoErr(e.response?.data?.message ?? '자동조회 실패')
+    } finally { setAutoLoading(false) }
+  }
+
   const handleSubmit = async () => {
     if (!name.trim())  return setSubmitErr('카드명(KO)을 입력하세요.')
     if (!rarityCode)   return setSubmitErr('레어도를 선택하세요.')
@@ -176,6 +201,18 @@ function AddCardModal({ onClose, onAdded, prefill }) {
         <div style={{ padding: '20px 24px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>카드 추가 <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>· KO·JP·EN 한 번에</span></span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}><X size={18} /></button>
+        </div>
+
+        {/* ★자동조회 바 — 입력 하나로 전부 */}
+        <div style={{ padding: '14px 24px 0' }}>
+          <label style={lbl}>⚡ 자동조회 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· JP ref 또는 scrydex URL 하나로 KO·JP·EN·세트·코드 전부</span></label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input style={{ ...inp, flex: 1 }} placeholder="예: sv8_ja-109  또는  https://scrydex.com/pokemon/cards/_/smp_ja-407"
+              value={autoInput} onChange={e => setAutoInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && autoResolve()} />
+            <button onClick={autoResolve} disabled={autoLoading} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', cursor: autoLoading ? 'wait' : 'pointer', background: autoLoading ? '#e2e8f0' : 'linear-gradient(135deg,#f59e0b,#ea580c)', color: autoLoading ? '#94a3b8' : '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>{autoLoading ? '조회 중...' : '⚡ 자동조회'}</button>
+          </div>
+          {autoErr && <div style={{ color: '#dc2626', fontSize: 11, marginTop: 6 }}>{autoErr}</div>}
         </div>
 
         {/* 3판본 컬럼 */}

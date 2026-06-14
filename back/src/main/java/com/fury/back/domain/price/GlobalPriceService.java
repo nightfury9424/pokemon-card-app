@@ -1259,6 +1259,45 @@ public class GlobalPriceService {
             double usdToKrw,
             LocalDateTime now) {
         if (ref == null || ref.isBlank() || ref.startsWith("NO_")) return new ScrydexSaveResult(null, 0);
+
+        // ★신규 카드(스냅샷 0개)면 add 시점에 14일 차트 전체 백필 — 사용자가 cron 하루 안 기다리게.
+        //   기존 카드는 일일 cron이 담당 → 오늘 1점만(중복방지).
+        List<String> single = List.of(card.getCardId());
+        List<PriceSnapshot> latestList = "SCRYDEX_JP".equals(source)
+                ? priceSnapshotRepository.findLatestScrydexJpByCardIds(single)
+                : priceSnapshotRepository.findLatestScrydexEnByCardIds(single);
+        boolean hasHistory = !latestList.isEmpty();
+
+        // ★중복 방지(refresh 재호출): 기존카드인데 오늘치 RAW가 이미 있으면 재저장 스킵 (python get_existing_dates 대응)
+        if (hasHistory) {
+            PriceSnapshot latest = latestList.get(0);
+            if (latest.getTradedAt() != null && latest.getTradedAt().toLocalDate().equals(now.toLocalDate())) {
+                return new ScrydexSaveResult(latest, 0);
+            }
+        }
+
+        if (!hasHistory) {
+            Optional<com.fury.back.domain.price.dto.ScrydexHistoryDto> histOpt =
+                    scrydexLiveClient.fetchHistory(ref, region);
+            if (histOpt.isPresent()) {
+                com.fury.back.domain.price.dto.ScrydexHistoryDto h = histOpt.get();
+                int saved = 0; PriceSnapshot latestRaw = null; String latestDate = null;
+                if (h.getRawNm() != null) {
+                    for (var p : h.getRawNm()) {
+                        if (p.getPrice() == null || p.getPrice() <= 0) continue;
+                        LocalDateTime ts = java.time.LocalDate.parse(p.getDate()).atTime(12, 0);
+                        PriceSnapshot snap = buildScrydexSnapshot(card, ref, source, p.getPrice(), "RAW", null, null, ts, usdToKrw);
+                        priceSnapshotRepository.save(snap); saved++;
+                        if (latestDate == null || p.getDate().compareTo(latestDate) > 0) { latestDate = p.getDate(); latestRaw = snap; }
+                    }
+                }
+                saved += saveScrydexGradedSeries(card, ref, source, h.getPsa10(), "10", usdToKrw);
+                saved += saveScrydexGradedSeries(card, ref, source, h.getPsa9(), "9", usdToKrw);
+                if (saved > 0) return new ScrydexSaveResult(latestRaw, saved);
+            }
+            // 히스토리 비었으면 아래 현재값 폴백
+        }
+
         Optional<ScrydexLivePriceDto> live = scrydexLiveClient.fetchPrices(ref, region);
         if (live.isEmpty()) return new ScrydexSaveResult(null, 0);
 
@@ -1279,6 +1318,21 @@ public class GlobalPriceService {
             savedCount++;
         }
         return new ScrydexSaveResult(rawSnapshot, savedCount);
+    }
+
+    /** scrydex PSA 시계열 백필 (신규카드 add 시점). 각 날짜 정오 timestamp 로 저장. */
+    private int saveScrydexGradedSeries(Card card, String ref, String source,
+                                        List<com.fury.back.domain.price.dto.ScrydexHistoryDto.PricePoint> series,
+                                        String grade, double usdToKrw) {
+        if (series == null) return 0;
+        int n = 0;
+        for (var p : series) {
+            if (p.getPrice() == null || p.getPrice() <= 0) continue;
+            LocalDateTime ts = java.time.LocalDate.parse(p.getDate()).atTime(12, 0);
+            priceSnapshotRepository.save(buildScrydexSnapshot(card, ref, source, p.getPrice(), "GRADED", "PSA", grade, ts, usdToKrw));
+            n++;
+        }
+        return n;
     }
 
     private PriceSnapshot buildScrydexSnapshot(
