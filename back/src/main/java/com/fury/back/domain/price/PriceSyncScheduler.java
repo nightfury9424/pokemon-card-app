@@ -19,9 +19,6 @@ public class PriceSyncScheduler {
     @Value("${app.python.system}")
     private String python3;
 
-    @Value("${app.python.venv-kream}")
-    private String venvKreamPython;
-
     @Value("${app.python.scripts-dir}")
     private String pythonScriptsDir;
 
@@ -62,18 +59,9 @@ public class PriceSyncScheduler {
         log.info("[PriceSync] 프로모 eBay 가격 수집 완료");
     }
 
-    /**
-     * KREAM 메타몽 Pokemon Town 2025 프로모 체결가 수집.
-     * ★자동 cron 비활성 (2026-06-11) — KREAM 봇탐지가 prod 서버 IP를 막아 prod에선 수집 불가.
-     *   prod 컨테이너엔 venv_kream도 없어 매번 "No such file" 실패 → 운영 알림 스팸.
-     *   → 수집은 맥북 agent 수동(admin '메타몽 시세 가져오기' 버튼 → KreamFetchController.ingest)으로 이전.
-     *   메서드는 보존(수동 호출 여지)하되 @Scheduled 제거.
-     */
-    public void syncKreamDittoPromo() {
-        log.info("[PriceSync] KREAM 메타몽 프로모 시세 수집 시작");
-        runWithPython(venvKreamPython, script("kream_ditto.py"));
-        log.info("[PriceSync] KREAM 메타몽 프로모 시세 수집 완료");
-    }
+    // KREAM 메타몽 프로모 체결가: prod IP 봇차단 + venv 부재로 prod 수집 불가.
+    // 수집은 맥북 agent(admin '메타몽 시세 가져오기' → KreamFetchController.ingest) 단일 경로.
+    // 죽은 syncKreamDittoPromo() + venvKreamPython 필드 제거 (2026-06-15).
 
     /**
      * 매일 22:00: 네이버 카페 낙찰가 수집 (계수 재계산용)

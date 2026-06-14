@@ -1584,7 +1584,7 @@ public class GlobalPriceService {
                         .priceSnapshotId(com.fury.back.common.IdGenerator.generate())
                         .cardId((String) r[0])
                         .source("KO_ESTIMATED")
-                        .price(((Number) r[1]).intValue())
+                        .price(applyKreamJitter((String) r[0], ((Number) r[1]).intValue()))
                         .cardStatus("RAW")
                         .tradedAt(now)
                         .collectedAt(now)
@@ -1593,6 +1593,47 @@ public class GlobalPriceService {
         priceSnapshotRepository.saveAll(snaps);
         log.info("[KoEstimated/Promo] KREAM 기반 {}장 KO 독점 프로모 KO_ESTIMATED 저장", snaps.size());
         return snaps.size();
+    }
+
+    /** KREAM 기반 KO 독점 프로모 anti-fingerprint salt (소스 비공개 전제, env 의존 없이 무중단). */
+    private static final String KREAM_JITTER_SALT = "pf-kream-ko-2026-9f3a7c1e8b4d";
+
+    /**
+     * KREAM 체결가 → KO_ESTIMATED 변환 시 결정론적 부드러운 ±1~2% 지터.
+     * raw KREAM(source=KREAM, 차트 원본)은 그대로 두고 KO_ESTIMATED 값만 어긋나게 해서
+     * "KREAM 그대로 미러링"이 외부에 티나지 않게 한다. (cardId+날짜+salt) 결정론 →
+     * 같은 날 재계산해도 동일(읽을 때마다 흔들림 X·재현/감사 가능), salt 비공개라 역추적 불가.
+     * 2-harmonic 부드러운 파동으로 부호·크기가 자연스럽게 변동(매일 독립 랜덤의 톱니 X),
+     * |offset|은 [1%,2%] 밴드 유지(0% 근처로 안 떨어져 KREAM과 항상 어긋남).
+     */
+    private int applyKreamJitter(String cardId, int kreamRaw) {
+        if (kreamRaw < 5000) {
+            return kreamRaw; // 비정상 저가는 지터 스킵(floor 가드)
+        }
+        long day = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).toEpochDay();
+        double phase = saltedKreamPhase(cardId);
+        double t = (double) day;
+        double w = Math.sin(2 * Math.PI * t / 21.0 + phase)
+                 + 0.5 * Math.sin(2 * Math.PI * t / 8.0 + phase * 1.7);
+        double s = Math.max(-1.0, Math.min(1.0, w / 1.5)); // [-1,1] 정규화
+        double mag = 0.01 + Math.abs(s) * 0.01;            // [1%, 2%]
+        double offset = (s >= 0 ? 1.0 : -1.0) * mag;
+        long ko = Math.round(kreamRaw * (1.0 + offset) / 10.0) * 10; // 10원 반올림
+        return (int) Math.max(ko, 1000);
+    }
+
+    /** cardId → salt 적용 결정론 위상 [0,2π). HMAC-SHA256(salt, cardId). */
+    private double saltedKreamPhase(String cardId) {
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(
+                    KREAM_JITTER_SALT.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] d = mac.doFinal(cardId.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            long bits = java.nio.ByteBuffer.wrap(d, 0, 8).getLong() & 0x7FFFFFFFFFFFFFFFL;
+            return ((double) bits / Long.MAX_VALUE) * 2 * Math.PI;
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 
     /**
