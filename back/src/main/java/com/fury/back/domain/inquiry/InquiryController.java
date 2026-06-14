@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -95,10 +97,36 @@ public class InquiryController {
 
     @Operation(summary = "내 문의 내역")
     @GetMapping("/me")
-    public ReturnData<List<Inquiry>> getMine(HttpServletRequest request) {
+    public ReturnData<List<Map<String, Object>>> getMine(HttpServletRequest request) {
         String userId = extractUserId(request);
         if (userId == null) return ReturnData.success(List.of());
-        return ReturnData.success(inquiryRepository.findByUserIdOrderByCreatedAtDesc(userId));
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Inquiry i : inquiryRepository.findByUserIdOrderByCreatedAtDesc(userId)) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("inquiryId", i.getInquiryId());
+            m.put("category", i.getCategory());
+            m.put("title", i.getTitle());
+            m.put("content", i.getContent());
+            m.put("status", i.getStatus());
+            m.put("createdAt", i.getCreatedAt());
+            m.put("adminReply", i.getAdminReply());
+            m.put("repliedAt", i.getRepliedAt());
+            // 본인 첨부 사진 — proxy URL(앱 AuthImage가 JWT 부착해 로드). raw key는 @JsonIgnore라 미노출.
+            m.put("imageUrls", proxyImageUrls(i.getImageKeys()));
+            out.add(m);
+        }
+        return ReturnData.success(out);
+    }
+
+    /** imageKeys CSV → proxy URL 리스트 (앱 AuthImage 용, /api/images/secure/...). */
+    private List<String> proxyImageUrls(String csv) {
+        if (csv == null || csv.isBlank()) return List.of();
+        List<String> out = new ArrayList<>();
+        for (String key : csv.split(",")) {
+            String k = key.trim();
+            if (!k.isEmpty()) out.add(com.fury.back.storage.StorageKeyUrls.toProxyUrl(k));
+        }
+        return out;
     }
 
     private String extractUserId(HttpServletRequest request) {
