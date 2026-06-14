@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Search, Plus, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import api from '../api'
@@ -13,8 +14,21 @@ const S = {
   td:     { padding: '13px 16px', fontSize: 13, color: '#475569', borderBottom: '1px solid #f8fafc' },
 }
 
-const RARITIES = ['전체', 'SSR', 'SAR', 'BWR', 'CSR', 'CHR', 'UR', 'SR', 'AR', 'ACE', 'RRR', 'RR', 'HR', 'PR']
+const RARITIES = ['전체', 'SSR', 'SAR', 'BWR', 'CSR', 'CHR', 'MUR', 'UR', 'SR', 'AR', 'ACE', 'RRR', 'RR', 'HR', 'PR']
 const RARITY_OPTIONS = ['SSR', 'SAR', 'BWR', 'CSR', 'CHR', 'MUR', 'UR', 'SR', 'AR', 'ACE', 'RRR', 'RR', 'HR', 'PR']
+
+// ── B1(문의→폼 prefill) 유틸 ──
+// 문의 레어도는 자유입력 → 셀렉트 옵션과 정확히 일치할 때만 채움(아니면 admin 수동선택, Codex 원칙)
+const normalizeRarity = (r) => {
+  const up = (r || '').trim().toUpperCase()
+  return RARITY_OPTIONS.includes(up) ? up : ''
+}
+// 참고 링크에서 조회코드 추출: pokemoncard…/detail/BS… · scrydex…/_/smp_ja-407 → 마지막 path 세그먼트
+const extractLookupCode = (link) => {
+  if (!link) return ''
+  const seg = link.split('?')[0].replace(/\/+$/, '').split('/').pop() || ''
+  return /^[A-Za-z0-9_\-]{3,40}$/.test(seg) ? seg : ''
+}
 
 function RarityBadge({ rarity }) {
   const colors = {
@@ -34,23 +48,25 @@ function RarityBadge({ rarity }) {
   )
 }
 
-function AddCardModal({ onClose, onAdded }) {
-  const [tab, setTab] = useState('KO')
+function AddCardModal({ onClose, onAdded, prefill }) {
+  // prefill(문의 카드추가요청) 있으면 해당 발매판 탭 + 편집단계 바로 진입
+  const [tab, setTab] = useState(prefill?.language || 'KO')
 
-  // 입력 단계
-  const [code, setCode] = useState('')
+  // 입력 단계 (prefill 시 참고링크에서 조회코드 추출 → admin이 '조회'로 이미지 보강 가능)
+  const [code, setCode] = useState(prefill ? extractLookupCode(prefill.refLink) : '')
   const [looking, setLooking] = useState(false)
   const [lookupErr, setLookupErr] = useState('')
 
-  // 조회 후 편집 필드
-  const [looked, setLooked] = useState(false)
-  const [name, setName] = useState('')
-  const [rarityCode, setRarityCode] = useState('')
-  const [collectionNumber, setCollectionNumber] = useState('')
+  // 조회 후 편집 필드 (prefill 시 문의 값으로 시드)
+  const [looked, setLooked] = useState(!!prefill)
+  const [name, setName] = useState(prefill?.name || '')
+  const [rarityCode, setRarityCode] = useState(prefill ? normalizeRarity(prefill.rarity) : '')
+  const [collectionNumber, setCollectionNumber] = useState(prefill?.collectionNumber || '')
   const [productId, setProductId] = useState('')
-  const [productSearch, setProductSearch] = useState('')
+  const [productSearch, setProductSearch] = useState(prefill?.setName || '')
   const [enRef, setEnRef] = useState('')
   const [jpRef, setJpRef] = useState('')
+  const [imageUrl, setImageUrl] = useState('')   // 조회된 카드 이미지(scrydex) — 시각 확인용
 
   // 세트 목록
   const [products, setProducts] = useState([])
@@ -68,7 +84,7 @@ function AddCardModal({ onClose, onAdded }) {
   const switchTab = (t) => {
     setTab(t); setCode(''); setLooking(false); setLookupErr(''); setLooked(false)
     setName(''); setRarityCode(''); setCollectionNumber(''); setProductId('')
-    setProductSearch(''); setEnRef(''); setJpRef(''); setSubmitErr('')
+    setProductSearch(''); setEnRef(''); setJpRef(''); setSubmitErr(''); setImageUrl('')
     setPreview(null); setPreviewing(false); setPreviewErr('')
   }
 
@@ -108,8 +124,9 @@ function AddCardModal({ onClose, onAdded }) {
       setRarityCode(d.rarityCode ?? '')
       setCollectionNumber(d.collectionNumber ?? '')
       setProductId(d.productId ?? '')
-      // 세트 드롭다운 검색어를 세트명으로 초기화해서 pre-filter
-      if (d.productName) setProductSearch(d.productName.split(' ')[0])
+      setImageUrl(d.imageUrl ?? '')
+      // 세트 드롭다운 검색어를 세트명 전체로 초기화해서 pre-filter (부분일치)
+      if (d.productName) setProductSearch(d.productName)
       if (tab === 'EN') setEnRef(code.trim())
       if (tab === 'JP') setJpRef(code.trim())
       setLooked(true)
@@ -215,6 +232,15 @@ function AddCardModal({ onClose, onAdded }) {
           {looked && (
             <>
               <div style={{ height: 1, background: '#f1f5f9', margin: '0 0 16px' }} />
+
+              {/* 조회된 카드 이미지 — 맞는 카드인지 시각 확인 */}
+              {imageUrl && (
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+                  <img src={imageUrl} alt="카드"
+                    style={{ width: 180, borderRadius: 10, boxShadow: '0 2px 12px rgba(0,0,0,0.15)' }}
+                    onError={e => { e.currentTarget.style.display = 'none' }} />
+                </div>
+              )}
 
               <div style={row}>
                 <label style={lbl}>카드명 (KO) *</label>
@@ -344,7 +370,177 @@ function AddCardModal({ onClose, onAdded }) {
   )
 }
 
+// ── A: 시리즈(세트) 일괄추가 모달 (KO, pokemoncard 순차 walk) ──
+function BulkAddModal({ onClose, onAdded }) {
+  const [input, setInput] = useState('')
+  const [previewing, setPreviewing] = useState(false)
+  const [preview, setPreview] = useState(null)       // {prefix,found,existing,newCount,cards}
+  const [selected, setSelected] = useState({})       // {officialCardCode: bool}
+  const [productId, setProductId] = useState('')
+  const [productSearch, setProductSearch] = useState('')
+  const [products, setProducts] = useState([])
+  const [inserting, setInserting] = useState(false)
+  const [result, setResult] = useState(null)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    api.get('/admin/products', { params: { search: productSearch || undefined } })
+      .then(r => setProducts(r.data?.data ?? []))
+      .catch(() => setProducts([]))
+  }, [productSearch])
+
+  // 입력에서 prefix(영문2+숫자7) 추출 — 카드코드(BS2026003001)·URL 붙여도 OK
+  const derivePrefix = (s) => {
+    const m = (s || '').match(/([A-Za-z]{2}\d{7})/)
+    return m ? m[1] : ''
+  }
+
+  const ui = {
+    inp: { width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit' },
+    lbl: { fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' },
+    btn: (on) => ({ padding: '9px 16px', borderRadius: 8, border: 'none', cursor: on ? 'not-allowed' : 'pointer', background: on ? '#e2e8f0' : '#6366f1', color: on ? '#94a3b8' : '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap' }),
+  }
+
+  async function runPreview() {
+    const prefix = derivePrefix(input)
+    if (!prefix) { setErr('세트 prefix(예: BS2026003) 또는 카드코드/URL을 입력하세요.'); return }
+    setPreviewing(true); setErr(''); setPreview(null); setResult(null)
+    try {
+      const r = await api.get('/admin/cards/bulk-preview', { params: { prefix } })
+      const d = r.data?.data
+      setPreview(d)
+      const sel = {}; let seedSet = '', seedName = ''
+      for (const c of d.cards) {
+        // 기본 선택 = 신규 & chase(저레어 아님)만. 저레어는 정책상 제외 → admin이 원하면 수동 체크
+        if (!c.exists && !c.lowRarity) { sel[c.officialCardCode] = true; if (!seedSet && c.productId) seedSet = c.productId }
+        if (!seedName && c.productName) seedName = c.productName
+      }
+      setSelected(sel)
+      if (seedSet) setProductId(seedSet)
+      if (seedName) setProductSearch(seedName)
+    } catch (e) {
+      setErr(e.response?.data?.message || '미리보기 실패')
+    } finally { setPreviewing(false) }
+  }
+
+  async function runInsert() {
+    if (!productId) { setErr('추가할 세트를 선택하세요.'); return }
+    const cards = (preview?.cards || []).filter(c => !c.exists && selected[c.officialCardCode])
+    if (cards.length === 0) { setErr('추가할 카드를 선택하세요.'); return }
+    const allowLowRarity = cards.some(c => c.lowRarity)  // admin이 저레어를 명시 선택했으면 override
+    setInserting(true); setErr('')
+    try {
+      const r = await api.post('/admin/cards/bulk-insert', { productId, cards, allowLowRarity })
+      setResult(r.data?.data)
+      onAdded?.()
+    } catch (e) {
+      setErr(e.response?.data?.message || '추가 실패')
+    } finally { setInserting(false) }
+  }
+
+  const newCards  = (preview?.cards || []).filter(c => !c.exists)
+  const keepCards = newCards.filter(c => !c.lowRarity)        // chase (정책 노출)
+  const lowCount  = newCards.length - keepCards.length        // 저레어(C/U/R/S/K·미상)
+  const selCount  = newCards.filter(c => selected[c.officialCardCode]).length
+  const allKeepSel = keepCards.length > 0 && keepCards.every(c => selected[c.officialCardCode])
+  const toggleAll = () => {
+    const next = { ...selected }   // 저레어 수동선택은 보존, chase만 토글
+    keepCards.forEach(c => { if (allKeepSel) delete next[c.officialCardCode]; else next[c.officialCardCode] = true })
+    setSelected(next)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: '#fff', borderRadius: 16, width: 620, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
+        <div style={{ padding: '20px 24px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>시리즈 일괄추가 <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>· KO (포켓몬코리아)</span></span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}><X size={18} /></button>
+        </div>
+
+        <div style={{ padding: '20px 24px' }}>
+          {/* STEP 1: prefix 입력 */}
+          <label style={ui.lbl}>세트 prefix 또는 카드코드/URL *</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input style={{ ...ui.inp, flex: 1 }} placeholder="예: BS2026003  ·  BS2026003001  ·  pokemoncard URL"
+              value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && runPreview()} />
+            <button onClick={runPreview} disabled={previewing} style={ui.btn(previewing)}>{previewing ? '조회 중...' : '미리보기'}</button>
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
+            코드 구조 BS+연도4+세트번호3 (+카드번호3). 1번부터 빈 카드 연속까지 자동 수집 → 기존 카드는 자동 제외.
+          </div>
+
+          {err && <div style={{ marginTop: 12, padding: '8px 12px', background: '#fef2f2', borderRadius: 8, color: '#dc2626', fontSize: 12 }}>{err}</div>}
+
+          {/* STEP 2: 미리보기 결과 */}
+          {preview && (
+            <>
+              <div style={{ height: 1, background: '#f1f5f9', margin: '16px 0' }} />
+              <div style={{ fontSize: 13, color: '#475569', marginBottom: 12 }}>
+                <b>{preview.found}</b>장 발견 · 신규 chase <b style={{ color: '#4f46e5' }}>{keepCards.length}</b> · 기존 {preview.existing}
+                {lowCount > 0 && <span style={{ color: '#dc2626' }}> · 저레어 {lowCount} 제외</span>}
+              </div>
+
+              {/* 세트 선택 (일괄 적용) */}
+              <label style={ui.lbl}>추가할 세트 (전체 일괄 적용) *</label>
+              <input style={{ ...ui.inp, marginBottom: 6 }} placeholder="세트 검색..."
+                value={productSearch} onChange={e => setProductSearch(e.target.value)} />
+              <select style={{ ...ui.inp, background: '#fff', marginBottom: 14 }} size={3} value={productId}
+                onChange={e => setProductId(e.target.value)}>
+                <option value="">-- 선택 --</option>
+                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+
+              {/* 카드 목록 */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={allKeepSel} onChange={toggleAll} style={{ marginRight: 6 }} />
+                  chase 신규 전체선택 ({keepCards.filter(c => selected[c.officialCardCode]).length}/{keepCards.length})
+                </label>
+                {lowCount > 0 && <span style={{ fontSize: 11, color: '#dc2626' }}>저레어 {lowCount}장은 정책상 기본 제외 (수동 체크 시 추가)</span>}
+              </div>
+              <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid #f1f5f9', borderRadius: 8 }}>
+                {preview.cards.map(c => (
+                  <div key={c.officialCardCode} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderBottom: '1px solid #f8fafc', fontSize: 12, opacity: c.exists ? 0.4 : (c.lowRarity ? 0.6 : 1) }}>
+                    <input type="checkbox" disabled={c.exists} checked={!!selected[c.officialCardCode]}
+                      onChange={e => setSelected(s => ({ ...s, [c.officialCardCode]: e.target.checked }))} />
+                    <span style={{ fontFamily: 'monospace', color: '#94a3b8', minWidth: 96 }}>{c.officialCardCode}</span>
+                    <span style={{ flex: 1, color: '#1e293b', fontWeight: 600 }}>{c.name || '(이름없음)'}</span>
+                    <span style={{ minWidth: 42, color: c.rarityCode ? '#475569' : '#dc2626' }}>{c.rarityCode || '레어도?'}</span>
+                    <span style={{ minWidth: 56, color: '#94a3b8' }}>{c.collectionNumber || '-'}</span>
+                    {c.exists ? <span style={{ fontSize: 10, color: '#16a34a', fontWeight: 700, minWidth: 42, textAlign: 'right' }}>기존</span>
+                      : c.lowRarity ? <span style={{ fontSize: 10, color: '#dc2626', fontWeight: 700, minWidth: 42, textAlign: 'right' }}>저레어</span>
+                      : <span style={{ minWidth: 42 }} />}
+                  </div>
+                ))}
+              </div>
+
+              {result ? (
+                <div style={{ marginTop: 14, padding: '10px 14px', background: '#f0fdf4', borderRadius: 8, color: '#15803d', fontSize: 13 }}>
+                  ✓ {result.inserted}장 추가 · {result.skipped} skip{result.errors?.length ? ` · 오류 ${result.errors.length}` : ''}
+                  {result.errors?.length ? <div style={{ fontSize: 11, color: '#b45309', marginTop: 4 }}>{result.errors.join(', ')}</div> : null}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+                  <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>닫기</button>
+                  <button onClick={runInsert} disabled={inserting || selCount === 0 || !productId}
+                    style={{ padding: '9px 18px', borderRadius: 10, border: 'none', background: (inserting || selCount === 0 || !productId) ? '#a5b4fc' : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: (inserting || selCount === 0 || !productId) ? 'not-allowed' : 'pointer' }}>
+                    {inserting ? '추가 중...' : `선택 ${selCount}장 추가`}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Cards() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [cards, setCards] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
@@ -352,7 +548,21 @@ export default function Cards() {
   const [rarity, setRarity] = useState('전체')
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
+  const [showBulk, setShowBulk] = useState(false)
+  const [prefill, setPrefill] = useState(null)   // 문의(카드추가요청)에서 넘어온 prefill
   const size = 15
+
+  // 문의 → "카드 추가하기"로 진입 시 모달 자동 오픈 + prefill, state는 즉시 소거(새로고침/뒤로가기 재오픈 방지)
+  const handledKey = useRef(null)
+  useEffect(() => {
+    const pf = location.state?.prefillCard
+    if (pf && handledKey.current !== location.key) {  // 같은 history 엔트리 재진입(뒤로가기) 차단
+      handledKey.current = location.key
+      setPrefill(pf)
+      setShowAdd(true)
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }, [location.state, location.key, location.pathname, navigate])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -377,22 +587,34 @@ export default function Cards() {
 
   return (
     <div style={S.page}>
-      {showAdd && <AddCardModal onClose={() => setShowAdd(false)} onAdded={load} />}
+      {showAdd && <AddCardModal prefill={prefill}
+        onClose={() => { setShowAdd(false); setPrefill(null) }} onAdded={load} />}
+      {showBulk && <BulkAddModal onClose={() => setShowBulk(false)} onAdded={load} />}
 
       <div style={S.header}>
         <div>
           <div style={S.h1}>카드 관리</div>
           <div style={S.sub}>총 {total.toLocaleString()}장의 카드 (KO 기준)</div>
         </div>
-        <button onClick={() => setShowAdd(true)} style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
-          background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-          color: '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-        }}>
-          <Plus size={14} />
-          카드 추가
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowBulk(true)} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '9px 16px', borderRadius: 10, border: '1px solid #c7d2fe', cursor: 'pointer',
+            background: '#eef2ff', color: '#4f46e5', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+          }}>
+            <Plus size={14} />
+            시리즈 일괄추가
+          </button>
+          <button onClick={() => setShowAdd(true)} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
+            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+            color: '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+          }}>
+            <Plus size={14} />
+            카드 추가
+          </button>
+        </div>
       </div>
 
       {/* 검색 + 희귀도 필터 */}

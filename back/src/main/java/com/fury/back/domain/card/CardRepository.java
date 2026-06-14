@@ -129,10 +129,10 @@ public interface CardRepository extends JpaRepository<Card, String> {
             ORDER BY CASE c.rarity_code
               WHEN 'MUR'  THEN 0  WHEN 'BWR'  THEN 1
               WHEN 'UR'   THEN 2  WHEN 'SAR'  THEN 3
-              WHEN 'MA'   THEN 4  WHEN 'AR'   THEN 5
-              WHEN 'CSR'  THEN 6  WHEN 'CHR'  THEN 7
-              WHEN 'HR'   THEN 8  WHEN 'SSR'  THEN 9
-              WHEN 'SR'   THEN 10 WHEN 'SM-P' THEN 11
+              WHEN 'MA'   THEN 4  WHEN 'SR'   THEN 5
+              WHEN 'AR'   THEN 6  WHEN 'CSR'  THEN 7
+              WHEN 'CHR'  THEN 8  WHEN 'HR'   THEN 9
+              WHEN 'SSR'  THEN 10 WHEN 'SM-P' THEN 11
               WHEN 'RRR'  THEN 12 WHEN 'RR'   THEN 13
               WHEN 'PR'   THEN 14 WHEN 'K'    THEN 15
               WHEN 'S'    THEN 16 ELSE 99 END ASC, c.name ASC
@@ -157,10 +157,10 @@ public interface CardRepository extends JpaRepository<Card, String> {
             ORDER BY CASE c.rarity_code
               WHEN 'MUR'  THEN 0  WHEN 'BWR'  THEN 1
               WHEN 'UR'   THEN 2  WHEN 'SAR'  THEN 3
-              WHEN 'MA'   THEN 4  WHEN 'AR'   THEN 5
-              WHEN 'CSR'  THEN 6  WHEN 'CHR'  THEN 7
-              WHEN 'HR'   THEN 8  WHEN 'SSR'  THEN 9
-              WHEN 'SR'   THEN 10 WHEN 'SM-P' THEN 11
+              WHEN 'MA'   THEN 4  WHEN 'SR'   THEN 5
+              WHEN 'AR'   THEN 6  WHEN 'CSR'  THEN 7
+              WHEN 'CHR'  THEN 8  WHEN 'HR'   THEN 9
+              WHEN 'SSR'  THEN 10 WHEN 'SM-P' THEN 11
               WHEN 'RRR'  THEN 12 WHEN 'RR'   THEN 13
               WHEN 'PR'   THEN 14 WHEN 'K'    THEN 15
               WHEN 'S'    THEN 16 ELSE 99 END DESC, c.name ASC

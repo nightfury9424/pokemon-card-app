@@ -2,9 +2,9 @@
 /// PokeFolio는 고레어 카드만 다룸 — ACE/H/R/C/U 등 일반 레어도는 제외.
 ///
 /// 2026-05-12 사용자 확정 + 2026-06-04 BWR 상향(세트 한정 최상위 체이스 → MUR 바로 아래):
-/// - MUR/BWR/UR/SAR/MA/AR: 시세 최정점
-/// - CSR/CHR/HR: 캐릭터/하이 레어
-/// - SSR(→SR 인접)/SR: 묶음
+/// - MUR/BWR/UR/SAR/MA: 시세 최정점
+/// - SR: 2026-06-14 AR 위로(공식 레어도순 — 유저 피드백)
+/// - AR/CSR/CHR/HR/SSR: 아트/캐릭터/하이 레어
 /// - SM-P/RRR/RR: 고레어 하한
 /// - PR/K/S: 끝 묶음 (한정 프로모 + Shiny K-version + 시크릿)
 ///
@@ -17,12 +17,12 @@ class AppRarity {
     'UR',   // Ultra Rare
     'SAR',  // Special Art Rare
     'MA',   // Mega Art (메가에볼루션 ex 일러스트)
+    'SR',   // Super Rare — 2026-06-14 AR 위로 이동(공식 레어도순, 유저 피드백: SR이 AR 아래라 "사라진 줄 착각")
     'AR',   // Art Rare
     'CSR',  // Character Super Rare
     'CHR',  // Character Rare
     'HR',   // High Rare
-    'SSR',  // Super Special Rare (SR과 묶음)
-    'SR',   // Super Rare
+    'SSR',  // Super Special Rare
     'SM-P', // Sun & Moon Promo (구버전 한정)
     'RRR',  // Triple Rare
     'RR',   // Double Rare

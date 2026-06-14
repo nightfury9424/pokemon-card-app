@@ -866,6 +866,132 @@ public class AdminController {
     }
 
     /* ════════════════════════════════
+       A: 시리즈(세트) 일괄추가 — KO (pokemoncard 순차 walk)
+       ════════════════════════════════ */
+
+    /** prefix 형식: 영문2 + 숫자7 (예 BS2026003 = BS+연도4+세트seq3). 카드번호 3자리는 walk가 부여. */
+    private static final Pattern KO_SET_PREFIX_PAT = Pattern.compile("^[A-Za-z]{2}\\d{7}$");
+
+    /** ★저레어 — 카탈로그 정책상 제외: C/U/R = row 삭제(legacy commons), S/K = 감춤. chase 레어도만 노출.
+     *  일괄추가 기본 제외 (admin이 명시 override 시에만 추가). null(파싱실패)도 자동추가 안 함. */
+    private static final java.util.Set<String> LOW_RARITY_SET = java.util.Set.of("C", "U", "R", "S", "K");
+
+    /**
+     * 세트 일괄추가 1단계 — 미리보기(dry-run). pokemoncard `/cards/detail/{prefix}{번호:03d}` 순차 조회.
+     * 빈 카드(parseKoDetail==null)가 maxGap 연속이면 세트 끝으로 보고 종료. 기존 DB와 dedup(exists 플래그).
+     * ★실제 INSERT 안 함 — bulk-insert 에서. scrydex 와 무관(KO 전용 소스).
+     */
+    @GetMapping("/cards/bulk-preview")
+    public ReturnData<?> bulkPreview(
+            @RequestParam String prefix,
+            @RequestParam(defaultValue = "5")   int maxGap,
+            @RequestParam(defaultValue = "300") int maxCards) {
+        if (prefix == null || !KO_SET_PREFIX_PAT.matcher(prefix).matches())
+            return ReturnData.badRequest("prefix 형식 오류 (예: BS2026003)");
+        if (maxCards > 400) maxCards = 400;   // 안전 상한 (외부 사이트 과호출 방지)
+        if (maxGap   > 20)  maxGap   = 20;
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        int gap = 0, found = 0, existing = 0;
+        for (int n = 1; n <= maxCards && gap < maxGap; n++) {
+            String code = prefix + String.format("%03d", n);
+            try {
+                Document doc = Jsoup.connect("https://pokemoncard.co.kr/cards/detail/" + code)
+                    .userAgent(PC_UA).timeout(8_000).get();
+                Map<String, Object> p = parseKoDetail(doc);
+                if (p == null) { gap++; continue; }
+                gap = 0; found++;
+                boolean exists = ((Number) em.createQuery(
+                    "SELECT COUNT(c) FROM Card c WHERE c.officialCardCode = :code")
+                    .setParameter("code", code).getSingleResult()).longValue() > 0;
+                if (exists) existing++;
+                String rc = (String) p.get("rarityCode");
+                p.put("lowRarity", rc == null || LOW_RARITY_SET.contains(rc));  // 정책상 제외 후보
+                p.put("officialCardCode", code);
+                p.put("exists", exists);
+                rows.add(p);
+            } catch (Exception e) {
+                gap++;   // 네트워크/404 등도 gap 으로 (연속이면 종료)
+            }
+            try { Thread.sleep(120); }   // politeness — 외부 사이트 과호출 방지
+            catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("prefix",   prefix);
+        out.put("found",    found);
+        out.put("existing", existing);
+        out.put("newCount", found - existing);
+        out.put("cards",    rows);
+        return ReturnData.success(out);
+    }
+
+    /**
+     * 세트 일괄추가 2단계 — 확정 카드 INSERT. body = {productId(세트, 일괄적용 필수), cards:[{officialCardCode,name,rarityCode,collectionNumber}]}.
+     * ★멱등: officialCardCode 이미 있으면 skip. 세트 1개 단위라 productId 는 admin 이 한번 선택해 전체 적용.
+     * 이미지는 미포함(KO 전용 — scrydex 매칭 시 별도 미러, 현 KO-exclusive 동작과 동일).
+     */
+    @PostMapping("/cards/bulk-insert")
+    @org.springframework.transaction.annotation.Transactional
+    public ReturnData<?> bulkInsert(@RequestBody Map<String, Object> body) {
+        String productId = (String) body.get("productId");
+        if (productId == null || productId.isBlank())
+            return ReturnData.badRequest("productId(세트)는 필수입니다.");
+        boolean allowLowRarity = Boolean.TRUE.equals(body.get("allowLowRarity"));  // 명시 override만
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> cards = (List<Map<String, Object>>) body.get("cards");
+        if (cards == null || cards.isEmpty())
+            return ReturnData.badRequest("cards 가 비었습니다.");
+
+        // N+1 제거(Codex P1): 기존 officialCardCode 한 번에 조회 → Set 멱등 체크
+        List<String> allCodes = new ArrayList<>();
+        for (Map<String, Object> c : cards) {
+            Object code = c.get("officialCardCode");
+            if (code instanceof String s && !s.isBlank()) allCodes.add(s);
+        }
+        java.util.Set<String> existingCodes = allCodes.isEmpty() ? java.util.Set.of()
+            : new java.util.HashSet<>(em.createQuery(
+                "SELECT c.officialCardCode FROM Card c WHERE c.officialCardCode IN :codes", String.class)
+                .setParameter("codes", allCodes).getResultList());
+
+        int inserted = 0, skipped = 0;
+        List<String> errors = new ArrayList<>();
+        var now = java.time.LocalDateTime.now();
+        for (Map<String, Object> c : cards) {
+            String code       = (String) c.get("officialCardCode");
+            String name       = (String) c.get("name");
+            String rarityCode = (String) c.get("rarityCode");
+            String colNumber  = (String) c.get("collectionNumber");
+            if (code == null || code.isBlank() || name == null || name.isBlank()) { skipped++; continue; }
+            if (rarityCode == null || rarityCode.isBlank()) { errors.add(code + ": 레어도 없음"); continue; }
+            // ★저레어 서버 가드(정책): C/U/R/S/K 는 override 없으면 skip (FE 기본 미선택 + 이중 방어)
+            if (!allowLowRarity && LOW_RARITY_SET.contains(rarityCode)) { skipped++; continue; }
+            if (existingCodes.contains(code)) { skipped++; continue; }
+
+            String cardId = "CRD_" + java.util.UUID.randomUUID().toString().replace("-", "").toUpperCase();
+            em.createNativeQuery("""
+                INSERT INTO cards (card_id, product_id, official_card_code, name, collection_number,
+                  rarity_code, language, super_type, sub_type, card_type,
+                  en_scrydex_ref, jp_scrydex_ref, is_promo_exclusive, created_at, updated_at)
+                VALUES (?,?,?,?,?,?, 'KO', 'POKEMON', NULL, NULL, NULL, NULL, false, ?, ?)
+                """)
+                .setParameter(1, cardId).setParameter(2, productId)
+                .setParameter(3, code).setParameter(4, name)
+                .setParameter(5, colNumber).setParameter(6, rarityCode)
+                .setParameter(7, now).setParameter(8, now)
+                .executeUpdate();
+            inserted++;
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("inserted", inserted);
+        out.put("skipped",  skipped);
+        out.put("errors",   errors);
+        out.put("productId", productId);
+        return ReturnData.success(out);
+    }
+
+    /* ════════════════════════════════
        거래 목록
        ════════════════════════════════ */
     @GetMapping("/trades")
@@ -1101,6 +1227,34 @@ public class AdminController {
     private static final Pattern COL_NUM_PAT = Pattern.compile("\\b(\\d{1,3}/\\d{1,3})\\b");
     private static final Pattern RARITY_AFTER_COL_PAT = Pattern.compile("\\d{1,3}/\\d{1,3}\\s*([A-Za-z]{1,3})\\b");
 
+    /** scrydex rarity(JP 카타카나/EN) → 앱 rarity_code. 미매칭은 null → admin 수동선택.
+     *  (2026-06-14 스마트 카드추가 B2 — 확실한 것만, 모호하면 안 넣음) */
+    private static final Map<String, String> RARITY_MAP = Map.ofEntries(
+        Map.entry("PROMO", "PR"),                  Map.entry("プロモ", "PR"),
+        Map.entry("DOUBLE RARE", "RR"),            Map.entry("ダブルレア", "RR"),
+        Map.entry("TRIPLE RARE", "RRR"),           Map.entry("トリプルレア", "RRR"),
+        Map.entry("ART RARE", "AR"),               Map.entry("アートレア", "AR"),
+        Map.entry("ILLUSTRATION RARE", "AR"),
+        Map.entry("SPECIAL ART RARE", "SAR"),      Map.entry("スペシャルアートレア", "SAR"),
+        Map.entry("SPECIAL ILLUSTRATION RARE", "SAR"),
+        Map.entry("SUPER RARE", "SR"),             Map.entry("スーパーレア", "SR"),
+        Map.entry("HYPER RARE", "HR"),             Map.entry("ハイパーレア", "HR"),
+        Map.entry("ULTRA RARE", "UR"),             Map.entry("ウルトラレア", "UR"),
+        Map.entry("RARE", "R"),                    Map.entry("レア", "R"),
+        Map.entry("UNCOMMON", "U"),                Map.entry("アンコモン", "U"),
+        Map.entry("COMMON", "C"),                  Map.entry("コモン", "C")
+    );
+
+    /** scrydex expansion.name → KO 세트명(Product.name 조회용). 미매칭은 scrydex 원문 그대로 + productId null.
+     *  (초기 상수, 늘면 DB 테이블로 이전 — Codex 권고) */
+    private static final Map<String, String> SCRYDEX_SET_MAP = Map.ofEntries(
+        Map.entry("Sun & Moon Promos", "썬&문 프로모"),
+        Map.entry("Sword & Shield Promos", "소드&실드 프로모"),
+        Map.entry("Scarlet & Violet Promos", "스칼렛&바이올렛 프로모"),
+        Map.entry("SVP Black Star Promos", "스칼렛&바이올렛 프로모"),
+        Map.entry("SWSH Black Star Promos", "소드&실드 프로모")
+    );
+
     @GetMapping("/cards/lookup")
     public ReturnData<?> cardLookup(
             @RequestParam String type,
@@ -1115,78 +1269,16 @@ public class AdminController {
         };
     }
 
+    private static final String PC_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
+
     private ReturnData<?> lookupKo(String officialCardCode) {
         String url = "https://pokemoncard.co.kr/cards/detail/" + officialCardCode;
         try {
-            Document doc = Jsoup.connect(url)
-                .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
-                .timeout(12_000)
-                .get();
-
-            // 카드명
-            String name = "";
-            Element titleSpan = doc.selectFirst("span.card-hp.title");
-            if (titleSpan != null) name = titleSpan.text().trim();
-
-            // 수록번호 + 희귀도
-            String collectionNumber = null, rarityCode = null;
-            Element pNum = doc.selectFirst("span.p_num");
-            if (pNum != null) {
-                String pText = pNum.text();
-                Matcher m1 = COL_NUM_PAT.matcher(pText);
-                if (m1.find()) collectionNumber = m1.group(1);
-
-                Element noWrap = pNum.selectFirst("span#no_wrap_by_admin");
-                if (noWrap != null) {
-                    String rc = noWrap.text().trim().toUpperCase();
-                    if (RARITY_SET.contains(rc)) rarityCode = rc;
-                }
-                if (rarityCode == null) {
-                    Matcher m2 = RARITY_AFTER_COL_PAT.matcher(pText);
-                    if (m2.find()) {
-                        String cand = m2.group(1).toUpperCase();
-                        if (RARITY_SET.contains(cand)) rarityCode = cand;
-                    }
-                }
-            }
-
-            // 세트명
-            String productName = null;
-            Element aTag = doc.selectFirst("div.pokemon-detail.txt_centre a.search_href");
-            if (aTag != null) productName = aTag.text().trim();
-
-            // DB에서 product_id 조회
-            String productId = null;
-            if (productName != null && !productName.isBlank()) {
-                @SuppressWarnings("unchecked")
-                List<String> rows = em.createQuery(
-                    "SELECT p.productId FROM Product p WHERE p.name = :name", String.class)
-                    .setParameter("name", productName)
-                    .setMaxResults(1)
-                    .getResultList();
-                if (!rows.isEmpty()) {
-                    productId = rows.get(0);
-                } else {
-                    // 첫 단어로 LIKE 검색
-                    String firstWord = productName.split(" ")[0];
-                    @SuppressWarnings("unchecked")
-                    List<String> likeRows = em.createQuery(
-                        "SELECT p.productId FROM Product p WHERE p.name LIKE :q ORDER BY p.name", String.class)
-                        .setParameter("q", "%" + firstWord + "%")
-                        .setMaxResults(1)
-                        .getResultList();
-                    if (!likeRows.isEmpty()) productId = likeRows.get(0);
-                }
-            }
-
-            Map<String, Object> result = new LinkedHashMap<>();
-            result.put("name",             name);
-            result.put("rarityCode",        rarityCode);
-            result.put("collectionNumber",  collectionNumber);
-            result.put("productName",       productName);
-            result.put("productId",         productId);
-            return ReturnData.success(result);
-
+            Document doc = Jsoup.connect(url).userAgent(PC_UA).timeout(12_000).get();
+            Map<String, Object> parsed = parseKoDetail(doc);
+            if (parsed == null)
+                return ReturnData.notFound("포켓몬 코리아에서 카드를 찾을 수 없습니다: " + officialCardCode);
+            return ReturnData.success(parsed);
         } catch (org.jsoup.HttpStatusException e) {
             return ReturnData.notFound("포켓몬 코리아에서 카드를 찾을 수 없습니다: " + officialCardCode);
         } catch (Exception e) {
@@ -1194,7 +1286,54 @@ public class AdminController {
         }
     }
 
+    /** pokemoncard 카드 상세 DOM 파싱 → {name,rarityCode,collectionNumber,productName,productId}.
+     *  ★이름 없으면 null = 빈 카드(범위밖) → A 세트 walk 의 종료 신호로도 사용. lookupKo/bulkPreview 공용. */
+    private Map<String, Object> parseKoDetail(Document doc) {
+        String name = "";
+        Element titleSpan = doc.selectFirst("span.card-hp.title");
+        if (titleSpan != null) name = titleSpan.text().trim();
+        if (name.isBlank()) return null;
+
+        String collectionNumber = null, rarityCode = null;
+        Element pNum = doc.selectFirst("span.p_num");
+        if (pNum != null) {
+            String pText = pNum.text();
+            Matcher m1 = COL_NUM_PAT.matcher(pText);
+            if (m1.find()) collectionNumber = m1.group(1);
+
+            Element noWrap = pNum.selectFirst("span#no_wrap_by_admin");
+            if (noWrap != null) {
+                String rc = noWrap.text().trim().toUpperCase();
+                if (RARITY_SET.contains(rc)) rarityCode = rc;
+            }
+            if (rarityCode == null) {
+                Matcher m2 = RARITY_AFTER_COL_PAT.matcher(pText);
+                if (m2.find()) {
+                    String cand = m2.group(1).toUpperCase();
+                    if (RARITY_SET.contains(cand)) rarityCode = cand;
+                }
+            }
+        }
+
+        String productName = null;
+        Element aTag = doc.selectFirst("div.pokemon-detail.txt_centre a.search_href");
+        if (aTag != null) productName = aTag.text().trim();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("name",             name);
+        result.put("rarityCode",        rarityCode);
+        result.put("collectionNumber",  collectionNumber);
+        result.put("productName",       productName);
+        result.put("productId",         resolveProductId(productName));  // exact-only (Codex P1)
+        return result;
+    }
+
+    /** scrydex ref 패턴 (예 smp_ja-407, sv8pt5_en-...). 경로조작/오염 차단(Codex P1 SSRF). */
+    private static final Pattern SCRYDEX_REF_PAT = Pattern.compile("^[a-z0-9_\\-]{3,40}$");
+
     private ReturnData<?> lookupScrydex(String ref, boolean isJp) {
+        if (ref == null || !SCRYDEX_REF_PAT.matcher(ref).matches())
+            return ReturnData.badRequest("유효하지 않은 scrydex ref 형식");
         String url = "https://scrydex.com/pokemon/cards/_/" + ref;
         try {
             Document doc = Jsoup.connect(url)
@@ -1214,9 +1353,43 @@ public class AdminController {
                 if (h1 != null) name = h1.text().trim();
             }
 
+            // ── B2 (2026-06-14): data-field 값 추출 → 전체 auto-fill ──
+            //   ★[data-field=X] 직접은 '라벨'(예 "rarity"), 값은 그 parent의 .text-body-16 (실측 확인)
+            String rawRarity = scrydexField(doc, "rarity");        // 표시패널 값 (예 "Promo")
+            String rarityCode = null;
+            if (rawRarity != null) {
+                rarityCode = RARITY_MAP.get(rawRarity.toUpperCase());   // EN
+                if (rarityCode == null) rarityCode = RARITY_MAP.get(rawRarity); // JP 카타카나 fallback
+            }
+
+            String collectionNumber = scrydexField(doc, "printed_number");
+            String seriesName       = scrydexField(doc, "expansion.series");
+
+            // 세트: scrydex expansion.name → KO 세트명 매핑 → productId 조회 (미매칭은 원문+null)
+            String productName = null, productId = null;
+            String scrydexSet = scrydexField(doc, "expansion.name");
+            if (scrydexSet != null) {
+                productName = SCRYDEX_SET_MAP.getOrDefault(scrydexSet, scrydexSet);
+                productId   = resolveProductId(productName);
+            }
+
+            // 이미지: og:image 우선, 없으면 scrydex CDN 패턴
+            String imageUrl = null;
+            Element ogImg = doc.selectFirst("meta[property='og:image']");
+            if (ogImg != null) imageUrl = ogImg.attr("content");
+            if (imageUrl == null || imageUrl.isBlank())
+                imageUrl = "https://images.scrydex.com/pokemon/" + ref + "/medium";
+
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("name",  name);
-            result.put("valid", true);
+            result.put("name",             name);
+            result.put("valid",            true);
+            result.put("rarityCode",        rarityCode);
+            result.put("collectionNumber",  collectionNumber);
+            result.put("productName",       productName);
+            result.put("productId",         productId);
+            result.put("seriesName",        seriesName);
+            result.put("imageUrl",          imageUrl);
+            result.put("language",          isJp ? "JP" : "EN");
             return ReturnData.success(result);
 
         } catch (org.jsoup.HttpStatusException e) {
@@ -1224,6 +1397,33 @@ public class AdminController {
         } catch (Exception e) {
             return ReturnData.badRequest("조회 중 오류: " + e.getMessage());
         }
+    }
+
+    /** KO 세트명 → Product.productId. ★exact 매칭만(Codex 리뷰 P1): 첫단어 LIKE fallback은
+     *  오매핑(잘못된 세트→가격/그룹 오류) 위험 — 실패 시 null 반환, admin이 수동 선택. */
+    private String resolveProductId(String productName) {
+        if (productName == null || productName.isBlank()) return null;
+        String norm = productName.trim().replaceAll("\\s+", " ");  // 스크랩 공백 정규화 (오매핑 없이 exact 매칭률↑)
+        List<String> rows = em.createQuery(
+                "SELECT p.productId FROM Product p WHERE p.name = :name", String.class)
+            .setParameter("name", norm).setMaxResults(1).getResultList();
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /** scrydex 카드 상세에서 data-field 값 추출. [data-field=X]는 숨김 '라벨'이라,
+     *  그 parent 의 .text-body-16(표시값)을 읽는다. (2026-06-14 실측 확인)
+     *  방어(Codex P1): 라벨 자신은 제외하고, 추출값이 필드명 문자열이면 무효 처리. */
+    private static String scrydexField(Document doc, String field) {
+        Element label = doc.selectFirst("[data-field='" + field + "']");
+        if (label == null || label.parent() == null) return null;
+        Element val = null;
+        for (Element e : label.parent().select(".text-body-16")) {
+            if (!e.equals(label)) { val = e; break; }
+        }
+        if (val == null) return null;
+        String t = val.text().trim();
+        if (t.isEmpty() || t.equalsIgnoreCase(field)) return null;  // 라벨명 그대로면 무효
+        return t;
     }
 
     /* ════════════════════════════════

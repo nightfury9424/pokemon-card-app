@@ -7,6 +7,27 @@ import { useNavigate } from 'react-router-dom'
 import { Mail, RefreshCw, Send } from 'lucide-react'
 import api from '../api'
 
+// 카드추가요청 문의 content(라벨 구조화) 파싱 → 카드추가 폼 prefill 객체
+// content 포맷(앱 inquiry_compose_screen): "카드명: …/언어: 한국판|일본판|미국판/수록팩/세트명: …/카드 번호: …/레어도: …/참고 링크: …"
+function parseCardAddRequest(content) {
+  const f = {}
+  for (const line of (content || '').split('\n')) {
+    const i = line.indexOf(':')
+    if (i > 0) f[line.slice(0, i).trim()] = line.slice(i + 1).trim()
+  }
+  const lang = f['언어'] || ''
+  const language = lang.includes('일본') ? 'JP'
+    : (lang.includes('미국') || lang.includes('영')) ? 'EN' : 'KO'
+  return {
+    name: f['카드명'] || '',
+    language,
+    setName: f['수록팩/세트명'] || '',
+    collectionNumber: f['카드 번호'] || '',
+    rarity: f['레어도'] || '',
+    refLink: f['참고 링크'] || '',
+  }
+}
+
 const S = {
   page:   { padding: '32px 36px', minHeight: '100%', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
@@ -160,7 +181,7 @@ function ReplyModal({ row, onClose, onDone }) {
           {CATEGORY_LABEL[row.category] ?? row.category} · {row.nickname || row.userId}
           {row.contactEmail ? ` · ${row.contactEmail}` : ''}
         </div>
-        <div style={{ background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 10, padding: 14, fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap', marginBottom: 18 }}>
+        <div style={{ background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 10, padding: 14, fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap', marginBottom: row.category === 'cardAddRequest' ? 10 : 18 }}>
           {row.content}
         </div>
         {row.imageUrls?.length > 0 && (
@@ -179,7 +200,8 @@ function ReplyModal({ row, onClose, onDone }) {
           <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#4f46e5', marginBottom: 8 }}>카드 추가 요청 처리</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button onClick={() => navigate('/cards')}
+              {/* B1: 문의 content 파싱 → 카드추가 폼 prefill */}
+              <button onClick={() => navigate('/cards', { state: { prefillCard: parseCardAddRequest(row.content) } })}
                 style={{ fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 7, border: '1px solid #4f46e5', background: '#4f46e5', color: '#fff', cursor: 'pointer' }}>
                 카드 관리에서 추가하기 →
               </button>
