@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_error_toast.dart';
+import '../../core/widgets/auth_image.dart';
 
 /// 내 문의 내역 — GET /api/inquiries/me. 관리자 답변(adminReply) 상태 노출.
 class InquiryHistoryScreen extends StatefulWidget {
@@ -193,6 +194,10 @@ class _InquiryHistoryScreenState extends State<InquiryHistoryScreen> {
     final content = item['content']?.toString() ?? '';
     final adminReply = item['adminReply']?.toString() ?? '';
     final catLabel = _categoryLabels[category] ?? category;
+    final imageUrls = ((item['imageUrls'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .where((e) => e.isNotEmpty)
+        .toList();
 
     showModalBottomSheet<void>(
       context: context,
@@ -243,6 +248,34 @@ class _InquiryHistoryScreenState extends State<InquiryHistoryScreen> {
               Text(content,
                   style: const TextStyle(
                       color: AppColors.textPrimary, fontSize: 14, height: 1.5)),
+              if (imageUrls.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Text('첨부 사진 (${imageUrls.length})',
+                    style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final u in imageUrls)
+                      GestureDetector(
+                        onTap: () => _viewImage(ctx, u),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: AuthImage(
+                            url: u,
+                            width: 84,
+                            height: 84,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
               if (adminReply.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 Container(
@@ -286,6 +319,36 @@ class _InquiryHistoryScreenState extends State<InquiryHistoryScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// 첨부 사진 전체보기 — 탭하면 풀스크린 줌(InteractiveViewer).
+  void _viewImage(BuildContext ctx, String url) {
+    showDialog<void>(
+      context: ctx,
+      barrierColor: Colors.black87,
+      builder: (dctx) => Stack(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(dctx),
+            child: Center(
+              child: InteractiveViewer(
+                minScale: 0.8,
+                maxScale: 4,
+                child: AuthImage(url: url, fit: BoxFit.contain),
+              ),
+            ),
+          ),
+          Positioned(
+            top: MediaQuery.of(dctx).padding.top + 8,
+            right: 12,
+            child: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 28),
+              onPressed: () => Navigator.pop(dctx),
+            ),
+          ),
+        ],
       ),
     );
   }
