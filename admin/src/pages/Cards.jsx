@@ -308,7 +308,23 @@ function AddCardModal({ onClose, onAdded, prefill }) {
 
               {preview && (
                 <div style={{ border: '1px solid #e9e7fd', borderRadius: 12, padding: 14, marginBottom: 14, background: '#fafaff' }}>
-                  {preview.koEstimated != null ? (
+                  {/* ★JP/EN 탭 = KO 모델 안 돌리고 scrydex 실시장가(백필) 그대로. KO 탭만 모델 예상가. */}
+                  {tab !== 'KO' ? (
+                    (tab === 'JP' ? preview.jpRawKrw : preview.enRawKrw) != null ? (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>{tab} 시세</span>
+                          <span style={{ fontSize: 22, fontWeight: 800, color: '#4f46e5' }}>{won(tab === 'JP' ? preview.jpRawKrw : preview.enRawKrw)}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 99, padding: '2px 8px' }}>실시장가</span>
+                        </div>
+                        <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 8, lineHeight: 1.5 }}>
+                          scrydex {tab} 실시장가 그대로예요 (KO 모델 추정 아님). 단독 프로모·해외판은 이 백필값이 시세 — 추가 시 저장됩니다.
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 12, color: '#64748b' }}>{preview.message ?? 'scrydex에서 시세를 못 가져왔어요. 카드는 추가 가능, 시세는 추후 수집됩니다.'}</div>
+                    )
+                  ) : preview.koEstimated != null ? (
                     <>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>예상가</span>
