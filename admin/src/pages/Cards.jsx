@@ -116,9 +116,12 @@ function AddCardModal({ onClose, onAdded, prefill }) {
 
   const handleLookup = async () => {
     if (!code.trim()) return setLookupErr('코드를 입력하세요.')
+    // ★URL 통째로 붙여넣어도 OK — ref/코드만 추출 (scrydex .../smp_ja-407?variant=… → smp_ja-407, 포켓몬코리아 .../detail/BS… → BS…)
+    const lookupCode = extractLookupCode(code) || code.trim()
+    if (lookupCode !== code.trim()) setCode(lookupCode)
     setLooking(true); setLookupErr(''); setLooked(false)
     try {
-      const r = await api.get('/admin/cards/lookup', { params: { type: tab, code: code.trim() } })
+      const r = await api.get('/admin/cards/lookup', { params: { type: tab, code: lookupCode } })
       const d = r.data?.data ?? {}
       setName(d.name ?? '')
       setRarityCode(d.rarityCode ?? '')
@@ -127,8 +130,8 @@ function AddCardModal({ onClose, onAdded, prefill }) {
       setImageUrl(d.imageUrl ?? '')
       // 세트 드롭다운 검색어를 세트명 전체로 초기화해서 pre-filter (부분일치)
       if (d.productName) setProductSearch(d.productName)
-      if (tab === 'EN') setEnRef(code.trim())
-      if (tab === 'JP') setJpRef(code.trim())
+      if (tab === 'EN') setEnRef(lookupCode)
+      if (tab === 'JP') setJpRef(lookupCode)
       setLooked(true)
     } catch (e) {
       setLookupErr(e.response?.data?.message ?? '조회 실패. 코드를 확인하세요.')
