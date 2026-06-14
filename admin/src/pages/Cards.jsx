@@ -28,6 +28,17 @@ const extractLookupCode = (link) => {
   const seg = link.split('?')[0].replace(/\/+$/, '').split('/').pop() || ''
   return /^[A-Za-z0-9_\-]{3,40}$/.test(seg) ? seg : ''
 }
+// 카드번호 → scrydex ref 유추 (프로모만 신뢰: 407/SM-P → smp_ja-407 / smp-407). 비-프로모는 세트코드 불확실해 패스.
+// 자동조회로 이미지 확인되면 채택, 실패하면 admin 수동 — 틀려도 안전(graceful).
+const deriveScrydexRef = (number, language) => {
+  if (!number || (language !== 'JP' && language !== 'EN')) return ''
+  const m = number.trim().match(/^(\d{1,3})\/([A-Za-z0-9-]+)$/)
+  if (!m) return ''
+  const [, num, suffix] = m
+  if (!/-P$/i.test(suffix)) return ''            // 프로모(-P 접미)만
+  const code = suffix.replace(/-/g, '').toLowerCase()   // SM-P→smp, SV-P→svp
+  return language === 'JP' ? `${code}_ja-${num}` : `${code}-${num}`
+}
 
 function RarityBadge({ rarity }) {
   const colors = {
@@ -50,7 +61,7 @@ function RarityBadge({ rarity }) {
 function AddCardModal({ onClose, onAdded, prefill }) {
   // ── 3판본(KO/JP/EN) 각각 조회 상태 ──
   const mkCol = (code = '') => ({ code, looking: false, err: '', looked: false, name: '', rarity: '', num: '', img: '', productName: '', productId: '' })
-  const pfCode = prefill ? (extractLookupCode(prefill.refLink) || '') : ''
+  const pfCode = prefill ? (extractLookupCode(prefill.refLink) || deriveScrydexRef(prefill.collectionNumber, prefill.language) || '') : ''
   const [ko, setKo] = useState(() => mkCol(prefill?.language === 'KO' ? pfCode : ''))
   const [jp, setJp] = useState(() => mkCol(prefill?.language === 'JP' ? pfCode : ''))
   const [en, setEn] = useState(() => mkCol(prefill?.language === 'EN' ? pfCode : ''))
@@ -111,6 +122,16 @@ function AddCardModal({ onClose, onAdded, prefill }) {
       set(c => ({ ...c, looking: false, err: e.response?.data?.message ?? '조회 실패' }))
     }
   }
+
+  // ★문의(B1)에서 열렸으면 해당 판본 자동 조회(긁어오기) — 번호/링크로 시드된 코드가 있으면
+  const autoRan = useRef(false)
+  useEffect(() => {
+    if (prefill && !autoRan.current) {
+      const ed = ['KO', 'JP', 'EN'].includes(prefill.language) ? prefill.language : 'KO'
+      if (cols[ed][0].code) { autoRan.current = true; lookup(ed) }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSubmit = async () => {
     if (!name.trim())  return setSubmitErr('카드명(KO)을 입력하세요.')
