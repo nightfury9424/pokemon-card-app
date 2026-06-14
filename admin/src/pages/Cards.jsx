@@ -101,10 +101,10 @@ function AddCardModal({ onClose, onAdded, prefill }) {
     return () => clearTimeout(t)
   }, [rarityCode, productId, jp.code, en.code])
 
-  // 판본별 조회 — URL 통째로 붙여도 ref 자동추출
-  const lookup = async (ed) => {
+  // 판본별 조회 — URL 통째로 붙여도 ref 자동추출. explicitCode=유추코드(문의 자동조회)
+  const lookup = async (ed, explicitCode) => {
     const [col, set] = cols[ed]
-    const raw = col.code.trim()
+    const raw = (explicitCode ?? col.code).trim()
     if (!raw) return
     const code = extractLookupCode(raw) || raw
     set(c => ({ ...c, code, looking: true, err: '', looked: false }))
@@ -126,9 +126,15 @@ function AddCardModal({ onClose, onAdded, prefill }) {
   // ★문의(B1)에서 열렸으면 해당 판본 자동 조회(긁어오기) — 번호/링크로 시드된 코드가 있으면
   const autoRan = useRef(false)
   useEffect(() => {
-    if (prefill && !autoRan.current) {
-      const ed = ['KO', 'JP', 'EN'].includes(prefill.language) ? prefill.language : 'KO'
-      if (cols[ed][0].code) { autoRan.current = true; lookup(ed) }
+    if (!prefill || autoRan.current) return
+    autoRan.current = true
+    const ed = ['KO', 'JP', 'EN'].includes(prefill.language) ? prefill.language : 'KO'
+    if (cols[ed][0].code) { lookup(ed); return }
+    // KO: 코드 없으면 세트명+번호로 BS코드 유추 → 자동 조회 (초전브레이커+109 → BS2024017109)
+    if (ed === 'KO' && prefill.setName && prefill.collectionNumber) {
+      api.get('/admin/cards/derive-ko-code', { params: { productName: prefill.setName, number: prefill.collectionNumber } })
+        .then(r => { const code = r.data?.data?.code; if (code) lookup('KO', code) })
+        .catch(() => {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

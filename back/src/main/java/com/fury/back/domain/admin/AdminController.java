@@ -1410,6 +1410,25 @@ public class AdminController {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /** ★문의 자동화: KO 세트명+번호 → BS 오피셜코드 유추. 세트의 기존 카드 official_card_code prefix(9자=BS+연도4+seq3) + 번호3자리.
+     *  (초전브레이커 + 109/SV8 → 기존 BS2024017xxx → BS2024017109). 문의 카드추가 자동조회용. */
+    @GetMapping("/cards/derive-ko-code")
+    public ReturnData<?> deriveKoCode(@RequestParam String productName, @RequestParam String number) {
+        Matcher nm = Pattern.compile("^(\\d{1,3})").matcher(number == null ? "" : number.trim());
+        if (!nm.find()) return ReturnData.badRequest("번호 형식 오류");
+        String num  = String.format("%03d", Integer.parseInt(nm.group(1)));
+        String norm = productName == null ? "" : productName.trim().replaceAll("\\s+", " ");
+        String jpql = "SELECT c.officialCardCode FROM Card c, Product p WHERE c.productId = p.productId "
+                    + "AND p.name %s AND c.officialCardCode <> '' AND LENGTH(c.officialCardCode) >= 12 ORDER BY c.officialCardCode";
+        List<String> codes = em.createQuery(String.format(jpql, "= :pn"), String.class)
+            .setParameter("pn", norm).setMaxResults(1).getResultList();
+        if (codes.isEmpty())   // exact 실패 → LIKE fallback
+            codes = em.createQuery(String.format(jpql, "LIKE :pn"), String.class)
+                .setParameter("pn", "%" + norm + "%").setMaxResults(1).getResultList();
+        if (codes.isEmpty()) return ReturnData.notFound("세트의 기존 카드가 없어 코드 유추 불가");
+        return ReturnData.success(Map.of("code", codes.get(0).substring(0, 9) + num));
+    }
+
     /** scrydex 카드 상세에서 data-field 값 추출. [data-field=X]는 숨김 '라벨'이라,
      *  그 parent 의 .text-body-16(표시값)을 읽는다. (2026-06-14 실측 확인)
      *  방어(Codex P1): 라벨 자신은 제외하고, 추출값이 필드명 문자열이면 무효 처리. */
