@@ -205,7 +205,10 @@ function ReplyModal({ row, onClose, onDone }) {
                 style={{ fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 7, border: '1px solid #4f46e5', background: '#4f46e5', color: '#fff', cursor: 'pointer' }}>
                 카드 관리에서 추가하기 →
               </button>
-              <button onClick={() => setReply('요청하신 카드를 카탈로그에 추가했어요. 앱에서 검색해 확인해 주세요. 소중한 제보 감사합니다!')}
+              <button onClick={() => {
+                  const p = parseCardAddRequest(row.content); const card = p.name || '요청하신 카드'; const nick = row.nickname || '회원'
+                  setReply(`${nick}님, 안녕하세요! 포켓폴리오입니다!\n\n${card} 추가 요청 감사합니다! 알려주신 덕분에 카탈로그가 한 칸씩 채워집니다.\n\n요청하신 ${card} 방금 추가 완료했어요! 지금 앱에서 "${card}" 검색하면 바로 보이실 거예요. 한국판 기준으로 등록했고, 예상 시세도 채워졌습니다!\n\n또 빠진 카드 보이면 언제든 편하게 요청 주세요. 하나하나 채워나갈게요. 감사합니다!\n— 포켓폴리오 드림`)
+                }}
                 style={{ fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 7, border: '1px solid #c7d2fe', background: '#fff', color: '#4f46e5', cursor: 'pointer' }}>
                 처리완료 답변 채우기
               </button>
