@@ -582,6 +582,86 @@ async def scrydex_ai_search(q: str = Query(...), card_id: str = Query(...)):
     return {"query": q, "total": len(all_results), "results": all_results}
 
 
+def _embed_flat_bytes(data: bytes) -> np.ndarray:
+    """평면 카드 이미지(scrydex medium) → warp 없이 직접 임베드.
+    검증(2026-06-15): JP 카르본 AR(m2_ja-83) ↔ EN mep-22 = 0.900, 오매핑 Dewgong(me2-97) = -0.01."""
+    img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("이미지 디코딩 실패")
+    return get_embedding(resize_if_needed(img))
+
+
+@app.post("/scrydex/match-en")
+async def scrydex_match_en(payload: dict):
+    """★카드추가 EN 매핑 검증/탐색 — JP 카드 이미지 ↔ EN 후보 DINOv2 시각 유사도.
+    번호오프셋 휴리스틱(MEGA·리셔플 세트서 오매핑: 카르본→Dewgong)을 대체 / resolveEnRef 보강.
+    payload: {jpRef, q(검색어=포켓몬명), threshold?(0.85), maxPages?(6)}
+    반환: {enRef(임계 미달=null→JP-only), score, status, candidates[]}"""
+    jp_ref = payload.get("jpRef")
+    q      = payload.get("q") or payload.get("pokemonName") or ""
+    thr    = float(payload.get("threshold", 0.85))
+    max_pages = int(payload.get("maxPages", 6))
+    if not jp_ref or not q:
+        return {"error": "jpRef and q required"}
+    loop = asyncio.get_event_loop()
+    # 1. 기준 = JP scrydex 이미지 임베드
+    try:
+        jp_data = await loop.run_in_executor(
+            _dl_executor, _dl_image, f"https://images.scrydex.com/pokemon/{jp_ref}/medium")
+        jp_emb  = await loop.run_in_executor(_executor, _embed_flat_bytes, jp_data)
+    except Exception as e:
+        return {"error": f"jp embed fail: {e}"}
+    # 2. JP명(カルボウ) 입력 대응 — scrydex는 JP명 검색 시 JP만 반환(EN 후보 0).
+    #    q 1페이지로 slug(영문명=charcadet) 도출 → slug 재검색하면 JP+EN 모두 나옴.
+    search_term = q
+    try:
+        _first, _ = await loop.run_in_executor(_dl_executor, _fetch_scrydex_page, q, 1)
+        # 전체 포맷명("Charcadet #83 - Inferno X")은 scrydex 0건 → 포켓몬명만(#앞) 추출 재검색
+        if not _first and "#" in q:
+            _q2 = q.split("#")[0].strip()
+            if _q2:
+                search_term = _q2
+                _first, _ = await loop.run_in_executor(_dl_executor, _fetch_scrydex_page, _q2, 1)
+        _slugs = [r.get("slug") for r in (_first or []) if r.get("slug")]
+        if _slugs:
+            from collections import Counter as _Counter
+            search_term = _Counter(_slugs).most_common(1)[0][0]
+    except Exception:
+        pass
+    # 후보 = search_term(slug) 검색 → EN(not is_jp) → 임베드·유사도
+    scored: list[dict] = []
+    seen: set[str] = set()
+    for pg in range(1, max_pages + 1):
+        try:
+            page, _ = await loop.run_in_executor(_dl_executor, _fetch_scrydex_page, search_term, pg)
+        except Exception:
+            break
+        if not page:
+            break
+        for r in page:
+            ref = r["ref"]
+            if ref in seen or r["is_jp"] or ref == jp_ref:
+                continue
+            seen.add(ref)
+            try:
+                td  = await loop.run_in_executor(_dl_executor, _dl_image, r["thumb"])
+                emb = await loop.run_in_executor(_executor, _embed_flat_bytes, td)
+                scored.append({"ref": ref, "score": round(float(np.dot(jp_emb, emb)), 4)})
+                del td
+            except Exception:
+                continue
+    scored.sort(key=lambda x: -x["score"])
+    best = scored[0] if scored else None
+    en_ref = best["ref"] if (best and best["score"] >= thr) else None
+    return {
+        "jpRef":      jp_ref,
+        "enRef":      en_ref,
+        "score":      best["score"] if best else 0.0,
+        "status":     "matched" if en_ref else ("low_confidence" if best else "no_candidate"),
+        "candidates": scored[:5],
+    }
+
+
 @app.get("/scrydex/unmapped")
 async def scrydex_unmapped(mode: str = "unmapped"):
     """jp/en scrydex ref가 NULL이거나 NO_ 처리된 고레어 KO 카드 목록

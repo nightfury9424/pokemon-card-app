@@ -1498,8 +1498,31 @@ public class AdminController {
             }
         }
 
-        // 4. EN ref (인접 sibling 오프셋) — 단독 프로모는 스킵
-        String enRef = promo ? null : resolveEnRef(jpSet, num);
+        // 4. EN ref — ★스캐너 시각매칭(JP 카드 이미지 ↔ EN 후보 DINOv2 유사도)으로 탐색.
+        //    번호오프셋 휴리스틱(MEGA·리셔플 세트서 오매핑: 카르본→Dewgong)을 대체. 실패 시 오프셋 폴백.
+        String enRef = null;
+        Double enScore = null;
+        String enMatchStatus = null;
+        if (!promo) {
+            Object nameObj = jp.get("name");
+            String jpName = nameObj instanceof String ns ? ns : null;
+            Map<String, Object> mEn = (jpName != null && !jpName.isBlank())
+                    ? matchEnViaScanner(jpRef, jpName) : null;
+            if (mEn != null && !mEn.containsKey("error")) {
+                // 스캐너 응답 → 결과 신뢰. matched=enRef 사용 / low_confidence·no_candidate=EN 비움(JP-only, 플래그).
+                // ★오프셋 폴백 안 함 — 리셔플 세트서 오프셋이 틀린 EN(Dewgong) 주는 게 이 변경이 고치려는 버그.
+                enMatchStatus = (String) mEn.get("status");
+                Object er = mEn.get("enRef");
+                if (er != null) {
+                    enRef = (String) er;
+                    if (mEn.get("score") instanceof Number sc) enScore = sc.doubleValue();
+                }
+            } else {
+                // 스캐너 불가(다운/에러/JP명 없음)일 때만 번호오프셋 폴백 (기존동작)
+                enRef = resolveEnRef(jpSet, num);
+                enMatchStatus = "offset_fallback";
+            }
+        }
         String enName = null;
         if (enRef != null) {
             ReturnData<?> enRd = lookupScrydex(enRef, false);
@@ -1525,8 +1548,28 @@ public class AdminController {
         draft.put("productId", productId);
         draft.put("jpScrydexRef", jpRef);
         draft.put("enScrydexRef", enRef);
+        draft.put("enMatchScore", enScore);         // ★스캐너 시각 유사도 (null=폴백/프로모)
+        draft.put("enMatchStatus", enMatchStatus);  // matched / low_confidence / no_candidate
         draft.put("imageUrl", jp.get("imageUrl"));
         return ReturnData.success(draft);
+    }
+
+    /** ★스캐너 시각매칭으로 EN ref 탐색 — JP 카드 이미지 ↔ EN 후보 DINOv2 유사도(번호오프셋 대체).
+     *  스캐너가 JP명→slug(영문)→EN 후보 검색·임베드·정렬. {enRef, score, status} 반환. 실패=null→오프셋 폴백. */
+    private Map<String, Object> matchEnViaScanner(String jpRef, String jpName) {
+        try {
+            var rf = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+            rf.setConnectTimeout(3000);
+            rf.setReadTimeout(90000);  // 임베딩 수십초 소요 가능
+            RestClient c = RestClient.builder().baseUrl(scannerBaseUrl).requestFactory(rf).build();
+            return c.post()
+                    .uri("/scrydex/match-en")
+                    .body(Map.of("jpRef", jpRef, "q", jpName == null ? "" : jpName))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** 같은 JP 세트의 인접 카드 (en번호 - jp번호) 오프셋으로 EN ref 유추.

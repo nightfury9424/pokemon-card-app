@@ -176,10 +176,14 @@ public class CardServiceImpl implements CardService {
 
     /**
      * 추가 직후 보강 — scrydex 이미지 다운로드 + KO 예상가 즉시 계산/저장.
-     * 카드가 이미 커밋된 뒤 호출됨. ★@Transactional 없음 — HTTP(scrydex)+이미지 다운로드를 트랜잭션 밖에서 돌려
-     * DB 커넥션 점유 방지(triggerPriceFetchForCard 가 자체 @Transactional). 실패해도 호출측 try-catch 로 카드 추가엔 영향 없음.
+     * 카드가 이미 커밋된 뒤 호출됨. ★NOT_SUPPORTED — 클래스레벨 @Transactional(readOnly=true)를 명시적으로 정지시켜
+     * 트랜잭션 밖에서 돌린다. (이게 없으면 triggerPriceFetchForCard(@Transactional REQUIRED)가 readOnly 트랜잭션에
+     * join → Hibernate flush 안 됨 → save() 가 메모리에만 남고 실제 INSERT 0건이 되는 버그). 이제 triggerPriceFetchForCard
+     * 가 자기 자신의 쓰기 가능 트랜잭션을 새로 연다. HTTP(scrydex)+이미지 다운로드도 트랜잭션 밖 → DB 커넥션 점유 방지.
      */
     @Override
+    @org.springframework.transaction.annotation.Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public Map<String, Object> enrichCardAfterAdd(String cardId, String enScrydexRef, String jpScrydexRef) {
         String enRef = blankToNull(enScrydexRef);
         String jpRef = blankToNull(jpScrydexRef);

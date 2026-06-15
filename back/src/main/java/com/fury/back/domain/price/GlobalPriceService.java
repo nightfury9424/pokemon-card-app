@@ -1293,7 +1293,19 @@ public class GlobalPriceService {
                 }
                 saved += saveScrydexGradedSeries(card, ref, source, h.getPsa10(), "10", usdToKrw);
                 saved += saveScrydexGradedSeries(card, ref, source, h.getPsa9(), "9", usdToKrw);
-                if (saved > 0) return new ScrydexSaveResult(latestRaw, saved);
+                if (saved > 0) {
+                    // ★히스토리 최신 RAW가 이상치일 수 있음(프로모 등: raw 시리즈에 고가 리스팅 혼입).
+                    //   KO는 JP 추종이라 EN raw가 튀면 KO-GUARD 오발동 → 미리보기와 동일하게 현재가(fetchPrices,
+                    //   권위 raw)를 today RAW로 저장·반환해 KO 계산엔 그 값 사용. 히스토리 점들은 차트용으로 유지.
+                    Optional<ScrydexLivePriceDto> liveNow = scrydexLiveClient.fetchPrices(ref, region);
+                    if (liveNow.isPresent() && liveNow.get().getRawNm() != null && liveNow.get().getRawNm() > 0) {
+                        PriceSnapshot todaySnap = buildScrydexSnapshot(
+                                card, ref, source, liveNow.get().getRawNm(), "RAW", null, null, now, usdToKrw);
+                        priceSnapshotRepository.save(todaySnap); saved++;
+                        return new ScrydexSaveResult(todaySnap, saved);
+                    }
+                    return new ScrydexSaveResult(latestRaw, saved);
+                }
             }
             // 히스토리 비었으면 아래 현재값 폴백
         }
