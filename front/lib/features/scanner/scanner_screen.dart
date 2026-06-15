@@ -14,6 +14,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
+import '../../core/utils/price_label.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/app_segmented_toggle.dart';
 import '../../core/widgets/app_info_toast.dart';
@@ -1121,6 +1122,32 @@ class _ScannerScreenState extends State<ScannerScreen>
                             ),
                           ],
                           const SizedBox(height: 10),
+                          // 한국판 예상가 라벨 — 가격이 시세가 아니라 예상가치임을 가격 앞에 명시 (2026-06-15)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white10,
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                PriceLabel.resolve(
+                                  labelType: card['koPriceLabelType'] as String?,
+                                  price: price,
+                                ),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 5),
                           // 가격 + 변동률
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.baseline,
