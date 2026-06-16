@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAVER 카페 시세 검열 큐</title>
+<style>
+  :root{--bg:#0f1115;--card:#1a1d24;--line:#2a2f3a;--txt:#e6e8ec;--mut:#9aa3b2;--red:#ff5c6c;--grn:#34c77b;--yel:#f5c451;--blu:#5aa0ff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif}
+  header{position:sticky;top:0;z-index:10;background:#12151c;border-bottom:1px solid var(--line);padding:10px 14px}
+  h1{font-size:15px;margin:0 0 8px}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .pill{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:4px 11px;cursor:pointer;color:var(--mut);font-size:12px}
+  .pill.on{background:var(--blu);color:#fff;border-color:var(--blu)}
+  .stat{font-size:12px;color:var(--mut)}
+  .stat b{color:var(--txt)}
+  input[type=search]{background:var(--card);border:1px solid var(--line);border-radius:6px;color:var(--txt);padding:5px 9px;width:200px}
+  button.exp{background:var(--grn);color:#04210f;border:0;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer}
+  button.rst{background:transparent;color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{position:sticky;top:64px;background:#12151c;color:var(--mut);font-weight:600;cursor:pointer;white-space:nowrap}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tr.D-VALID{background:rgba(52,199,123,.10)}
+  tr.D-REJECT{background:rgba(255,92,108,.10)}
+  tr.D-REVIEW{background:rgba(245,196,81,.08)}
+  .flag{font-size:10.5px;padding:1px 6px;border-radius:10px;white-space:nowrap;display:inline-block}
+  .f-DIRTY{background:rgba(255,92,108,.18);color:var(--red)}
+  .f-CLEAN{background:rgba(52,199,123,.18);color:var(--grn)}
+  .f-REVIEW{background:rgba(245,196,81,.15);color:var(--yel)}
+  .card-nm{font-weight:600}
+  .sub{color:var(--mut);font-size:11px}
+  a{color:var(--blu);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .title{max-width:340px;white-space:normal}
+  .acts{white-space:nowrap}
+  .acts b{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:5px;border:1px solid var(--line);cursor:pointer;margin-right:3px;font-weight:400;color:var(--mut)}
+  .acts b.v.on{background:var(--grn);color:#04210f;border-color:var(--grn)}
+  .acts b.x.on{background:var(--red);color:#2a0006;border-color:var(--red)}
+  .acts b.r.on{background:var(--yel);color:#2a2000;border-color:var(--yel)}
+  .hi{color:var(--red);font-weight:700}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧹 NAVER 카페 시세 검열 큐 <span class="stat" id="counts"></span></h1>
+  <div class="bar">
+    <span class="stat">상태:</span>
+    <span class="pill on" data-st="ALL">전체</span>
+    <span class="pill" data-st="PENDING_REVIEW">PENDING</span>
+    <span class="pill" data-st="VALID">VALID</span>
+    <span class="stat" style="margin-left:8px">자동:</span>
+    <span class="pill" data-fl="DIRTY">🔴오염의심</span>
+    <span class="pill" data-fl="CLEAN">🟢거래완료</span>
+    <span class="pill" data-fl="REVIEW">🟡검토</span>
+    <span class="stat" style="margin-left:8px">내결정:</span>
+    <span class="pill" data-dc="undecided">미결정</span>
+    <input type="search" id="q" placeholder="카드명/제목 검색">
+    <button class="exp" id="export">결정 내보내기(JSON)</button>
+    <button class="rst" id="reset">내 결정 초기화</button>
+  </div>
+</header>
+<table>
+  <thead><tr>
+    <th data-s="dec">결정</th><th data-s="nm">카드</th><th data-s="setn">세트/번호</th>
+    <th data-s="grd">등급</th><th data-s="price" class="num">NAVER가</th>
+    <th data-s="jp_krw" class="num">JP</th><th data-s="en_krw" class="num">EN</th>
+    <th data-s="nvjp" class="num">nv/jp</th><th data-s="nven" class="num">nv/en</th>
+    <th data-s="title">제목(네이버글)</th><th data-s="td">날짜</th><th data-s="vs">현재</th><th data-s="flag">자동</th>
+  </tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<script src="data.js"></script>
+<script>
+const D = JSON.parse(localStorage.getItem('naver_decisions')||'{}');
+function save(){localStorage.setItem('naver_decisions',JSON.stringify(D));}
+const NONKO=/일판|일본|영판|미판|북미|중국|psa|bgs|cgc|ace|プ|英|미국/i;
+const BUY=/삽니|구매합|구함|교환|구해|삽니다|사요/;
+const SALE=/마감|낙찰|판매완료|거래완료|완료|팝니|판매/;
+function flag(r){
+  const graded = r.gco && r.gco!=='';
+  const koGtJp = r.nvjp!=null && r.nvjp>1.0;
+  const high   = r.nvjp!=null && r.nvjp>0.6;
+  const nonko  = NONKO.test(r.title||'');
+  const buy    = BUY.test(r.title||'');
+  if(graded||koGtJp||nonko||buy) return {k:'DIRTY',why:[graded&&'등급',koGtJp&&'KO>JP',nonko&&'해외/등급KW',buy&&'삽니다/교환'].filter(Boolean).join(',')};
+  if(SALE.test(r.title||'') && !high) return {k:'CLEAN',why:'거래완료+정상비율'};
+  return {k:'REVIEW',why: high?'비율높음':'애매'};
+}
+let ST='ALL',FL=null,DC=null,Q='',SORT='price',DIR=-1;
+function fmt(n){return n==null?'·':Number(n).toLocaleString();}
+function render(){
+  const tb=document.getElementById('rows');
+  let rows=window.NAVER_DATA.map(r=>({...r,_f:flag(r),_d:D[r.psid]||''}));
+  rows=rows.filter(r=>(ST==='ALL'||r.vs===ST)&&(!FL||r._f.k===FL)&&(!DC||(DC==='undecided'&&!r._d))&&
+    (!Q||((r.nm||'')+(r.title||'')+(r.setn||'')).toLowerCase().includes(Q)));
+  rows.sort((a,b)=>{let x=a[SORT],y=b[SORT];if(SORT==='dec'){x=a._d;y=b._d}if(SORT==='flag'){x=a._f.k;y=b._f.k}
+    if(x==null)return 1;if(y==null)return -1;return (x>y?1:x<y?-1:0)*DIR;});
+  let v=0,x=0,rv=0;window.NAVER_DATA.forEach(r=>{const d=D[r.psid];if(d==='VALID')v++;else if(d==='REJECT')x++;else if(d==='REVIEW')rv++;});
+  document.getElementById('counts').innerHTML=`· 표시 <b>${rows.length}</b> / 전체 <b>${window.NAVER_DATA.length}</b> · ✅<b>${v}</b> ❌<b>${x}</b> 🔍<b>${rv}</b> 미결정 <b>${window.NAVER_DATA.length-v-x-rv}</b>`;
+  tb.innerHTML=rows.map(r=>{
+    const f=r._f, g=(r.gco?`${r.gco}${r.gv||''}`:r.cstat==='GRADED'?'GRADED':'RAW');
+    const url=r.url?`<a href="${r.url}" target="_blank" rel="noopener">${(r.title||'(제목없음)').replace(/</g,'&lt;')}</a>`:(r.title||'').replace(/</g,'&lt;');
+    return `<tr class="D-${r._d}" data-id="${r.psid}">
+      <td class="acts"><b class="v ${r._d==='VALID'?'on':''}" data-d="VALID">✓</b><b class="x ${r._d==='REJECT'?'on':''}" data-d="REJECT">✕</b><b class="r ${r._d==='REVIEW'?'on':''}" data-d="REVIEW">?</b></td>
+      <td><div class="card-nm">${(r.nm||'').replace(/</g,'&lt;')}</div><div class="sub">${r.rar||''}</div></td>
+      <td>${(r.setn||'').replace(/</g,'&lt;')}<div class="sub">${r.col||''}</div></td>
+      <td class="${r.gco?'hi':''}">${g}</td>
+      <td class="num">${fmt(r.price)}</td>
+      <td class="num">${fmt(r.jp_krw)}</td>
+      <td class="num">${fmt(r.en_krw)}</td>
+      <td class="num ${r.nvjp>0.6?'hi':''}">${r.nvjp==null?'·':r.nvjp}</td>
+      <td class="num">${r.nven==null?'·':r.nven}</td>
+      <td class="title">${url}</td>
+      <td class="num">${r.td||''}</td>
+      <td class="sub">${r.vs==='PENDING_REVIEW'?'PEND':'VALID'}</td>
+      <td><span class="flag f-${f.k}" title="${f.why}">${f.k}</span></td>
+    </tr>`;}).join('');
+}
+document.addEventListener('click',e=>{
+  const p=e.target.closest('.pill');
+  if(p){if(p.dataset.st!=null){ST=p.dataset.st;document.querySelectorAll('[data-st]').forEach(x=>x.classList.toggle('on',x===p));}
+    if(p.dataset.fl!=null){FL=FL===p.dataset.fl?null:p.dataset.fl;document.querySelectorAll('[data-fl]').forEach(x=>x.classList.toggle('on',x.dataset.fl===FL));}
+    if(p.dataset.dc!=null){DC=DC===p.dataset.dc?null:p.dataset.dc;document.querySelectorAll('[data-dc]').forEach(x=>x.classList.toggle('on',x.dataset.dc===DC));}
+    render();return;}
+  const b=e.target.closest('.acts b');
+  if(b){const id=b.closest('tr').dataset.id,d=b.dataset.d;if(D[id]===d)delete D[id];else D[id]=d;save();render();return;}
+  const th=e.target.closest('th[data-s]');
+  if(th){const s=th.dataset.s;if(SORT===s)DIR*=-1;else{SORT=s;DIR=(s==='nm'||s==='setn'||s==='title')?1:-1;}render();}
+});
+document.getElementById('q').addEventListener('input',e=>{Q=e.target.value.toLowerCase().trim();render();});
+document.getElementById('reset').addEventListener('click',()=>{if(confirm('내 결정 전부 지울까?')){for(const k in D)delete D[k];save();render();}});
+document.getElementById('export').addEventListener('click',()=>{
+  const out=window.NAVER_DATA.filter(r=>D[r.psid]).map(r=>({psid:r.psid,cid:r.cid,nm:r.nm,price:r.price,decision:D[r.psid]}));
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='naver_decisions_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+});
+render();
+</script>
+</body>
+</html>
