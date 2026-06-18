@@ -31,6 +31,13 @@ public class InternalAdminController {
         return globalPriceService.refreshKoEstimatesFromSnapshots();
     }
 
+    /** full nightly dry-run — 실제 nightly와 동일 경로(allIds/coef/buildKo) 실행, write(delete/save/audit/promo)만 스킵.
+     *  오늘밤 23:45 결과를 낮에 같은 입력값으로 미리 검증용. 2026-06-16. */
+    @PostMapping("/dry-run-ko-estimates")
+    public Map<String, Object> dryRunKoEstimates() {
+        return globalPriceService.refreshKoEstimatesFromSnapshots(true);
+    }
+
     /**
      * PriceController#backfillKoHistory와 동일 — 내부 토큰만으로 호출 가능.
      *

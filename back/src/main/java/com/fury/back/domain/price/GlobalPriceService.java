@@ -245,11 +245,13 @@ public class GlobalPriceService {
                     : ratios.get(mid);
         }
 
-        double finalCoeff = Math.round(coefficient * 1000.0) / 1000.0;
+        double computedCoeff = Math.round(coefficient * 1000.0) / 1000.0;
+        // 2026-06-17 freeze: 노화 cliff 차단 위해 6/14 기준값 상수 저장/반환. 실측 재계산값은 로그로 드리프트 관측만.
+        double finalCoeff = FROZEN_GLOBAL_COEFFICIENT;
         LocalDateTime now = LocalDateTime.now();
 
-        log.info("[Coefficient] 완료: coefficient={}, sample={}, usdRate={}, jpyRate={}",
-                finalCoeff, ratios.size(), exchangeRate, jpyExchangeRate);
+        log.info("[Coefficient] 완료: frozen={} (computed={}, sample={}), usdRate={}, jpyRate={}",
+                finalCoeff, computedCoeff, ratios.size(), exchangeRate, jpyExchangeRate);
 
         // 히스토리 저장 (price = coefficient × 10000, currency = 'RATIO')
         saveHistoryEntry(finalCoeff, now);
@@ -268,6 +270,10 @@ public class GlobalPriceService {
 
     private static final String COEFF_CARD_ID = "ko_market_coefficient";
     private static final String COEFF_SOURCE  = "SYSTEM";
+
+    // 2026-06-17: 글로벌계수 freeze. DAANGN obs 노화로 매일 재계산 시 cliff(6/14 0.478→6/17 0.453, 시장 무관 인공물).
+    // v6 frozen 정책과 정합 — 6/14 기준값 상수화. 재캘리브레이션은 이 상수 갱신으로만(주기적 수동).
+    private static final double FROZEN_GLOBAL_COEFFICIENT = 0.478;
 
     @Transactional
     public void saveHistoryEntry(double coefficient, LocalDateTime at) {
@@ -1482,11 +1488,26 @@ public class GlobalPriceService {
      */
     @Transactional
     public Map<String, Object> refreshKoEstimatesFromSnapshots() {
+        return refreshKoEstimatesFromSnapshots(false);
+    }
+
+    /** dryRun=true: 동일 nightly 로직(allIds/FX/계수/buildKoEstimatedSnapshotsWithAudit) 전부 실행하되
+     *  deleteTodayKoEstimated/saveAll/audit insert/promo 저장만 스킵(prod write 0). 2026-06-16.
+     *  오늘밤 23:45 결과(부분실패 여부)를 낮에 같은 입력값으로 미리 검증용. */
+    public Map<String, Object> refreshKoEstimatesFromSnapshots(boolean dryRun) {
         MarketCoefficientDto coeff = getCoefficient();
         double globalCoefficient = coeff.getCoefficient();
         double usdToKrw = exchangeRateClient.getUsdToKrw();
         double jpyToKrw = exchangeRateClient.getJpyToKrw();
         LocalDateTime now = LocalDateTime.now();
+
+        // 입력검증 (2026-06-16): 환율/글로벌계수가 비정상이면 KO 재계산 자체를 중단(부분실패 silent 저장 방지).
+        if (usdToKrw <= 0 || jpyToKrw <= 0 || globalCoefficient <= 0) {
+            log.error("[KoEstimated] ★ABORT 입력 비정상: usdToKrw={} jpyToKrw={} globalCoef={} -> KO 재계산 중단, 기존 KO_ESTIMATED 보존.",
+                    usdToKrw, jpyToKrw, globalCoefficient);
+            return Map.of("status", "aborted_bad_input", "savedCount", 0, "savedAudits", 0,
+                    "usdToKrw", usdToKrw, "globalCoefficient", globalCoefficient);
+        }
 
         List<PriceSnapshot> enSnapshots = priceSnapshotRepository.findAllLatestScrydexEn();
         List<PriceSnapshot> jpSnapshots = priceSnapshotRepository.findAllLatestScrydexJp();
@@ -1506,6 +1527,12 @@ public class GlobalPriceService {
             LocalDate yesterday = LocalDate.now().minusDays(1);
             Map<String, Double> rarityCoeffsForInfer = loadRarityCoefficients();
             Map<String, Map<String, Double>> cardCoefsForInfer = loadCardCoefficients();
+            // 입력검증 (2026-06-16): rarity 계수 맵 비어있으면(ko_coef_* 소실 등) 전 카드가 fallback계수로 계산되므로 중단.
+            if (rarityCoeffsForInfer.isEmpty()) {
+                log.error("[KoEstimated] ★ABORT rarity 계수 맵 비어있음: allIds={} enSrc={} jpSrc={} -> KO 재계산 중단, 기존 KO_ESTIMATED 보존.",
+                        allIds.size(), enSnapshots.size(), jpSnapshots.size());
+                return Map.of("status", "aborted_empty_coef", "savedCount", 0, "savedAudits", 0);
+            }
             Map<String, String> legacyPrevSourceMap = inferPrevKoSources(
                     yesterday, allIds, rarityCoeffsForInfer, cardCoefsForInfer, usdToKrw, jpyToKrw);
             Map<String, KoEstimationAudit> prevAuditMap = inferPrevAudits(yesterday, allIds);
@@ -1527,7 +1554,32 @@ public class GlobalPriceService {
                         koSnapshots.size(), audits.size()));
             }
 
-            if (!koSnapshots.isEmpty()) {
+            // P5 가드 (2026-06-16): 후보(allIds)는 충분한데 build 결과가 비정상적으로 적으면 부분실패로 보고
+            // KO_ESTIMATED delete/save 중단(기존 live 보존). 6/15 사고: allIds~3700인데 4장만 저장돼 catalog가 6/14값으로 묶임.
+            boolean partialFailure = allIds.size() >= 1000 && koSnapshots.size() < allIds.size() * 0.5;
+
+            // full dry-run (2026-06-16): 같은 경로 다 돌렸고 write 직전에 return. delete/save/audit/promo 전부 스킵(write 0).
+            if (dryRun) {
+                log.info("[KoEstimated] DRY_RUN 완료: allIds={} wouldSave={} wouldAudit={} partialFailure={} enSrc={} jpSrc={}",
+                        allIds.size(), koSnapshots.size(), audits.size(), partialFailure,
+                        enSnapshots.size(), jpSnapshots.size());
+                return Map.of(
+                        "status", partialFailure ? "dry_run_partial_failure" : "dry_run_ok",
+                        "dryRun", true,
+                        "allIds", allIds.size(),
+                        "wouldSaveCount", koSnapshots.size(),
+                        "wouldAuditCount", audits.size(),
+                        "enSource", enSnapshots.size(),
+                        "jpSource", jpSnapshots.size());
+            }
+
+            if (partialFailure) {
+                log.error("[KoEstimated] ★ABORT 부분실패 감지: allIds={} snapshots={} ({}%) enSrc={} jpSrc={} "
+                                + "-> delete/save 중단, 기존 KO_ESTIMATED 보존.",
+                        allIds.size(), koSnapshots.size(),
+                        Math.round(koSnapshots.size() * 100.0 / Math.max(allIds.size(), 1)),
+                        enSnapshots.size(), jpSnapshots.size());
+            } else if (!koSnapshots.isEmpty()) {
                 List<String> cardIdList = koSnapshots.stream().map(PriceSnapshot::getCardId).toList();
                 priceSnapshotRepository.deleteTodayKoEstimated(cardIdList); // FK CASCADE로 기존 audit도 삭제
                 priceSnapshotRepository.saveAll(koSnapshots);
@@ -1541,10 +1593,10 @@ public class GlobalPriceService {
         // KO 독점 프로모 카드(NO_EN/NO_JP) → KREAM 체결가 기반 KO_ESTIMATED 추가 저장.
         // 일반 scrydex 경로에서 빠지는 카드(예: 메타몽 Pokemon Town 2025)를 보완.
         // 주의: KREAM promo는 buildKo 경로가 아니므로 audit 미생성 (Turn C-2/D 별도 처리).
-        int promoSaved = savePromoKoEstimatedFromKream(now);
+        int promoSaved = dryRun ? 0 : savePromoKoEstimatedFromKream(now);
 
-        log.info("[KoEstimated] refresh 완료: {}장 KO 예상가 저장 (audit {}장, KREAM promo {}장)",
-                saved + promoSaved, savedAudits, promoSaved);
+        log.info("[KoEstimated] {} 완료: {}장 KO 예상가 저장 (audit {}장, KREAM promo {}장)",
+                dryRun ? "DRY_RUN(미저장)" : "refresh", saved + promoSaved, savedAudits, promoSaved);
         return Map.of(
             "coefficient", globalCoefficient,
             "exchangeRate", usdToKrw,
@@ -1553,6 +1605,7 @@ public class GlobalPriceService {
             "promoSavedCount", promoSaved,
             "enSource", enSnapshots.size(),
             "jpSource", jpSnapshots.size(),
+            "dryRun", dryRun,
             "status", "refreshed"
         );
     }
@@ -1841,10 +1894,28 @@ public class GlobalPriceService {
         List<PriceSnapshot> koEstHistory = priceSnapshotRepository
                 .findByCardIdAndSourceAndTradedAtAfterOrderByTradedAtAsc(cardId, "KO_ESTIMATED", chartCutoff);
         // KO 차트: 스토어된 이상한 KO 히스토리(flatline/보정 cliff) 대신 JP/EN 시장 움직임을 현재 예상가에 투영.
-        List<CardPriceSummaryDto.ChartPoint> koLine = !promoExclusive && koEstHistory.size() >= 2
-                ? buildProjectedKoLine(cardId, koEstHistory, jpSnapsHistory, enSnapsHistory)
-                : buildKoLineFromSnaps(
-                        enSnapsHistory, jpSnapsHistory, enRatio, jpRatio, rarity, exchangeRate, jpyToKrw);
+        // ★2026-06-16: 차트 = 저장된 실 KO_ESTIMATED 히스토리 그대로 (일별 dedup, 마지막값).
+        //   기존 buildProjectedKoLine(현재가 역투영 + 카드별 사인노이즈 = 가짜 물결) 폐기 —
+        //   안 움직인 카드도 출렁이고, 현재가 바뀌면 과거 통째로 재투영돼 실값(stored KO)과 불일치했음.
+        //   누적된 실데이터를 그대로 그린다.
+        List<CardPriceSummaryDto.ChartPoint> koLine;
+        if (!promoExclusive && koEstHistory.size() >= 2) {
+            java.util.LinkedHashMap<LocalDate, Double> koByDay = new java.util.LinkedHashMap<>();
+            for (PriceSnapshot s : koEstHistory) {
+                if (s.getPrice() != null && s.getTradedAt() != null) {
+                    // 차트는 chart_price(price±1~3%) 우선 — 생동감. 없으면 price.
+                    Integer cp = s.getChartPrice() != null ? s.getChartPrice() : s.getPrice();
+                    koByDay.put(s.getTradedAt().toLocalDate(), cp.doubleValue());
+                }
+            }
+            koLine = koByDay.entrySet().stream()
+                    .map(e -> new CardPriceSummaryDto.ChartPoint(
+                            e.getKey().toString(), e.getValue(), null, null))
+                    .toList();
+        } else {
+            koLine = buildKoLineFromSnaps(
+                    enSnapsHistory, jpSnapsHistory, enRatio, jpRatio, rarity, exchangeRate, jpyToKrw);
+        }
 
         // ── price_snapshots에서 EN/JP RAW 최신가 읽기 (리스트와 동일 소스)
         List<String> singleId = List.of(cardId);
@@ -1912,7 +1983,10 @@ public class GlobalPriceService {
         }
 
         if (!promoExclusive && koEstimatedSnap != null) {
-            formulaPrice = koEstimatedSnap.getPrice();
+            // 대표가 = chart_price(±3% 생동감값) 표시 → 차트 끝점과 일치 + 전일대비 살아남.
+            // price(산출 진짜값)는 chart_price 계산의 내부 기준점(anchor)로만 유지(화면 직접노출 X).
+            formulaPrice = koEstimatedSnap.getChartPrice() != null
+                    ? koEstimatedSnap.getChartPrice() : koEstimatedSnap.getPrice();
             formulaBasis = "KO_ESTIMATED";
         }
 
@@ -2298,6 +2372,8 @@ public class GlobalPriceService {
                 if ("JP".equals(prevSource)) threshold = SPREAD_TO_EN_FROM_JP;
                 else if ("EN".equals(prevSource)) threshold = SPREAD_TO_JP_FROM_EN;
                 if (low > 0 && high / low > threshold) {
+                    // 2026-06-18 broad JP-first 시도→철회: JP raw 없/작은 HR/PR(초염몽 등)을 over-correct(EN이 신뢰값).
+                    // per-card 문제라 단일규칙 불가 → EN인플레 chase는 v6 MANUAL_ANCHOR로, 근본은 rarity-band(P3).
                     log.warn("[KO-GUARD] cardId={} rarity={} jp={} en={} -> spread={} > threshold={} (prevSource={}), use EN",
                             cardId, rarity, Math.round(jpKrw), Math.round(enKrw),
                             Math.round((high / low) * 10.0) / 10.0, threshold, prevSource);

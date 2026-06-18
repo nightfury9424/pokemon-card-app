@@ -37,6 +37,11 @@ public class PriceSnapshot {
     @Column(name = "price", nullable = false)
     private Integer price;
 
+    // 차트 표시용 가격 = price ± 랜덤 1~3% (KO 예상가 차트 생동감용). null이면 price 사용.
+    // 대표가/범위는 price(진짜), 차트 선의 미세 흔들림만 chart_price. KO_ESTIMATED 행에만 채움.
+    @Column(name = "chart_price")
+    private Integer chartPrice;
+
     @Column(name = "raw_price")
     private BigDecimal rawPrice;
 
@@ -70,5 +75,11 @@ public class PriceSnapshot {
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+    }
+
+    /** 표시용 가격: chart_price(±3% 생동감값) 우선, 없으면 price.
+     *  KO_ESTIMATED만 chart_price 보유(JP/EN/DAANGN 등은 null → price 그대로). 시세 내부로직은 계속 price(진짜) 사용. */
+    public Integer getDisplayPrice() {
+        return chartPrice != null ? chartPrice : price;
     }
 }
