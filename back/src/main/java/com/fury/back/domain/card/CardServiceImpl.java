@@ -314,8 +314,8 @@ public class CardServiceImpl implements CardService {
                 koBasis = "RAW";
             }
         } else if (koEst != null) {
-            // KO_ESTIMATED DB 저장값 우선 (배치 결과 재사용)
-            ko = koEst.getPrice();
+            // KO_ESTIMATED DB 저장값 우선 (배치 결과 재사용). 셀 표시 = chart_price(±3% 생동감), 없으면 price.
+            ko = koEst.getDisplayPrice();
         } else {
             // live fallback — 레어도별 계수 + 환율로 SCRYDEX_JP/EN에서 KO 계산
             MarketCoefficientDto coeff = coefficientCache.getOrNull();
@@ -727,10 +727,10 @@ public class CardServiceImpl implements CardService {
                                     ko = null;
                                 }
                             } else {
-                                // KO_ESTIMATED DB 저장값 우선 — 없으면 live 계산 fallback
+                                // KO_ESTIMATED DB 저장값 우선 — 없으면 live 계산 fallback. 셀=chart_price(생동감).
                                 PriceSnapshot koEst = koEstMap.get(cid);
                                 if (koEst != null) {
-                                    ko = koEst.getPrice();
+                                    ko = koEst.getDisplayPrice();
                                 } else {
                                     PriceSnapshot src = globalPriceService.selectScrydexSnapshotForKo(
                                             cid, rarity, jpSnap, enSnap, usdToKrw, jpyToKrw, null);

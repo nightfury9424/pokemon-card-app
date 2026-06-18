@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Search, Plus, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import api from '../api'
 
 const S = {
@@ -152,7 +153,7 @@ function AddCardModal({ onClose, onAdded, prefill }) {
     try {
       const r = await api.get('/admin/cards/auto-resolve', { params: { input: q } })
       const d = r.data?.data ?? {}
-      setKo(c => ({ ...c, code: d.officialCardCode || '', looked: !!d.koName, err: '', name: d.koName || '', rarity: d.rarityCode || '', num: d.collectionNumber || '', productId: d.productId || '', productName: d.productName || '' }))
+      setKo(c => ({ ...c, code: d.officialCardCode || '', looked: !!d.koName, err: '', name: d.koName || '', rarity: d.rarityCode || '', num: d.collectionNumber || '', productId: d.productId || '', productName: d.productName || '', img: d.imageUrl || '' }))
       setJp(c => ({ ...c, code: d.jpScrydexRef || '', looked: !!d.jpScrydexRef, err: '', name: d.jpName || '', rarity: d.rarityCode || '', num: d.collectionNumber || '', img: d.imageUrl || '' }))
       setEn(c => ({ ...c, code: d.enScrydexRef || '', looked: !!d.enName, err: '', name: d.enName || '', num: d.collectionNumber || '', img: d.enScrydexRef ? `https://images.scrydex.com/pokemon/${d.enScrydexRef}/medium` : '' }))
       setName(d.name || '')
@@ -244,6 +245,21 @@ function AddCardModal({ onClose, onAdded, prefill }) {
             )
           })}
         </div>
+
+        {/* KO 예상가 14일 추이 차트 (추가 시 백필될 라인 미리보기) */}
+        {prices?.chart?.length > 1 && (
+          <div style={{ padding: '0 24px 12px' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>📈 KO 예상가 14일 추이 <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500 }}>· 모델 투영 (추가 시 그대로 백필)</span></div>
+            <ResponsiveContainer width="100%" height={120}>
+              <LineChart data={prices.chart} margin={{ top: 4, right: 12, left: -6, bottom: 0 }}>
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={d => (d || '').slice(5)} />
+                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} domain={['auto', 'auto']} width={36} tickFormatter={v => `${Math.round(v / 1000)}k`} />
+                <Tooltip formatter={v => [`${Math.round(v).toLocaleString()}원`, 'KO 예상가']} labelFormatter={l => l} contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 11 }} />
+                <Line type="monotone" dataKey="price" stroke="#4f46e5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {/* 공용 필드 (생성할 카드) */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: 12, padding: '0 24px 8px', alignItems: 'start' }}>

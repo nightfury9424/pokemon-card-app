@@ -162,7 +162,7 @@ public class AssetServiceImpl implements AssetService {
             return new DisplayPriceContext(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), 0, 0);
         }
         Map<String, Integer> ko = priceSnapshotRepository.findLatestKoEstimatedByCardIds(cardIds).stream()
-                .collect(Collectors.toMap(PriceSnapshot::getCardId, PriceSnapshot::getPrice, (a, b) -> a));
+                .collect(Collectors.toMap(PriceSnapshot::getCardId, PriceSnapshot::getDisplayPrice, (a, b) -> a));
         Map<String, PriceSnapshot> en = priceSnapshotRepository.findLatestScrydexEnByCardIds(cardIds).stream()
                 .collect(Collectors.toMap(PriceSnapshot::getCardId, Function.identity(), (a, b) -> a));
         Map<String, PriceSnapshot> jp = priceSnapshotRepository.findLatestScrydexJpByCardIds(cardIds).stream()

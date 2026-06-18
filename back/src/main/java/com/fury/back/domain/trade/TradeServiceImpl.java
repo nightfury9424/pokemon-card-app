@@ -221,7 +221,8 @@ public class TradeServiceImpl implements TradeService {
     private static Integer firstPositivePrice(
             java.util.List<com.fury.back.domain.price.PriceSnapshot> rows) {
         if (rows == null || rows.isEmpty()) return null;
-        Integer price = rows.get(0).getPrice();
+        // 표시 일관성: KO_ESTIMATED는 chart_price(대표가와 동일), JP/EN 등은 chartPrice=null→price 그대로.
+        Integer price = rows.get(0).getDisplayPrice();
         return (price != null && price > 0) ? price : null;
     }
 
