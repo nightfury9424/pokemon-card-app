@@ -431,16 +431,31 @@ export default function Price() {
         </div>
       </div>
 
-      {/* 레어도별 계수 현황 */}
+      {/* 레어도별 계수 — Spring 1차 계산 참고용 (실제 적용값은 v6 야간배치 FROZEN_RTR). 표시≠적용 오해 방지. */}
       <div style={{ ...S.card, padding: '22px 24px', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
           <Activity size={15} color="#6366f1" />
-          <div style={S.h2}>레어도별 계수 현황</div>
+          <div style={S.h2}>Spring 1차 계산 계수 · 참고용</div>
+          <span style={{
+            fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 99,
+            background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0',
+          }}>참고용 · 실제 적용값 아님</span>
+        </div>
+
+        {/* 경고 박스 — 이 표가 '적용계수'가 아님을 명확히 (운영자 오해/덮어쓰기 방지) */}
+        <div style={{
+          marginBottom: 14, padding: '12px 16px', borderRadius: 12,
+          background: '#fffbeb', border: '1px solid #fde68a',
+          fontSize: 12, color: '#92400e', lineHeight: 1.65,
+        }}>
+          이 표는 <code style={{ background: '#fef3c7', padding: '1px 5px', borderRadius: 4 }}>ko_price_coefficients</code>에 저장된 <b>Spring 1차 계산값</b>입니다.
+          앱에 표시되는 실제 한국판 예상가는 <b>매일 23:52 v6 가격 배치</b>에서 최종 결정되므로 아래 값과 다를 수 있습니다.
+          이 값은 운영 참고용이며 <b>실제 적용계수로 오해하거나 수동으로 덮어쓰면 안 됩니다.</b>
         </div>
 
         <div style={{ border: '1px solid #f1f5f9', borderRadius: 12, overflow: 'hidden' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '90px 110px 190px 1fr', gap: 12, padding: '11px 14px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-            {['레어도', '계수', 'JP 10만엔 기준 KO 예상가', '바 차트'].map(label => (
+            {['레어도', '1차 계산 계수', '1차 계산 기준 예시 금액', '바 차트'].map(label => (
               <div key={label} style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
             ))}
           </div>
@@ -453,8 +468,8 @@ export default function Price() {
               <div key={rarity} style={{ display: 'grid', gridTemplateColumns: '90px 110px 190px 1fr', gap: 12, alignItems: 'center', padding: '12px 14px', borderBottom: '1px solid #f8fafc' }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: '#1e293b' }}>{rarity}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: hasValue ? '#4f46e5' : '#94a3b8' }}>{hasValue ? coefficient.toFixed(3) : '-'}</div>
-                <div style={{ fontSize: 13, color: '#334155', fontWeight: 600 }}>
-                  {hasValue ? `${Math.round(coefficient * 100000 * 9.5).toLocaleString()}원` : '-'}
+                <div style={{ fontSize: 12, color: '#a8b3c2', fontWeight: 400, fontStyle: 'italic' }}>
+                  {hasValue ? `≈ ${Math.round(coefficient * 100000 * 9.5).toLocaleString()}원 (예시)` : '-'}
                 </div>
                 <div style={{ width: '100%', height: 8, borderRadius: 999, background: '#eef2ff', overflow: 'hidden' }}>
                   <div style={{ width, height: 8, borderRadius: 999, background: hasValue ? 'linear-gradient(90deg, #6366f1, #22c55e)' : 'transparent' }} />
@@ -465,7 +480,7 @@ export default function Price() {
           })()}
         </div>
         <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 10 }}>
-          * JP 10만엔 기준 예상가 = ¥100,000 × 9.5 (KRW/JPY) × 계수 (환율 9.5 가정)
+          * 1차 계산 기준 예시 = ¥100,000 × 9.5 (KRW/JPY) × 1차 계산 계수 — 참고용, 실제 앱 가격 아님
         </div>
       </div>
 
