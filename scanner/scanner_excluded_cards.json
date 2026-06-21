@@ -1,0 +1,30 @@
+[
+  {
+    "card_id": "CRD_555EE842647815F48715",
+    "name": "엘풍 ex SR",
+    "reason": "same-pokemon 노이즈스캔 회귀(기존카드 침범) — A/B·OCR·실사진추가 모두 실패",
+    "excluded_at": "2026-06-22",
+    "readd_condition": "hard-negative DINOv2 v2 회귀0 통과"
+  },
+  {
+    "card_id": "CRD_C25940958F57A0DE60C8",
+    "name": "메타몽 V SSR",
+    "reason": "same-pokemon 노이즈스캔 회귀(기존카드 침범) — A/B·OCR·실사진추가 모두 실패",
+    "excluded_at": "2026-06-22",
+    "readd_condition": "hard-negative DINOv2 v2 회귀0 통과"
+  },
+  {
+    "card_id": "CRD_7EFC022C360ECB18F368",
+    "name": "코바르온 AR",
+    "reason": "same-pokemon 노이즈스캔 회귀(기존카드 침범) — A/B·OCR·실사진추가 모두 실패",
+    "excluded_at": "2026-06-22",
+    "readd_condition": "hard-negative DINOv2 v2 회귀0 통과"
+  },
+  {
+    "card_id": "CRD_07838391EB0EE31C2240",
+    "name": "러브로스 V CSR",
+    "reason": "same-pokemon 노이즈스캔 회귀(기존카드 침범) — A/B·OCR·실사진추가 모두 실패",
+    "excluded_at": "2026-06-22",
+    "readd_condition": "hard-negative DINOv2 v2 회귀0 통과"
+  }
+]
