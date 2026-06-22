@@ -1,6 +1,6 @@
 package com.fury.back.domain.admin;
 
-import com.fury.back.auth.AdminAllowlistFilter;
+import com.fury.back.auth.AdminAuthorizationService;
 import com.fury.back.domain.chat.ChatService;
 import com.fury.back.domain.report.Report;
 import com.fury.back.domain.report.ReportRepository;
@@ -34,7 +34,7 @@ public class AdminStage0Service {
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
     private final TradePostRepository tradePostRepository;
-    private final AdminAllowlistFilter adminAllowlistFilter;
+    private final AdminAuthorizationService adminAuthorizationService;
     private final AdminActionService adminActionService;
     private final ChatService chatService;
     private final UserWarningRepository userWarningRepository;
@@ -55,7 +55,7 @@ public class AdminStage0Service {
         User user = userRepository.findById(userId).orElse(null);
         return AdminStage0Dto.WhoAmI.builder()
                 .userId(userId)
-                .isAdmin(adminAllowlistFilter.isAllowed(userId))
+                .isAdmin(adminAuthorizationService.isAdmin(userId))
                 .nickname(user != null ? user.getNickname() : null)
                 .email(user != null ? user.getEmail() : null)
                 .build();
@@ -235,7 +235,7 @@ public class AdminStage0Service {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
 
         // admin allowlist 사용자는 정지 면제 (Codex K).
-        if (adminAllowlistFilter.isAllowed(userId)) {
+        if (adminAuthorizationService.isAdmin(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "ADMIN_USER_NOT_SUSPENDABLE");
         }
         if (user.getDeletedAt() != null) {
@@ -269,7 +269,7 @@ public class AdminStage0Service {
     public AdminStage0Dto.UserRow warnUser(String userId, String adminUserId, String reason, String reportId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
-        if (adminAllowlistFilter.isAllowed(userId)) {
+        if (adminAuthorizationService.isAdmin(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "ADMIN_USER_NOT_WARNABLE");
         }
         if (user.getDeletedAt() != null) {

@@ -5,7 +5,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -13,10 +12,6 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * /api/admin/** (+ price admin 경로) 사전 게이트.
@@ -25,13 +20,14 @@ import java.util.stream.Collectors;
  * 출시 후 JWT role claim + ROLE_ADMIN 도입되면 본 필터 제거하고
  * SecurityConfig hasAuthority 분기로 전환.
  *
+ * <p>관리자 판정 로직은 {@link AdminAuthorizationService}(SSOT)에 위임. 본 필터는 경로 게이트 +
+ * enforce 토글 + 응답만 담당.
+ *
  * <p>동작:
  * <ul>
  *   <li>app.admin.auth-enabled=false (local default) → bypass</li>
  *   <li>admin path 아님 → bypass</li>
- *   <li>allowlist 비어있음 → 403 (fail-closed, 운영 사고 차단)</li>
- *   <li>SecurityContext userId가 allowlist 포함 → 통과</li>
- *   <li>그 외 → 403 forbidden</li>
+ *   <li>SecurityContext userId가 allowlist 포함 → 통과, 그 외 → 403 (빈 allowlist 포함 fail-closed)</li>
  * </ul>
  *
  * <p>JwtAuthFilter 다음에 위치해야 SecurityContext에서 userId 추출 가능.
@@ -41,39 +37,17 @@ public class AdminAllowlistFilter extends OncePerRequestFilter {
 
     private static final AntPathMatcher MATCHER = new AntPathMatcher();
 
-    private final Set<String> allowedUserIds;
-    private final boolean enforced;
+    private final AdminAuthorizationService adminAuthorizationService;
 
-    /**
-     * 2026-05-29 admin Stage 0 — AdminStage0Service.whoami 가 외부에서 allowlist 검증할 때 호출.
-     * Stage 0 의 /api/admin/whoami endpoint + DeletedUserGuardFilter (정지 면제 판정) 사용.
-     */
-    public boolean isAllowed(String userId) {
-        return userId != null && allowedUserIds.contains(userId);
-    }
-
-    /** 2026-05-29 admin Stage 0 — StartupValidator non-empty 가드용 (Codex F). */
-    public int allowedCount() {
-        return allowedUserIds.size();
-    }
-
-    public AdminAllowlistFilter(
-            @Value("${app.admin.user-ids:}") String allowlist,
-            @Value("${app.admin.auth-enabled:false}") boolean adminAuthEnabled) {
-        this.allowedUserIds = (allowlist == null || allowlist.isBlank())
-                ? Collections.emptySet()
-                : Arrays.stream(allowlist.split(","))
-                        .map(String::trim)
-                        .filter(s -> !s.isEmpty())
-                        .collect(Collectors.toUnmodifiableSet());
-        this.enforced = adminAuthEnabled;
+    public AdminAllowlistFilter(AdminAuthorizationService adminAuthorizationService) {
+        this.adminAuthorizationService = adminAuthorizationService;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        if (!enforced) {
+        if (!adminAuthorizationService.isEnforced()) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -85,7 +59,7 @@ public class AdminAllowlistFilter extends OncePerRequestFilter {
         }
 
         String userId = currentUserId();
-        if (userId == null || !allowedUserIds.contains(userId)) {
+        if (!adminAuthorizationService.isAdmin(userId)) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json");
             response.getWriter().write("{\"error\":\"forbidden\"}");

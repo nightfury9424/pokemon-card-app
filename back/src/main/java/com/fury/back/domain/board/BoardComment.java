@@ -58,4 +58,14 @@ public class BoardComment {
     public boolean isTopLevel() {
         return parentCommentId == null;
     }
+
+    /** 소프트삭제. */
+    public void softDelete() {
+        this.deletedAt = LocalDateTime.now();
+    }
+
+    /** 복구(deleted_at 클리어). 댓글은 status 컬럼 없음 → delete/restore 단일 축. */
+    public void restore() {
+        this.deletedAt = null;
+    }
 }

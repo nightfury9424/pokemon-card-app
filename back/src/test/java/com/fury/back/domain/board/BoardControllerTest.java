@@ -31,15 +31,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class BoardControllerTest {
 
     private BoardService service;
+    private BoardWriteService writeService;
     private JwtUtil jwtUtil;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         service = Mockito.mock(BoardService.class);
+        writeService = Mockito.mock(BoardWriteService.class);
         jwtUtil = Mockito.mock(JwtUtil.class);
         ObjectMapper om = new ObjectMapper().registerModule(new JavaTimeModule());
-        mvc = MockMvcBuilders.standaloneSetup(new BoardController(service, jwtUtil))
+        mvc = MockMvcBuilders.standaloneSetup(new BoardController(service, writeService, jwtUtil))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(om))
                 .build();

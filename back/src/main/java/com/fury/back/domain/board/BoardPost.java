@@ -68,4 +68,41 @@ public class BoardPost {
         if (createdAt == null) createdAt = LocalDateTime.now();
         if (status == null) status = "ACTIVE";
     }
+
+    // ── 쓰기 슬라이스 변경 메서드(빌더 외 mutation은 이 메서드로만) ──
+
+    /** 본문 수정(사용자 본인 글 / 관리자 공식글). updated_at 갱신. */
+    public void editContent(String newTitle, String newContent) {
+        this.title = newTitle;
+        this.content = newContent;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /** 관리자 공식글 부분수정(null=미변경). */
+    public void adminEdit(String newTitle, String newContent, Boolean newPinned) {
+        if (newTitle != null) this.title = newTitle;
+        if (newContent != null) this.content = newContent;
+        if (newPinned != null) this.pinned = newPinned;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /** 소프트삭제(삭제 축). */
+    public void softDelete() {
+        this.deletedAt = LocalDateTime.now();
+    }
+
+    /** ★삭제 복구 = deleted_at 만 클리어. status 불변(숨김글은 별도 UNHIDE 필요). */
+    public void restore() {
+        this.deletedAt = null;
+    }
+
+    /** 숨김(숨김 축). */
+    public void hide() {
+        this.status = "HIDDEN";
+    }
+
+    /** 숨김 해제. */
+    public void unhide() {
+        this.status = "ACTIVE";
+    }
 }

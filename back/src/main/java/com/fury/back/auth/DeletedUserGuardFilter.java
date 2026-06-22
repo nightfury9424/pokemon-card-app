@@ -34,7 +34,7 @@ import java.util.Optional;
 public class DeletedUserGuardFilter extends OncePerRequestFilter {
 
     private final UserRepository userRepository;
-    private final AdminAllowlistFilter adminAllowlistFilter;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     /** 정지 사용자도 자기 정보 조회는 통과 — 게이트 사유 표시용. */
     private static final String SUSPENDED_PASSTHROUGH_PATH = "/api/users/me";
@@ -61,7 +61,7 @@ public class DeletedUserGuardFilter extends OncePerRequestFilter {
         }
         // 2026-05-29: 정지 사용자 차단 — admin allowlist 면제 + /api/users/me 통과 (banner 표시용).
         User user = userOpt.get();
-        if (user.isSuspended() && !adminAllowlistFilter.isAllowed(userId)) {
+        if (user.isSuspended() && !adminAuthorizationService.isAdmin(userId)) {
             String path = request.getRequestURI();
             String method = request.getMethod();
             // /me 는 GET 만(정지자가 DELETE /me 로 자기삭제→재가입 밴 회피 차단), 이의신청은 POST 만.
