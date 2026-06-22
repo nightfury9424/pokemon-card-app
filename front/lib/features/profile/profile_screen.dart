@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/user_avatar.dart';
 import '../../core/widgets/app_info_toast.dart';
 import '../board/board_screen.dart';
@@ -89,7 +90,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _buildAppBar(),
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                    // 하단 여백 = 셸 스캔 FAB 돌출 클리어런스(공통 디자인 상수, MainShell과 공유).
+                    padding: const EdgeInsets.fromLTRB(
+                        16, 0, 16, AppDimens.bottomContentInsetForScanFab),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -275,7 +278,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         iconColor: AppColors.blueLight,
         label: '게시판',
         // 게시판은 아직 go_router route 아님 — 공지배너와 동일하게 Navigator.push.
-        onTap: () => Navigator.of(context).push(
+        onTap: () => Navigator.of(context, rootNavigator: true).push(
             MaterialPageRoute(builder: (_) => const BoardScreen())),
       ),
       _HubTile(

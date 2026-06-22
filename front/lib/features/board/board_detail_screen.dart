@@ -13,6 +13,7 @@ class BoardDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: AppColors.bg,
         elevation: 0,
@@ -83,24 +84,38 @@ class BoardDetailScreen extends StatelessWidget {
             style: const TextStyle(
                 color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w800, height: 1.3)),
         const SizedBox(height: 12),
-        Row(children: [
-          CircleAvatar(
-            radius: 13,
-            backgroundColor: AppColors.surfaceElevated,
-            child: Text(post.author.characters.first,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
-          ),
-          const SizedBox(width: 8),
-          Text(post.author,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-          if (post.isAdmin) ...[
-            const SizedBox(width: 6),
-            _adminBadge(),
+        // 적응형 작성자/메타 — 넓으면 한 줄(양끝정렬), 좁거나 큰 글자면 메타가 둘째 줄로 전환.
+        // 작성자·시간·조회수를 ellipsis 로 숨기지 않음(Wrap 줄바꿈으로 처리).
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              CircleAvatar(
+                radius: 13,
+                backgroundColor: AppColors.surfaceElevated,
+                child: Text(post.author.characters.first,
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
+              ),
+              const SizedBox(width: 8),
+              // 닉네임만 통제불가 단일필드라 최후수단 ellipsis(point6). 시간·조회는 안 숨김.
+              Flexible(
+                child: Text(post.author,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+              if (post.isAdmin) ...[
+                const SizedBox(width: 6),
+                _adminBadge(),
+              ],
+            ]),
+            Text('${BoardMock.relativeTime(post.createdAt)} · 조회 ${post.viewCount}',
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5)),
           ],
-          const Spacer(),
-          Text('${BoardMock.relativeTime(post.createdAt)}  ·  조회 ${post.viewCount}',
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5)),
-        ]),
+        ),
       ],
     );
   }

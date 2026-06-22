@@ -5,6 +5,7 @@ import '../../core/network/api_client.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimens.dart';
 
 class MainShell extends StatefulWidget {
   final Widget child;
@@ -80,8 +81,8 @@ class _PressableFabState extends State<_PressableFab> {
         curve: Curves.easeOutCubic,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          width: 56,
-          height: 56,
+          width: AppDimens.scanFabDiameter,
+          height: AppDimens.scanFabDiameter,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: AppColors.blue,

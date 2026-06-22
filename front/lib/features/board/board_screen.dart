@@ -70,7 +70,7 @@ class _BoardScreenState extends State<BoardScreen> {
                     itemCount: posts.length,
                     separatorBuilder: (_, _) =>
                         const Divider(height: 1, color: AppColors.dividerSoft),
-                    itemBuilder: (_, i) => _PostRow(post: posts[i]),
+                    itemBuilder: (_, i) => PostRow(post: posts[i]),
                   ),
           ),
         ],
@@ -119,9 +119,9 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 }
 
-class _PostRow extends StatelessWidget {
+class PostRow extends StatelessWidget {
   final BoardPost post;
-  const _PostRow({required this.post});
+  const PostRow({super.key, required this.post});
 
   @override
   Widget build(BuildContext context) {
@@ -156,24 +156,40 @@ class _PostRow extends StatelessWidget {
                 style: const TextStyle(
                     color: AppColors.textSecondary, fontSize: 13, height: 1.35)),
             const SizedBox(height: 9),
-            Row(
+            // 적응형 메타 — 넓으면 한 줄(양끝정렬), 좁거나 큰 글자면 메타가 둘째 줄로 전환.
+            // 핵심정보(작성자·시간·조회·댓글·좋아요)를 ellipsis 로 숨기지 않음(Wrap 이 줄바꿈으로 처리).
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 6,
               children: [
-                Text(post.author,
-                    style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600)),
-                const _Dot(),
-                Text(BoardMock.relativeTime(post.createdAt),
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5)),
-                const Spacer(),
-                _meta(Icons.visibility_outlined, post.viewCount),
-                const SizedBox(width: 12),
-                _meta(Icons.chat_bubble_outline, post.commentCount),
-                if (post.likeCount > 0) ...[
-                  const SizedBox(width: 12),
-                  _meta(Icons.favorite_border, post.likeCount),
-                ],
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  // 닉네임만 통제불가 단일필드라 최후수단 ellipsis(point6). 시간은 안 숨김.
+                  Flexible(
+                    child: Text(post.author,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                  const _Dot(),
+                  Text(BoardMock.relativeTime(post.createdAt),
+                      style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5)),
+                ]),
+                // 메타는 폭이 모자라면 자기들끼리도 줄바꿈(숫자 안 숨김).
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _meta(Icons.visibility_outlined, post.viewCount),
+                    _meta(Icons.chat_bubble_outline, post.commentCount),
+                    if (post.likeCount > 0) _meta(Icons.favorite_border, post.likeCount),
+                  ],
+                ),
               ],
             ),
           ],

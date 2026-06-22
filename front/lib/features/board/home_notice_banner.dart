@@ -19,7 +19,7 @@ class HomeNoticeBanner extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => Navigator.of(context).push(
+        onTap: () => Navigator.of(context, rootNavigator: true).push(
             MaterialPageRoute(builder: (_) => BoardDetailScreen(post: p))),
         child: Container(
           height: 46,
@@ -54,7 +54,7 @@ class HomeNoticeBanner extends StatelessWidget {
               const SizedBox(width: 8),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => Navigator.of(context).push(
+                onTap: () => Navigator.of(context, rootNavigator: true).push(
                     MaterialPageRoute(builder: (_) => const BoardScreen())),
                 child: const Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
               ),
