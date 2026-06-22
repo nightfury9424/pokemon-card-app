@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/app_info_toast.dart';
 import 'models/board_post.dart';
 import 'data/board_mock.dart';
@@ -38,6 +39,11 @@ class _BoardScreenState extends State<BoardScreen> {
         return b.createdAt.compareTo(a.createdAt);
       });
 
+    // 글쓰기 FAB(우하단 확장형) 위로 마지막 글이 가리지 않게 — board 는 root Scaffold 라
+    // body 가 SafeArea 밖 → 홈 인디케이터(viewPadding.bottom)까지 합산한 동적 하단 여백.
+    final fabBottomInset = AppDimens.bottomContentInsetForExtendedFab +
+        MediaQuery.viewPaddingOf(context).bottom;
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
@@ -66,7 +72,7 @@ class _BoardScreenState extends State<BoardScreen> {
                     child: Text('아직 글이 없어요',
                         style: TextStyle(color: AppColors.textMuted)))
                 : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                    padding: EdgeInsets.fromLTRB(16, 4, 16, fabBottomInset),
                     itemCount: posts.length,
                     separatorBuilder: (_, _) =>
                         const Divider(height: 1, color: AppColors.dividerSoft),
