@@ -104,6 +104,21 @@
 ## 10. 명시적 제외 (이번 슬라이스 밖)
 좋아요·조회수증가·신고(BOARD_POST targetType 확장)·차단 author 쓰기영향·Q&A 채택(OP 전용)·프론트 작성 UI·prod 적용/배포/dev 통합.
 
+## 12. 공용 코드 최소화 결정 + 배포 게이트 검증 (2026-06-23)
+- ★**공용 admin 인증 코드 무변경 결정**: 더 작은 변경으로 동일 안전성 달성 가능 → 기존
+  `AdminAllowlistFilter`·`DeletedUserGuardFilter`·`AdminStage0Service`를 **원복(read 브랜치와 바이트 동일)**.
+  → 기존 admin 기능(로그인·whoami·비관리자 403·정지 차단·관리자 면제·신고/문의/차단/채팅/거래 관리·감사로그)
+  **회귀 정의상 0**. board 서비스는 신규 **독립** `AdminAuthorizationService`(필터와 **동일 config 키**
+  `app.admin.user-ids`/`auth-enabled`, 발산 불가)로 admin 재검증 → 웹 필터 직접 의존 없음 + 공용 코드 무변경.
+- ★**전체 검증 결과(배포 동등 격리 DB)**:
+  - 격리 `pokefolio_ci`(엔티티 생성 스키마=validate 기준) + 더미 deploy config → **전체 `./gradlew test` green: 50/0**.
+    `BackApplicationTests`(전체 앱 컨텍스트 부팅)·`BoardContextBootTest`·board 48 전부 통과.
+  - 공용 admin 3파일 diff = 0(원복 확인). CHECK 마이그 격리 PG apply→거부→롤백→재적용 검증 완료.
+- 배포 전 잔여 게이트(승인 영역): ①최신 dev rebase 후 충돌/누락 ②실제 배포 스키마(마이그 기반)와
+  `ddl-auto=validate` 정합성 최종 확인 ③운영 DB 백업+복원 경로 검증 ④마이그 선적용 후 배포 ⑤이상 시 코드+DB 롤백.
+  (로컬 dev DB `pokemon_card_db`는 board 무관 기존 drift[`buy_orders.active_chat_room_id`]로 그대로는 full-boot 불가 →
+  배포 환경/CI 또는 dev DB 정렬에서 최종 확인.)
+
 ## 11. 중복 등록 방지 (idempotency) — ★후속 필수(이번 슬라이스 제외, 명시 보류)
 - 문제: 버튼 더블탭·네트워크 재시도 → 동일 글/댓글 중복 생성.
 - 설계: POST(글·댓글)에 `clientRequestId`(or HTTP `Idempotency-Key`) 수용 → `(author_id, client_request_id)` 부분 UNIQUE 로 중복 차단(동일 키 재요청은 기존 결과 반환).
