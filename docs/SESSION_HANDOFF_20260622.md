@@ -2,6 +2,9 @@
 
 > 다음 세션 진입점. ★전체 진행 순서 = `docs/MASTER_FLOW.md` 먼저 읽어라.
 
+## ★★ 최상위 운영 원칙 — 백업 선행 (모든 작업보다 우선)
+큰 기능·대규모 데이터·운영 배포는 **백업·롤백 경로 확보 전 시작 금지**. 적용=DB/가격·계수/스캐너 FAISS·meta·모델/프론트·백엔드 배포/브랜치 rebase·merge/카드 대량 등록·삭제/cron·동기화. 절차=상태기록→타임스탬프 백업→백업 검증(존재·크기·SHA)→롤백명령 사전작성→DRY_RUN→승인→전후비교→이상시 즉시롤백. **백업 미검증·복구경로 불명확이면 진행 금지.** (상세=MASTER_FLOW 최상단)
+
 ## 이번 세션 한 일
 
 ### 1. 신규 카드 53장 추가 (갭필) — 플레이북=`docs/CARD_ADD_FLOW.md`
@@ -53,10 +56,13 @@
 - `scanner/scanner_excluded_cards.json` (보류 4장 allowlist)
 
 ## 세션 커밋 (`ops/handoff-20260622`)
-- 커밋1 `fix(admin): mark rarity coefficients as reference-only` — admin/src/pages/Price.jsx
-- 커밋2 `docs(ops): record gapfill runbook and 2026-06-22 handoff` — docs + scanner_excluded_cards.json
-- (해시는 closeout 후 git log -2 로 기록 / 아래 채움)
+- 커밋1 **`b3e47434`** fix(admin): mark rarity coefficients as reference-only — admin/src/pages/Price.jsx
+- 커밋2 **`eeb538d5`** docs(ops): record gapfill runbook and 2026-06-22 handoff — docs + scanner_excluded_cards.json
 - 운영 백업: admin `dist.bak_pricelabel_20260622_0632` · scanner `card_db.faiss.bak_pre49_20260622_0604`
+- prod scanner 현재값: **3,889 / 57,100**
+- 커밋3 `docs(ops): record handoff hashes + backup-first top rule` — 이 문서(해시 기록 + 백업선행 원칙) + MASTER_FLOW
+- ★커밋1·2(`b3e47434`·`eeb538d5`) **amend 금지** (해시 자기참조 깨짐)
+- **작업트리 미커밋 = 이번 closeout 무관 기존 작업물**: M `naver_review/index.html`·`python/crawl_daangn_v2.py`·`scanner/finetune.py` / untracked 다수(SESSION_HANDOFF_V8·V8_AFTER_CATALOG·docs/PRICE_*·naver_review/*·python/catalog_*·scanner/*.py·realshot JSON·FAISS/meta/.bak). → 다음 세션은 이들을 **기존 작업물로 인지**(이번 세션 산출 아님)
 
 ## 다음 세션 시작 프롬프트 (새 대화에 그대로 붙여넣기)
 ```
@@ -81,6 +87,7 @@
 현재 알려진 브랜치 상태: feat/post-launch-front는 dev 대비 23커밋 앞·19커밋 뒤, 게시판 목업 약 9커밋·UI/UX 약 14커밋, UI/UX가 게시판 목업 커밋 위에 쌓여 파일 단위로 얽혔을 가능성, 게시판 백엔드 및 feat/moderation-backend는 존재하지 않음.
 
 작업 규칙:
+0. ★최상위(백업 선행): 큰 기능·대규모 데이터·운영 배포·브랜치 통합은 백업·롤백 경로 확보 전 시작 금지(상태기록→타임스탬프 백업→백업 검증→롤백명령 작성→DRY_RUN→승인→전후비교→이상시 즉시롤백). 백업 미검증·복구경로 불명확이면 진행 금지.
 1. 기존 브랜치를 바로 rebase하거나 force-push하지 마라.
 2. 별도 worktree와 임시 integration 브랜치를 사용해라.
 3. 먼저 보고: 정확한 merge-base / 양쪽 커밋 목록·파일 변경 범위 / UI/UX와 게시판 목업이 동시 수정한 파일 / 예상 충돌 파일 / UI/UX만 선반영 가능한지 / 게시판 목업 유지한 채 백엔드 신규 구현으로 이어가는 게 나은지.
