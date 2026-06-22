@@ -145,18 +145,29 @@ DROP TABLE IF EXISTS board_posts;
 | `free` 자유 | community | 작성 + **본인 글만 수정·삭제** | 모더레이션(숨김/삭제/복구) |
 | `tradeReview` 거래후기 | community | 작성 + 본인 글만 수정·삭제 | 모더레이션 |
 | `scamAlert` 사기주의 | community | 작성 + 본인 글만 수정·삭제 | 모더레이션 |
-| `qna` Q&A | qna | 작성 + 본인 글만 수정·삭제 | 모더레이션 + 채택 토글 |
+| `qna` Q&A | qna | 작성 + 본인 글만 수정·삭제 + **본인 질문 답변 채택** | 모더레이션(숨김/삭제)만 — **채택 권한 없음** |
 
 ### 서버 구현 원칙 (authz)
 1. 클라이언트가 보낸 `isAdmin`/`isOfficial`/`section`/`authorId` 값을 **권한 판단에 절대 사용 안 함**(무시·서버 도출).
-2. 서버가 **인증된 사용자의 실제 관리자 권한**을 확인 — 기존 `AdminAllowlistFilter`(`/api/admin/**`, SSOT=`SecurityConfig.ADMIN_PATH_PATTERNS`, `ADMIN_AUTH_ENABLED`)를 재사용. 새 authz 미구현.
+2. 서버가 **인증된 사용자의 실제 관리자 권한**을 확인 — 기존 `AdminAllowlistFilter`(`/api/admin/**`, SSOT=`SecurityConfig.ADMIN_PATH_PATTERNS`)를 **재사용하되 필터 하나에 맹신하지 않음**(서비스 계층 재검증 + fail-closed, 아래 "관리자 API 방어" 참조).
 3. 일반 사용자가 `notice/event/patch` 작성·수정 요청 → **403 Forbidden**(타입 자체가 잘못된 값이면 400과 구분).
 4. `section` 은 전달값 무시, 서버가 `type` 에서 **강제 도출**(`BoardTaxonomy.sectionOf`): notice/event/patch→official, free/tradeReview/scamAlert→community, qna→qna.
 5. **API 분리**:
    - 사용자: `POST/PATCH/DELETE /api/board/posts[/{id}]` — 인증 필요, **user 타입만**, 본인 글만 수정·삭제, `authorId=현재 사용자`, 금칙어(ContentFilter) 검증. `isPinned/isAnswered/status` 설정 불가.
-   - 관리자: `POST/PATCH/DELETE /api/admin/board/posts[/{id}]` — `/api/admin/**` 라 `AdminAllowlistFilter` 자동 게이트(InquiryAdminController 선례). 공식글 작성 + 일반 글 모더레이션(숨김/삭제/복구/핀/채택), 감사로그(`admin_actions`).
+   - 관리자: `POST/PATCH/DELETE /api/admin/board/posts[/{id}]` — `/api/admin/**` 라 `AdminAllowlistFilter` 게이트(InquiryAdminController 선례) **+ 서비스 계층 재검증**. 공식글 작성(작성자=요청 authorId 아닌 **서버가 운영 계정으로 결정**, 표시 "운영팀") + 일반 글 모더레이션(숨김/삭제/복구/핀), 감사로그(`admin_actions`). **Q&A 답변 채택은 관리자 권한 아님**(질문 작성자 전용).
 6. **방어적 이중화**: `/api/board/**`(사용자)는 admin 필터가 안 걸리므로, 컨트롤러/서비스에서 admin 타입·타인 글을 **자체적으로 403/404** 처리(필터에만 의존하지 않음).
 7. **프론트**: 앱 일반 UI 에 notice/event/patch **작성 선택지 비노출**(front 슬라이스 책임 — 별도 명시).
+
+### 관리자 API 방어 (필수 — 필터 단일 의존 금지)
+- `/api/admin/board/**` = `AdminAllowlistFilter` **+ 서비스 계층 관리자 재검증**(이중). 필터 우회·오설정에도 서비스가 비관리자 거부.
+- 일반 사용자 토큰으로 `/api/admin/board/**` 직접 호출 → **확실히 403**.
+- 운영(`prod`)에서 `ADMIN_AUTH_ENABLED` **반드시 on**. 누락/off 시 관리자 API 개방 금지 → **fail-closed(전부 차단) 또는 서버 시작 실패**(StartupValidator 가드). local 편의 default(permitAll)가 prod 로 새지 않게.
+- 관리자 공식글 작성자 = 요청 `authorId` 무시, **서버가 운영 계정으로 결정**(표시 "운영팀").
+
+### Q&A 답변 채택 규칙
+- 채택·채택취소 = **해당 질문 게시글 작성자(OP)만** (`board_posts.is_answered` + 채택 댓글 `is_accepted` 토글).
+- **관리자는 대신 채택하지 않음** — Q&A 글·댓글 모더레이션(숨김/삭제)만.
+- OP 가 아닌 사용자의 채택 요청 → **403/404**(존재 비노출 일관 시 404).
 
 ### 비고
 - 본인 글 판별 = `board_posts.author_id == 현재 userId`(아니면 404, 존재 비노출 일관).
