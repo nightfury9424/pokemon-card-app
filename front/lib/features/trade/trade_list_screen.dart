@@ -647,7 +647,6 @@ class _TradeListScreenState extends State<TradeListScreen> {
       prevPrice: prevPriceApprox,
       prefix: '',
     );
-    final String pctLabel = display?.label.trim() ?? '';
     final Color pctColor = display == null
         ? AppColors.textMuted
         : switch (display.color) {
@@ -656,6 +655,19 @@ class _TradeListScreenState extends State<TradeListScreen> {
             PriceChangeColor.negative => AppColors.blue,
             PriceChangeColor.neutral => AppColors.textMuted,
           };
+    // 변동액/퍼센트는 표시문자열 파싱이 아니라 구조화된 diff/percent에서 직접 만든다.
+    // 금액 포맷은 PriceDisplayPolicy 와 동일한 10원 반올림(AppColors.formatPrice). null=등락 숨김.
+    String? changeAmount;
+    String? changePct;
+    if (display != null) {
+      final diff = display.diff;
+      final sign = diff > 0 ? '+' : (diff < 0 ? '-' : '');
+      changeAmount = '$sign${AppColors.formatPrice(diff.abs())}';
+      final pctVal = display.percent;
+      if (pctVal != null) {
+        changePct = '($sign${pctVal.abs().toStringAsFixed(1)}%)';
+      }
+    }
 
     return InkWell(
       onTap: () async {
@@ -726,38 +738,15 @@ class _TradeListScreenState extends State<TradeListScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          price != null ? AppColors.formatPrice(price) : '시세 없음',
-                          style: TextStyle(
-                            color: price != null
-                                ? AppColors.textSecondary
-                                : AppColors.textMuted,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        // 가격 옆 inline 라벨 — 국내 예상가 / 해외 참고가 / 시세 준비중.
-                        Text(
-                          priceLabelText,
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          pctLabel,
-                          style: TextStyle(
-                            color: pctColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
+                    // 가격·발매판라벨·변동액·퍼센트 — 고정 Row 대신 Wrap(MarketRowPriceMeta)
+                    // 으로 흘려 좁은 폭/큰 글자배율에서 변동 정보가 다음 줄로 내려가고
+                    // 오른쪽 하트와 겹치지 않게 한다(핵심 숫자 ellipsis 금지).
+                    MarketRowPriceMeta(
+                      price: price,
+                      priceLabelText: priceLabelText,
+                      changeAmount: changeAmount,
+                      changePct: changePct,
+                      changeColor: pctColor,
                     ),
                     const SizedBox(height: 3),
                     // 거래 시그널 — 색 정책: 매도=blue(호가창 ASK 컨벤션), 매수=red(BID), 관심=neutral.
@@ -1161,6 +1150,67 @@ class _TradeListScreenState extends State<TradeListScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 거래 시장 리스트 한 행의 "가격·변동" 라인.
+/// 가격 + 발매판 라벨 + 변동액 + 퍼센트를 고정 Row 가 아니라 **Wrap** 으로 흘린다.
+/// 좁은 폭/큰 글자배율에서 변동 정보가 다음 줄로 자연스럽게 내려가 오른쪽 하트
+/// 아이콘과 겹치지 않고, 핵심 숫자(가격·변동액·퍼센트)는 ellipsis 로 잘리지 않는다.
+/// 공개 위젯이라 위젯 테스트로 직접 검증 가능.
+class MarketRowPriceMeta extends StatelessWidget {
+  final int? price;
+  final String priceLabelText;
+
+  /// 변동액 칩(예: '-15,100원'). null = 등락 숨김(저가 정책 등).
+  final String? changeAmount;
+
+  /// 퍼센트 칩(예: '(-36.6%)'). null 가능.
+  final String? changePct;
+  final Color changeColor;
+
+  const MarketRowPriceMeta({
+    super.key,
+    required this.price,
+    required this.priceLabelText,
+    required this.changeAmount,
+    required this.changePct,
+    required this.changeColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final changeStyle = TextStyle(
+      color: changeColor,
+      fontSize: 13,
+      fontWeight: FontWeight.w700,
+    );
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      runSpacing: 2,
+      children: [
+        Text(
+          price != null ? AppColors.formatPrice(price!) : '시세 없음',
+          style: TextStyle(
+            color: price != null ? AppColors.textSecondary : AppColors.textMuted,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        // 가격 옆 inline 라벨 — 국내 예상가 / 해외 참고가 / 시세 준비중.
+        Text(
+          priceLabelText,
+          style: const TextStyle(
+            color: AppColors.textMuted,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (changeAmount != null) Text(changeAmount!, style: changeStyle),
+        if (changePct != null) Text(changePct!, style: changeStyle),
+      ],
     );
   }
 }
