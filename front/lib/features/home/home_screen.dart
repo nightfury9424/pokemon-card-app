@@ -10,6 +10,7 @@ import '../../core/notifiers/asset_notifier.dart';
 import '../../core/notifiers/home_session_cache.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/rarity.dart';
+import '../board/home_notice_banner.dart';
 import '../../core/utils/price_label.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/animated_counter.dart';
@@ -522,6 +523,9 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverToBoxAdapter(
                 key: const ValueKey('home-settlement'),
                 child: _buildSettlementBanner()),
+          // 0) 공지·이벤트 배너 (post-launch 게시판) — 카드 위 얇은 가로 띠
+          const SliverToBoxAdapter(
+              key: ValueKey('home-notice-banner'), child: HomeNoticeBanner()),
           // 1) 카드 랭킹 캐러셀
           SliverToBoxAdapter(
               key: const ValueKey('home-carousel'), child: _buildCarousel()),
@@ -611,7 +615,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      '내 자산',
+                      '내 카드',
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
@@ -810,7 +814,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '내 자산',
+                            '내 카드',
                             style: AppText.label.copyWith(
                               color: Colors.white.withValues(alpha: 0.92),
                               fontSize: 14,
@@ -821,7 +825,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Row(
                             children: [
                               Text(
-                                '자산 보기',
+                                '카드 보기',
                                 style: AppText.caption.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w800,

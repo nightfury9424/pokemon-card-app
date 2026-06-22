@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/constants/feature_flags.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/user_avatar.dart';
-import '../auth/auth_service.dart';
 import '../../core/widgets/app_info_toast.dart';
+import '../board/board_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -80,52 +78,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _logout() async {
-    final confirm = await AppConfirmDialog.show(
-      context,
-      title: '로그아웃',
-      message: '로그아웃 하시겠습니까?',
-      confirmLabel: '로그아웃',
-      destructive: true,
-    );
-    if (confirm == true && mounted) {
-      await AuthService.logout();
-      if (mounted) context.go('/login');
-    }
-  }
-
-  /// 계정 탈퇴. App Review 5.1.1 대응. docs/DELETION_POLICY.md 참조.
-  /// 흐름: confirm → DELETE /api/users/me → AuthService.logout → /login redirect.
-  /// 백엔드는 PII 마스킹 + OPEN 매수/매도 자동 취소. 거래/채팅/신고/차단 기록은 보존.
-  Future<void> _deleteAccount() async {
-    final confirm = await AppConfirmDialog.show(
-      context,
-      title: '정말 탈퇴하시겠어요?',
-      message:
-          '거래/채팅 기록은 분쟁 대응을 위해 보존되며 다른 사용자에게는 "탈퇴한 사용자"로 표시됩니다. '
-          '진행 중인 매수/매도 호가는 자동 취소되고, 계정은 복구할 수 없어요.\n\n'
-          '인증한 전화번호와 계정은 탈퇴 후 3개월간 동일 정보로 재가입할 수 없어요.',
-      confirmLabel: '탈퇴하기',
-      destructive: true,
-    );
-    if (confirm != true || !mounted) return;
-    try {
-      final res = await ApiClient.delete('/api/users/me');
-      // 백엔드 envelope 체크 (HTTP 200 + {status:'fail'} 패턴 대응)
-      if (res['status'] != 'success') {
-        if (!mounted) return;
-        AppInfoToast.show(context, res['message']?.toString() ?? '탈퇴 처리에 실패했어요. 잠시 후 다시 시도해주세요.');
-        return;
-      }
-      await AuthService.logout();
-      if (!mounted) return;
-      context.go('/login');
-    } catch (e) {
-      if (!mounted) return;
-      AppInfoToast.show(context, '탈퇴 처리에 실패했어요. 잠시 후 다시 시도해주세요.');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -145,182 +97,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 16),
                         _buildStatRow(),
                         const SizedBox(height: 28),
-                        // #3: 닉네임 변경은 프로필 카드 탭으로 통합 — 별도 '계정' 메뉴 제거.
-                        _buildSectionLabel('내 활동'),
-                        const SizedBox(height: 8),
-                        _buildMenuGroup([
-                          _MenuItem(
-                            icon: Icons.style_rounded,
-                            iconColor: AppColors.blue,
-                            label: '내 자산',
-                            sub: '$_totalCards종 보유',
-                            onTap: () => context.push('/assets'),
-                          ),
-                          _MenuItem(
-                            icon: Icons.shopping_cart_rounded,
-                            iconColor: const Color(0xFFF59E0B),
-                            label: '내 매수 주문',
-                            sub: _activeBuyOrders > 0
-                                ? 'OPEN $_activeBuyOrders건'
-                                : '매수 호가 없음',
-                            onTap: () =>
-                                context.push('/assets?tab=buy'),
-                          ),
-                          _MenuItem(
-                            icon: Icons.receipt_long_rounded,
-                            iconColor: const Color(0xFF10B981),
-                            label: '내 판매 내역',
-                            sub: _activeTrades > 0 ? '진행 중 $_activeTrades건' : null,
-                            onTap: () {
-                              // _userId null이면 sellerId 누락 → trade_list가 메인 거래 화면으로 잘못 진입.
-                              if (_userId == null) return;
-                              context.push('/my-trades', extra: {'sellerId': _userId});
-                            },
-                          ),
-                          _MenuItem(
-                            icon: Icons.favorite_rounded,
-                            iconColor: AppColors.red,
-                            label: '관심 목록',
-                            onTap: () => context.push('/favorites'),
-                          ),
-                          _MenuItem(
-                            icon: Icons.person_off_rounded,
-                            iconColor: AppColors.textMuted,
-                            label: '차단한 사용자',
-                            onTap: () => context.push('/profile/blocked-users'),
-                          ),
-                          _MenuItem(
-                            icon: Icons.qr_code_scanner_rounded,
-                            iconColor: const Color(0xFF8B5CF6),
-                            label: '카드 스캔',
-                            onTap: () => context.push('/scanner'),
-                          ),
-                          // Hotfix 10-1: AI 그레이딩 beta 1.0 메뉴 자체 숨김.
-                          // 코드/route 보존. 직접 /grading 진입 시에만 _GradingDisabledScreen.
-                          if (FeatureFlags.enableAiGrading)
-                            _MenuItem(
-                              icon: Icons.auto_awesome_rounded,
-                              iconColor: const Color(0xFFFFD700),
-                              label: 'AI 그레이딩',
-                              onTap: () => context.push('/grading'),
-                            ),
-                        ]),
-                        const SizedBox(height: 20),
+                        _buildSectionLabel('내 거래'),
+                        const SizedBox(height: 10),
+                        _buildTradeGrid(),
+                        const SizedBox(height: 24),
+                        _buildSectionLabel('서비스'),
+                        const SizedBox(height: 10),
+                        _buildServiceGrid(),
+                        const SizedBox(height: 24),
                         _buildSectionLabel('고객 지원'),
-                        const SizedBox(height: 8),
-                        _buildMenuGroup([
-                          _MenuItem(
-                            icon: Icons.flag_rounded,
-                            iconColor: const Color(0xFFF59E0B),
-                            label: '신고 진행 상황',
-                            onTap: () => context.push('/profile/reports'),
-                          ),
-                          _MenuItem(
-                            icon: Icons.chat_bubble_outline_rounded,
-                            iconColor: AppColors.blueLight,
-                            label: '문의하기',
-                            onTap: () => context.push('/support'),
-                          ),
-                          _MenuItem(
-                            icon: Icons.inbox_outlined,
-                            iconColor: AppColors.blueLight,
-                            label: '내 문의 내역',
-                            onTap: () => context.push('/profile/inquiries'),
-                          ),
-                          _MenuItem(
-                            icon: Icons.description_outlined,
-                            iconColor: AppColors.textSecondary,
-                            label: '이용약관',
-                            onTap: () => context.push('/legal/terms'),
-                          ),
-                          _MenuItem(
-                            icon: Icons.privacy_tip_outlined,
-                            iconColor: AppColors.textSecondary,
-                            label: '개인정보처리방침',
-                            onTap: () => context.push('/legal/privacy'),
-                          ),
-                          _MenuItem(
-                            icon: Icons.info_outline_rounded,
-                            iconColor: AppColors.textMuted,
-                            label: '앱 정보',
-                            sub: 'v1.0.0',
-                            // B3-8: Flutter 기본 about/license(Powered by Flutter + 영문 패키지 raw 리스트)
-                            // 대신 커스텀 다이얼로그. OSS 라이선스 고지는 법적 의무라 "오픈소스 라이선스"
-                            // 액션으로 격하해 유지(브랜딩 헤더).
-                            onTap: () => showDialog<void>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                backgroundColor: AppColors.surface,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16)),
-                                title: const Text('PokeFolio',
-                                    style: TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontWeight: FontWeight.w800)),
-                                content: const Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('v1.0.0',
-                                        style: TextStyle(
-                                            color: AppColors.textSecondary,
-                                            fontSize: 13)),
-                                    SizedBox(height: 6),
-                                    Text('© 2026 PokeFolio',
-                                        style: TextStyle(
-                                            color: AppColors.textMuted,
-                                            fontSize: 12)),
-                                    SizedBox(height: 12),
-                                    Text(
-                                        '본 앱은 비공식 팬 서비스입니다. ‘Pokémon’ 및 관련 명칭·이미지의 저작권·상표권은 각 권리자에게 있습니다.',
-                                        style: TextStyle(
-                                            color: AppColors.textMuted,
-                                            fontSize: 11.5,
-                                            height: 1.5)),
-                                  ],
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.of(ctx).pop();
-                                      showLicensePage(
-                                        context: context,
-                                        applicationName: 'PokeFolio',
-                                        applicationVersion: 'v1.0.0',
-                                        applicationLegalese: '© 2026 PokeFolio',
-                                      );
-                                    },
-                                    child: const Text('오픈소스 라이선스',
-                                        style: TextStyle(
-                                            color: AppColors.textSecondary)),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.of(ctx).pop(),
-                                    child: const Text('닫기',
-                                        style: TextStyle(color: AppColors.blue)),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ]),
-                        const SizedBox(height: 20),
-                        _buildMenuGroup([
-                          _MenuItem(
-                            icon: Icons.logout_rounded,
-                            iconColor: AppColors.red,
-                            label: '로그아웃',
-                            labelColor: AppColors.red,
-                            onTap: _logout,
-                          ),
-                          _MenuItem(
-                            icon: Icons.delete_forever_outlined,
-                            iconColor: AppColors.red,
-                            label: '계정 삭제',
-                            labelColor: AppColors.red,
-                            onTap: _deleteAccount,
-                          ),
-                        ]),
+                        const SizedBox(height: 10),
+                        _buildSupportGrid(),
                         const SizedBox(height: 28),
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 8),
@@ -346,6 +133,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       floating: true,
       elevation: 0,
       title: const Text('MY'),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.settings_outlined, color: AppColors.textSecondary),
+          tooltip: '설정',
+          onPressed: () => context.push('/settings'),
+        ),
+        const SizedBox(width: 4),
+      ],
     );
   }
 
@@ -417,6 +212,113 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // 한 행을 등간격 Expanded 타일로. IntrinsicHeight+stretch → 같은 행 타일은 항상 동일 높이
+  // (준비중 핀이 붙어 높이가 달라져도 행 내 정렬 안 깨짐).
+  Widget _gridRow(List<Widget> tiles) {
+    final children = <Widget>[];
+    for (var i = 0; i < tiles.length; i++) {
+      if (i > 0) children.add(const SizedBox(width: 12));
+      children.add(Expanded(child: tiles[i]));
+    }
+    return IntrinsicHeight(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+    );
+  }
+
+  // 내 거래 = 2x2 그리드. 핵심 숫자는 stat row에 두고, 타일엔 '바로 처리할' 액션 배지만(매수 OPEN/판매 진행중).
+  Widget _buildTradeGrid() {
+    return Column(
+      children: [
+        _gridRow([
+          _HubTile(
+            icon: Icons.style_rounded,
+            iconColor: AppColors.blue,
+            label: '내 카드',
+            onTap: () => context.push('/assets'),
+          ),
+          _HubTile(
+            icon: Icons.shopping_cart_rounded,
+            iconColor: const Color(0xFFF59E0B),
+            label: '매수',
+            badgeCount: _activeBuyOrders,
+            onTap: () => context.push('/assets?tab=buy'),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        _gridRow([
+          _HubTile(
+            icon: Icons.receipt_long_rounded,
+            iconColor: const Color(0xFF10B981),
+            label: '판매',
+            badgeCount: _activeTrades,
+            // _userId null이면 sellerId 누락 → trade_list가 메인 거래 화면으로 잘못 진입.
+            onTap: _userId == null
+                ? null
+                : () => context.push('/my-trades', extra: {'sellerId': _userId}),
+          ),
+          _HubTile(
+            icon: Icons.favorite_rounded,
+            iconColor: AppColors.red,
+            label: '관심',
+            onTap: () => context.push('/favorites'),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  // 서비스 = 3-col 그리드. 게시판(활성) + 오리파/경매(준비중 회색).
+  Widget _buildServiceGrid() {
+    return _gridRow([
+      _HubTile(
+        icon: Icons.forum_rounded,
+        iconColor: AppColors.blueLight,
+        label: '게시판',
+        // 게시판은 아직 go_router route 아님 — 공지배너와 동일하게 Navigator.push.
+        onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const BoardScreen())),
+      ),
+      _HubTile(
+        icon: Icons.card_giftcard_rounded,
+        iconColor: AppColors.textMuted,
+        label: '오리파',
+        comingSoon: true,
+        onTap: () => AppInfoToast.show(context, '오리파는 오픈 준비 중이에요'),
+      ),
+      _HubTile(
+        icon: Icons.gavel_rounded,
+        iconColor: AppColors.textMuted,
+        label: '경매',
+        comingSoon: true,
+        onTap: () => AppInfoToast.show(context, '경매는 오픈 준비 중이에요'),
+      ),
+    ]);
+  }
+
+  // 고객 지원 = 3-col 그리드 (서비스와 톤 일치).
+  Widget _buildSupportGrid() {
+    return _gridRow([
+      _HubTile(
+        icon: Icons.chat_bubble_outline_rounded,
+        iconColor: AppColors.blueLight,
+        label: '문의하기',
+        onTap: () => context.push('/support'),
+      ),
+      _HubTile(
+        icon: Icons.inbox_outlined,
+        iconColor: AppColors.blueLight,
+        label: '내 문의',
+        onTap: () => context.push('/profile/inquiries'),
+      ),
+      _HubTile(
+        icon: Icons.flag_rounded,
+        iconColor: const Color(0xFFF59E0B),
+        label: '신고내역',
+        onTap: () => context.push('/profile/reports'),
+      ),
+    ]);
+  }
+
   Widget _buildSectionLabel(String label) {
     return Padding(
       padding: const EdgeInsets.only(left: 4),
@@ -432,105 +334,113 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildMenuGroup(List<_MenuItem> items) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Column(
-        children: List.generate(items.length, (i) {
-          final item = items[i];
-          final isLast = i == items.length - 1;
-          return _MenuRow(item: item, isLast: isLast);
-        }),
-      ),
-    );
-  }
 }
 
-class _MenuItem {
+/// 허브 그리드 타일 — 아이콘 칩 + 라벨. 준비중이면 회색 + '준비중' 핀, 액션 배지(매수/판매)는 우상단.
+class _HubTile extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final String label;
-  final Color? labelColor;
-  final String? sub;
-  final VoidCallback onTap;
+  final int? badgeCount;
+  final bool comingSoon;
+  final VoidCallback? onTap;
 
-  const _MenuItem({
+  const _HubTile({
     required this.icon,
     required this.iconColor,
     required this.label,
-    this.labelColor,
-    this.sub,
-    required this.onTap,
+    this.badgeCount,
+    this.comingSoon = false,
+    this.onTap,
   });
-}
-
-class _MenuRow extends StatelessWidget {
-  final _MenuItem item;
-  final bool isLast;
-
-  const _MenuRow({required this.item, required this.isLast});
 
   @override
   Widget build(BuildContext context) {
+    final showBadge = !comingSoon && (badgeCount ?? 0) > 0;
     return GestureDetector(
-      onTap: item.onTap,
+      onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: item.iconColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.divider),
+        ),
+        // stretch 된 높이 안에서 아이콘+라벨(+핀)을 세로 중앙 정렬.
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: iconColor.withValues(alpha: comingSoon ? 0.08 : 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 22),
                   ),
-                  child: Icon(item.icon, color: item.iconColor, size: 18),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.label,
-                        style: TextStyle(
-                          color: item.labelColor ?? AppColors.textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
+                  if (showBadge)
+                    Positioned(
+                      top: -4,
+                      right: -6,
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 18),
+                        height: 18,
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        decoration: BoxDecoration(
+                          color: AppColors.blue,
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(color: AppColors.surfaceCard, width: 1.5),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          badgeCount! > 99 ? '99+' : '$badgeCount',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700),
                         ),
                       ),
-                      if (item.sub != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          item.sub!,
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.textMuted,
-                  size: 18,
-                ),
-              ],
+                    ),
+                ],
+              ),
             ),
-          ),
-          if (!isLast)
-            Padding(
-              padding: const EdgeInsets.only(left: 66),
-              child: Container(height: 0.5, color: AppColors.divider),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: comingSoon ? AppColors.textMuted : AppColors.textPrimary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-        ],
+            if (comingSoon) ...[
+              const SizedBox(height: 5),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.textMuted.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: const Text('준비중',
+                    style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

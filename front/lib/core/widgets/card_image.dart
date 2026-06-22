@@ -189,49 +189,22 @@ class CardImage extends StatelessWidget {
       child: Icon(
         Icons.catching_pokemon,
         color: Colors.white.withValues(alpha: 0.10),
-        size: width > 0 ? width * 0.32 : 44,
+        // width=double.infinity(레이아웃이 크기 결정)면 width*계수가 ♾️ → Icon fontSize 무한
+        //   → 'fontSize.isFinite' assert(디버그 폭주 / 릴리즈 무음). 무한이면 상수로 클램프.
+        size: width.isFinite && width > 0 ? width * 0.32 : 64,
       ),
     );
   }
 
   Widget _buildUnavailable() {
-    return Stack(
-      children: [
-        Image.network(
-          _cardBackUrl,
-          width: width,
-          height: height,
-          fit: fit,
-          errorBuilder: (_, _, _) => _buildFallbackBox(),
-        ),
-        Positioned.fill(
-          child: ClipRRect(
-            borderRadius: borderRadius ?? BorderRadius.zero,
-            child: Container(
-              color: Colors.black45,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.image_not_supported_outlined,
-                      color: Colors.white54, size: width * 0.28),
-                  if (height >= 80) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      '이미지\n없음',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: width * 0.16,
-                        height: 1.2,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
+    // UX-C: '이미지 없음' 깨진 느낌(검정 오버레이+스탬프) 제거 → 카드 뒷면만 차분히
+    //   (뒤집힌 카드처럼 = '준비중'이지 '고장' 아님). 카드명/등급은 호출처(그리드 하단 등)가 표시.
+    return Image.network(
+      _cardBackUrl,
+      width: width,
+      height: height,
+      fit: fit,
+      errorBuilder: (_, _, _) => _buildFallbackBox(),
     );
   }
 
@@ -243,7 +216,8 @@ class CardImage extends StatelessWidget {
         color: const Color(0xFF1A1A2E),
         borderRadius: borderRadius,
       ),
-      child: Icon(Icons.catching_pokemon, color: Colors.white24, size: width * 0.4),
+      child: Icon(Icons.catching_pokemon, color: Colors.white24,
+          size: width.isFinite ? width * 0.4 : 64),
     );
   }
 }

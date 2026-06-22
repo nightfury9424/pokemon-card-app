@@ -100,7 +100,9 @@ class DexViewState extends State<DexView> {
             sliver: SliverGrid(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
-                childAspectRatio: 0.62,    // 세로형 박스카드 (포케몬 카드 비율 참고)
+                // 0.62→0.60: 하단 텍스트영역(2줄 제목+카운트+진행바)이 ~1px 넘쳐 RenderFlex
+                //   overflow 뜨던 것 해소 (셀 세로 여유 확보).
+                childAspectRatio: 0.60,    // 세로형 박스카드 (포케몬 카드 비율 참고)
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 12,
               ),
@@ -253,7 +255,7 @@ class _BoxCard extends StatelessWidget {
             Expanded(
               flex: 4,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -265,7 +267,7 @@ class _BoxCard extends StatelessWidget {
                         color: AppColors.textPrimary,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
-                        height: 1.25,
+                        height: 1.2,
                       ),
                     ),
                     const Spacer(),

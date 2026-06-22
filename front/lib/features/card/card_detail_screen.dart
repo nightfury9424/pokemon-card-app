@@ -948,7 +948,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 tabs: const [
                   Tab(text: '시세'),
                   Tab(text: '거래'),
-                  Tab(text: '내 자산'),
+                  Tab(text: '내 카드'),
                 ],
                 labelColor: Colors.white,
                 unselectedLabelColor: AppColors.textSecondary,
@@ -1224,7 +1224,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       );
                       if (result == true && mounted) {
                         await _refreshAfterOrderMutation();
-                        _showSuccessBanner('자산이 등록되었습니다');
+                        _showSuccessBanner('내 카드에 등록되었습니다');
                       }
                     },
                   ),
@@ -3746,8 +3746,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     }
     final confirmed = await AppConfirmDialog.show(
       context,
-      title: '자산 삭제',
-      message: '이 카드를 자산에서 삭제하시겠습니까?',
+      title: '카드 삭제',
+      message: '이 카드를 내 카드에서 삭제하시겠습니까?',
       confirmLabel: '삭제',
       destructive: true,
     );
@@ -4065,7 +4065,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           );
         }
       });
-      _showSuccessBanner('판매하려면 먼저 자산 등록이 필요해요');
+      _showSuccessBanner('판매하려면 먼저 내 카드에 등록이 필요해요');
       return;
     }
     final activeTradeId = asset['activeTradeId'] as String?;
@@ -5198,7 +5198,7 @@ class _CardDetailCoachBubble extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            _bullet('내 자산', '내가 보유한 이 카드의 수익률·등급 정보'),
+            _bullet('내 카드', '내가 보유한 이 카드의 수익률·등급 정보'),
             const SizedBox(height: 8),
             _bullet('시세', 'KO/JP/EN 시세 차트와 가격 비교'),
             const SizedBox(height: 8),

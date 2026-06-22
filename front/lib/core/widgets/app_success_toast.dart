@@ -6,7 +6,7 @@ import '../theme/app_colors.dart';
 /// 토스 스타일 성공 feedback — 화면 가운데 ✓ + 메시지, 1초 fade out.
 ///
 /// 사용:
-///   AppSuccessToast.show(context, '자산에 추가됐습니다');
+///   AppSuccessToast.show(context, '내 카드에 추가됐습니다');
 ///
 /// 흐름:
 ///   fade-in 220ms → hold 700ms → fade-out 380ms = 약 1.3초
@@ -14,7 +14,7 @@ import '../theme/app_colors.dart';
 ///   IgnorePointer — 토스트가 떠 있어도 아래 UI 인터랙션 차단 X
 ///
 /// 적용 대상:
-///   스캔 후 "자산에 추가됐습니다"
+///   스캔 후 "내 카드에 추가됐습니다"
 ///   판매/매수 등록 후 "등록되었습니다"
 ///   그 외 성공 confirmation (에러 메시지는 SnackBar 유지)
 class AppSuccessToast {

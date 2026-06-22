@@ -424,7 +424,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                     (res['message'] is String &&
                             (res['message'] as String).trim().isNotEmpty)
                         ? res['message'] as String
-                        : '자산 추가에 실패했어요.');
+                        : '내 카드 추가에 실패했어요.');
                 return;
               }
               Navigator.pop(ctx);
@@ -433,7 +433,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               await _loadOwnedCards();
               if (!mounted) return;
               AssetNotifier.instance.notifyChanged();
-              AppSuccessToast.show(context, '자산에 추가됐습니다');
+              AppSuccessToast.show(context, '내 카드에 추가됐습니다');
               // Phase B: 토스트 표시 동안 (1.3초 + margin 0.3초) 스캔 일시 중지.
               _scanPausedUntil = DateTime.now().add(const Duration(milliseconds: 1600));
               // 방금 등록한 cardId 60초 cooldown — 즉시 재인식 차단.
@@ -1209,7 +1209,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                                     : _ActionBtn(
                                         label: isLowConfidence
                                             ? '확인 후 등록'
-                                            : '자산 등록',
+                                            : '카드 등록',
                                         // C-2: 앱 표준 AppColors.blue (#1B64DA) 통일.
                                         color: AppColors.blue,
                                         onTap: () => isLowConfidence
