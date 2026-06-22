@@ -64,17 +64,21 @@ class BoardServiceTest {
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
     }
 
+    @Test void feed_negativePage_400() {
+        assertThatThrownBy(() -> service.getFeed(null, null, null, -1, 20))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
+    }
+
     // ── size clamp ──
     @Test void feed_size_clamped_to_max_50_and_default_20() {
         when(postRepo.findFeed(any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
         ArgumentCaptor<Pageable> cap = ArgumentCaptor.forClass(Pageable.class);
 
-        service.getFeed(null, null, null, -5, 999); // page<0 → 0, size>50 → 50
-        service.getFeed(null, null, null, 0, 0);     // size<=0 → 20
+        service.getFeed(null, null, null, 0, 999); // size>50 → 50
+        service.getFeed(null, null, null, 0, 0);   // size<=0 → 20
 
         verify(postRepo, times(2)).findFeed(any(), any(), any(), cap.capture());
         assertThat(cap.getAllValues().get(0).getPageSize()).isEqualTo(50);
-        assertThat(cap.getAllValues().get(0).getPageNumber()).isEqualTo(0);
         assertThat(cap.getAllValues().get(1).getPageSize()).isEqualTo(20);
     }
 

@@ -2,6 +2,9 @@ package com.fury.back.domain.board;
 
 import com.fury.back.domain.block.Block;
 import com.fury.back.domain.block.BlockRepository;
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -41,6 +44,7 @@ class BoardPostRepositoryTest {
     @Autowired BoardPostRepository posts;
     @Autowired BoardCommentRepository comments;
     @Autowired JdbcTemplate jdbc;
+    @Autowired EntityManagerFactory emf;
 
     private static final LocalDateTime T1 = LocalDateTime.of(2026, 6, 23, 10, 0, 0);
     private static final LocalDateTime T2 = T1.plusMinutes(1);
@@ -132,5 +136,34 @@ class BoardPostRepositoryTest {
         var counts = comments.countActiveByPostIds(List.of("pp"));
         assertThat(counts).hasSize(1);
         assertThat(counts.get(0).getCnt()).isEqualTo(2);
+    }
+
+    @Test
+    void feed_query_count_is_constant_regardless_of_post_count() {
+        // N+1 증명: 피드 쿼리 수가 게시글 수(5→20)에 따라 늘지 않음 + 댓글수 집계는 batch 1쿼리.
+        Statistics stats = emf.unwrap(SessionFactory.class).getStatistics();
+
+        for (int i = 0; i < 5; i++) {
+            posts.saveAndFlush(post("a" + i, "free", "community", "u" + i, false, T1.plusSeconds(i), "ACTIVE", null));
+        }
+        stats.clear();
+        posts.findFeed("community", null, null, PageRequest.of(0, 50)).getContent();
+        long q5 = stats.getPrepareStatementCount();
+
+        for (int i = 0; i < 15; i++) {
+            posts.saveAndFlush(post("b" + i, "free", "community", "v" + i, false, T1.plusSeconds(100 + i), "ACTIVE", null));
+        }
+        stats.clear();
+        List<BoardPost> content = posts.findFeed("community", null, null, PageRequest.of(0, 50)).getContent();
+        long q20 = stats.getPrepareStatementCount();
+
+        assertThat(content).hasSize(20);
+        assertThat(q20).isEqualTo(q5);            // 게시글 수와 무관 → per-post 쿼리(N+1) 없음
+        assertThat(q20).isLessThanOrEqualTo(2);   // 내용(+옵션 count) 만, per-row 0
+
+        // 댓글수 집계도 게시글 N개에 대해 단일 IN 쿼리.
+        stats.clear();
+        comments.countActiveByPostIds(content.stream().map(BoardPost::getPostId).toList());
+        assertThat(stats.getPrepareStatementCount()).isEqualTo(1);
     }
 }

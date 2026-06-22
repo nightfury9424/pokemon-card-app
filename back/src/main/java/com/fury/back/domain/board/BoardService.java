@@ -47,9 +47,11 @@ public class BoardService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "섹션과 타입이 일치하지 않습니다.");
         }
 
-        int p = Math.max(page, 0);
+        if (page < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "page 는 0 이상이어야 합니다.");
+        }
         int s = size <= 0 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
-        Page<BoardPost> posts = postRepository.findFeed(section, type, viewerId, PageRequest.of(p, s));
+        Page<BoardPost> posts = postRepository.findFeed(section, type, viewerId, PageRequest.of(page, s));
         List<BoardPost> list = posts.getContent();
 
         Map<String, String> nicknames = nicknameMap(

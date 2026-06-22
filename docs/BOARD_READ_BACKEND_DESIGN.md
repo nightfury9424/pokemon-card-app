@@ -111,4 +111,25 @@ DROP TABLE IF EXISTS board_posts;
 - 익명 조회 / 로그인 조회 / 차단 사용자 제외 / section·type 불일치 400 / 삭제 댓글 placeholder / 삭제·숨김·미존재 게시글 404 / **동일 createdAt 페이지네이션 안정성(post_id 보조키)**.
 - N+1 없음 확인(EXPLAIN 또는 repository 테스트의 발행 쿼리 수 검증).
 - ddl-auto=validate 부팅 검증(엔티티↔테이블 일치).
+
+## 9. 검증 결과 (2026-06-23, 통합 전 게이트)
+- **게이트1 재현성**: `application-boardtest.properties` 환경변수화(`BOARD_TEST_DB_URL/USER/PASSWORD`) +
+  `spring.sql.init` 가 **실제 마이그(blocks_migration.sql + board_read_migration.sql)** 를 부팅 시 자동 적용.
+  **빈 board_test 에서 BUILD SUCCESSFUL** 로 사람 수기 스키마 적용 의존 제거 실증. (Docker 가용 시 Testcontainers 가
+  이상적이나 현재 오프라인이라 의존성 미추가 — 환경변수+자동적용으로 대체.)
+- **게이트2 validate**: 테스트 프로필 `ddl-auto=validate` 로 전환 → 스크립트 선행 적용 후 엔티티↔테이블
+  검증 통과(빈 DB 부팅 성공이 곧 검증 통과). **board 엔티티↔board_posts/board_comments 일치 확인.**
+- **게이트3 N+1**: `feed_query_count_is_constant_regardless_of_post_count` — Hibernate Statistics 로 게시글
+  5→20 증가 시 피드 쿼리 수 **불변**(≤2, per-row 0) + 댓글수 집계 **단일 IN 쿼리** 증명.
+- **게이트4 전체 회귀** `./gradlew test`: board 테스트 **20개 전부 통과**. 유일 실패 =
+  `BackApplicationTests.contextLoads` 가 **`missing column [active_chat_room_id] in table [buy_orders]`**
+  (board 무관·커밋된 마이그 없음 = **로컬 dev DB의 기존 drift**, board 추가 전부터 이 환경에서 red).
+  board 테이블은 full validate 를 통과(에러가 board 를 지나 buy_orders 에서 발생) → **board 회귀 0**.
+  full-green 은 dev DB 를 dev 브랜치 기대 스키마로 정렬해야(별도 env 정비, board 범위 밖).
+- **page < 0 → 400** 명시 처리(테스트 포함). 숨김/삭제/미존재/차단 상세는 **동일 404 형태**(`ResponseStatusException(NOT_FOUND, "게시글을 찾을 수 없습니다.")`).
+- **CHECK 제약 결정**: type/section/status DB CHECK 는 **읽기 슬라이스에선 미도입**(앱이 행을 삽입하지 않음 →
+  실익 0, inquiries.status 선례도 무제약). 작성 슬라이스에서 BoardTaxonomy 검증과 함께 재검토.
+- **dev DB 정리**: 진단 중 board 마이그를 pokemon_card_db 에 임시 적용했다가 **롤백으로 원복**(잔존 0).
+  진단용으로 돌린 trade/buy_order 채팅 마이그는 객체 선존재로 **전부 no-op** → **dev DB 순변경 0**.
+  격리 `board_test` 는 테스트용으로 유지(운영·개발 DB와 별개, 본 문서로 식별).
 ```
