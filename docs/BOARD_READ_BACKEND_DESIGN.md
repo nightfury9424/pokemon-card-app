@@ -132,4 +132,34 @@ DROP TABLE IF EXISTS board_posts;
 - **dev DB 정리**: 진단 중 board 마이그를 pokemon_card_db 에 임시 적용했다가 **롤백으로 원복**(잔존 0).
   진단용으로 돌린 trade/buy_order 채팅 마이그는 객체 선존재로 **전부 no-op** → **dev DB 순변경 0**.
   격리 `board_test` 는 테스트용으로 유지(운영·개발 DB와 별개, 본 문서로 식별).
+
+## 10. 쓰기 슬라이스 권한 설계 (★확정 — 다음 슬라이스에 반영, 1A 읽기 전용은 불변)
+> 원칙: **일반 사용자 작성 API 와 관리자 공식글 API 를 처음부터 분리.** 사용자 글쓰기만 급조하지 않는다.
+
+### 권한표
+| type | 섹션 | 앱(일반 사용자) | 관리자 페이지 |
+|---|---|---|---|
+| `notice` 공지 | official | **조회만** | 작성·수정·삭제 |
+| `event` 이벤트 | official | **조회만** | 작성·수정·삭제 |
+| `patch` 패치노트 | official | **조회만** | 작성·수정·삭제 |
+| `free` 자유 | community | 작성 + **본인 글만 수정·삭제** | 모더레이션(숨김/삭제/복구) |
+| `tradeReview` 거래후기 | community | 작성 + 본인 글만 수정·삭제 | 모더레이션 |
+| `scamAlert` 사기주의 | community | 작성 + 본인 글만 수정·삭제 | 모더레이션 |
+| `qna` Q&A | qna | 작성 + 본인 글만 수정·삭제 | 모더레이션 + 채택 토글 |
+
+### 서버 구현 원칙 (authz)
+1. 클라이언트가 보낸 `isAdmin`/`isOfficial`/`section`/`authorId` 값을 **권한 판단에 절대 사용 안 함**(무시·서버 도출).
+2. 서버가 **인증된 사용자의 실제 관리자 권한**을 확인 — 기존 `AdminAllowlistFilter`(`/api/admin/**`, SSOT=`SecurityConfig.ADMIN_PATH_PATTERNS`, `ADMIN_AUTH_ENABLED`)를 재사용. 새 authz 미구현.
+3. 일반 사용자가 `notice/event/patch` 작성·수정 요청 → **403 Forbidden**(타입 자체가 잘못된 값이면 400과 구분).
+4. `section` 은 전달값 무시, 서버가 `type` 에서 **강제 도출**(`BoardTaxonomy.sectionOf`): notice/event/patch→official, free/tradeReview/scamAlert→community, qna→qna.
+5. **API 분리**:
+   - 사용자: `POST/PATCH/DELETE /api/board/posts[/{id}]` — 인증 필요, **user 타입만**, 본인 글만 수정·삭제, `authorId=현재 사용자`, 금칙어(ContentFilter) 검증. `isPinned/isAnswered/status` 설정 불가.
+   - 관리자: `POST/PATCH/DELETE /api/admin/board/posts[/{id}]` — `/api/admin/**` 라 `AdminAllowlistFilter` 자동 게이트(InquiryAdminController 선례). 공식글 작성 + 일반 글 모더레이션(숨김/삭제/복구/핀/채택), 감사로그(`admin_actions`).
+6. **방어적 이중화**: `/api/board/**`(사용자)는 admin 필터가 안 걸리므로, 컨트롤러/서비스에서 admin 타입·타인 글을 **자체적으로 403/404** 처리(필터에만 의존하지 않음).
+7. **프론트**: 앱 일반 UI 에 notice/event/patch **작성 선택지 비노출**(front 슬라이스 책임 — 별도 명시).
+
+### 비고
+- 본인 글 판별 = `board_posts.author_id == 현재 userId`(아니면 404, 존재 비노출 일관).
+- 댓글 쓰기도 동일 패턴(사용자 `/api/board/...`, 관리자 모더레이션 `/api/admin/board/...`).
+- type/section/status DB CHECK 는 쓰기 슬라이스에서 BoardTaxonomy 서버검증과 함께 재검토(§9).
 ```
