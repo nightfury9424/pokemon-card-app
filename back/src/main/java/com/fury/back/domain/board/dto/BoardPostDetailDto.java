@@ -22,5 +22,7 @@ public record BoardPostDetailDto(
         boolean canEdit,
         boolean canDelete,
         boolean canReport,
-        boolean canBlock
+        boolean canBlock,
+        // 좋아요(board_post_likes 집계). likeCount=COUNT(*), likedByMe=viewer 좋아요 여부(비로그인=false).
+        boolean likedByMe
 ) {}

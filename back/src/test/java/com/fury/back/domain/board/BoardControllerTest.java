@@ -8,6 +8,7 @@ import com.fury.back.common.moderation.ContentPolicyService;
 import com.fury.back.common.moderation.ContentPolicyViolationException;
 import com.fury.back.common.moderation.ModerationExceptionHandler;
 import com.fury.back.domain.board.dto.BoardCommentDto;
+import com.fury.back.domain.board.dto.BoardLikeResponse;
 import com.fury.back.domain.board.dto.BoardPageDto;
 import com.fury.back.domain.board.dto.BoardPostDetailDto;
 import com.fury.back.domain.board.dto.BoardPostSummaryDto;
@@ -27,8 +28,10 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
@@ -40,6 +43,7 @@ class BoardControllerTest {
     private BoardService service;
     private BoardWriteService writeService;
     private JwtUtil jwtUtil;
+    private BoardLikeService likeService;
     private MockMvc mvc;
 
     @BeforeEach
@@ -47,8 +51,9 @@ class BoardControllerTest {
         service = Mockito.mock(BoardService.class);
         writeService = Mockito.mock(BoardWriteService.class);
         jwtUtil = Mockito.mock(JwtUtil.class);
+        likeService = Mockito.mock(BoardLikeService.class);
         ObjectMapper om = new ObjectMapper().registerModule(new JavaTimeModule());
-        mvc = MockMvcBuilders.standaloneSetup(new BoardController(service, writeService, jwtUtil))
+        mvc = MockMvcBuilders.standaloneSetup(new BoardController(service, writeService, jwtUtil, likeService))
                 // ★ModerationExceptionHandler 를 먼저 등록 — 더 구체적 예외(ContentPolicyViolationException)가
                 //   GlobalExceptionHandler 의 catch(Exception) 보다 우선 매핑되는지 실제 요청으로 검증.
                 .setControllerAdvice(new ModerationExceptionHandler(), new GlobalExceptionHandler())
@@ -79,7 +84,7 @@ class BoardControllerTest {
         // ★Gate 1: 등록 순서를 일부러 Global 먼저로 뒤집어도 @Order(HIGHEST_PRECEDENCE) 로 Moderation 우선 →
         //   403 유지(등록 순서 의존이 아님을 증명).
         ObjectMapper om = new ObjectMapper().registerModule(new JavaTimeModule());
-        MockMvc reversed = MockMvcBuilders.standaloneSetup(new BoardController(service, writeService, jwtUtil))
+        MockMvc reversed = MockMvcBuilders.standaloneSetup(new BoardController(service, writeService, jwtUtil, likeService))
                 .setControllerAdvice(new GlobalExceptionHandler(), new ModerationExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(om))
                 .build();
@@ -100,7 +105,7 @@ class BoardControllerTest {
         return new BoardPageDto(List.of(new BoardPostSummaryDto(
                 "pp", "notice", "제목", "본문", "운영팀",
                 LocalDateTime.of(2026, 6, 23, 10, 0), 0, 0, true, false, 0,
-                false, false, false, false, false)), 0, 20, 1, 1);
+                false, false, false, false, false, false)), 0, 20, 1, 1);
     }
 
     @Test
@@ -144,12 +149,14 @@ class BoardControllerTest {
                 "c1", "닉네임", "댓글본문", t, false, false, List.of(),
                 true, true, true, "c1", false, false); // 본인 최상위 댓글
         BoardPostDetailDto detail = new BoardPostDetailDto(
-                "pp", "free", "제목", "본문", "글쓴이", t, 0, 0, false, false, 1, List.of(comment),
-                true, true, true, false, false); // 본인 자유글
+                "pp", "free", "제목", "본문", "글쓴이", t, 0, 3, false, false, 1, List.of(comment),
+                true, true, true, false, false, true); // 본인 자유글, likedByMe=true, likeCount=3
         when(service.getDetail(eq("pp"), any())).thenReturn(detail);
 
         mvc.perform(get("/api/board/posts/pp"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.likedByMe").value(true))
+                .andExpect(jsonPath("$.data.likeCount").value(3))
                 .andExpect(jsonPath("$.data.mine").value(true))
                 .andExpect(jsonPath("$.data.canEdit").value(true))
                 .andExpect(jsonPath("$.data.canDelete").value(true))
@@ -175,7 +182,41 @@ class BoardControllerTest {
                 .andExpect(jsonPath("$.data.content[0].canDelete").value(false))
                 .andExpect(jsonPath("$.data.content[0].canReport").value(false))
                 .andExpect(jsonPath("$.data.content[0].canBlock").value(false))
+                .andExpect(jsonPath("$.data.content[0].likedByMe").value(false))
                 .andExpect(jsonPath("$.data.content[0].authorId").doesNotExist());
+    }
+
+    // ── 좋아요 PUT/DELETE 멱등 ──
+    @Test
+    void like_put_returns_likedByMe_true_and_count() throws Exception {
+        when(jwtUtil.isValid("tok")).thenReturn(true);
+        when(jwtUtil.extractUserId("tok")).thenReturn("u1");
+        when(likeService.like(eq("u1"), eq("pp"))).thenReturn(new BoardLikeResponse(true, 5));
+        mvc.perform(put("/api/board/posts/pp/likes").header("Authorization", "Bearer tok"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.likedByMe").value(true))
+                .andExpect(jsonPath("$.data.likeCount").value(5));
+    }
+
+    @Test
+    void unlike_delete_returns_likedByMe_false_and_count() throws Exception {
+        when(jwtUtil.isValid("tok")).thenReturn(true);
+        when(jwtUtil.extractUserId("tok")).thenReturn("u1");
+        when(likeService.unlike(eq("u1"), eq("pp"))).thenReturn(new BoardLikeResponse(false, 4));
+        mvc.perform(delete("/api/board/posts/pp/likes").header("Authorization", "Bearer tok"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.likedByMe").value(false))
+                .andExpect(jsonPath("$.data.likeCount").value(4));
+    }
+
+    @Test
+    void like_nonFree_forbidden_maps_403() throws Exception {
+        when(jwtUtil.isValid("tok")).thenReturn(true);
+        when(jwtUtil.extractUserId("tok")).thenReturn("u1");
+        when(likeService.like(any(), eq("np")))
+                .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "자유게시판 글만 좋아요할 수 있습니다."));
+        mvc.perform(put("/api/board/posts/np/likes").header("Authorization", "Bearer tok"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

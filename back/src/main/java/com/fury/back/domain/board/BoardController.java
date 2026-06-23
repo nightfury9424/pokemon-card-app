@@ -2,6 +2,7 @@ package com.fury.back.domain.board;
 
 import com.fury.back.auth.JwtUtil;
 import com.fury.back.common.ReturnData;
+import com.fury.back.domain.board.dto.BoardLikeResponse;
 import com.fury.back.domain.board.dto.BoardPageDto;
 import com.fury.back.domain.board.dto.BoardPostDetailDto;
 import com.fury.back.domain.board.dto.CreateCommentRequest;
@@ -28,6 +29,7 @@ public class BoardController {
     private final BoardService boardService;
     private final BoardWriteService boardWriteService;
     private final JwtUtil jwtUtil;
+    private final BoardLikeService boardLikeService;
 
     @Operation(summary = "게시글 목록", description = "section/type 필터 + 페이지. 핀 우선 정렬.")
     @GetMapping("/posts")
@@ -88,6 +90,18 @@ public class BoardController {
     public ReturnData<Void> deleteComment(@PathVariable String commentId, HttpServletRequest request) {
         boardWriteService.deleteComment(optionalUserId(request), commentId);
         return ReturnData.success();
+    }
+
+    @Operation(summary = "게시글 좋아요(멱등)", description = "자유글만. 중복 호출 안전. 응답 {likedByMe,likeCount}.")
+    @PutMapping("/posts/{postId}/likes")
+    public ReturnData<BoardLikeResponse> like(@PathVariable String postId, HttpServletRequest request) {
+        return ReturnData.success(boardLikeService.like(optionalUserId(request), postId));
+    }
+
+    @Operation(summary = "게시글 좋아요 취소(멱등)")
+    @DeleteMapping("/posts/{postId}/likes")
+    public ReturnData<BoardLikeResponse> unlike(@PathVariable String postId, HttpServletRequest request) {
+        return ReturnData.success(boardLikeService.unlike(optionalUserId(request), postId));
     }
 
     /** 공개 읽기 — 토큰 있으면 viewerId, 없으면 null(차단 필터 미적용). */

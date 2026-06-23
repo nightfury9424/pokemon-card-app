@@ -7,6 +7,7 @@ import com.fury.back.domain.board.dto.BoardPostDetailDto;
 import com.fury.back.domain.board.dto.BoardPostSummaryDto;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -32,7 +33,15 @@ class BoardServiceTest {
     @Mock BoardCommentRepository commentRepo;
     @Mock BlockRepository blockRepo;
     @Mock UserRepository userRepo;
+    @Mock BoardPostLikeRepository likeRepo;
     @InjectMocks BoardService service;
+
+    // 좋아요 bulk 조회 기본값(빈) — likedByMe/likeCount 미지정 테스트 NPE 방지. 개별 테스트서 재스텁.
+    @BeforeEach
+    void likeStubs() {
+        lenient().when(likeRepo.countByPostIdIn(anyList())).thenReturn(List.of());
+        lenient().when(likeRepo.findLikedPostIds(any(), anyList())).thenReturn(List.of());
+    }
 
     private static final LocalDateTime T1 = LocalDateTime.of(2026, 6, 23, 10, 0, 0);
 
@@ -262,6 +271,51 @@ class BoardServiceTest {
         BoardCommentDto underAlive = find(d.comments(), "aliveTop").replies().get(0);
         assertThat(underAlive.canReply()).isTrue();
         assertThat(underAlive.replyTargetCommentId()).isEqualTo("aliveTop");
+    }
+
+    // ── 좋아요: likeCount/likedByMe 가 관계 테이블 기준(like_count 컬럼 무관) + 목록·상세 일치 ──
+    @Test void detail_likedByMe_and_likeCount_from_relation_table() {
+        when(postRepo.findById("p")).thenReturn(Optional.of(active("p", "free", "community", "author1")));
+        when(blockRepo.existsByBlockerIdAndBlockedId("viewer", "author1")).thenReturn(false);
+        when(blockRepo.findAllByBlockerId("viewer")).thenReturn(List.of());
+        when(commentRepo.findByPostIdOrderByCreatedAtAsc("p")).thenReturn(List.of());
+        when(userRepo.findAllById(anySet())).thenReturn(List.of());
+        // ★active() 의 like_count 컬럼은 0이지만, 응답 likeCount 는 관계 테이블 집계(7)여야 함
+        when(likeRepo.countByPostIdIn(anyList())).thenReturn(List.<Object[]>of(new Object[]{"p", 7L}));
+        when(likeRepo.findLikedPostIds(eq("viewer"), anyList())).thenReturn(List.of("p"));
+
+        BoardPostDetailDto d = service.getDetail("p", "viewer");
+        assertThat(d.likeCount()).isEqualTo(7); // 관계 테이블 COUNT(*), 컬럼(0) 아님
+        assertThat(d.likedByMe()).isTrue();
+    }
+
+    @Test void summary_and_detail_like_consistent() {
+        BoardPost p = active("p", "free", "community", "author1");
+        when(postRepo.findById("p")).thenReturn(Optional.of(p));
+        when(blockRepo.existsByBlockerIdAndBlockedId("viewer", "author1")).thenReturn(false);
+        when(blockRepo.findAllByBlockerId("viewer")).thenReturn(List.of());
+        when(commentRepo.findByPostIdOrderByCreatedAtAsc("p")).thenReturn(List.of());
+        when(postRepo.findFeed(any(), any(), eq("viewer"), any())).thenReturn(new PageImpl<>(List.of(p)));
+        when(commentRepo.countActiveByPostIds(anyList())).thenReturn(List.of());
+        when(userRepo.findAllById(anySet())).thenReturn(List.of());
+        when(likeRepo.countByPostIdIn(anyList())).thenReturn(List.<Object[]>of(new Object[]{"p", 2L}));
+        when(likeRepo.findLikedPostIds(eq("viewer"), anyList())).thenReturn(List.of("p"));
+
+        BoardPostDetailDto d = service.getDetail("p", "viewer");
+        BoardPostSummaryDto s = service.getFeed(null, null, "viewer", 0, 20).content().get(0);
+        assertThat(s.likedByMe()).isEqualTo(d.likedByMe()).isTrue();
+        assertThat(s.likeCount()).isEqualTo(d.likeCount()).isEqualTo(2);
+    }
+
+    @Test void anonymous_viewer_likedByMe_false_no_like_query() {
+        when(postRepo.findById("p")).thenReturn(Optional.of(active("p", "free", "community", "author1")));
+        when(commentRepo.findByPostIdOrderByCreatedAtAsc("p")).thenReturn(List.of());
+        when(userRepo.findAllById(anySet())).thenReturn(List.of());
+        when(likeRepo.countByPostIdIn(anyList())).thenReturn(List.of());
+
+        BoardPostDetailDto d = service.getDetail("p", null); // 비로그인
+        assertThat(d.likedByMe()).isFalse();
+        verify(likeRepo, never()).findLikedPostIds(any(), anyList()); // viewer null → 좋아요 조회 생략
     }
 
     private static BoardCommentDto find(List<BoardCommentDto> list, String id) {

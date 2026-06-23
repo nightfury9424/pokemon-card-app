@@ -34,6 +34,7 @@ public class BoardService {
     private final BoardCommentRepository commentRepository;
     private final BlockRepository blockRepository;
     private final UserRepository userRepository;
+    private final BoardPostLikeRepository likeRepository;
 
     @Transactional(readOnly = true)
     public BoardPageDto getFeed(String section, String type, String viewerId, int page, int size) {
@@ -54,14 +55,18 @@ public class BoardService {
         Page<BoardPost> posts = postRepository.findFeed(section, type, viewerId, PageRequest.of(page, s));
         List<BoardPost> list = posts.getContent();
 
+        List<String> postIds = list.stream().map(BoardPost::getPostId).collect(Collectors.toList());
         Map<String, String> nicknames = nicknameMap(
                 list.stream().map(BoardPost::getAuthorId).collect(Collectors.toSet()));
-        Map<String, Long> counts = commentCountMap(
-                list.stream().map(BoardPost::getPostId).collect(Collectors.toList()));
+        Map<String, Long> counts = commentCountMap(postIds);
+        Map<String, Integer> likeCounts = likeCountMap(postIds);  // bulk 1쿼리
+        Set<String> liked = likedPostIds(viewerId, postIds);      // bulk 1쿼리(viewer 있을 때만)
 
         List<BoardPostSummaryDto> content = list.stream()
                 .map(post -> toSummary(post, nicknames,
-                        counts.getOrDefault(post.getPostId(), 0L).intValue(), viewerId))
+                        counts.getOrDefault(post.getPostId(), 0L).intValue(), viewerId,
+                        likeCounts.getOrDefault(post.getPostId(), 0),
+                        liked.contains(post.getPostId())))
                 .collect(Collectors.toList());
 
         return new BoardPageDto(content, posts.getNumber(), posts.getSize(),
@@ -103,25 +108,47 @@ public class BoardService {
 
         BoardPermissions.PostFlags pf = BoardPermissions.forPost(
                 viewerId, post.getAuthorId(), post.getType(), post.getStatus(), post.getDeletedAt() != null);
+        List<String> ids = List.of(post.getPostId());
+        int likeCount = likeCountMap(ids).getOrDefault(post.getPostId(), 0);   // board_post_likes COUNT(*)
+        boolean likedByMe = likedPostIds(viewerId, ids).contains(post.getPostId());
         return new BoardPostDetailDto(
                 post.getPostId(), post.getType(), post.getTitle(), post.getContent(),
                 authorLabel(post.getType(), post.getAuthorId(), nicknames),
-                post.getCreatedAt(), post.getViewCount(), post.getLikeCount(),
+                post.getCreatedAt(), post.getViewCount(), likeCount,
                 post.isPinned(), post.isAnswered(), activeCount, comments,
-                pf.mine(), pf.canEdit(), pf.canDelete(), pf.canReport(), pf.canBlock());
+                pf.mine(), pf.canEdit(), pf.canDelete(), pf.canReport(), pf.canBlock(),
+                likedByMe);
     }
 
     // ── helpers ──
 
-    private BoardPostSummaryDto toSummary(BoardPost p, Map<String, String> nick, int commentCount, String viewerId) {
+    private BoardPostSummaryDto toSummary(BoardPost p, Map<String, String> nick, int commentCount,
+                                          String viewerId, int likeCount, boolean likedByMe) {
         BoardPermissions.PostFlags pf = BoardPermissions.forPost(
                 viewerId, p.getAuthorId(), p.getType(), p.getStatus(), p.getDeletedAt() != null);
         return new BoardPostSummaryDto(
                 p.getPostId(), p.getType(), p.getTitle(), p.getContent(),
                 authorLabel(p.getType(), p.getAuthorId(), nick),
-                p.getCreatedAt(), p.getViewCount(), p.getLikeCount(),
+                p.getCreatedAt(), p.getViewCount(), likeCount,
                 p.isPinned(), p.isAnswered(), commentCount,
-                pf.mine(), pf.canEdit(), pf.canDelete(), pf.canReport(), pf.canBlock());
+                pf.mine(), pf.canEdit(), pf.canDelete(), pf.canReport(), pf.canBlock(),
+                likedByMe);
+    }
+
+    /** 게시글별 좋아요 수 batch(board_post_likes COUNT). 빈 목록이면 호출 생략. */
+    private Map<String, Integer> likeCountMap(List<String> postIds) {
+        if (postIds.isEmpty()) return Map.of();
+        Map<String, Integer> m = new HashMap<>();
+        for (Object[] r : likeRepository.countByPostIdIn(postIds)) {
+            m.put((String) r[0], ((Number) r[1]).intValue());
+        }
+        return m;
+    }
+
+    /** viewer 가 좋아요한 postId 집합(비로그인/빈 목록 → 빈 집합, 쿼리 생략). */
+    private Set<String> likedPostIds(String viewerId, List<String> postIds) {
+        if (viewerId == null || postIds.isEmpty()) return Set.of();
+        return new HashSet<>(likeRepository.findLikedPostIds(viewerId, postIds));
     }
 
     /**
