@@ -4,6 +4,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
+import '../../core/utils/price_label.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import 'trade_search_screen.dart';
@@ -349,12 +350,8 @@ class _TradeListScreenState extends State<TradeListScreen> {
           ],
         ),
           ),
-          // 행별 '예상가' 라벨 제거 → 한국판 예상가 맥락은 여기 한 줄로 통일(전 탭 표시).
-          const Padding(
-            padding: EdgeInsets.only(top: 8, left: 2),
-            child: Text('최근 7일 한국판 예상가 변동 기준',
-                style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
-          ),
+          // 최근 7일 변동 안내 — 변동 정렬 탭(힛카드·급상승·급하락)에서만 노출. 시세/호가 탭 제외.
+          MarketSevenDayNote(sortTab: _sortTab),
         ],
       ),
     );
@@ -707,6 +704,10 @@ class _TradeListScreenState extends State<TradeListScreen> {
                 final sell = (card['activeSellCount'] as num?)?.toInt() ?? 0;
                 final buy = (card['activeBuyCount'] as num?)?.toInt() ?? 0;
                 final interest = (card['interestCount'] as num?)?.toInt() ?? 0;
+                final priceLabelText = PriceLabel.resolve(
+                  labelType: card['koPriceLabelType'] as String?,
+                  price: price,
+                );
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -738,6 +739,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
                     // 오른쪽 하트와 겹치지 않게 한다(핵심 숫자 ellipsis 금지).
                     MarketRowPriceMeta(
                       price: price,
+                      priceLabelText: priceLabelText,
                       changeAmount: changeAmount,
                       changePct: changePct,
                       changeColor: pctColor,
@@ -1149,6 +1151,23 @@ class _TradeListScreenState extends State<TradeListScreen> {
   }
 }
 
+/// 최근 7일 변동 안내 — 변동 정렬 탭(_sortTab >= 2: 힛카드/급상승/급하락)에서만 표시.
+/// 시세(0)·호가(1) 탭에는 표시하지 않는다. 공개 위젯이라 위젯 테스트로 직접 검증 가능.
+class MarketSevenDayNote extends StatelessWidget {
+  final int sortTab;
+  const MarketSevenDayNote({super.key, required this.sortTab});
+
+  @override
+  Widget build(BuildContext context) {
+    if (sortTab < 2) return const SizedBox.shrink();
+    return const Padding(
+      padding: EdgeInsets.only(top: 8, left: 2),
+      child: Text('최근 7일 가격 변동 기준',
+          style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+    );
+  }
+}
+
 /// 거래 시장 리스트 한 행의 "가격·변동" 라인.
 /// 가격 + 발매판 라벨 + 변동액 + 퍼센트를 고정 Row 가 아니라 **Wrap** 으로 흘린다.
 /// 좁은 폭/큰 글자배율에서 변동 정보가 다음 줄로 자연스럽게 내려가 오른쪽 하트
@@ -1156,6 +1175,10 @@ class _TradeListScreenState extends State<TradeListScreen> {
 /// 공개 위젯이라 위젯 테스트로 직접 검증 가능.
 class MarketRowPriceMeta extends StatelessWidget {
   final int? price;
+
+  /// 가격 출처 라벨(PriceLabel.resolve 결과). '한국판 예상가'(기본)·빈값은 행에서 숨기고,
+  /// '해외 참고가'·'시세 준비중'·'한국판 거래가' 같은 예외 출처만 작은 라벨로 표시.
+  final String priceLabelText;
 
   /// 변동액 칩(예: '-15,100원'). null = 등락 숨김(저가 정책 등).
   final String? changeAmount;
@@ -1167,6 +1190,7 @@ class MarketRowPriceMeta extends StatelessWidget {
   const MarketRowPriceMeta({
     super.key,
     required this.price,
+    required this.priceLabelText,
     required this.changeAmount,
     required this.changePct,
     required this.changeColor,
@@ -1174,19 +1198,31 @@ class MarketRowPriceMeta extends StatelessWidget {
 
   static const double _gap = 6.0;
 
+  /// 대다수 카드의 기본 라벨 → 행에서 숨김(목록 일관성). 다른 가격 출처는 그대로 노출.
+  static const String _hiddenDefaultLabel = '한국판 예상가';
+
   @override
   Widget build(BuildContext context) {
     final priceStr = price != null ? AppColors.formatPrice(price!) : '시세 없음';
     // 변동액·퍼센트는 항상 한 묶음(절대 분리 X): "-15,530원 (-37.9%)".
-    // ★행별 '예상가' 라벨은 제거(목록 일관성) — 한국판 예상가 맥락은 탭 아래 안내 문구가 담당.
     final String? changeStr = changeAmount == null
         ? null
         : (changePct == null ? changeAmount! : '$changeAmount $changePct');
+
+    // 라벨: 기본('한국판 예상가')·빈값 → 숨김. 예외 출처(해외 참고가/시세 준비중/한국판 거래가) → 표시.
+    final trimmed = priceLabelText.trim();
+    final String? label =
+        (trimmed.isEmpty || trimmed == _hiddenDefaultLabel) ? null : trimmed;
 
     final priceStyle = TextStyle(
       color: price != null ? AppColors.textSecondary : AppColors.textMuted,
       fontSize: 13,
       fontWeight: FontWeight.w600,
+    );
+    const labelStyle = TextStyle(
+      color: AppColors.textMuted,
+      fontSize: 11,
+      fontWeight: FontWeight.w700,
     );
     final changeStyle = TextStyle(
       color: changeColor,
@@ -1200,38 +1236,60 @@ class MarketRowPriceMeta extends StatelessWidget {
       final maxW = c.maxWidth;
       // 가격·변동값은 '원자'(한 줄·미분리). 극단 글자배율서만 per-element scaleDown(전체 행 아님).
       final priceAtom = _atom(priceStr, priceStyle);
-
-      // 변동값 없음 → 가격만.
-      if (changeStr == null) return priceAtom;
-
       final priceW = _measure(priceStr, priceStyle, scaler);
+      final labelW = label == null ? 0.0 : _gap + _measure(label, labelStyle, scaler);
+
+      // 변동값 없음 → 가격(+예외 라벨)만.
+      if (changeStr == null) return _priceLine(priceAtom, label, labelStyle);
+
       final changeW = _measure(changeStr, changeStyle, scaler);
 
-      // ① 한 줄에 들어가면: 가격 + 변동액·퍼센트.
-      if (priceW + _gap + changeW <= maxW - 6) {
+      // ① 한 줄: 가격 (+예외 라벨) + 변동액·퍼센트.
+      if (priceW + labelW + _gap + changeW <= maxW - 6) {
         return Row(
           mainAxisSize: MainAxisSize.max,
           children: [
             priceAtom,
+            if (label != null) ...[
+              const SizedBox(width: _gap),
+              Flexible(fit: FlexFit.loose, child: _labelText(label, labelStyle)),
+            ],
             const SizedBox(width: _gap),
             _atom(changeStr, changeStyle),
           ],
         );
       }
 
-      // ② 폭 부족 → 2줄: 1줄=가격, 2줄=변동액·퍼센트(★한 묶음·한 줄 유지).
+      // ② 폭 부족 → 2줄: 1줄=가격(+예외 라벨), 2줄=변동액·퍼센트(★한 묶음·한 줄 유지).
       // 변동값은 maxLines:1·softWrap:false(원자) → 퍼센트 단독 줄바꿈 불가. 극단 폭만 per-element scaleDown.
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          priceAtom,
+          _priceLine(priceAtom, label, labelStyle),
           const SizedBox(height: 2),
           _atom(changeStr, changeStyle),
         ],
       );
     });
   }
+
+  // 가격(+예외 라벨) 한 줄. 라벨 없음 → 가격 원자 단독(부모 폭 제약 시 극단만 scaleDown).
+  // 라벨 있음 → 가격·라벨을 loose Flexible 로 → 극단 폭선 가격이 scaleDown, 라벨은 clip(숫자 보존).
+  Widget _priceLine(Widget priceAtom, String? label, TextStyle labelStyle) {
+    if (label == null) return priceAtom;
+    return Row(
+      mainAxisSize: MainAxisSize.max,
+      children: [
+        Flexible(fit: FlexFit.loose, child: priceAtom),
+        const SizedBox(width: _gap),
+        Flexible(fit: FlexFit.loose, child: _labelText(label, labelStyle)),
+      ],
+    );
+  }
+
+  Widget _labelText(String s, TextStyle style) => Text(s,
+      maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: style);
 
   // 숫자 원자: 한 줄(maxLines:1·softWrap:false) 유지, 분리/줄바꿈 금지. 부모가 폭을 제약하는 위치
   // (2줄의 각 줄/한 줄 단독 가격)에선 극단 글자배율서만 per-element scaleDown(전체 행 아님)으로

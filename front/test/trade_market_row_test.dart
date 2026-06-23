@@ -44,6 +44,7 @@ void main() {
 
   MarketRowPriceMeta stressMeta() => const MarketRowPriceMeta(
         price: 185600,
+        priceLabelText: '한국판 예상가', // 기본 → 행에서 숨김
         changeAmount: '-15,100원',
         changePct: '(-36.6%)',
         changeColor: AppColors.blue,
@@ -99,20 +100,46 @@ void main() {
         reason: '좁으면 변동값이 둘째 줄(퍼센트 단독 아님·한 묶음 통째)');
   });
 
-  testWidgets('행 안에 예상가/참고가 라벨 없음(폭 무관)', (tester) async {
-    for (double w = 80; w <= 320; w += 20) {
+  // ── 라벨 규칙: 기본('한국판 예상가') 숨김 / 예외 출처는 표시 ──
+  testWidgets('라벨 — 한국판 예상가(기본)는 행에서 숨김(폭 무관)', (tester) async {
+    for (double w = 100; w <= 360; w += 20) {
       await pumpMeta(tester, stressMeta(), const Size(390, 844), 1.0, width: w);
       expect(tester.takeException(), isNull, reason: 'w=$w overflow');
-      expect(find.textContaining('예상가'), findsNothing, reason: 'w=$w 행 라벨 없음');
-      expect(find.textContaining('참고가'), findsNothing, reason: 'w=$w 행 라벨 없음');
+      expect(find.textContaining('예상가'), findsNothing, reason: 'w=$w 기본 라벨 숨김');
     }
   });
 
-  testWidgets('등락 숨김(저가 정책) — 변동 칩 없이 가격만', (tester) async {
+  testWidgets('라벨 — 해외 참고가는 반드시 표시(가격 의미 보존)', (tester) async {
     await pumpMeta(
       tester,
       const MarketRowPriceMeta(
-        price: 3000,
+        price: 50000, priceLabelText: '해외 참고가',
+        changeAmount: '+1,000원', changePct: '(+2.0%)', changeColor: AppColors.red,
+      ),
+      const Size(390, 844), 1.0,
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('해외 참고가'), findsOneWidget);
+  });
+
+  testWidgets('라벨 — 시세 준비중은 표시', (tester) async {
+    await pumpMeta(
+      tester,
+      const MarketRowPriceMeta(
+        price: null, priceLabelText: '시세 준비중',
+        changeAmount: null, changePct: null, changeColor: AppColors.textMuted,
+      ),
+      const Size(375, 667), 1.0,
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('시세 준비중'), findsOneWidget);
+  });
+
+  testWidgets('등락 숨김(저가 정책) — 변동 칩 없이 가격만(기본 라벨 숨김)', (tester) async {
+    await pumpMeta(
+      tester,
+      const MarketRowPriceMeta(
+        price: 3000, priceLabelText: '한국판 예상가',
         changeAmount: null, changePct: null, changeColor: AppColors.textMuted,
       ),
       const Size(320, 568), 1.6,
@@ -120,18 +147,36 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.textContaining('3,000'), findsOneWidget);
     expect(find.textContaining('%'), findsNothing);
+    expect(find.textContaining('예상가'), findsNothing);
   });
 
   testWidgets('시세 없음 — 가격 자리에 시세 없음', (tester) async {
     await pumpMeta(
       tester,
       const MarketRowPriceMeta(
-        price: null,
+        price: null, priceLabelText: '시세 준비중',
         changeAmount: null, changePct: null, changeColor: AppColors.textMuted,
       ),
       const Size(375, 667), 1.0,
     );
     expect(tester.takeException(), isNull);
     expect(find.text('시세 없음'), findsOneWidget);
+  });
+
+  // ── 상단 '최근 7일' 안내: 변동 정렬 탭(>=2)에서만 ──
+  testWidgets('안내 — 시세/호가(sortTab<2)에는 최근 7일 안내 없음', (tester) async {
+    for (final t in [0, 1]) {
+      await tester.pumpWidget(
+          MaterialApp(home: Scaffold(body: MarketSevenDayNote(sortTab: t))));
+      expect(find.text('최근 7일 가격 변동 기준'), findsNothing, reason: 'sortTab=$t');
+    }
+  });
+
+  testWidgets('안내 — 힛카드/급상승/급하락(sortTab>=2)에서만 최근 7일 안내', (tester) async {
+    for (final t in [2, 3]) {
+      await tester.pumpWidget(
+          MaterialApp(home: Scaffold(body: MarketSevenDayNote(sortTab: t))));
+      expect(find.text('최근 7일 가격 변동 기준'), findsOneWidget, reason: 'sortTab=$t');
+    }
   });
 }
