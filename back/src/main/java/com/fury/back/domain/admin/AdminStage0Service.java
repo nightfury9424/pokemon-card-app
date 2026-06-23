@@ -239,10 +239,12 @@ public class AdminStage0Service {
     private AdminStage0Dto.TargetContext postContext(Report report) {
         BoardPost p = boardPostRepository.findById(report.getTargetId()).orElse(null);
         if (p == null) return unavailable(report); // 물리 삭제/미존재
+        Set<String> ids = new HashSet<>();
+        ids.add(p.getAuthorId()); // ★null 허용(HashSet) — 공식글/레거시 authorId null 가능. Set.of(null) NPE 회피.
         return AdminStage0Dto.TargetContext.builder()
                 .reportId(report.getReportId()).targetType("BOARD_POST").targetId(report.getTargetId())
                 .available(true)
-                .post(postView(p, nicknameMap(Set.of(p.getAuthorId()))))
+                .post(postView(p, nicknameMap(ids)))
                 .build();
     }
 
@@ -289,7 +291,7 @@ public class AdminStage0Service {
     private AdminStage0Dto.BoardCommentView commentView(BoardComment c, Map<String, String> nicks, String targetId) {
         return AdminStage0Dto.BoardCommentView.builder()
                 .commentId(c.getCommentId()).parentCommentId(c.getParentCommentId())
-                .authorLabel(nicks.getOrDefault(c.getAuthorId(), "(알 수 없음)"))
+                .authorLabel(userLabel(c.getAuthorId(), nicks))
                 .content(c.getContent()).deleted(c.getDeletedAt() != null)
                 .target(c.getCommentId().equals(targetId)) // 신고된 댓글 강조
                 .createdAt(c.getCreatedAt())
@@ -297,14 +299,24 @@ public class AdminStage0Service {
     }
 
     private String authorLabel(String type, String authorId, Map<String, String> nicks) {
-        if (BoardTaxonomy.isAdminType(type)) return "운영팀"; // 공식글 표시명
+        if (BoardTaxonomy.isAdminType(type)) return "운영팀"; // 공식글 표시명(조회 없이)
+        if (authorId == null || authorId.isBlank()) return "(알 수 없음)"; // null 키 lookup(Map.of NPE) 회피
+        return nicks.getOrDefault(authorId, "(알 수 없음)");
+    }
+
+    private String userLabel(String authorId, Map<String, String> nicks) {
+        if (authorId == null || authorId.isBlank()) return "(알 수 없음)";
         return nicks.getOrDefault(authorId, "(알 수 없음)");
     }
 
     private Map<String, String> nicknameMap(Set<String> userIds) {
-        if (userIds.isEmpty()) return Map.of();
+        // ★null/blank id 제거 — findAllById 에 null 전달 시 오쿼리/예외 방지(공식글·레거시·삭제 데이터 대비).
+        Set<String> clean = userIds.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+        if (clean.isEmpty()) return Map.of();
         Map<String, String> m = new HashMap<>();
-        userRepository.findAllById(userIds).forEach(u -> m.put(u.getUserId(), u.getNickname())); // batch(N+1 차단)
+        userRepository.findAllById(clean).forEach(u -> m.put(u.getUserId(), u.getNickname())); // batch(N+1 차단)
         return m;
     }
 

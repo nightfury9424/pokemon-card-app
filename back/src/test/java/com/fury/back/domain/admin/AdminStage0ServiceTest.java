@@ -284,4 +284,42 @@ class AdminStage0ServiceTest {
         assertThatThrownBy(() -> service.getTargetContext("r1", "admin1"))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
     }
+
+    // ── null authorId 안전성(500 방지): 공식글/일반글/댓글 작성자 id null ──
+    @Test void targetContext_officialPost_nullAuthor_label운영팀() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_POST", "p1", null)));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(
+                BoardPost.builder().postId("p1").type("notice").section("official").title("공지").content("내용")
+                        .authorId(null).status("ACTIVE").createdAt(java.time.LocalDateTime.now()).build()));
+        assertThat(service.getTargetContext("r1", "admin1").getPost().getAuthorLabel()).isEqualTo("운영팀"); // 조회 없이
+    }
+
+    @Test void targetContext_freePost_nullAuthor_labelUnknown() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_POST", "p1", null)));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", null, "ACTIVE", null)));
+        assertThat(service.getTargetContext("r1", "admin1").getPost().getAuthorLabel()).isEqualTo("(알 수 없음)");
+    }
+
+    @Test void targetContext_comment_nullAuthor_labelUnknown() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_COMMENT", "cN", null)));
+        var cN = cmt("cN", null, null, "익명댓글", null);
+        when(boardCommentRepository.findById("cN")).thenReturn(Optional.of(cN));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a3", "ACTIVE", null)));
+        when(boardCommentRepository.findByPostIdOrderByCreatedAtAsc("p1")).thenReturn(List.of(cN));
+        assertThat(service.getTargetContext("r1", "admin1").getThread().getComments().get(0).getAuthorLabel())
+                .isEqualTo("(알 수 없음)");
+    }
+
+    @Test void targetContext_postAuthorNull_threadStillReturned() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_COMMENT", "cR", "a2")));
+        var cTop = cmt("cTop", null, null, "최상위(작성자 null)", null); // thread 일부 author null
+        var cR = cmt("cR", "cTop", "a2", "신고댓글", null);
+        when(boardCommentRepository.findById("cR")).thenReturn(Optional.of(cR));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", null, "ACTIVE", null))); // post author null
+        when(boardCommentRepository.findByPostIdOrderByCreatedAtAsc("p1")).thenReturn(List.of(cTop, cR));
+        var ctx = service.getTargetContext("r1", "admin1"); // 500 안 남
+        assertThat(ctx.isAvailable()).isTrue();
+        var ids = ctx.getThread().getComments().stream().map(AdminStage0Dto.BoardCommentView::getCommentId).toList();
+        assertThat(ids).containsExactlyInAnyOrder("cTop", "cR");
+    }
 }
