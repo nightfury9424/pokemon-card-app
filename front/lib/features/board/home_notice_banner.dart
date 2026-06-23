@@ -19,8 +19,9 @@ class HomeNoticeBanner extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => Navigator.of(context, rootNavigator: true).push(
-            MaterialPageRoute(builder: (_) => BoardDetailScreen(post: p))),
+        // 홈 공지 실 API 연결은 후속(Step 11). 현재 배너는 목업이라 탭 시 상세는 미연결.
+        onTap: () => Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
+            builder: (_) => BoardDetailScreen(postId: p.id, summary: p))),
         child: Container(
           height: 46,
           padding: const EdgeInsets.symmetric(horizontal: 14),

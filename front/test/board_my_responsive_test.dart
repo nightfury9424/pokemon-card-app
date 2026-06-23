@@ -16,6 +16,20 @@ class _FakeBoardRepo extends BoardRepository {
     return BoardListResult(
         posts: posts, page: 0, size: size, totalPages: 1, totalElements: posts.length);
   }
+
+  @override
+  Future<BoardPost?> fetchDetail(String postId) async {
+    return BoardMock.posts.firstWhere((p) => p.id == postId,
+        orElse: () => BoardMock.posts.first);
+  }
+}
+
+/// 특정 post 를 반환하는 fake(워스트케이스 헤더 반응형 검증용).
+class _FixedDetailRepo extends BoardRepository {
+  final BoardPost post;
+  _FixedDetailRepo(this.post);
+  @override
+  Future<BoardPost?> fetchDetail(String id) async => post;
 }
 
 /// Step1 게시판 반응형 회귀 — 기기별 사이즈 × 글자확대에서 RenderFlex overflow / 레이아웃 예외가
@@ -72,8 +86,15 @@ void main() {
       });
 
       testWidgets('게시판 상세(공지) — $name @ x$scale', (tester) async {
-        await pumpAt(tester, BoardDetailScreen(post: BoardMock.posts.first),
-            size, bottom, scale);
+        final p = BoardMock.posts.first;
+        await pumpAt(
+            tester,
+            BoardDetailScreen(
+                postId: p.id, repository: const _FakeBoardRepo(), summary: p),
+            size,
+            bottom,
+            scale);
+        await tester.pumpAndSettle();
         expect(tester.takeException(), isNull,
             reason: '$name x$scale 공지 상세 overflow/예외');
       });
@@ -82,8 +103,16 @@ void main() {
         final withComments = BoardMock.posts.firstWhere(
             (p) => p.comments.isNotEmpty,
             orElse: () => BoardMock.posts.last);
-        await pumpAt(tester, BoardDetailScreen(post: withComments), size,
-            bottom, scale);
+        await pumpAt(
+            tester,
+            BoardDetailScreen(
+                postId: withComments.id,
+                repository: const _FakeBoardRepo(),
+                summary: withComments),
+            size,
+            bottom,
+            scale);
+        await tester.pumpAndSettle();
         expect(tester.takeException(), isNull,
             reason: '$name x$scale 댓글 상세 overflow/예외');
         // Step2 이연: 실제 댓글 구현 시 헤더(운영/채택/시간 다중뱃지) 반응형 재작업 필요.
@@ -100,14 +129,18 @@ void main() {
     final metaPart = '조회 ${post.viewCount}';
 
     // 넓은 화면 + 기본 글자 → 작성자와 메타가 같은 줄
-    await pumpAt(tester, BoardDetailScreen(post: post), const Size(430, 932), 34, 1.0);
+    await pumpAt(tester, BoardDetailScreen(postId: post.id, repository: _FixedDetailRepo(post), summary: post),
+        const Size(430, 932), 34, 1.0);
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     final aWide = tester.getTopLeft(find.text(post.author).first).dy;
     final mWide = tester.getTopLeft(find.textContaining(metaPart).first).dy;
     expect((aWide - mWide).abs() < 6, isTrue, reason: '넓은 화면: 작성자·메타 같은 줄');
 
     // 좁은 화면 + 큰 글자 → 메타가 둘째 줄로 내려가야(조회수 숨김/잘림 아님)
-    await pumpAt(tester, BoardDetailScreen(post: post), const Size(320, 720), 0, 1.6);
+    await pumpAt(tester, BoardDetailScreen(postId: post.id, repository: _FixedDetailRepo(post), summary: post),
+        const Size(320, 720), 0, 1.6);
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     final aN = tester.getTopLeft(find.text(post.author).first);
     final mN = tester.getTopLeft(find.textContaining(metaPart).first);
@@ -168,7 +201,16 @@ void main() {
       });
 
       testWidgets('최악 공지 헤더 — $dn x$scale', (tester) async {
-        await pumpAt(tester, BoardDetailScreen(post: worstHeaderPost), ds, db, scale);
+        await pumpAt(
+            tester,
+            BoardDetailScreen(
+                postId: worstHeaderPost.id,
+                repository: _FixedDetailRepo(worstHeaderPost),
+                summary: worstHeaderPost),
+            ds,
+            db,
+            scale);
+        await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: '$dn x$scale 최악 공지 헤더 overflow');
       });
     }

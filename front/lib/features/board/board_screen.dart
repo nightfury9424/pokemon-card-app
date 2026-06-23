@@ -30,6 +30,7 @@ class _BoardScreenState extends State<BoardScreen> {
   bool _hasMore = false;
   bool _loadingMore = false;
   int _reqToken = 0; // 탭 전환/새로고침 경쟁 방지(늦게 온 응답 폐기)
+  bool _pendingScrollReset = false; // 탭 전환 시 목록 최상단 복귀
 
   bool get _isNotice => _tab == 0;
   String? get _section => _isNotice ? 'official' : null;
@@ -64,6 +65,12 @@ class _BoardScreenState extends State<BoardScreen> {
         _hasMore = r.hasMore;
         _loading = false;
       });
+      if (_pendingScrollReset) {
+        _pendingScrollReset = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scroll.hasClients) _scroll.jumpTo(0); // 탭 전환 후 최상단
+        });
+      }
     } catch (e) {
       if (!mounted || token != _reqToken) return;
       setState(() {
@@ -102,6 +109,7 @@ class _BoardScreenState extends State<BoardScreen> {
 
   void _switchTab(int t) {
     if (_tab == t) return;
+    _pendingScrollReset = true;
     setState(() {
       _tab = t;
       _posts = const [];
@@ -267,8 +275,8 @@ class PostRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => BoardDetailScreen(post: post))),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => BoardDetailScreen(postId: post.id, summary: post))),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Column(
