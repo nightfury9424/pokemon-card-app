@@ -3,7 +3,6 @@ package com.fury.back.domain.board;
 import com.fury.back.auth.AdminAuthorizationService;
 import com.fury.back.common.IdGenerator;
 import com.fury.back.domain.admin.AdminActionService;
-import com.fury.back.common.moderation.ContentPolicyService;
 import com.fury.back.domain.board.dto.AdminCreatePostRequest;
 import com.fury.back.domain.board.dto.AdminUpdatePostRequest;
 import com.fury.back.domain.board.dto.PostModerationRequest;
@@ -27,7 +26,6 @@ public class BoardAdminService {
 
     private final BoardPostRepository postRepository;
     private final BoardCommentRepository commentRepository;
-    private final ContentPolicyService contentPolicy;
     private final AdminAuthorizationService adminAuthorizationService;
     private final AdminActionService adminActionService;
     private final UserRepository userRepository;
@@ -49,7 +47,8 @@ public class BoardAdminService {
         }
         String title = clean(req.title(), TITLE_MAX, "제목");
         String content = clean(req.content(), CONTENT_MAX, "내용");
-        rejectBanned(title, content);
+        // 공지(notice/event/patch)는 관리자 신뢰 입력 → 사용자 금칙어 필터 미적용.
+        // 길이·blank·제어문자 검증(clean)만 유지. (HTML: 앱은 Flutter Text 렌더=안전, 관리자 웹은 이스케이프 책임.)
 
         BoardPost post = BoardPost.builder()
                 .postId(IdGenerator.generate())
@@ -79,7 +78,8 @@ public class BoardAdminService {
         }
         String title = req.title() == null ? null : clean(req.title(), TITLE_MAX, "제목");
         String content = req.content() == null ? null : clean(req.content(), CONTENT_MAX, "내용");
-        rejectBanned(title, content);
+        // 공지(notice/event/patch)는 관리자 신뢰 입력 → 사용자 금칙어 필터 미적용.
+        // 길이·blank·제어문자 검증(clean)만 유지. (HTML: 앱은 Flutter Text 렌더=안전, 관리자 웹은 이스케이프 책임.)
         post.adminEdit(title, content, req.isPinned());
         audit(adminUserId, "BOARD_POST_UPDATE", postId, null, null);
     }
@@ -152,6 +152,8 @@ public class BoardAdminService {
 
     private String clean(String raw, int max, String field) {
         String v = raw == null ? "" : raw.trim();
+        // 제어문자 제거(탭 \t·줄바꿈 \n 제외) — 공지 본문 무결성/렌더 안전.
+        v = v.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "");
         if (v.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + "을(를) 입력해 주세요.");
         }
@@ -162,9 +164,4 @@ public class BoardAdminService {
     }
 
     // 공용 금칙어 검사(위반 시 ContentPolicyViolationException → 403 + CONTENT_POLICY_VIOLATION).
-    private void rejectBanned(String... texts) {
-        for (String t : texts) {
-            contentPolicy.check(t);
-        }
-    }
 }

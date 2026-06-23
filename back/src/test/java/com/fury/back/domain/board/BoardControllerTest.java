@@ -4,12 +4,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fury.back.auth.JwtUtil;
 import com.fury.back.common.GlobalExceptionHandler;
+import com.fury.back.common.moderation.ContentPolicyService;
+import com.fury.back.common.moderation.ContentPolicyViolationException;
+import com.fury.back.common.moderation.ModerationExceptionHandler;
 import com.fury.back.domain.board.dto.BoardPageDto;
 import com.fury.back.domain.board.dto.BoardPostSummaryDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -22,6 +26,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
@@ -42,9 +47,29 @@ class BoardControllerTest {
         jwtUtil = Mockito.mock(JwtUtil.class);
         ObjectMapper om = new ObjectMapper().registerModule(new JavaTimeModule());
         mvc = MockMvcBuilders.standaloneSetup(new BoardController(service, writeService, jwtUtil))
-                .setControllerAdvice(new GlobalExceptionHandler())
+                // ★ModerationExceptionHandler 를 먼저 등록 — 더 구체적 예외(ContentPolicyViolationException)가
+                //   GlobalExceptionHandler 의 catch(Exception) 보다 우선 매핑되는지 실제 요청으로 검증.
+                .setControllerAdvice(new ModerationExceptionHandler(), new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(om))
                 .build();
+    }
+
+    @Test
+    void createPost_bannedWord_returns_403_with_CONTENT_POLICY_VIOLATION() throws Exception {
+        when(jwtUtil.isValid("tok")).thenReturn(true);
+        when(jwtUtil.extractUserId("tok")).thenReturn("u1");
+        doThrow(new ContentPolicyViolationException(ContentPolicyService.VIOLATION_MESSAGE))
+                .when(writeService).createPost(eq("u1"), any());
+
+        mvc.perform(post("/api/board/posts")
+                        .header("Authorization", "Bearer tok")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"free\",\"title\":\"t\",\"content\":\"x\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value("fail"))
+                .andExpect(jsonPath("$.code").value("CONTENT_POLICY_VIOLATION"))
+                .andExpect(jsonPath("$.message").value(ContentPolicyService.VIOLATION_MESSAGE));
+        // writeService.createPost 가 예외를 던져 저장 단계로 진행하지 않음(컨트롤러는 save 호출 경로 없음).
     }
 
     private BoardPageDto onePage() {
