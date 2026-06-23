@@ -4,6 +4,31 @@ import '../../../core/theme/app_colors.dart';
 /// 게시판 글 종류. (post-launch 신기능 — 프론트 스캐폴딩, 백엔드는 승인 후 연결)
 enum BoardType { notice, event, patch, free, tradeReview, scamAlert, qna }
 
+/// 서버 type 토큰(camelCase) → BoardType. 알 수 없는 값은 **null**(상위에서 오류 상태로 보고).
+/// values.byName 직접 호출 금지(미지원 토큰에 ArgumentError 던져 화면 전체가 죽음).
+BoardType? boardTypeFromToken(String? token) {
+  if (token == null) return null;
+  for (final t in BoardType.values) {
+    if (t.name == token) return t;
+  }
+  return null;
+}
+
+// 파싱 정책: 알 수 없는 값/형식은 now()·기본값으로 위장하지 않고 FormatException →
+// 상위(BoardRepository)가 BoardParseException 으로 변환해 화면 오류 상태로 보고.
+String _reqString(Map j, String key) {
+  final v = j[key];
+  if (v is String && v.isNotEmpty) return v;
+  throw FormatException('게시판 응답 필드 누락/형식오류: $key=$v');
+}
+
+DateTime _reqDateTime(Map j, String key) {
+  final v = j[key];
+  final dt = v is String ? DateTime.tryParse(v) : null;
+  if (dt == null) throw FormatException('게시판 응답 날짜 파싱 오류: $key=$v');
+  return dt.toLocal();
+}
+
 extension BoardTypeMeta on BoardType {
   /// 관리자만 작성 (읽기전용 공지성).
   bool get isAdmin =>
@@ -94,12 +119,12 @@ class BoardComment {
   });
 
   /// 백엔드 BoardCommentDto 직렬화 계약. 삭제댓글은 서버가 placeholder 노드로 채워 보냄(non-null 보장).
+  /// id/createdAt 형식 오류는 위장 없이 FormatException(상위에서 BoardParseException).
   factory BoardComment.fromJson(Map<String, dynamic> j) => BoardComment(
-        id: j['id'] as String,
+        id: _reqString(j, 'id'),
         author: (j['author'] as String?) ?? '',
         body: (j['body'] as String?) ?? '',
-        createdAt:
-            DateTime.tryParse((j['createdAt'] as String?) ?? '')?.toLocal() ?? DateTime.now(),
+        createdAt: _reqDateTime(j, 'createdAt'),
         isAdmin: (j['isAdmin'] as bool?) ?? false,
         isAccepted: (j['isAccepted'] as bool?) ?? false,
         replies: ((j['replies'] as List?) ?? const [])
@@ -141,23 +166,29 @@ class BoardPost {
 
   /// 백엔드 BoardPostSummaryDto(목록)/BoardPostDetailDto(상세) 공통 파서.
   /// 목록엔 comments 없음 → listCommentCount 로 댓글 수 표시. 상세엔 comments 있음.
-  factory BoardPost.fromJson(Map<String, dynamic> j) => BoardPost(
-        id: j['id'] as String,
-        type: BoardType.values.byName(j['type'] as String),
-        title: (j['title'] as String?) ?? '',
-        body: (j['body'] as String?) ?? '',
-        author: (j['author'] as String?) ?? '',
-        createdAt:
-            DateTime.tryParse((j['createdAt'] as String?) ?? '')?.toLocal() ?? DateTime.now(),
-        viewCount: (j['viewCount'] as num?)?.toInt() ?? 0,
-        likeCount: (j['likeCount'] as num?)?.toInt() ?? 0,
-        isPinned: (j['isPinned'] as bool?) ?? false,
-        isAnswered: (j['isAnswered'] as bool?) ?? false,
-        comments: ((j['comments'] as List?) ?? const [])
-            .map((e) => BoardComment.fromJson(Map<String, dynamic>.from(e as Map)))
-            .toList(),
-        listCommentCount: (j['commentCount'] as num?)?.toInt(),
-      );
+  /// 알 수 없는 type/잘못된 날짜/id 누락은 위장 없이 FormatException(상위에서 BoardParseException).
+  factory BoardPost.fromJson(Map<String, dynamic> j) {
+    final type = boardTypeFromToken(j['type'] as String?);
+    if (type == null) {
+      throw FormatException('알 수 없는 게시글 type: ${j['type']}');
+    }
+    return BoardPost(
+      id: _reqString(j, 'id'),
+      type: type,
+      title: (j['title'] as String?) ?? '',
+      body: (j['body'] as String?) ?? '',
+      author: (j['author'] as String?) ?? '',
+      createdAt: _reqDateTime(j, 'createdAt'),
+      viewCount: (j['viewCount'] as num?)?.toInt() ?? 0,
+      likeCount: (j['likeCount'] as num?)?.toInt() ?? 0,
+      isPinned: (j['isPinned'] as bool?) ?? false,
+      isAnswered: (j['isAnswered'] as bool?) ?? false,
+      comments: ((j['comments'] as List?) ?? const [])
+          .map((e) => BoardComment.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      listCommentCount: (j['commentCount'] as num?)?.toInt(),
+    );
+  }
 
   bool get isAdmin => type.isAdmin;
 
