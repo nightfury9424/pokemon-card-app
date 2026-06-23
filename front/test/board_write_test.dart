@@ -41,7 +41,8 @@ class _FakeWriteRepo extends BoardRepository {
 class _FakeDetailRepo extends BoardRepository {
   final BoardPost post;
   int deleteCalls = 0;
-  _FakeDetailRepo(this.post);
+  final Object? deleteThrows;
+  _FakeDetailRepo(this.post, {this.deleteThrows});
 
   @override
   Future<BoardPost?> fetchDetail(String id) async => post;
@@ -49,6 +50,7 @@ class _FakeDetailRepo extends BoardRepository {
   @override
   Future<void> deletePost(String postId) async {
     deleteCalls++;
+    if (deleteThrows != null) throw deleteThrows!;
   }
 }
 
@@ -150,6 +152,36 @@ void main() {
       expect(find.text('욕설본문'), findsOneWidget);
     });
 
+    testWidgets('금칙어 403 후 포커스·키보드 유지 + 키보드 inset overflow 0', (tester) async {
+      final repo = _FakeWriteRepo(
+          throwOnSubmit: const BoardApiException('부적절한 표현이 포함되어 있어 등록할 수 없습니다.',
+              code: 'CONTENT_POLICY_VIOLATION', statusCode: 403));
+      // 키보드 열린 상태(viewInsets) 가정 + 직접 pump(포커스/키보드 상태 검사용).
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (ctx) => MediaQuery(
+            data: MediaQuery.of(ctx).copyWith(viewInsets: const EdgeInsets.only(bottom: 300)),
+            child: BoardComposeScreen(repository: repo),
+          ),
+        ),
+      ));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField).at(0), '욕설제목');
+      await tester.enterText(find.byType(TextField).at(1), '욕설본문'); // 본문 포커스
+      await tester.pump();
+      expect(tester.testTextInput.isVisible, isTrue); // 제출 전 키보드 연결
+      await tester.tap(find.text('등록'));
+      await tester.pumpAndSettle();
+      // 입력·화면 유지
+      expect(find.text('욕설제목'), findsOneWidget);
+      expect(find.text('욕설본문'), findsOneWidget);
+      expect(find.byType(BoardComposeScreen), findsOneWidget);
+      // ★unfocus 안 함 → 키보드/포커스 유지(텍스트 입력 연결 유지). 실제 OS 키보드 표시는 위젯테스트 한계.
+      expect(tester.testTextInput.isVisible, isTrue);
+      expect(tester.binding.focusManager.primaryFocus, isNotNull);
+      expect(tester.takeException(), isNull); // viewInsets(키보드)에서도 overflow 0
+    });
+
     testWidgets('등록 연타 → create 1회', (tester) async {
       final repo = _FakeWriteRepo(delay: const Duration(milliseconds: 50));
       await _openCompose(tester, repo, <dynamic>[]);
@@ -196,6 +228,20 @@ void main() {
       await tester.pumpAndSettle();
       expect(captured, isEmpty);
       expect(find.text('수정시도'), findsOneWidget);
+    });
+
+    testWidgets('저장 연타 → update 1회', (tester) async {
+      final repo = _FakeWriteRepo(delay: const Duration(milliseconds: 50));
+      final captured = <dynamic>[];
+      await _openCompose(tester, repo, captured,
+          editing: _post(title: '기존', body: '기존본문', canEdit: true));
+      await tester.enterText(find.byType(TextField).at(0), '수정제목');
+      await tester.pump();
+      await tester.tap(find.text('저장'));
+      await tester.tap(find.text('저장')); // 같은 프레임 연타 — 가드로 1회
+      await tester.pumpAndSettle();
+      expect(repo.updateCalls, 1);
+      expect(captured, [true]);
     });
   });
 
@@ -285,11 +331,37 @@ void main() {
       expect(repo.deleteCalls, 1);
       expect(captured, ['deleted']); // 목록으로 변경 신호
     });
+
+    testWidgets('삭제 실패 → delete 1회 + 상세 유지(미pop)·메뉴·내용 보존 + 재시도 가능', (tester) async {
+      final repo = _FakeDetailRepo(_post(canEdit: true, canDelete: true),
+          deleteThrows: const BoardApiException('서버 오류', statusCode: 500));
+      final captured = <dynamic>[];
+      await pumpDetail(tester, repo, captured);
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('삭제'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('삭제')); // 확인
+      await tester.pumpAndSettle();
+      expect(repo.deleteCalls, 1);
+      expect(captured, isEmpty); // pop 안 됨(deleted 미반환)
+      expect(find.byType(BoardDetailScreen), findsOneWidget); // 상세 유지
+      expect(find.byIcon(Icons.more_vert), findsOneWidget); // 메뉴 유지
+      expect(find.text('본문'), findsOneWidget); // 내용 유지
+      // 재시도 가능
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('삭제'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('삭제'));
+      await tester.pumpAndSettle();
+      expect(repo.deleteCalls, 2); // 재시도 호출됨
+    });
   });
 
   group('반응형(작성 화면)', () {
     for (final size in const [Size(320, 568), Size(375, 667), Size(430, 932)]) {
-      for (final scale in const [1.0, 1.6]) {
+      for (final scale in const [1.0, 1.3, 1.6]) {
         testWidgets('overflow 0 — ${size.width.toInt()}x${size.height.toInt()} @x$scale + 키보드',
             (tester) async {
           tester.view.devicePixelRatio = 3.0;
