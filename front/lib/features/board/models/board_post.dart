@@ -29,6 +29,19 @@ DateTime _reqDateTime(Map j, String key) {
   return dt.toLocal();
 }
 
+/// 서버 액션 플래그 안전 파싱 — 누락/잘못된 타입(문자열·숫자 등)은 **false**.
+/// 백엔드·앱 배포 시점이 달라 필드가 없어도 크래시 없이, 액션 버튼이 잘못 열리지 않게 기본 false.
+bool _flag(Map j, String key) {
+  final v = j[key];
+  return v is bool ? v : false;
+}
+
+/// nullable string 안전 파싱 — 없거나 문자열 아니면 null. (replyTargetCommentId 등)
+String? _nullableString(Map j, String key) {
+  final v = j[key];
+  return v is String && v.isNotEmpty ? v : null;
+}
+
 /// 게시판 상대시간 표시(실시간 기준). ★목업의 고정 _now 가 아니라 DateTime.now() 사용.
 String boardRelativeTime(DateTime t) {
   final diff = DateTime.now().difference(t);
@@ -118,6 +131,15 @@ class BoardComment {
   final bool isAccepted; // Q&A 채택 답변
   final List<BoardComment> replies; // 대댓글 1단계
 
+  // 서버 계산 액션 플래그(viewerId 기준). UI 표시용 — 권한은 서버가 쓰기 시 재검증.
+  // 누락 시 안전 기본값(false/null) — 구버전 백엔드 호환. raw authorId 는 받지 않음(닉네임으로 mine 추정 금지).
+  final bool mine;
+  final bool canDelete;
+  final bool canReply;
+  final String? replyTargetCommentId; // 답글 작성 시 항상 이 값(최상위 댓글) 전송. 없으면 답글 불가.
+  final bool canReport;
+  final bool canBlock;
+
   const BoardComment({
     required this.id,
     required this.author,
@@ -126,6 +148,12 @@ class BoardComment {
     this.isAdmin = false,
     this.isAccepted = false,
     this.replies = const [],
+    this.mine = false,
+    this.canDelete = false,
+    this.canReply = false,
+    this.replyTargetCommentId,
+    this.canReport = false,
+    this.canBlock = false,
   });
 
   /// 백엔드 BoardCommentDto 직렬화 계약. 삭제댓글은 서버가 placeholder 노드로 채워 보냄(non-null 보장).
@@ -140,6 +168,12 @@ class BoardComment {
         replies: ((j['replies'] as List?) ?? const [])
             .map((e) => BoardComment.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
+        mine: _flag(j, 'mine'),
+        canDelete: _flag(j, 'canDelete'),
+        canReply: _flag(j, 'canReply'),
+        replyTargetCommentId: _nullableString(j, 'replyTargetCommentId'),
+        canReport: _flag(j, 'canReport'),
+        canBlock: _flag(j, 'canBlock'),
       );
 }
 
@@ -159,6 +193,13 @@ class BoardPost {
   /// 목록 응답(BoardPostSummaryDto)의 서버 라이브 집계값. 상세/목업은 null → comments 에서 계산.
   final int? listCommentCount;
 
+  // 서버 계산 액션 플래그(viewerId 기준). 누락 시 false — 구버전 백엔드 호환. raw authorId 미수신.
+  final bool mine;
+  final bool canEdit;
+  final bool canDelete;
+  final bool canReport;
+  final bool canBlock;
+
   const BoardPost({
     required this.id,
     required this.type,
@@ -172,6 +213,11 @@ class BoardPost {
     this.isAnswered = false,
     this.comments = const [],
     this.listCommentCount,
+    this.mine = false,
+    this.canEdit = false,
+    this.canDelete = false,
+    this.canReport = false,
+    this.canBlock = false,
   });
 
   /// 백엔드 BoardPostSummaryDto(목록)/BoardPostDetailDto(상세) 공통 파서.
@@ -197,6 +243,11 @@ class BoardPost {
           .map((e) => BoardComment.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
       listCommentCount: (j['commentCount'] as num?)?.toInt(),
+      mine: _flag(j, 'mine'),
+      canEdit: _flag(j, 'canEdit'),
+      canDelete: _flag(j, 'canDelete'),
+      canReport: _flag(j, 'canReport'),
+      canBlock: _flag(j, 'canBlock'),
     );
   }
 
