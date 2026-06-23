@@ -3,44 +3,116 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/app_info_toast.dart';
 import 'models/board_post.dart';
-import 'data/board_mock.dart';
+import 'data/board_repository.dart';
 import 'board_detail_screen.dart';
 
-/// 게시판 — 공지·소식 + 커뮤니티 **통합 단일 피드** (Q&A 제거).
-/// 상단 카테고리 칩(공지/이벤트/패치/자유/거래후기/사기주의)으로 필터, 글 앞 타입칩.
+/// 게시판 — **공지 | 자유** 2탭(기본=자유). 공지=section=official(읽기전용·관리자 작성),
+/// 자유=type=free(로그인 작성·댓글·좋아요). 서버 페이지네이션·핀 우선 정렬.
 class BoardScreen extends StatefulWidget {
-  const BoardScreen({super.key});
+  /// 주입 가능(테스트용 fake). 운영 기본 = const BoardRepository().
+  final BoardRepository repository;
+  const BoardScreen({super.key, this.repository = const BoardRepository()});
 
   @override
   State<BoardScreen> createState() => _BoardScreenState();
 }
 
-/// 게시판 노출 타입 (Q&A 제외). 공지성 + 커뮤니티 통합.
-const List<BoardType> _boardTypes = [
-  BoardType.notice,
-  BoardType.event,
-  BoardType.patch,
-  BoardType.free,
-  BoardType.tradeReview,
-  BoardType.scamAlert,
-];
-
 class _BoardScreenState extends State<BoardScreen> {
-  BoardType? _filter; // null = 전체
+  static const _pageSize = 20;
+
+  int _tab = 1; // 0 = 공지(official), 1 = 자유(free). 기본 = 자유.
+  final ScrollController _scroll = ScrollController();
+
+  List<BoardPost> _posts = const [];
+  bool _loading = true;
+  Object? _error;
+  int _page = 0;
+  bool _hasMore = false;
+  bool _loadingMore = false;
+  int _reqToken = 0; // 탭 전환/새로고침 경쟁 방지(늦게 온 응답 폐기)
+
+  bool get _isNotice => _tab == 0;
+  String? get _section => _isNotice ? 'official' : null;
+  String? get _type => _isNotice ? null : 'free';
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final token = ++_reqToken;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final r = await widget.repository.fetchList(
+          section: _section, type: _type, page: 0, size: _pageSize);
+      if (!mounted || token != _reqToken) return; // 늦게 온 이전 탭 응답 폐기
+      setState(() {
+        _posts = r.posts;
+        _page = r.page;
+        _hasMore = r.hasMore;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted || token != _reqToken) return;
+      setState(() {
+        _loading = false;
+        _error = e;
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _loading || _error != null) return;
+    final token = _reqToken; // 같은 탭/세션 동안만 유효
+    setState(() => _loadingMore = true);
+    try {
+      final r = await widget.repository.fetchList(
+          section: _section, type: _type, page: _page + 1, size: _pageSize);
+      if (!mounted || token != _reqToken) return;
+      setState(() {
+        _posts = [..._posts, ...r.posts];
+        _page = r.page;
+        _hasMore = r.hasMore;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (!mounted || token != _reqToken) return;
+      // 추가 로드 실패는 목록 유지(전역 핸들러가 토스트). 다음 스크롤에 재시도 가능.
+      setState(() => _loadingMore = false);
+    }
+  }
+
+  void _onScroll() {
+    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 320) {
+      _loadMore();
+    }
+  }
+
+  void _switchTab(int t) {
+    if (_tab == t) return;
+    setState(() {
+      _tab = t;
+      _posts = const [];
+      _hasMore = false;
+      _loadingMore = false;
+    });
+    _load();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final posts = BoardMock.posts
-        .where((p) =>
-            _boardTypes.contains(p.type) && (_filter == null || p.type == _filter))
-        .toList()
-      ..sort((a, b) {
-        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
-        return b.createdAt.compareTo(a.createdAt);
-      });
-
-    // 글쓰기 FAB(우하단 확장형) 위로 마지막 글이 가리지 않게 — board 는 root Scaffold 라
-    // body 가 SafeArea 밖 → 홈 인디케이터(viewPadding.bottom)까지 합산한 동적 하단 여백.
     final fabBottomInset = AppDimens.bottomContentInsetForExtendedFab +
         MediaQuery.viewPaddingOf(context).bottom;
 
@@ -55,71 +127,133 @@ class _BoardScreenState extends State<BoardScreen> {
             style: TextStyle(
                 color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 20)),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.blue,
-        onPressed: () => AppInfoToast.show(context, '작성 화면은 다음 단계에서 추가돼요'),
-        icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.white),
-        label: const Text('글쓰기',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-      ),
+      // 자유 탭만 글쓰기 FAB(공지는 관리자 웹 전용 = 앱 작성 버튼 없음).
+      floatingActionButton: _isNotice
+          ? null
+          : FloatingActionButton.extended(
+              backgroundColor: AppColors.blue,
+              onPressed: () => AppInfoToast.show(context, '작성 화면은 다음 단계에서 추가돼요'),
+              icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.white),
+              label: const Text('글쓰기',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            ),
       body: Column(
         children: [
-          _categoryChips(),
+          _tabBar(),
           const SizedBox(height: 4),
-          Expanded(
-            child: posts.isEmpty
-                ? const Center(
-                    child: Text('아직 글이 없어요',
-                        style: TextStyle(color: AppColors.textMuted)))
-                : ListView.separated(
-                    padding: EdgeInsets.fromLTRB(16, 4, 16, fabBottomInset),
-                    itemCount: posts.length,
-                    separatorBuilder: (_, _) =>
-                        const Divider(height: 1, color: AppColors.dividerSoft),
-                    itemBuilder: (_, i) => PostRow(post: posts[i]),
-                  ),
-          ),
+          Expanded(child: _body(fabBottomInset)),
         ],
       ),
     );
   }
 
-  Widget _categoryChips() {
-    return SizedBox(
-      height: 36,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: [
-          _chip('전체', _filter == null, () => setState(() => _filter = null), AppColors.blue),
-          for (final t in _boardTypes)
-            _chip(t.label, _filter == t, () => setState(() => _filter = t), t.color),
-        ],
-      ),
-    );
-  }
-
-  Widget _chip(String label, bool sel, VoidCallback onTap, Color accent) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-          decoration: BoxDecoration(
-            color: sel ? accent.withValues(alpha: 0.18) : AppColors.surfaceCard,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-                color: sel ? accent.withValues(alpha: 0.6) : AppColors.divider, width: 1),
+  Widget _tabBar() {
+    Widget tab(String label, int idx) {
+      final sel = _tab == idx;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => _switchTab(idx),
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 11),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: sel ? AppColors.blue : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(label,
+                style: TextStyle(
+                  color: sel ? AppColors.textPrimary : AppColors.textMuted,
+                  fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                  fontSize: 14.5,
+                )),
           ),
-          alignment: Alignment.center,
-          child: Text(label,
-              style: TextStyle(
-                color: sel ? accent : AppColors.textSecondary,
-                fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 12.5,
-              )),
         ),
+      );
+    }
+
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.dividerSoft, width: 1)),
+      ),
+      child: Row(children: [tab('공지', 0), tab('자유', 1)]),
+    );
+  }
+
+  Widget _body(double fabBottomInset) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2.4));
+    }
+    if (_error != null) {
+      return _errorState();
+    }
+    if (_posts.isEmpty) {
+      // 빈 상태도 당겨서 새로고침 가능하게 스크롤 가능한 영역으로.
+      return RefreshIndicator(
+        onRefresh: _load,
+        color: AppColors.blue,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.5,
+              child: Center(
+                child: Text(_isNotice ? '등록된 공지가 없어요' : '아직 글이 없어요',
+                    style: const TextStyle(color: AppColors.textMuted)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: AppColors.blue,
+      child: ListView.separated(
+        controller: _scroll,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(16, 4, 16, fabBottomInset),
+        itemCount: _posts.length + (_hasMore ? 1 : 0),
+        separatorBuilder: (_, i) => i < _posts.length - 1
+            ? const Divider(height: 1, color: AppColors.dividerSoft)
+            : const SizedBox.shrink(),
+        itemBuilder: (_, i) {
+          if (i >= _posts.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 18),
+              child: Center(
+                  child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.2))),
+            );
+          }
+          return PostRow(post: _posts[i]);
+        },
+      ),
+    );
+  }
+
+  Widget _errorState() {
+    final msg = _error is BoardApiException
+        ? (_error as BoardApiException).message
+        : '목록을 불러오지 못했어요.';
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(msg, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: _load,
+            child: const Text('다시 시도',
+                style: TextStyle(color: AppColors.blue, fontWeight: FontWeight.w700)),
+          ),
+        ],
       ),
     );
   }
@@ -182,7 +316,7 @@ class PostRow extends StatelessWidget {
                             fontWeight: FontWeight.w600)),
                   ),
                   const _Dot(),
-                  Text(BoardMock.relativeTime(post.createdAt),
+                  Text(boardRelativeTime(post.createdAt),
                       style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5)),
                 ]),
                 // 메타는 폭이 모자라면 자기들끼리도 줄바꿈(숫자 안 숨김).

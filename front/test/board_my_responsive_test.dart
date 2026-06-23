@@ -3,7 +3,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:front/features/board/board_screen.dart';
 import 'package:front/features/board/board_detail_screen.dart';
 import 'package:front/features/board/data/board_mock.dart';
+import 'package:front/features/board/data/board_repository.dart';
 import 'package:front/features/board/models/board_post.dart';
+
+/// 반응형 검증용 fake repo — 네트워크 없이 정적 BoardMock 데이터를 즉시 반환(타이머/펜딩 없음).
+class _FakeBoardRepo extends BoardRepository {
+  const _FakeBoardRepo();
+  @override
+  Future<BoardListResult> fetchList(
+      {String? section, String? type, int page = 0, int size = 20}) async {
+    final posts = BoardMock.posts;
+    return BoardListResult(
+        posts: posts, page: 0, size: size, totalPages: 1, totalElements: posts.length);
+  }
+}
 
 /// Step1 게시판 반응형 회귀 — 기기별 사이즈 × 글자확대에서 RenderFlex overflow / 레이아웃 예외가
 /// 발생하지 않는지 기계검증. (로그인/네트워크 불필요 — BoardMock 정적 데이터.)
@@ -51,7 +64,9 @@ void main() {
     final bottom = d[2] as double;
     for (final scale in scales) {
       testWidgets('게시판 목록 — $name @ x$scale', (tester) async {
-        await pumpAt(tester, const BoardScreen(), size, bottom, scale);
+        await pumpAt(tester, const BoardScreen(repository: _FakeBoardRepo()),
+            size, bottom, scale);
+        await tester.pumpAndSettle(); // fake 즉시 응답 → 로딩→목록 렌더 후 정착
         expect(tester.takeException(), isNull,
             reason: '$name x$scale 게시판 목록 overflow/예외');
       });

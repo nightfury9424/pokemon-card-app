@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_info_toast.dart';
 import 'models/board_post.dart';
-import 'data/board_mock.dart';
 
 /// 게시글 상세 — 본문 + 댓글/대댓글. (목업, 백엔드 승인 후 연결)
 class BoardDetailScreen extends StatelessWidget {
@@ -112,7 +111,7 @@ class BoardDetailScreen extends StatelessWidget {
                 _adminBadge(),
               ],
             ]),
-            Text('${BoardMock.relativeTime(post.createdAt)} · 조회 ${post.viewCount}',
+            Text('${boardRelativeTime(post.createdAt)} · 조회 ${post.viewCount}',
                 style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5)),
           ],
         ),
@@ -185,7 +184,7 @@ class BoardDetailScreen extends StatelessWidget {
                     ]),
                   ],
                   const Spacer(),
-                  Text(BoardMock.relativeTime(c.createdAt),
+                  Text(boardRelativeTime(c.createdAt),
                       style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
                 ]),
                 const SizedBox(height: 6),

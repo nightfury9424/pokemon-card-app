@@ -29,6 +29,16 @@ DateTime _reqDateTime(Map j, String key) {
   return dt.toLocal();
 }
 
+/// 게시판 상대시간 표시(실시간 기준). ★목업의 고정 _now 가 아니라 DateTime.now() 사용.
+String boardRelativeTime(DateTime t) {
+  final diff = DateTime.now().difference(t);
+  if (diff.inMinutes < 1) return '방금';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}분 전';
+  if (diff.inHours < 24) return '${diff.inHours}시간 전';
+  if (diff.inDays < 7) return '${diff.inDays}일 전';
+  return '${t.month}/${t.day}';
+}
+
 extension BoardTypeMeta on BoardType {
   /// 관리자만 작성 (읽기전용 공지성).
   bool get isAdmin =>
