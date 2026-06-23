@@ -407,14 +407,21 @@ function HandleModal({ row, onClose, onDone }) {
   const chosen = DECISIONS.find(d => d.key === decision) ?? null
   const isDanger = chosen?.tone === 'danger'
 
-  // 게시판 신고 — 원문·문맥 자동 로딩. 삭제·숨김·제재(파괴적)는 원문 확인 성공 전 잠금.
+  // 게시판 신고 — 원문·문맥(신고 당시 snapshot + 현재) 자동 로딩. 조치별 활성 조건은 actionEnabled().
   const isBoardReport = isBoardPost || isBoardComment
-  const DESTRUCTIVE = ['HIDE_BOARD_POST', 'DELETE_BOARD_POST', 'DELETE_BOARD_COMMENT', 'WARN_USER', 'SUSPEND_USER']
   const [context, setContext] = useState(null)
   const [contextLoading, setContextLoading] = useState(isBoardReport)
   const [contextError, setContextError] = useState(false)
-  const contextReady = !isBoardReport || (!!context && context.available)
   const ctxBoxStyle = { background: '#f8fafc', borderRadius: 10, padding: '12px 14px', fontSize: 13, lineHeight: 1.6 }
+
+  // 조치별 활성: 삭제/숨김=현재 콘텐츠 존재 / 경고·정지=snapshot 또는 현재 존재(현재 삭제됐어도 증거 있으면 제재) /
+  //   기각·보류=항상. 로딩/오류(context 미로딩)=잠금. snapshot·현재 모두 없으면 파괴적 전부 잠금.
+  function actionEnabled(key) {
+    if (!isBoardReport || key === 'DISMISS' || key === 'NONE') return true
+    if (!context) return false
+    if (key === 'WARN_USER' || key === 'SUSPEND_USER') return !!(context.available || context.snapshotAvailable)
+    return !!context.available // HIDE/DELETE_BOARD_POST, DELETE_BOARD_COMMENT
+  }
 
   async function loadContext() {
     setContextLoading(true)
@@ -433,7 +440,7 @@ function HandleModal({ row, onClose, onDone }) {
 
   async function submit() {
     if (!chosen) return
-    if (DESTRUCTIVE.includes(chosen.key) && !contextReady) return // 원문 확인 전 파괴적 조치 차단
+    if (!actionEnabled(chosen.key)) return // 조치별 활성 조건 미충족(원문·증거 없음) 차단
     if (isDanger) {
       if (!confirm(`'${chosen.label}' 조치를 실행할까요? 되돌릴 수 없어요.`)) return
     } else if (chosen.key === 'WARN_USER') {
@@ -495,21 +502,39 @@ function HandleModal({ row, onClose, onDone }) {
                 원문을 불러오지 못했어요. 삭제·숨김·제재는 원문 확인 후 가능해요.{' '}
                 <button onClick={loadContext} style={{ border: 'none', background: 'none', color: '#4f46e5', fontWeight: 700, cursor: 'pointer', padding: 0 }}>재시도</button>
               </div>
-            ) : context && !context.available ? (
-              <div style={{ ...ctxBoxStyle, color: '#94a3b8' }}>원문이 삭제되었거나 찾을 수 없어요. (삭제·숨김·제재 비활성화)</div>
             ) : context ? (
-              <BoardContextView ctx={context} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                    신고 당시 내용
+                    {context.changedSinceReport && <span style={{ marginLeft: 6 }}><CtxBadge text="신고 후 수정됨" tone="danger" /></span>}
+                  </div>
+                  {context.snapshotAvailable ? (
+                    <BoardContextView ctx={snapshotToCtx(context.reportedSnapshot)} />
+                  ) : (
+                    <div style={{ ...ctxBoxStyle, color: '#94a3b8' }}>이전 신고로 신고 당시 원문이 저장되지 않았습니다.</div>
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 6 }}>현재 내용</div>
+                  {context.available ? (
+                    <BoardContextView ctx={context} />
+                  ) : (
+                    <div style={{ ...ctxBoxStyle, color: '#94a3b8' }}>현재 콘텐츠가 삭제되었거나 없습니다.</div>
+                  )}
+                </div>
+              </div>
             ) : null}
           </div>
         )}
 
         <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 8 }}>조치 선택</label>
-        {isBoardReport && !contextReady && (
-          <div style={{ fontSize: 11, color: '#c2410c', marginBottom: 8 }}>※ 원문을 확인해야 삭제·숨김·제재 조치를 할 수 있어요.</div>
+        {isBoardReport && !context && (
+          <div style={{ fontSize: 11, color: '#c2410c', marginBottom: 8 }}>※ 원문 확인 후 조치를 선택할 수 있어요.</div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
           {decisions.map(d => {
-            const locked = isBoardReport && DESTRUCTIVE.includes(d.key) && !contextReady
+            const locked = !actionEnabled(d.key)
             const sel = decision === d.key
             const t = TONE[d.tone]
             return (
@@ -587,6 +612,18 @@ function CtxBadge({ text, tone }) {
     <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 99,
       background: c.bg, color: c.color, border: `1px solid ${c.border}`, whiteSpace: 'nowrap' }}>{text}</span>
   )
+}
+
+// 신고 당시 snapshot(ReportedSnapshot) → BoardContextView 가 쓰는 {post, thread} 형태로 변환(렌더 재사용).
+function snapshotToCtx(snap) {
+  if (!snap) return { post: null, thread: null }
+  if (snap.targetType === 'BOARD_POST') {
+    return { post: { title: snap.title, content: snap.content, authorLabel: snap.authorLabel, hidden: false, deleted: false }, thread: null }
+  }
+  return {
+    post: snap.postTitle ? { title: snap.postTitle, content: '', authorLabel: '', hidden: false, deleted: false } : null,
+    thread: { comments: (snap.comments || []).map(c => ({ ...c, target: c.commentId === snap.targetCommentId })) },
+  }
 }
 
 // 게시판 신고 원문·문맥 뷰 — ChatViewModal 스타일(스크롤 영역·말풍선) 재사용. 신고 대상 강조 + 숨김/삭제 배지.
