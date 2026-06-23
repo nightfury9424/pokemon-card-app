@@ -1,10 +1,7 @@
 package com.fury.back.domain.report;
 
 import com.fury.back.auth.JwtUtil;
-import com.fury.back.common.IdGenerator;
 import com.fury.back.common.ReturnData;
-import com.fury.back.domain.block.Block;
-import com.fury.back.domain.block.BlockRepository;
 import com.fury.back.domain.board.BoardComment;
 import com.fury.back.domain.board.BoardCommentRepository;
 import com.fury.back.domain.board.BoardPost;
@@ -18,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -36,12 +34,11 @@ public class ReportController {
 
     private final ReportRepository reportRepository;
     private final JwtUtil jwtUtil;
-    private final BlockRepository blockRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final TradePostRepository tradePostRepository;
     private final BoardPostRepository boardPostRepository;
     private final BoardCommentRepository boardCommentRepository;
-    private final ReportSnapshotService reportSnapshotService;
+    private final ReportService reportService;
 
     @Operation(summary = "신고 등록", description = "거래/사용자/매수호가/채팅 신고")
     @PostMapping
@@ -91,44 +88,16 @@ public class ReportController {
             }
         }
 
-        // 게시판 신고 = 신고 당시 원문 immutable snapshot 저장 + ★존재·미삭제 검증 겸함(작성자 해석과 분리 —
-        //   authorId 와 무관하게 콘텐츠만 있으면 신고 가능, dedup/자동차단만 author 있을 때). null=미존재/삭제 → 거부.
-        ReportedSnapshot snapshot = null;
-        if ("BOARD_POST".equals(targetType) || "BOARD_COMMENT".equals(targetType)) {
-            snapshot = reportSnapshotService.build(targetType, targetId);
-            if (snapshot == null) {
-                return ReturnData.badRequest("신고할 수 없는 게시글이거나 이미 삭제되었어요.");
-            }
-        }
-
-        Report report = Report.builder()
-                .reportId(IdGenerator.generate())
-                .reporterId(reporterId)
-                .targetType(targetType)
-                .targetId(targetId)
-                .targetUserId(targetUserId)
-                .reason(reason)
-                .detail(detail)
-                .status("PENDING")
-                .reportedSnapshot(snapshot)
-                .build();
-        Report saved = reportRepository.save(report);
-
-        // 신고 시 대상 사용자 자동 차단. 차단 실패해도 신고는 접수.
+        // ★snapshot 생성 + 신고 저장 + 자동 차단을 하나의 서비스 트랜잭션으로 원자 처리(부분성공 방지).
+        //   board 대상이 미존재/삭제면 snapshot 불가 → BAD_REQUEST. authorId 무관하게 콘텐츠 있으면 신고 가능
+        //   (dedup/자동차단만 targetUserId 있을 때).
+        final String reportId;
         try {
-            if (targetUserId != null && !targetUserId.equals(reporterId)
-                    && blockRepository.findByBlockerIdAndBlockedId(reporterId, targetUserId).isEmpty()) {
-                blockRepository.save(Block.builder()
-                        .blockId(IdGenerator.generate())
-                        .blockerId(reporterId)
-                        .blockedId(targetUserId)
-                        .build());
-            }
-        } catch (Exception ignored) {
-            // 차단 실패는 무시 — 신고 접수가 우선.
+            reportId = reportService.create(reporterId, targetType, targetId, reason, detail, targetUserId);
+        } catch (ResponseStatusException e) {
+            return ReturnData.badRequest(e.getReason());
         }
-
-        return ReturnData.success(Map.of("reportId", saved.getReportId()));
+        return ReturnData.success(Map.of("reportId", reportId));
     }
 
     /** 신고 대상 → 차단할 사용자 id. USER=대상, TRADE=판매자, CHAT=상대(나 아닌 참가자). */

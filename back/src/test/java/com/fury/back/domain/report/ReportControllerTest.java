@@ -1,8 +1,6 @@
 package com.fury.back.domain.report;
 
 import com.fury.back.auth.JwtUtil;
-import com.fury.back.domain.block.Block;
-import com.fury.back.domain.block.BlockRepository;
 import com.fury.back.domain.board.BoardComment;
 import com.fury.back.domain.board.BoardCommentRepository;
 import com.fury.back.domain.board.BoardPost;
@@ -12,37 +10,31 @@ import com.fury.back.domain.trade.TradePostRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/** 게시판 신고 타입 확장 — BOARD_POST/BOARD_COMMENT 생성·작성자 해석·미존재 거부·dedup + 기존 USER 회귀. */
+/** 신고 컨트롤러 — 타입검증·작성자 해석·중복방지·서비스 위임. (저장·차단·snapshot 원자처리는 ReportServiceTest.) */
 @ExtendWith(MockitoExtension.class)
 class ReportControllerTest {
 
     @Mock ReportRepository reportRepository;
     @Mock JwtUtil jwtUtil;
-    @Mock BlockRepository blockRepository;
     @Mock ChatRoomRepository chatRoomRepository;
     @Mock TradePostRepository tradePostRepository;
     @Mock BoardPostRepository boardPostRepository;
     @Mock BoardCommentRepository boardCommentRepository;
-    @Mock ReportSnapshotService reportSnapshotService;
+    @Mock ReportService reportService;
     @InjectMocks ReportController controller;
-
-    private ReportedSnapshot snap() {
-        return new ReportedSnapshot(1, "BOARD_POST", "제목", "본문", "닉", "2026-06-24T10:00", null, null, null, null, null);
-    }
 
     private HttpServletRequest req(String userId) {
         HttpServletRequest r = mock(HttpServletRequest.class);
@@ -60,120 +52,64 @@ class ReportControllerTest {
         return m;
     }
 
-    private BoardPost post(String id, String author, LocalDateTime deleted) {
-        return BoardPost.builder().postId(id).authorId(author).deletedAt(deleted).build();
+    private BoardPost post(String id, String author) {
+        return BoardPost.builder().postId(id).authorId(author).build();
     }
 
     @Test
-    void boardPost_create_resolvesAuthor_and_autoBlocks() {
-        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1", null)));
+    void boardPost_create_resolvesAuthor_delegates() {
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1")));
         when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(false);
-        when(blockRepository.findByBlockerIdAndBlockedId("reporter", "author1")).thenReturn(Optional.empty());
-        when(reportSnapshotService.build("BOARD_POST", "p1")).thenReturn(snap()); // 신고 당시 원문 저장
-        when(reportRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(reportService.create(any(), any(), any(), any(), any(), any())).thenReturn("rid");
 
         controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
 
-        ArgumentCaptor<Report> cap = ArgumentCaptor.forClass(Report.class);
-        verify(reportRepository).save(cap.capture());
-        assertThat(cap.getValue().getTargetType()).isEqualTo("BOARD_POST");
-        assertThat(cap.getValue().getTargetUserId()).isEqualTo("author1"); // 작성자 해석
-        assertThat(cap.getValue().getReportedSnapshot()).isNotNull(); // ★신고 당시 snapshot 보존
-        verify(blockRepository).save(any(Block.class)); // 자동 차단(기존 흐름 재사용)
+        verify(reportService).create("reporter", "BOARD_POST", "p1", "INSULT", null, "author1"); // 작성자 해석 후 위임
     }
 
     @Test
-    void boardPost_snapshotBuildNull_rejected_noSave() {
-        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1", null)));
-        when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(false);
-        when(reportSnapshotService.build("BOARD_POST", "p1")).thenReturn(null); // 대상 사라짐(증거 불가)
-        controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
-        verify(reportRepository, never()).save(any()); // 증거 없는 신고 저장 안 함
-    }
-
-    @Test
-    void boardComment_create_resolvesAuthor() {
-        BoardComment c = BoardComment.builder().commentId("c1").authorId("author2").content("body").build();
+    void boardComment_create_resolvesAuthor_delegates() {
+        BoardComment c = BoardComment.builder().commentId("c1").authorId("author2").content("b").build();
         when(boardCommentRepository.findById("c1")).thenReturn(Optional.of(c));
         when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author2")).thenReturn(false);
-        when(blockRepository.findByBlockerIdAndBlockedId("reporter", "author2")).thenReturn(Optional.empty());
-        when(reportSnapshotService.build("BOARD_COMMENT", "c1")).thenReturn(snap());
-        when(reportRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(reportService.create(any(), any(), any(), any(), any(), any())).thenReturn("rid");
 
         controller.create(req("reporter"), body("BOARD_COMMENT", "c1", "SPAM"));
 
-        ArgumentCaptor<Report> cap = ArgumentCaptor.forClass(Report.class);
-        verify(reportRepository).save(cap.capture());
-        assertThat(cap.getValue().getTargetUserId()).isEqualTo("author2");
+        verify(reportService).create("reporter", "BOARD_COMMENT", "c1", "SPAM", null, "author2");
     }
 
     @Test
-    void boardPost_missing_rejected_noSave() {
-        when(boardPostRepository.findById("gone")).thenReturn(Optional.empty());
-        when(reportSnapshotService.build("BOARD_POST", "gone")).thenReturn(null); // 미존재 → 거부
-        controller.create(req("reporter"), body("BOARD_POST", "gone", "INSULT"));
-        verify(reportRepository, never()).save(any());
-    }
-
-    @Test
-    void boardPost_deleted_rejected_noSave() {
-        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1", LocalDateTime.now())));
-        when(reportSnapshotService.build("BOARD_POST", "p1")).thenReturn(null); // 삭제 → snapshot 불가 → 거부
-        controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
-        verify(reportRepository, never()).save(any());
-    }
-
-    @Test
-    void boardComment_missing_rejected_noSave() {
-        when(boardCommentRepository.findById("gone")).thenReturn(Optional.empty());
-        when(reportSnapshotService.build("BOARD_COMMENT", "gone")).thenReturn(null);
-        controller.create(req("reporter"), body("BOARD_COMMENT", "gone", "SPAM"));
-        verify(reportRepository, never()).save(any());
-    }
-
-    @Test
-    void boardPost_nullAuthor_reportable_savedWithSnapshot() {
-        // ★author_id 는 실DB NOT NULL이나, null 이어도 콘텐츠 존재하면 신고 가능(작성자 해석과 분리). 400 아님.
-        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", null, null)));
-        when(reportSnapshotService.build("BOARD_POST", "p1")).thenReturn(snap());
-        when(reportRepository.countByReporterIdAndTargetTypeAndTargetIdAndStatus("reporter", "BOARD_POST", "p1", "PENDING"))
-                .thenReturn(0L);
-        when(reportRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-
-        controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
-
-        ArgumentCaptor<Report> cap = ArgumentCaptor.forClass(Report.class);
-        verify(reportRepository).save(cap.capture()); // 저장됨
-        assertThat(cap.getValue().getTargetUserId()).isNull();        // dedup/자동차단만 생략
-        assertThat(cap.getValue().getReportedSnapshot()).isNotNull(); // 증거 보존
-        verify(blockRepository, never()).save(any());                 // author null → 자동차단 없음
-    }
-
-    @Test
-    void boardPost_duplicate_author_rejected() {
-        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1", null)));
-        when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(true);
-        controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
-        verify(reportRepository, never()).save(any()); // 1회 제한 재사용
-    }
-
-    @Test
-    void invalidType_rejected() {
-        controller.create(req("reporter"), body("WHATEVER", "x", "INSULT"));
-        verify(reportRepository, never()).save(any());
-    }
-
-    @Test
-    void user_create_regression() {
+    void user_create_regression_delegates() {
         when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "victim")).thenReturn(false);
-        when(blockRepository.findByBlockerIdAndBlockedId("reporter", "victim")).thenReturn(Optional.empty());
-        when(reportRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(reportService.create(any(), any(), any(), any(), any(), any())).thenReturn("rid");
 
         controller.create(req("reporter"), body("USER", "victim", "INSULT"));
 
-        ArgumentCaptor<Report> cap = ArgumentCaptor.forClass(Report.class);
-        verify(reportRepository).save(cap.capture());
-        assertThat(cap.getValue().getTargetType()).isEqualTo("USER");
-        assertThat(cap.getValue().getTargetUserId()).isEqualTo("victim");
+        verify(reportService).create("reporter", "USER", "victim", "INSULT", null, "victim");
+    }
+
+    @Test
+    void invalidType_rejected_noDelegate() {
+        controller.create(req("reporter"), body("WHATEVER", "x", "INSULT"));
+        verify(reportService, never()).create(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void duplicate_author_rejected_noDelegate() {
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1")));
+        when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(true);
+        controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
+        verify(reportService, never()).create(any(), any(), any(), any(), any(), any()); // 중복 → 위임 안 함
+    }
+
+    @Test
+    void serviceRejects_handledNotThrown() {
+        // board 대상 미존재/삭제 → service 가 BAD_REQUEST → 컨트롤러가 catch 해서 fail 응답(예외 전파 X).
+        when(boardPostRepository.findById("gone")).thenReturn(Optional.empty());
+        when(reportService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "신고할 수 없는 게시글이거나 이미 삭제되었어요."));
+        controller.create(req("reporter"), body("BOARD_POST", "gone", "INSULT")); // throw 하지 않음
+        verify(reportService).create(any(), any(), any(), any(), any(), any());
     }
 }
