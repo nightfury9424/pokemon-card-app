@@ -407,8 +407,33 @@ function HandleModal({ row, onClose, onDone }) {
   const chosen = DECISIONS.find(d => d.key === decision) ?? null
   const isDanger = chosen?.tone === 'danger'
 
+  // 게시판 신고 — 원문·문맥 자동 로딩. 삭제·숨김·제재(파괴적)는 원문 확인 성공 전 잠금.
+  const isBoardReport = isBoardPost || isBoardComment
+  const DESTRUCTIVE = ['HIDE_BOARD_POST', 'DELETE_BOARD_POST', 'DELETE_BOARD_COMMENT', 'WARN_USER', 'SUSPEND_USER']
+  const [context, setContext] = useState(null)
+  const [contextLoading, setContextLoading] = useState(isBoardReport)
+  const [contextError, setContextError] = useState(false)
+  const contextReady = !isBoardReport || (!!context && context.available)
+  const ctxBoxStyle = { background: '#f8fafc', borderRadius: 10, padding: '12px 14px', fontSize: 13, lineHeight: 1.6 }
+
+  async function loadContext() {
+    setContextLoading(true)
+    setContextError(false)
+    try {
+      const r = await api.get(`/admin/reports/${row.reportId}/target-context`)
+      setContext(r.data?.data ?? null)
+    } catch {
+      setContextError(true)
+    } finally {
+      setContextLoading(false)
+    }
+  }
+  // 마운트 시 원문 1회 로딩(fetch-on-mount). set-state-in-effect 는 repo 전역 패턴과 동일 — 명시 disable.
+  useEffect(() => { if (isBoardReport) loadContext() }, []) // eslint-disable-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+
   async function submit() {
     if (!chosen) return
+    if (DESTRUCTIVE.includes(chosen.key) && !contextReady) return // 원문 확인 전 파괴적 조치 차단
     if (isDanger) {
       if (!confirm(`'${chosen.label}' 조치를 실행할까요? 되돌릴 수 없어요.`)) return
     } else if (chosen.key === 'WARN_USER') {
@@ -460,17 +485,42 @@ function HandleModal({ row, onClose, onDone }) {
           }}>{row.detail}</div>
         )}
 
+        {isBoardReport && (
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 8 }}>원문 및 문맥</label>
+            {contextLoading ? (
+              <div style={{ ...ctxBoxStyle, color: '#94a3b8' }}>원문을 불러오는 중...</div>
+            ) : contextError ? (
+              <div style={{ padding: '12px 14px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12, color: '#dc2626', lineHeight: 1.6 }}>
+                원문을 불러오지 못했어요. 삭제·숨김·제재는 원문 확인 후 가능해요.{' '}
+                <button onClick={loadContext} style={{ border: 'none', background: 'none', color: '#4f46e5', fontWeight: 700, cursor: 'pointer', padding: 0 }}>재시도</button>
+              </div>
+            ) : context && !context.available ? (
+              <div style={{ ...ctxBoxStyle, color: '#94a3b8' }}>원문이 삭제되었거나 찾을 수 없어요. (삭제·숨김·제재 비활성화)</div>
+            ) : context ? (
+              <BoardContextView ctx={context} />
+            ) : null}
+          </div>
+        )}
+
         <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 8 }}>조치 선택</label>
+        {isBoardReport && !contextReady && (
+          <div style={{ fontSize: 11, color: '#c2410c', marginBottom: 8 }}>※ 원문을 확인해야 삭제·숨김·제재 조치를 할 수 있어요.</div>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
           {decisions.map(d => {
+            const locked = isBoardReport && DESTRUCTIVE.includes(d.key) && !contextReady
             const sel = decision === d.key
             const t = TONE[d.tone]
             return (
-              <button key={d.key} onClick={() => setDecision(d.key)} style={{
+              <button key={d.key} disabled={locked}
+                onClick={() => !locked && setDecision(d.key)}
+                title={locked ? '원문 확인 후 가능' : undefined}
+                style={{
                 textAlign: 'left', padding: '12px 14px', borderRadius: 10,
                 background: sel ? t.bg : '#fff',
                 border: `1.5px solid ${sel ? t.sel : '#e2e8f0'}`,
-                cursor: 'pointer', transition: 'all 0.1s',
+                cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.45 : 1, transition: 'all 0.1s',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{
@@ -522,6 +572,57 @@ function HandleModal({ row, onClose, onDone }) {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// 신고 원문/문맥 배지 — 기존 STATUS/TONE 팔레트 재사용(새 디자인 체계 X).
+function CtxBadge({ text, tone }) {
+  const c = {
+    warn:   { bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
+    danger: { bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
+    muted:  { bg: '#f1f5f9', color: '#94a3b8', border: '#e2e8f0' },
+  }[tone] ?? { bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0' }
+  return (
+    <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 99,
+      background: c.bg, color: c.color, border: `1px solid ${c.border}`, whiteSpace: 'nowrap' }}>{text}</span>
+  )
+}
+
+// 게시판 신고 원문·문맥 뷰 — ChatViewModal 스타일(스크롤 영역·말풍선) 재사용. 신고 대상 강조 + 숨김/삭제 배지.
+function BoardContextView({ ctx }) {
+  const post = ctx.post
+  return (
+    <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 14px', maxHeight: 260, overflow: 'auto', border: '1px solid #f1f5f9' }}>
+      {post && (
+        <div style={{ marginBottom: ctx.thread ? 12 : 0 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
+            <span style={{ fontWeight: 700, color: '#1e293b', fontSize: 13 }}>{post.title || '(제목 없음)'}</span>
+            {post.hidden && <CtxBadge text="숨김" tone="warn" />}
+            {post.deleted && <CtxBadge text="삭제됨" tone="danger" />}
+          </div>
+          <div style={{ fontSize: 12, color: '#475569', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{post.content}</div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>{post.authorLabel}</div>
+        </div>
+      )}
+      {ctx.thread && (
+        <div style={{ borderTop: post ? '1px solid #e2e8f0' : 'none', paddingTop: post ? 10 : 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {ctx.thread.comments.map(c => (
+            <div key={c.commentId} style={{
+              padding: '8px 10px', borderRadius: 8, marginLeft: c.parentCommentId ? 16 : 0,
+              background: c.target ? '#fef2f2' : '#fff',
+              border: `1px solid ${c.target ? '#fecaca' : '#f1f5f9'}`,
+            }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 600, fontSize: 11.5, color: '#1e293b' }}>{c.authorLabel}</span>
+                {c.target && <CtxBadge text="신고 대상" tone="danger" />}
+                {c.deleted && <CtxBadge text="삭제됨" tone="muted" />}
+              </div>
+              <div style={{ fontSize: 12, color: '#475569', marginTop: 3, whiteSpace: 'pre-wrap' }}>{c.content}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
