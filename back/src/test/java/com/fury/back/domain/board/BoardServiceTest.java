@@ -4,6 +4,7 @@ import com.fury.back.domain.block.Block;
 import com.fury.back.domain.block.BlockRepository;
 import com.fury.back.domain.board.dto.BoardCommentDto;
 import com.fury.back.domain.board.dto.BoardPostDetailDto;
+import com.fury.back.domain.board.dto.BoardPostSummaryDto;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -167,5 +168,74 @@ class BoardServiceTest {
         assertThat(d.comments()).extracting(BoardCommentDto::id).containsExactly("c1");
         assertThat(d.comments().get(0).replies()).isEmpty(); // c4(bx 답글) 제외
         assertThat(d.commentCount()).isEqualTo(1); // c1 만(c2/c3/c4 차단 제외)
+    }
+
+    // ── 소유권·액션 플래그 연결(상세) ──
+    @Test void detail_wires_post_and_comment_flags() {
+        when(postRepo.findById("p")).thenReturn(Optional.of(active("p", "free", "community", "author1")));
+        when(blockRepo.existsByBlockerIdAndBlockedId("viewer", "author1")).thenReturn(false);
+        when(blockRepo.findAllByBlockerId("viewer")).thenReturn(List.of());
+        when(commentRepo.findByPostIdOrderByCreatedAtAsc("p")).thenReturn(List.of(
+                c("mineTop", null, "viewer", false, false),  // 본인 최상위
+                c("otherTop", null, "uX", false, false),     // 타인 최상위
+                c("oReply", "otherTop", "uY", false, false), // 타인 대댓글
+                c("adminTop", null, "adminU", false, true)   // 운영 뱃지 댓글
+        ));
+        when(userRepo.findAllById(anySet())).thenReturn(List.of());
+
+        BoardPostDetailDto d = service.getDetail("p", "viewer");
+
+        // 게시글: 타인 자유글 → 신고/차단 O, 수정/삭제 X
+        assertThat(d.mine()).isFalse();
+        assertThat(d.canEdit()).isFalse();
+        assertThat(d.canReport()).isTrue();
+        assertThat(d.canBlock()).isTrue();
+
+        BoardCommentDto mineTop = find(d.comments(), "mineTop");
+        assertThat(mineTop.mine()).isTrue();
+        assertThat(mineTop.canDelete()).isTrue();
+        assertThat(mineTop.canReply()).isTrue();
+        assertThat(mineTop.replyTargetCommentId()).isEqualTo("mineTop");
+        assertThat(mineTop.canReport()).isFalse();
+
+        BoardCommentDto otherTop = find(d.comments(), "otherTop");
+        assertThat(otherTop.mine()).isFalse();
+        assertThat(otherTop.canReport()).isTrue();
+        assertThat(otherTop.canBlock()).isTrue();
+        assertThat(otherTop.canReply()).isTrue();
+        BoardCommentDto oReply = otherTop.replies().get(0);
+        assertThat(oReply.id()).isEqualTo("oReply");
+        assertThat(oReply.replyTargetCommentId()).isEqualTo("otherTop"); // ★최상위 부모
+        assertThat(oReply.canReport()).isTrue();
+
+        BoardCommentDto adminTop = find(d.comments(), "adminTop");
+        assertThat(adminTop.isAdmin()).isTrue();
+        assertThat(adminTop.canReport()).isTrue(); // ★운영 뱃지여도 신고 가능(면제 없음)
+        assertThat(adminTop.canBlock()).isTrue();
+    }
+
+    // ── 목록 vs 상세 플래그 일치(공통 헬퍼) ──
+    @Test void summary_and_detail_post_flags_consistent() {
+        BoardPost p = active("p", "free", "community", "author1");
+        when(postRepo.findById("p")).thenReturn(Optional.of(p));
+        when(blockRepo.existsByBlockerIdAndBlockedId("viewer", "author1")).thenReturn(false);
+        when(blockRepo.findAllByBlockerId("viewer")).thenReturn(List.of());
+        when(commentRepo.findByPostIdOrderByCreatedAtAsc("p")).thenReturn(List.of());
+        when(postRepo.findFeed(any(), any(), eq("viewer"), any())).thenReturn(new PageImpl<>(List.of(p)));
+        when(commentRepo.countActiveByPostIds(anyList())).thenReturn(List.of());
+        when(userRepo.findAllById(anySet())).thenReturn(List.of());
+
+        BoardPostDetailDto d = service.getDetail("p", "viewer");
+        BoardPostSummaryDto s = service.getFeed(null, null, "viewer", 0, 20).content().get(0);
+
+        assertThat(s.mine()).isEqualTo(d.mine());
+        assertThat(s.canEdit()).isEqualTo(d.canEdit());
+        assertThat(s.canDelete()).isEqualTo(d.canDelete());
+        assertThat(s.canReport()).isEqualTo(d.canReport());
+        assertThat(s.canBlock()).isEqualTo(d.canBlock());
+    }
+
+    private static BoardCommentDto find(List<BoardCommentDto> list, String id) {
+        return list.stream().filter(x -> x.id().equals(id)).findFirst().orElseThrow();
     }
 }

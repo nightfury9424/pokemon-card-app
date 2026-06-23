@@ -16,5 +16,11 @@ public record BoardPostDetailDto(
         boolean isPinned,
         boolean isAnswered,
         int commentCount,
-        List<BoardCommentDto> comments
+        List<BoardCommentDto> comments,
+        // 서버가 viewerId 기준 계산(UI 노출용, 권한은 쓰기 API 재검증). raw authorId 미노출.
+        boolean mine,
+        boolean canEdit,
+        boolean canDelete,
+        boolean canReport,
+        boolean canBlock
 ) {}

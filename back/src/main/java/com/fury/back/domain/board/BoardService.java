@@ -61,7 +61,7 @@ public class BoardService {
 
         List<BoardPostSummaryDto> content = list.stream()
                 .map(post -> toSummary(post, nicknames,
-                        counts.getOrDefault(post.getPostId(), 0L).intValue()))
+                        counts.getOrDefault(post.getPostId(), 0L).intValue(), viewerId))
                 .collect(Collectors.toList());
 
         return new BoardPageDto(content, posts.getNumber(), posts.getSize(),
@@ -97,24 +97,31 @@ public class BoardService {
         all.stream().filter(c -> !c.isDeleted()).forEach(c -> authorIds.add(c.getAuthorId()));
         Map<String, String> nicknames = nicknameMap(authorIds);
 
-        List<BoardCommentDto> comments = assembleComments(all, nicknames);
+        boolean community = !BoardTaxonomy.isAdminType(post.getType());
+        List<BoardCommentDto> comments = assembleComments(all, nicknames, viewerId, community);
         int activeCount = (int) all.stream().filter(c -> !c.isDeleted()).count();
 
+        BoardPermissions.PostFlags pf = BoardPermissions.forPost(
+                viewerId, post.getAuthorId(), post.getType(), post.getStatus(), post.getDeletedAt() != null);
         return new BoardPostDetailDto(
                 post.getPostId(), post.getType(), post.getTitle(), post.getContent(),
                 authorLabel(post.getType(), post.getAuthorId(), nicknames),
                 post.getCreatedAt(), post.getViewCount(), post.getLikeCount(),
-                post.isPinned(), post.isAnswered(), activeCount, comments);
+                post.isPinned(), post.isAnswered(), activeCount, comments,
+                pf.mine(), pf.canEdit(), pf.canDelete(), pf.canReport(), pf.canBlock());
     }
 
     // ── helpers ──
 
-    private BoardPostSummaryDto toSummary(BoardPost p, Map<String, String> nick, int commentCount) {
+    private BoardPostSummaryDto toSummary(BoardPost p, Map<String, String> nick, int commentCount, String viewerId) {
+        BoardPermissions.PostFlags pf = BoardPermissions.forPost(
+                viewerId, p.getAuthorId(), p.getType(), p.getStatus(), p.getDeletedAt() != null);
         return new BoardPostSummaryDto(
                 p.getPostId(), p.getType(), p.getTitle(), p.getContent(),
                 authorLabel(p.getType(), p.getAuthorId(), nick),
                 p.getCreatedAt(), p.getViewCount(), p.getLikeCount(),
-                p.isPinned(), p.isAnswered(), commentCount);
+                p.isPinned(), p.isAnswered(), commentCount,
+                pf.mine(), pf.canEdit(), pf.canDelete(), pf.canReport(), pf.canBlock());
     }
 
     /**
@@ -123,7 +130,8 @@ public class BoardService {
      *  - 최상위 삭제 + 답글 없음 → 제외
      *  - 답글 삭제 → 제외
      */
-    private List<BoardCommentDto> assembleComments(List<BoardComment> all, Map<String, String> nick) {
+    private List<BoardCommentDto> assembleComments(
+            List<BoardComment> all, Map<String, String> nick, String viewerId, boolean community) {
         Map<String, List<BoardComment>> repliesByParent = all.stream()
                 .filter(c -> !c.isTopLevel())
                 .collect(Collectors.groupingBy(BoardComment::getParentCommentId,
@@ -135,31 +143,37 @@ public class BoardService {
             List<BoardCommentDto> replies = repliesByParent
                     .getOrDefault(top.getCommentId(), List.of()).stream()
                     .filter(r -> !r.isDeleted())
-                    .map(r -> toCommentDto(r, nick))
+                    .map(r -> toCommentDto(r, nick, viewerId, community))
                     .collect(Collectors.toList());
             if (top.isDeleted()) {
                 if (replies.isEmpty()) continue;
                 result.add(placeholder(top, replies));
             } else {
-                result.add(toCommentDto(top, nick, replies));
+                result.add(toCommentDto(top, nick, replies, viewerId, community));
             }
         }
         return result;
     }
 
-    private BoardCommentDto toCommentDto(BoardComment c, Map<String, String> nick) {
-        return toCommentDto(c, nick, List.of());
+    private BoardCommentDto toCommentDto(BoardComment c, Map<String, String> nick, String viewerId, boolean community) {
+        return toCommentDto(c, nick, List.of(), viewerId, community);
     }
 
-    private BoardCommentDto toCommentDto(BoardComment c, Map<String, String> nick, List<BoardCommentDto> replies) {
+    private BoardCommentDto toCommentDto(BoardComment c, Map<String, String> nick,
+                                         List<BoardCommentDto> replies, String viewerId, boolean community) {
         String author = c.isAdmin() ? ADMIN_AUTHOR : nick.getOrDefault(c.getAuthorId(), UNKNOWN_AUTHOR);
+        BoardPermissions.CommentFlags f = BoardPermissions.forComment(
+                viewerId, c.getAuthorId(), c.getCommentId(), c.getParentCommentId(), false, community);
         return new BoardCommentDto(c.getCommentId(), author, c.getContent(),
-                c.getCreatedAt(), c.isAdmin(), c.isAccepted(), replies);
+                c.getCreatedAt(), c.isAdmin(), c.isAccepted(), replies,
+                f.mine(), f.canDelete(), f.canReply(), f.replyTargetCommentId(), f.canReport(), f.canBlock());
     }
 
     private BoardCommentDto placeholder(BoardComment c, List<BoardCommentDto> replies) {
+        // 삭제 댓글: 작성자 정보·모든 액션 차단(forComment deleted=true 와 동일).
         return new BoardCommentDto(c.getCommentId(), DELETED_AUTHOR, DELETED_BODY,
-                c.getCreatedAt(), false, false, replies);
+                c.getCreatedAt(), false, false, replies,
+                false, false, false, null, false, false);
     }
 
     private String authorLabel(String type, String authorId, Map<String, String> nick) {
