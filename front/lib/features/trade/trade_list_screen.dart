@@ -778,6 +778,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
                 );
               }),
             ),
+            const SizedBox(width: 8), // 변동값 영역과 하트 최소 간격 고정(겹침/붙음 방지)
             // 하트 — 카드 단위 찜 토글
             GestureDetector(
               onTap: () => _toggleLike(cardId),
@@ -1186,13 +1187,11 @@ class MarketRowPriceMeta extends StatelessWidget {
   };
 
   static const double _gap = 6.0;
-  static const double _changeFloor = 11.0;
-  static const double _changeBase = 13.0;
 
   @override
   Widget build(BuildContext context) {
     final priceStr = price != null ? AppColors.formatPrice(price!) : '시세 없음';
-    // 변동액·퍼센트는 항상 한 묶음(절대 분리/줄바꿈 X): "-15,530원 (-37.9%)".
+    // 변동액·퍼센트는 항상 한 묶음(절대 분리 X): "-15,530원 (-37.9%)".
     final String? changeStr = changeAmount == null
         ? null
         : (changePct == null ? changeAmount! : '$changeAmount $changePct');
@@ -1207,9 +1206,9 @@ class MarketRowPriceMeta extends StatelessWidget {
       fontSize: 11,
       fontWeight: FontWeight.w700,
     );
-    final changeStyleBase = TextStyle(
+    final changeStyle = TextStyle(
       color: changeColor,
-      fontSize: _changeBase,
+      fontSize: 13,
       fontWeight: FontWeight.w700,
     );
 
@@ -1221,64 +1220,83 @@ class MarketRowPriceMeta extends StatelessWidget {
       final maxW = c.maxWidth;
       final priceW = _measure(priceStr, priceStyle, scaler);
 
-      String? label;
-      double changeFont = _changeBase;
-
-      if (changeStr != null) {
-        final changeW = _measure(changeStr, changeStyleBase, scaler);
-        // 1순위: 라벨 드롭(풀→축약→숨김). 가격·변동값은 끝까지(잘림 X).
-        final roomForLabel = maxW - priceW - changeW - _gap * 2;
-        if (fullLabel.isNotEmpty && roomForLabel >= _measure(fullLabel, labelStyle, scaler)) {
-          label = fullLabel;
-        } else if (shortLabel != null && roomForLabel >= _measure(shortLabel, labelStyle, scaler)) {
-          label = shortLabel;
-        } else {
-          label = null;
-          // 2순위: 라벨 없이도 안 맞으면 변동값 글자만 floor 까지 축소(전체 축소 아님).
-          final avail = maxW - priceW - _gap;
-          double w = changeW;
-          while (changeFont > _changeFloor && w > avail) {
-            changeFont -= 1;
-            w = _measure(changeStr, changeStyleBase.copyWith(fontSize: changeFont), scaler);
-          }
+      // 여유폭에 라벨 풀→축약→없음(라벨은 부가정보라 가장 먼저 양보).
+      String? pickLabel(double room) {
+        if (fullLabel.isNotEmpty && room >= _measure(fullLabel, labelStyle, scaler)) {
+          return fullLabel;
         }
-      } else {
-        final roomForLabel = maxW - priceW - _gap;
-        if (fullLabel.isNotEmpty && roomForLabel >= _measure(fullLabel, labelStyle, scaler)) {
-          label = fullLabel;
-        } else if (shortLabel != null && roomForLabel >= _measure(shortLabel, labelStyle, scaler)) {
-          label = shortLabel;
+        if (shortLabel != null && room >= _measure(shortLabel, labelStyle, scaler)) {
+          return shortLabel;
         }
+        return null;
       }
 
-      final row = Row(
+      // softWrap=true: 비제약(인플렉서블) 위치에선 한 줄, Flexible로 폭 제약 시에만 wrap(극단 scale 대비).
+      final priceText = Text(priceStr, softWrap: true, style: priceStyle);
+
+      // 변동값 없음 → 가격(+여유 시 라벨) 한 줄.
+      if (changeStr == null) {
+        return _line(priceText, pickLabel(maxW - priceW - _gap), labelStyle);
+      }
+
+      final changeW = _measure(changeStr, changeStyle, scaler);
+
+      // ① 가격+변동값이 한 줄에 들어가면 한 줄(+여유 시 라벨). 라벨은 Flexible(loose)라
+      //    측정 오차 시 라벨만 clip(숫자는 절대 clip 안 함). 가격·변동값은 끝까지.
+      if (priceW + _gap + changeW <= maxW - 6) {
+        final label = pickLabel(maxW - priceW - changeW - _gap * 2);
+        return Row(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            priceText,
+            if (label != null) ...[
+              const SizedBox(width: _gap),
+              Flexible(fit: FlexFit.loose, child: _labelText(label, labelStyle)),
+            ],
+            const SizedBox(width: _gap),
+            Text(changeStr,
+                maxLines: 1, softWrap: false, overflow: TextOverflow.visible, style: changeStyle),
+          ],
+        );
+      }
+
+      // ② 폭 부족 → 2줄: 1줄=가격(+여유 시 라벨), 2줄=변동액·퍼센트(★한 묶음).
+      // 퍼센트만 단독 줄바꿈 금지(changeStr 통째). 글자 축소/FittedBox 없음, 행 높이 증가 허용.
+      // 극단 폭에서만 changeStr 자체 softWrap(정보 보존, ellipsis 없음).
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(priceStr, maxLines: 1, softWrap: false,
-              overflow: TextOverflow.visible, style: priceStyle),
-          if (label != null) ...[
-            const SizedBox(width: _gap),
-            Text(label, maxLines: 1, softWrap: false,
-                overflow: TextOverflow.clip, style: labelStyle),
-          ],
-          if (changeStr != null) ...[
-            const SizedBox(width: _gap),
-            Text(changeStr, maxLines: 1, softWrap: false,
-                overflow: TextOverflow.visible,
-                style: changeStyleBase.copyWith(fontSize: changeFont)),
-          ],
+          _line(priceText, pickLabel(maxW - priceW - _gap), labelStyle),
+          const SizedBox(height: 2),
+          Text(changeStr, style: changeStyle, softWrap: true),
         ],
-      );
-
-      // 최종 가드: 측정 오차/극단 폭에서도 RenderFlex overflow 없이 한 줄 유지.
-      // 숫자를 ...로 자르지 않고 필요 시에만 균등 축소(정보 보존).
-      return FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerLeft,
-        child: row,
       );
     });
   }
+
+  // 가격(+여유 시 라벨) 한 줄. overflow 0 보장:
+  //  - 라벨 있음: 라벨이 들어갈 여유가 있었던 경우(pickLabel) → 가격은 한 줄로 맞음. 라벨은 Flexible(loose)로 clip.
+  //  - 라벨 없음: 극단 scale에서 가격(숫자) 자체가 폭 초과할 수 있음 → Flexible로 감싸 wrap 허용(잘림 X, 높이↑).
+  Widget _line(Widget priceText, String? label, TextStyle labelStyle) {
+    if (label == null) {
+      return Row(
+        mainAxisSize: MainAxisSize.max,
+        children: [Flexible(fit: FlexFit.loose, child: priceText)],
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.max,
+      children: [
+        priceText,
+        const SizedBox(width: _gap),
+        Flexible(fit: FlexFit.loose, child: _labelText(label, labelStyle)),
+      ],
+    );
+  }
+
+  Widget _labelText(String s, TextStyle style) => Text(s,
+      maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: style);
 
   static double _measure(String s, TextStyle style, TextScaler scaler) {
     final tp = TextPainter(
