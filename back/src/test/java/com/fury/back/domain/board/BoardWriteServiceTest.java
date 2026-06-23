@@ -73,6 +73,38 @@ class BoardWriteServiceTest {
         doThrow(new ContentPolicyViolationException("x")).when(contentPolicy).check(any());
         assertThatThrownBy(() -> service.createPost("u1", new CreatePostRequest("free", "t", "비속어")))
                 .isInstanceOf(ContentPolicyViolationException.class);
+        verify(postRepo, never()).save(any()); // Gate 4: 금칙어 위반 → 저장 미호출
+    }
+
+    // ── Gate 4: 금칙어 위반 시 저장·엔티티 변경 미호출 증명 ──
+    @Test void updatePost_banned_doesNotMutateEntity() {
+        BoardPost p = post("p", "free", "community", "u1", "ACTIVE", null); // title=t, content=c
+        when(postRepo.findById("p")).thenReturn(Optional.of(p));
+        doThrow(new ContentPolicyViolationException("x")).when(contentPolicy).check(any());
+        assertThatThrownBy(() -> service.updatePost("u1", "p", new UpdatePostRequest("새 제목", "비속어")))
+                .isInstanceOf(ContentPolicyViolationException.class);
+        // editContent 미호출 증명(상태 불변).
+        assertThat(p.getTitle()).isEqualTo("t");
+        assertThat(p.getContent()).isEqualTo("c");
+        assertThat(p.getUpdatedAt()).isNull();
+        verify(postRepo, never()).save(any());
+    }
+
+    @Test void createComment_banned_doesNotSave() {
+        when(postRepo.findById("p")).thenReturn(Optional.of(post("p", "free", "community", "u1", "ACTIVE", null)));
+        doThrow(new ContentPolicyViolationException("x")).when(contentPolicy).check(any());
+        assertThatThrownBy(() -> service.createComment("u2", "p", new CreateCommentRequest("비속어", null)))
+                .isInstanceOf(ContentPolicyViolationException.class);
+        verify(commentRepo, never()).save(any());
+    }
+
+    @Test void createReply_banned_doesNotSave() {
+        // 답글(parentCommentId 지정)도 금칙어 검사가 부모 조회보다 먼저 → 부모 조회 도달 전 차단·저장 미호출.
+        when(postRepo.findById("p")).thenReturn(Optional.of(post("p", "free", "community", "u1", "ACTIVE", null)));
+        doThrow(new ContentPolicyViolationException("x")).when(contentPolicy).check(any());
+        assertThatThrownBy(() -> service.createComment("u2", "p", new CreateCommentRequest("비속어", "parent")))
+                .isInstanceOf(ContentPolicyViolationException.class);
+        verify(commentRepo, never()).save(any());
     }
 
     @Test void createPost_unauthenticated_401() {

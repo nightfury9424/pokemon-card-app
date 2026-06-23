@@ -69,6 +69,17 @@ class ContentPolicyServiceTest {
         assertThat(ContentPolicyService.matches("마시발점이", BAD, Set.of("시발점"))).isFalse();
     }
 
+    @Test void allowlist_sentinel_prevents_cross_join_in_all_views() {
+        // allow 'bc' 마스킹이 좌우 'a','d'를 결합시켜 'ad' 오탐을 만들지 않음(base/punct/collapsed 모두).
+        // sentinel 이 제거대상이면 'a'+'d'='ad' 오탐 → 경계 마커가 모든 비교본에서 유지됨을 증명.
+        assertThat(ContentPolicyService.matches("abcd", Set.of("ad"), Set.of("bc"))).isFalse();
+    }
+
+    @Test void injected_sentinel_char_is_stripped_no_evasion() {
+        // 사용자가 경계 마커(U+E000)를 직접 끼워 넣어도 사전 제거 → 금칙어 재결합되어 탐지(우회 불가).
+        assertThat(ContentPolicyService.matches("시\uE000발", BAD, NONE)).isTrue();
+    }
+
     @Test void empty_inputs_safe() {
         assertThat(ContentPolicyService.matches(null, BAD, NONE)).isFalse();
         assertThat(ContentPolicyService.matches("", BAD, NONE)).isFalse();
@@ -80,15 +91,28 @@ class ContentPolicyServiceTest {
         assertThat(ContentPolicyService.matches("ＦＵＣＫ", Set.of("fuck"), NONE)).isTrue(); // 전각 NFKC
     }
 
-    @Test void fail_closed_only_in_non_local_test_profiles() {
-        // 운영(비 local/test) + 빈 목록 → 부팅 실패 필요.
-        assertThat(ContentPolicyService.failClosedRequired("prod", true)).isTrue();
-        assertThat(ContentPolicyService.failClosedRequired("staging", true)).isTrue();
-        // local/test/citest/boardtest 또는 목록 있음 → 부팅 허용.
-        assertThat(ContentPolicyService.failClosedRequired("local", true)).isFalse();
-        assertThat(ContentPolicyService.failClosedRequired("citest", true)).isFalse();
-        assertThat(ContentPolicyService.failClosedRequired("boardtest", true)).isFalse();
-        assertThat(ContentPolicyService.failClosedRequired("prod", false)).isFalse(); // 목록 있으면 OK
+    @Test void fail_closed_uses_exact_profile_match_not_contains() {
+        // 운영(비 lenient) + 빈 목록 → 부팅 실패 필요.
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{"prod"}, true)).isTrue();
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{"staging"}, true)).isTrue();
+        // ★부분일치 함정: "prod-test"·"production" 은 lenient 아님(contains("test") 금지 확인).
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{"prod-test"}, true)).isTrue();
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{"production"}, true)).isTrue();
+        // ★active profile 부재/null = 운영 가정 → fail-closed(무음 비활성화 금지).
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{}, true)).isTrue();
+        assertThat(ContentPolicyService.failClosedRequired(null, true)).isTrue();
+        // 여러 개 중 하나라도 비-lenient → fail-closed.
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{"local", "prod"}, true)).isTrue();
+        // lenient 정확 일치(대소문자/공백 정규화) → 허용.
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{"local"}, true)).isFalse();
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{"test"}, true)).isFalse();
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{"citest"}, true)).isFalse();
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{"boardtest"}, true)).isFalse();
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{"  CITEST "}, true)).isFalse();
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{"local", "test"}, true)).isFalse();
+        // 목록이 있으면 어떤 프로파일이든 OK.
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{"prod"}, false)).isFalse();
+        assertThat(ContentPolicyService.failClosedRequired(new String[]{}, false)).isFalse();
     }
 
     @Test void advice_maps_to_403_and_code() {

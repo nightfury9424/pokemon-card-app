@@ -72,6 +72,28 @@ class BoardControllerTest {
         // writeService.createPost 가 예외를 던져 저장 단계로 진행하지 않음(컨트롤러는 save 호출 경로 없음).
     }
 
+    @Test
+    void bannedWord_403_even_when_global_advice_registered_first() throws Exception {
+        // ★Gate 1: 등록 순서를 일부러 Global 먼저로 뒤집어도 @Order(HIGHEST_PRECEDENCE) 로 Moderation 우선 →
+        //   403 유지(등록 순서 의존이 아님을 증명).
+        ObjectMapper om = new ObjectMapper().registerModule(new JavaTimeModule());
+        MockMvc reversed = MockMvcBuilders.standaloneSetup(new BoardController(service, writeService, jwtUtil))
+                .setControllerAdvice(new GlobalExceptionHandler(), new ModerationExceptionHandler())
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(om))
+                .build();
+        when(jwtUtil.isValid("tok")).thenReturn(true);
+        when(jwtUtil.extractUserId("tok")).thenReturn("u1");
+        doThrow(new ContentPolicyViolationException(ContentPolicyService.VIOLATION_MESSAGE))
+                .when(writeService).createPost(eq("u1"), any());
+
+        reversed.perform(post("/api/board/posts")
+                        .header("Authorization", "Bearer tok")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"free\",\"title\":\"t\",\"content\":\"x\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CONTENT_POLICY_VIOLATION"));
+    }
+
     private BoardPageDto onePage() {
         return new BoardPageDto(List.of(new BoardPostSummaryDto(
                 "pp", "notice", "제목", "본문", "운영팀",
