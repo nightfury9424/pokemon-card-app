@@ -7,7 +7,9 @@ import com.fury.back.common.GlobalExceptionHandler;
 import com.fury.back.common.moderation.ContentPolicyService;
 import com.fury.back.common.moderation.ContentPolicyViolationException;
 import com.fury.back.common.moderation.ModerationExceptionHandler;
+import com.fury.back.domain.board.dto.BoardCommentDto;
 import com.fury.back.domain.board.dto.BoardPageDto;
+import com.fury.back.domain.board.dto.BoardPostDetailDto;
 import com.fury.back.domain.board.dto.BoardPostSummaryDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -132,6 +134,48 @@ class BoardControllerTest {
 
         mvc.perform(get("/api/board/posts").param("section", "community").param("type", "qna"))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ── JSON 계약: 소유권·액션 플래그가 응답에 내려오고 authorId 는 노출 안 됨 ──
+    @Test
+    void detail_json_exposes_flags_and_hides_authorId() throws Exception {
+        LocalDateTime t = LocalDateTime.of(2026, 6, 24, 10, 0);
+        BoardCommentDto comment = new BoardCommentDto(
+                "c1", "닉네임", "댓글본문", t, false, false, List.of(),
+                true, true, true, "c1", false, false); // 본인 최상위 댓글
+        BoardPostDetailDto detail = new BoardPostDetailDto(
+                "pp", "free", "제목", "본문", "글쓴이", t, 0, 0, false, false, 1, List.of(comment),
+                true, true, true, false, false); // 본인 자유글
+        when(service.getDetail(eq("pp"), any())).thenReturn(detail);
+
+        mvc.perform(get("/api/board/posts/pp"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mine").value(true))
+                .andExpect(jsonPath("$.data.canEdit").value(true))
+                .andExpect(jsonPath("$.data.canDelete").value(true))
+                .andExpect(jsonPath("$.data.canReport").value(false))
+                .andExpect(jsonPath("$.data.canBlock").value(false))
+                .andExpect(jsonPath("$.data.authorId").doesNotExist())
+                .andExpect(jsonPath("$.data.comments[0].mine").value(true))
+                .andExpect(jsonPath("$.data.comments[0].canDelete").value(true))
+                .andExpect(jsonPath("$.data.comments[0].canReply").value(true))
+                .andExpect(jsonPath("$.data.comments[0].replyTargetCommentId").value("c1"))
+                .andExpect(jsonPath("$.data.comments[0].canReport").value(false))
+                .andExpect(jsonPath("$.data.comments[0].canBlock").value(false))
+                .andExpect(jsonPath("$.data.comments[0].authorId").doesNotExist());
+    }
+
+    @Test
+    void list_json_exposes_post_flags() throws Exception {
+        when(service.getFeed(any(), any(), any(), anyInt(), anyInt())).thenReturn(onePage());
+        mvc.perform(get("/api/board/posts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].mine").value(false))
+                .andExpect(jsonPath("$.data.content[0].canEdit").value(false))
+                .andExpect(jsonPath("$.data.content[0].canDelete").value(false))
+                .andExpect(jsonPath("$.data.content[0].canReport").value(false))
+                .andExpect(jsonPath("$.data.content[0].canBlock").value(false))
+                .andExpect(jsonPath("$.data.content[0].authorId").doesNotExist());
     }
 
     @Test

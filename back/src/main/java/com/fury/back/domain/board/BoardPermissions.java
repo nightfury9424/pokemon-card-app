@@ -51,14 +51,25 @@ public final class BoardPermissions {
      */
     public static CommentFlags forComment(String viewerId, String authorId, String commentId,
                                           String parentCommentId, boolean deleted, boolean community) {
+        return forComment(viewerId, authorId, commentId, parentCommentId, deleted, community, false);
+    }
+
+    /**
+     * @param parentTopDeleted 이 댓글이 달린 최상위 부모가 삭제(placeholder)된 경우 — 답글 금지
+     *                         (서버 createComment 도 삭제된 부모엔 거부 → UI 플래그와 일치).
+     */
+    public static CommentFlags forComment(String viewerId, String authorId, String commentId,
+                                          String parentCommentId, boolean deleted, boolean community,
+                                          boolean parentTopDeleted) {
         if (deleted) {
             return new CommentFlags(false, false, false, null, false, false);
         }
         boolean in = loggedIn(viewerId);
         boolean mine = in && viewerId.equals(authorId);
-        // 대댓글에도 답글 버튼 노출하되, 대상은 항상 최상위 댓글(2단 이상 금지). 서버가 createComment 에서 재검증.
-        String replyTarget = parentCommentId != null ? parentCommentId : commentId;
-        boolean canReply = in && community;
+        // 대댓글에도 답글 버튼 노출하되 대상은 항상 최상위 댓글(2단 이상 금지). 서버가 createComment 에서 재검증.
+        // ★최상위 부모가 삭제된 경우엔 답글 불가(서버도 거부) → canReply=false, target=null.
+        boolean canReply = in && community && !parentTopDeleted;
+        String replyTarget = parentTopDeleted ? null : (parentCommentId != null ? parentCommentId : commentId);
         boolean canReport = in && !mine && community;            // ★운영자 댓글이어도 면제 없음
         boolean canBlock = in && !mine && community;
         return new CommentFlags(mine, mine, canReply, replyTarget, canReport, canBlock);

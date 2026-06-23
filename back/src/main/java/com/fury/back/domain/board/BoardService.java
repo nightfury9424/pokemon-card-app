@@ -140,30 +140,33 @@ public class BoardService {
         List<BoardCommentDto> result = new ArrayList<>();
         for (BoardComment top : all) {
             if (!top.isTopLevel()) continue;
+            boolean topDeleted = top.isDeleted();
             List<BoardCommentDto> replies = repliesByParent
                     .getOrDefault(top.getCommentId(), List.of()).stream()
                     .filter(r -> !r.isDeleted())
-                    .map(r -> toCommentDto(r, nick, viewerId, community))
+                    // ★최상위 부모 삭제 여부 전달 — 삭제된 top 아래 답글은 canReply=false
+                    .map(r -> toCommentDto(r, nick, viewerId, community, topDeleted))
                     .collect(Collectors.toList());
-            if (top.isDeleted()) {
+            if (topDeleted) {
                 if (replies.isEmpty()) continue;
                 result.add(placeholder(top, replies));
             } else {
-                result.add(toCommentDto(top, nick, replies, viewerId, community));
+                result.add(toCommentDto(top, nick, replies, viewerId, community, false));
             }
         }
         return result;
     }
 
-    private BoardCommentDto toCommentDto(BoardComment c, Map<String, String> nick, String viewerId, boolean community) {
-        return toCommentDto(c, nick, List.of(), viewerId, community);
+    private BoardCommentDto toCommentDto(BoardComment c, Map<String, String> nick,
+                                         String viewerId, boolean community, boolean parentTopDeleted) {
+        return toCommentDto(c, nick, List.of(), viewerId, community, parentTopDeleted);
     }
 
-    private BoardCommentDto toCommentDto(BoardComment c, Map<String, String> nick,
-                                         List<BoardCommentDto> replies, String viewerId, boolean community) {
+    private BoardCommentDto toCommentDto(BoardComment c, Map<String, String> nick, List<BoardCommentDto> replies,
+                                         String viewerId, boolean community, boolean parentTopDeleted) {
         String author = c.isAdmin() ? ADMIN_AUTHOR : nick.getOrDefault(c.getAuthorId(), UNKNOWN_AUTHOR);
         BoardPermissions.CommentFlags f = BoardPermissions.forComment(
-                viewerId, c.getAuthorId(), c.getCommentId(), c.getParentCommentId(), false, community);
+                viewerId, c.getAuthorId(), c.getCommentId(), c.getParentCommentId(), false, community, parentTopDeleted);
         return new BoardCommentDto(c.getCommentId(), author, c.getContent(),
                 c.getCreatedAt(), c.isAdmin(), c.isAccepted(), replies,
                 f.mine(), f.canDelete(), f.canReply(), f.replyTargetCommentId(), f.canReport(), f.canBlock());

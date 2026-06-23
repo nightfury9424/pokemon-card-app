@@ -235,6 +235,35 @@ class BoardServiceTest {
         assertThat(s.canBlock()).isEqualTo(d.canBlock());
     }
 
+    // ── 삭제된 최상위 댓글 아래 대댓글: 답글 차단(서버 거부와 UI 플래그 일치) ──
+    @Test void detail_reply_under_deleted_top_has_no_canReply() {
+        when(postRepo.findById("p")).thenReturn(Optional.of(active("p", "free", "community", "author1")));
+        when(blockRepo.existsByBlockerIdAndBlockedId("viewer", "author1")).thenReturn(false);
+        when(blockRepo.findAllByBlockerId("viewer")).thenReturn(List.of());
+        when(commentRepo.findByPostIdOrderByCreatedAtAsc("p")).thenReturn(List.of(
+                c("delTop", null, "uA", true, false),       // 삭제 최상위
+                c("underDel", "delTop", "uB", false, false), // 그 아래 활성 답글
+                c("aliveTop", null, "uC", false, false),     // 대조: 활성 최상위
+                c("underAlive", "aliveTop", "uD", false, false)
+        ));
+        when(userRepo.findAllById(anySet())).thenReturn(List.of());
+
+        BoardPostDetailDto d = service.getDetail("p", "viewer");
+
+        BoardCommentDto delTop = find(d.comments(), "delTop");
+        assertThat(delTop.author()).isEqualTo("(삭제됨)");
+        assertThat(delTop.canReply()).isFalse();
+        BoardCommentDto underDel = delTop.replies().get(0);
+        assertThat(underDel.id()).isEqualTo("underDel");
+        assertThat(underDel.canReply()).isFalse();                 // ★삭제된 top 아래 답글 금지
+        assertThat(underDel.replyTargetCommentId()).isNull();
+        assertThat(underDel.canReport()).isTrue();                 // 신고는 유지(타인)
+        // 대조: 활성 top 아래 답글은 가능 + target=최상위
+        BoardCommentDto underAlive = find(d.comments(), "aliveTop").replies().get(0);
+        assertThat(underAlive.canReply()).isTrue();
+        assertThat(underAlive.replyTargetCommentId()).isEqualTo("aliveTop");
+    }
+
     private static BoardCommentDto find(List<BoardCommentDto> list, String id) {
         return list.stream().filter(x -> x.id().equals(id)).findFirst().orElseThrow();
     }

@@ -123,6 +123,15 @@ class BoardPermissionsTest {
         assertThat(f.canBlock()).isTrue();
     }
 
+    @Test void comment_under_deleted_top_no_reply() {
+        // ★삭제된 최상위 댓글 아래 대댓글: 답글 불가 + target null(서버도 거부와 일치). 신고/차단은 유지.
+        var f = BoardPermissions.forComment("viewer", "u2", "r1", "deletedTop", false, true, true);
+        assertThat(f.canReply()).isFalse();
+        assertThat(f.replyTargetCommentId()).isNull();
+        assertThat(f.canReport()).isTrue();
+        assertThat(f.canBlock()).isTrue();
+    }
+
     @Test void comment_nonCommunity_no_reply_report_block() {
         // 공식글 댓글(존재하면 안 되나 방어): community=false → reply/report/block 불가
         var f = BoardPermissions.forComment("viewer", "u1", "c1", null, false, false);
