@@ -6,7 +6,7 @@ import 'package:front/features/trade/trade_list_screen.dart';
 /// 거래 탭 시장 리스트 "가격·변동" 라인 회귀 검증 (2단계 레이아웃).
 /// 정책: ①넓으면 가격+변동값 한 줄 ②좁으면 가격 1줄 + 변동액·퍼센트를 **한 묶음**으로 2줄.
 /// 퍼센트만 단독 줄바꿈 금지(변동값은 한 Text). 숫자 ellipsis·전체 FittedBox 축소 없음.
-/// 라벨 '한국판 예상가'는 여유 시 풀→'예상가' 축약→숨김. 하트와 최소 간격 고정.
+/// ★행별 '예상가' 라벨은 제거됨(목록 일관성, 맥락은 탭 아래 안내 문구). 하트와 최소 간격 고정.
 void main() {
   final devices = <List<dynamic>>[
     ['320x568', const Size(320, 568)],
@@ -44,7 +44,6 @@ void main() {
 
   MarketRowPriceMeta stressMeta() => const MarketRowPriceMeta(
         price: 185600,
-        priceLabelText: '한국판 예상가',
         changeAmount: '-15,100원',
         changePct: '(-36.6%)',
         changeColor: AppColors.blue,
@@ -88,7 +87,7 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(sameLine(tester, find.textContaining('185,600'), changeFinder), isTrue,
         reason: '넓으면 한 줄');
-    expect(find.text('한국판 예상가'), findsOneWidget); // 충분히 넓으면 풀 라벨
+    expect(find.textContaining('예상가'), findsNothing); // ★행 안에 라벨 없음
   });
 
   testWidgets('좁은 폭 → 2줄(변동값이 가격 아래, 한 묶음 유지)', (tester) async {
@@ -100,26 +99,20 @@ void main() {
         reason: '좁으면 변동값이 둘째 줄(퍼센트 단독 아님·한 묶음 통째)');
   });
 
-  testWidgets('축약 rung 존재 — 폭 줄이면 "예상가" 축약 단계 존재(풀 드롭)', (tester) async {
-    const meta = MarketRowPriceMeta(
-      price: 100, priceLabelText: '한국판 예상가',
-      changeAmount: null, changePct: null, changeColor: AppColors.textMuted,
-    );
-    bool shortRungSeen = false;
-    for (double w = 60; w <= 220 && !shortRungSeen; w += 4) {
-      await pumpMeta(tester, meta, const Size(390, 844), 1.0, width: w);
-      final shortShown = find.text('예상가').evaluate().isNotEmpty;
-      final fullShown = find.text('한국판 예상가').evaluate().isNotEmpty;
-      if (shortShown && !fullShown) shortRungSeen = true;
+  testWidgets('행 안에 예상가/참고가 라벨 없음(폭 무관)', (tester) async {
+    for (double w = 80; w <= 320; w += 20) {
+      await pumpMeta(tester, stressMeta(), const Size(390, 844), 1.0, width: w);
+      expect(tester.takeException(), isNull, reason: 'w=$w overflow');
+      expect(find.textContaining('예상가'), findsNothing, reason: 'w=$w 행 라벨 없음');
+      expect(find.textContaining('참고가'), findsNothing, reason: 'w=$w 행 라벨 없음');
     }
-    expect(shortRungSeen, isTrue, reason: '풀→축약(예상가) 단계 존재');
   });
 
-  testWidgets('등락 숨김(저가 정책) — 변동 칩 없이 가격+라벨만', (tester) async {
+  testWidgets('등락 숨김(저가 정책) — 변동 칩 없이 가격만', (tester) async {
     await pumpMeta(
       tester,
       const MarketRowPriceMeta(
-        price: 3000, priceLabelText: '한국판 예상가',
+        price: 3000,
         changeAmount: null, changePct: null, changeColor: AppColors.textMuted,
       ),
       const Size(320, 568), 1.6,
@@ -133,7 +126,7 @@ void main() {
     await pumpMeta(
       tester,
       const MarketRowPriceMeta(
-        price: null, priceLabelText: '시세 준비중',
+        price: null,
         changeAmount: null, changePct: null, changeColor: AppColors.textMuted,
       ),
       const Size(375, 667), 1.0,

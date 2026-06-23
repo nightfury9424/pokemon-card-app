@@ -4,7 +4,6 @@ import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
-import '../../core/utils/price_label.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import 'trade_search_screen.dart';
@@ -350,12 +349,12 @@ class _TradeListScreenState extends State<TradeListScreen> {
           ],
         ),
           ),
-          if (_sortTab >= 2)
-            const Padding(
-              padding: EdgeInsets.only(top: 8, left: 2),
-              child: Text('최근 7일 가격 변동 기준',
-                  style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
-            ),
+          // 행별 '예상가' 라벨 제거 → 한국판 예상가 맥락은 여기 한 줄로 통일(전 탭 표시).
+          const Padding(
+            padding: EdgeInsets.only(top: 8, left: 2),
+            child: Text('최근 7일 한국판 예상가 변동 기준',
+                style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+          ),
         ],
       ),
     );
@@ -708,10 +707,6 @@ class _TradeListScreenState extends State<TradeListScreen> {
                 final sell = (card['activeSellCount'] as num?)?.toInt() ?? 0;
                 final buy = (card['activeBuyCount'] as num?)?.toInt() ?? 0;
                 final interest = (card['interestCount'] as num?)?.toInt() ?? 0;
-                final priceLabelText = PriceLabel.resolve(
-                  labelType: card['koPriceLabelType'] as String?,
-                  price: price,
-                );
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -743,7 +738,6 @@ class _TradeListScreenState extends State<TradeListScreen> {
                     // 오른쪽 하트와 겹치지 않게 한다(핵심 숫자 ellipsis 금지).
                     MarketRowPriceMeta(
                       price: price,
-                      priceLabelText: priceLabelText,
                       changeAmount: changeAmount,
                       changePct: changePct,
                       changeColor: pctColor,
@@ -1162,7 +1156,6 @@ class _TradeListScreenState extends State<TradeListScreen> {
 /// 공개 위젯이라 위젯 테스트로 직접 검증 가능.
 class MarketRowPriceMeta extends StatelessWidget {
   final int? price;
-  final String priceLabelText;
 
   /// 변동액 칩(예: '-15,100원'). null = 등락 숨김(저가 정책 등).
   final String? changeAmount;
@@ -1174,17 +1167,10 @@ class MarketRowPriceMeta extends StatelessWidget {
   const MarketRowPriceMeta({
     super.key,
     required this.price,
-    required this.priceLabelText,
     required this.changeAmount,
     required this.changePct,
     required this.changeColor,
   });
-
-  /// 좁은 폭에서 라벨 축약 매핑(풀 → 축약 → 숨김 순으로 드롭). 미등록 라벨은 축약 없이 드롭만.
-  static const Map<String, String> _shortLabels = {
-    '한국판 예상가': '예상가',
-    '해외 참고가': '참고가',
-  };
 
   static const double _gap = 6.0;
 
@@ -1192,6 +1178,7 @@ class MarketRowPriceMeta extends StatelessWidget {
   Widget build(BuildContext context) {
     final priceStr = price != null ? AppColors.formatPrice(price!) : '시세 없음';
     // 변동액·퍼센트는 항상 한 묶음(절대 분리 X): "-15,530원 (-37.9%)".
+    // ★행별 '예상가' 라벨은 제거(목록 일관성) — 한국판 예상가 맥락은 탭 아래 안내 문구가 담당.
     final String? changeStr = changeAmount == null
         ? null
         : (changePct == null ? changeAmount! : '$changeAmount $changePct');
@@ -1201,11 +1188,6 @@ class MarketRowPriceMeta extends StatelessWidget {
       fontSize: 13,
       fontWeight: FontWeight.w600,
     );
-    const labelStyle = TextStyle(
-      color: AppColors.textMuted,
-      fontSize: 11,
-      fontWeight: FontWeight.w700,
-    );
     final changeStyle = TextStyle(
       color: changeColor,
       fontSize: 13,
@@ -1213,58 +1195,37 @@ class MarketRowPriceMeta extends StatelessWidget {
     );
 
     final scaler = MediaQuery.textScalerOf(context);
-    final fullLabel = priceLabelText.trim();
-    final shortLabel = _shortLabels[fullLabel];
 
     return LayoutBuilder(builder: (ctx, c) {
       final maxW = c.maxWidth;
-      final priceW = _measure(priceStr, priceStyle, scaler);
-
-      // 여유폭에 라벨 풀→축약→없음(라벨은 부가정보라 가장 먼저 양보).
-      String? pickLabel(double room) {
-        if (fullLabel.isNotEmpty && room >= _measure(fullLabel, labelStyle, scaler)) {
-          return fullLabel;
-        }
-        if (shortLabel != null && room >= _measure(shortLabel, labelStyle, scaler)) {
-          return shortLabel;
-        }
-        return null;
-      }
-
       // 가격·변동값은 '원자'(한 줄·미분리). 극단 글자배율서만 per-element scaleDown(전체 행 아님).
       final priceAtom = _atom(priceStr, priceStyle);
 
-      // 변동값 없음 → 가격(+여유 시 라벨) 한 줄.
-      if (changeStr == null) {
-        return _line(priceAtom, pickLabel(maxW - priceW - _gap), labelStyle);
-      }
+      // 변동값 없음 → 가격만.
+      if (changeStr == null) return priceAtom;
 
+      final priceW = _measure(priceStr, priceStyle, scaler);
       final changeW = _measure(changeStr, changeStyle, scaler);
 
-      // ① 가격+변동값이 한 줄에 들어가면 한 줄(+여유 시 라벨, Flexible loose=라벨만 clip).
+      // ① 한 줄에 들어가면: 가격 + 변동액·퍼센트.
       if (priceW + _gap + changeW <= maxW - 6) {
-        final label = pickLabel(maxW - priceW - changeW - _gap * 2);
         return Row(
           mainAxisSize: MainAxisSize.max,
           children: [
             priceAtom,
-            if (label != null) ...[
-              const SizedBox(width: _gap),
-              Flexible(fit: FlexFit.loose, child: _labelText(label, labelStyle)),
-            ],
             const SizedBox(width: _gap),
             _atom(changeStr, changeStyle),
           ],
         );
       }
 
-      // ② 폭 부족 → 2줄: 1줄=가격(+여유 시 라벨), 2줄=변동액·퍼센트(★한 묶음·한 줄 유지).
+      // ② 폭 부족 → 2줄: 1줄=가격, 2줄=변동액·퍼센트(★한 묶음·한 줄 유지).
       // 변동값은 maxLines:1·softWrap:false(원자) → 퍼센트 단독 줄바꿈 불가. 극단 폭만 per-element scaleDown.
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _line(priceAtom, pickLabel(maxW - priceW - _gap), labelStyle),
+          priceAtom,
           const SizedBox(height: 2),
           _atom(changeStr, changeStyle),
         ],
@@ -1273,30 +1234,13 @@ class MarketRowPriceMeta extends StatelessWidget {
   }
 
   // 숫자 원자: 한 줄(maxLines:1·softWrap:false) 유지, 분리/줄바꿈 금지. 부모가 폭을 제약하는 위치
-  // (2줄의 각 줄/라벨 없는 가격)에선 극단 글자배율서만 per-element scaleDown(전체 행 아님)으로
+  // (2줄의 각 줄/한 줄 단독 가격)에선 극단 글자배율서만 per-element scaleDown(전체 행 아님)으로
   // 한 줄·전체 숫자 보존(ellipsis 없음).
   Widget _atom(String s, TextStyle style) => FittedBox(
         fit: BoxFit.scaleDown,
         alignment: Alignment.centerLeft,
         child: Text(s, maxLines: 1, softWrap: false, style: style),
       );
-
-  // 가격(+여유 시 라벨) 한 줄. 라벨==null → 가격 원자 단독(부모 폭 제약 시 극단만 scaleDown).
-  // 라벨!=null → 라벨 여유가 있었던 것이므로 가격 한 줄로 맞음, 라벨은 Flexible(loose)로 clip.
-  Widget _line(Widget priceAtom, String? label, TextStyle labelStyle) {
-    if (label == null) return priceAtom;
-    return Row(
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        priceAtom,
-        const SizedBox(width: _gap),
-        Flexible(fit: FlexFit.loose, child: _labelText(label, labelStyle)),
-      ],
-    );
-  }
-
-  Widget _labelText(String s, TextStyle style) => Text(s,
-      maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: style);
 
   static double _measure(String s, TextStyle style, TextScaler scaler) {
     final tp = TextPainter(
