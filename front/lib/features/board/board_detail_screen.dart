@@ -181,6 +181,9 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
+        // ★좋아요 요청 진행 중엔 닫지 않음 — 닫으면 dispose 로 성공 결과(_changed/목록 동기화)가 유실됨.
+        //   AppBar 뒤로·iOS swipe-back 모두 PopScope(canPop:false) 경로라 함께 막힘. 완료/실패 후 재시도 가능.
+        if (_likeBusy) return;
         Navigator.of(context).pop(_changed ? 'changed' : null); // 좋아요/댓글 변경 → 목록 갱신
       },
       child: Scaffold(

@@ -250,6 +250,71 @@ void main() {
     });
   });
 
+  group('요청 중 뒤로가기 차단(race)', () {
+    // AppBar 뒤로(BackButton=maybePop)와 iOS swipe-back 은 동일하게 PopScope(canPop:false).onPopInvoked 경로.
+    Future<void> open(WidgetTester t, _LikeRepo r, void Function(Object?) sink) async {
+      await t.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (ctx) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () async => sink(await Navigator.of(ctx).push(
+                    MaterialPageRoute(builder: (_) => BoardDetailScreen(postId: 'p1', repository: r)))),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await t.tap(find.text('open'));
+      await t.pumpAndSettle();
+    }
+
+    testWidgets('좋아요 요청 중 뒤로 차단 → 완료 후 뒤로=changed', (t) async {
+      final r = _LikeRepo(_free(liked: false, count: 2),
+          likeResult: const BoardLikeResult(likedByMe: true, likeCount: 3),
+          delay: const Duration(milliseconds: 120));
+      Object? popResult = 'SENTINEL';
+      await open(t, r, (v) => popResult = v);
+
+      await t.tap(find.byIcon(Icons.favorite_border)); // 지연 요청 시작
+      await t.pump();
+      await t.tap(find.byType(BackButton)); // 요청 중 뒤로 시도
+      await t.pump();
+      expect(find.byType(BoardDetailScreen), findsOneWidget); // 안 닫힘
+      expect(popResult, 'SENTINEL'); // pop 안 됨
+
+      await t.pumpAndSettle(); // 요청 완료
+      expect(r.likeCalls, 1);
+      await t.tap(find.byType(BackButton)); // 이제 뒤로 가능
+      await t.pumpAndSettle();
+      expect(popResult, 'changed'); // 목록 재조회 신호
+    });
+
+    testWidgets('좋아요 실패 요청 중 뒤로 차단 → 롤백 후 뒤로=null(변경없음)', (t) async {
+      final r = _LikeRepo(_free(liked: false, count: 2),
+          likeThrows: const BoardApiException('서버오류', statusCode: 500),
+          delay: const Duration(milliseconds: 120));
+      Object? popResult = 'SENTINEL';
+      await open(t, r, (v) => popResult = v);
+
+      await t.tap(find.byIcon(Icons.favorite_border));
+      await t.pump();
+      await t.tap(find.byType(BackButton)); // 요청 중 차단
+      await t.pump();
+      expect(find.byType(BoardDetailScreen), findsOneWidget);
+      expect(popResult, 'SENTINEL');
+
+      await t.pumpAndSettle(); // 실패 → 롤백
+      expect(r.likeCalls, 1);
+      expect(find.byIcon(Icons.favorite_border), findsOneWidget); // 롤백
+      expect(find.text('2'), findsOneWidget);
+      await t.tap(find.byType(BackButton)); // 실패 후 뒤로 정상
+      await t.pumpAndSettle();
+      expect(popResult, isNull); // 서버 변경 없음
+    });
+  });
+
   group('반응형', () {
     final longName = '가나다라마바사아자차카타파하갸';
     for (final size in const [Size(320, 568), Size(375, 667), Size(430, 932)]) {
