@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' show ImageFilter, lerpDouble;
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
@@ -1072,44 +1071,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── 카루셀 탭 전환 진단(원인 확정용, kDebugMode 한정) ──
-  // 가설: 단일 PageView에 탭마다 controller 를 갈아 끼우면 전환 첫 프레임에 새 controller 가
-  // !haveDimensions → AnimatedBuilder 가 정수 page 폴백 → 선택카드 크기/peek 스냅.
-  // 실기기/시뮬에서 내카드→시장랭킹 전환 시 아래 로그로 라이브 확정.
-  void _switchCarouselTab(int tab) {
-    _logCarouselState('pre-switch → tab=$tab');
-    setState(() => _carouselTab = tab);
-    WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _logCarouselState('post-switch frame1 → tab=$tab'));
-  }
-
-  void _logCarouselState(String tag) {
-    if (!kDebugMode) return;
-    String c(PageController pc) {
-      if (!pc.hasClients) return 'noClients';
-      try {
-        return 'attached,page=${pc.page?.toStringAsFixed(2)}';
-      } catch (_) {
-        return 'attached,noDimYet'; // haveDimensions=false (스냅 윈도우)
-      }
-    }
-
-    final items = _carouselTab == 0 ? _myCardCarouselItems() : _marketCarouselItems();
-    final len = items.isEmpty ? 1 : items.length;
-    final selIdx = (_carouselTab == 0 ? _carouselPage : _marketCarouselPage) % len;
-    debugPrint('[CAROUSEL] $tag | tab=$_carouselTab '
-        '| my=${c(_carouselController)} | market=${c(_marketCarouselController)} '
-        '| attached=${_carouselTab == 0 ? "my" : "market"} '
-        '| selIdx=$selIdx | cardKey=none(index-based)');
-  }
-
   Widget _buildCarousel() {
     // 카드 좀 더 크게 (0.40 → 0.46, max 460)
     final height = (MediaQuery.of(context).size.height * 0.46).clamp(380.0, 460.0);
-    final isMyCards = _carouselTab == 0;
-    final items = isMyCards ? _myCardCarouselItems() : _marketCarouselItems();
-    final controller = isMyCards ? _carouselController : _marketCarouselController;
-    final currentPage = isMyCards ? _carouselPage : _marketCarouselPage;
 
     return Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -1124,13 +1088,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 _CarouselTab(
                   label: _myAssets.isNotEmpty ? '내 카드' : '오늘의 TOP',
                   selected: _carouselTab == 0,
-                  onTap: () => _switchCarouselTab(0),
+                  onTap: () => setState(() => _carouselTab = 0),
                 ),
                 const SizedBox(width: 8),
                 _CarouselTab(
                   label: '시장 랭킹',
                   selected: _carouselTab == 1,
-                  onTap: () => _switchCarouselTab(1),
+                  onTap: () => setState(() => _carouselTab = 1),
                 ),
                 if (_carouselTab == 1) ...[
                   const Spacer(),
@@ -1157,90 +1121,141 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          // 카드셀 1장=단일 카드(아래 분기), 0장=빈상태. 2장 이상은 모두 virtual 무한 PageView(itemCount=_kCarouselVirtual)
-          //   → 컨트롤러 initialPage(_kCarouselStart=50만)가 항상 유효 범위라 page-out-of-range/clamp 폭주 없음.
-          //   (이전: 2장만 finite itemCount=2 라 50만 page 와 충돌 → 매 프레임 jumpToPage+setState 리빌드 스톰 = 극심한 느림.)
-          if (items.isEmpty)
-            (_loading
-                ? _carouselSkeleton(height)
-                : SizedBox(
-                    height: height,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('데이터를 불러오지 못했어요',
-                              style: TextStyle(
-                                  color: AppColors.textMuted,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 6),
-                          TextButton(
-                            onPressed: () => _loadAll(),
-                            child: const Text('새로고침',
-                                style: TextStyle(
-                                    color: AppColors.blue,
-                                    fontWeight: FontWeight.w700)),
-                          ),
-                        ],
+          // ★탭별 PageView 분리 + IndexedStack: 같은 PageView 에 controller 를 갈아끼우지 않는다
+          //   (전환 첫 프레임 controller 재부착 스냅 제거). 두 탭 모두 트리에 유지되어 각자 페이지 보존.
+          //   탭별 PageStorageKey, 카드 key=cardId. viewportFraction·카드 크기·확대 비율은 불변.
+          IndexedStack(
+            index: _carouselTab,
+            children: [
+              _carouselBody(
+                storageKey: const PageStorageKey('carousel-my'),
+                controller: _carouselController,
+                items: _myCardCarouselItems(),
+                currentPage: _carouselPage,
+                isMyCards: true,
+                height: height,
+              ),
+              _carouselBody(
+                storageKey: const PageStorageKey('carousel-market'),
+                controller: _marketCarouselController,
+                items: _marketCarouselItems(),
+                currentPage: _marketCarouselPage,
+                isMyCards: false,
+                height: height,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 탭별 캐러셀 본문(빈/1장/다중 + dots). 전용 controller 사용, 카드 key=cardId.
+  // virtual 무한 PageView·viewportFraction·확대(scale) 비율은 기존 그대로(변경 금지).
+  Widget _carouselBody({
+    required PageStorageKey storageKey,
+    required PageController controller,
+    required List<Map<String, dynamic>> items,
+    required int currentPage,
+    required bool isMyCards,
+    required double height,
+  }) {
+    if (items.isEmpty) {
+      return KeyedSubtree(
+        key: storageKey,
+        child: _loading
+            ? _carouselSkeleton(height)
+            : SizedBox(
+                height: height,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('데이터를 불러오지 못했어요',
+                          style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 6),
+                      TextButton(
+                        onPressed: () => _loadAll(),
+                        child: const Text('새로고침',
+                            style: TextStyle(
+                                color: AppColors.blue,
+                                fontWeight: FontWeight.w700)),
                       ),
-                    ),
-                  ))
-          else if (items.length == 1)
-            // 1장: 캐러셀 없이 가운데 단일 카드. peek/repeat 방지.
-            SizedBox(
-              height: height + 16,
-              child: Center(
-                child: FractionallySizedBox(
-                  widthFactor: 0.6,
-                  child: _CarouselCard(
-                    item: items[0],
-                    distFromCenter: 0,
-                    isLeftOfCenter: false,
-                    onTap: () => _openCardItem(items[0]),
+                    ],
                   ),
                 ),
               ),
-            )
-          else ...[
-            SizedBox(
-              height: height + 16,
-              child: PageView.builder(
-                clipBehavior: Clip.none,
-                controller: controller,
-                // 2장 이상 모두 virtual 무한 캐러셀(양옆 peek). realIndex = index % items.length.
-                itemCount: _kCarouselVirtual,
-                onPageChanged: (page) => setState(() {
-                  if (isMyCards) { _carouselPage = page; }
-                  else { _marketCarouselPage = page; }
-                }),
-                itemBuilder: (context, index) {
-                  final realIndex = index % items.length;
-                  return AnimatedBuilder(
-                    animation: controller,
-                    builder: (context, child) {
-                      double page = currentPage.toDouble();
-                      if (controller.hasClients && controller.position.haveDimensions) {
-                        page = controller.page ?? page;
-                      }
-                      final dist = (page - index).abs().clamp(0.0, 1.0);
-                      return _CarouselCard(
-                        item: items[realIndex],
-                        distFromCenter: dist,
-                        isLeftOfCenter: page > index,
-                        onTap: () => _openCardItem(items[realIndex]),
-                      );
-                    },
-                  );
-                },
+      );
+    }
+    if (items.length == 1) {
+      final cardId = items[0]['cardId'] as String? ?? '0';
+      return KeyedSubtree(
+        key: storageKey,
+        child: SizedBox(
+          height: height + 16,
+          child: Center(
+            child: FractionallySizedBox(
+              widthFactor: 0.6,
+              child: _CarouselCard(
+                key: ValueKey('card-$cardId'),
+                item: items[0],
+                distFromCenter: 0,
+                isLeftOfCenter: false,
+                onTap: () => _openCardItem(items[0]),
               ),
             ),
-            const SizedBox(height: 12),
-            _CarouselDots(
-              count: items.length,
-              currentIndex: currentPage % items.length,
+          ),
+        ),
+      );
+    }
+    return KeyedSubtree(
+      key: storageKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: height + 16,
+            child: PageView.builder(
+              key: PageStorageKey('pv-${storageKey.value}'),
+              clipBehavior: Clip.none,
+              controller: controller,
+              // 2장 이상 모두 virtual 무한 캐러셀(양옆 peek). realIndex = index % items.length.
+              itemCount: _kCarouselVirtual,
+              onPageChanged: (page) => setState(() {
+                if (isMyCards) { _carouselPage = page; }
+                else { _marketCarouselPage = page; }
+              }),
+              itemBuilder: (context, index) {
+                final realIndex = index % items.length;
+                final cardId = items[realIndex]['cardId'] as String? ?? '$realIndex';
+                return AnimatedBuilder(
+                  animation: controller,
+                  builder: (context, child) {
+                    double page = currentPage.toDouble();
+                    if (controller.hasClients && controller.position.haveDimensions) {
+                      page = controller.page ?? page;
+                    }
+                    final dist = (page - index).abs().clamp(0.0, 1.0);
+                    return _CarouselCard(
+                      key: ValueKey('card-$cardId-$index'),
+                      item: items[realIndex],
+                      distFromCenter: dist,
+                      isLeftOfCenter: page > index,
+                      onTap: () => _openCardItem(items[realIndex]),
+                    );
+                  },
+                );
+              },
             ),
-          ],
+          ),
+          const SizedBox(height: 12),
+          _CarouselDots(
+            count: items.length,
+            currentIndex: currentPage % items.length,
+          ),
         ],
       ),
     );
@@ -1776,6 +1791,7 @@ class _CarouselCard extends StatefulWidget {
   final bool isLeftOfCenter;
 
   const _CarouselCard({
+    super.key,
     required this.item,
     required this.onTap,
     required this.distFromCenter,
