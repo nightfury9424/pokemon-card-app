@@ -130,8 +130,10 @@ class ApiClient {
     return res.data ?? const [];
   }
 
-  static Future<Map<String, dynamic>> put(String path, Map<String, dynamic> data) async {
-    final res = await _dio.put(path, data: data);
+  static Future<Map<String, dynamic>> put(String path, Map<String, dynamic> data,
+      {bool silent = false}) async {
+    final res = await _dio.put(path, data: data,
+        options: silent ? Options(extra: {'silentErrors': true}) : null);
     return res.data;
   }
 

@@ -32,6 +32,13 @@ void _requireSuccess(Map<String, dynamic> res) {
   }
 }
 
+/// 좋아요/취소(멱등 PUT/DELETE) 응답 — 서버 최종값. 화면이 낙관적 상태를 이 값으로 보정.
+class BoardLikeResult {
+  final bool likedByMe;
+  final int likeCount;
+  const BoardLikeResult({required this.likedByMe, required this.likeCount});
+}
+
 /// 게시판 목록 응답(BoardPageDto) — 페이지네이션 메타 포함.
 class BoardListResult {
   final List<BoardPost> posts;
@@ -201,6 +208,32 @@ class BoardRepository {
         throw BoardApiException((res['message'] as String?) ?? '댓글을 삭제하지 못했어요.',
             code: res['code'] as String?);
       }
+    } on DioException catch (e) {
+      throw _writeError(e);
+    }
+  }
+
+  /// 좋아요(멱등 PUT). 자유글만(서버 403). 멱등이라 재시도 안전. 응답 {likedByMe, likeCount}.
+  Future<BoardLikeResult> likePost(String postId) =>
+      _likeCall(() => ApiClient.put('/api/board/posts/$postId/likes', const {}, silent: true));
+
+  /// 좋아요 취소(멱등 DELETE).
+  Future<BoardLikeResult> unlikePost(String postId) =>
+      _likeCall(() => ApiClient.delete('/api/board/posts/$postId/likes', silent: true));
+
+  Future<BoardLikeResult> _likeCall(Future<Map<String, dynamic>> Function() call) async {
+    try {
+      final res = await call();
+      if (res['status'] != 'success') {
+        throw BoardApiException((res['message'] as String?) ?? '좋아요를 처리하지 못했어요.',
+            code: res['code'] as String?);
+      }
+      final data = res['data'];
+      if (data is Map && data['likedByMe'] is bool && data['likeCount'] is num) {
+        final c = (data['likeCount'] as num).toInt();
+        return BoardLikeResult(likedByMe: data['likedByMe'] as bool, likeCount: c < 0 ? 0 : c);
+      }
+      throw const BoardParseException('좋아요 응답 형식 오류(likedByMe/likeCount)');
     } on DioException catch (e) {
       throw _writeError(e);
     }

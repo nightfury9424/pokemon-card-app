@@ -36,6 +36,12 @@ bool _flag(Map j, String key) {
   return v is bool ? v : false;
 }
 
+/// 카운트 안전 파싱 — 없거나 숫자 아니면 0, 음수는 0으로(음수 표시 방지).
+int _nonNegInt(Object? v) {
+  final n = v is num ? v.toInt() : 0;
+  return n < 0 ? 0 : n;
+}
+
 /// nullable string 안전 파싱 — 없거나 문자열 아니면 null. (replyTargetCommentId 등)
 String? _nullableString(Map j, String key) {
   final v = j[key];
@@ -186,6 +192,7 @@ class BoardPost {
   final DateTime createdAt;
   final int viewCount;
   final int likeCount;
+  final bool likedByMe; // 서버 계산: viewer 가 좋아요했는지(누락/잘못된 타입 → false)
   final bool isPinned;
   final bool isAnswered; // Q&A: 답변 달림
   final List<BoardComment> comments;
@@ -209,6 +216,7 @@ class BoardPost {
     required this.createdAt,
     this.viewCount = 0,
     this.likeCount = 0,
+    this.likedByMe = false,
     this.isPinned = false,
     this.isAnswered = false,
     this.comments = const [],
@@ -236,7 +244,9 @@ class BoardPost {
       author: (j['author'] as String?) ?? '',
       createdAt: _reqDateTime(j, 'createdAt'),
       viewCount: (j['viewCount'] as num?)?.toInt() ?? 0,
-      likeCount: (j['likeCount'] as num?)?.toInt() ?? 0,
+      // 음수(서버는 COUNT라 0+, 방어적으로) 표시 방지.
+      likeCount: _nonNegInt(j['likeCount']),
+      likedByMe: _flag(j, 'likedByMe'),
       isPinned: (j['isPinned'] as bool?) ?? false,
       isAnswered: (j['isAnswered'] as bool?) ?? false,
       comments: ((j['comments'] as List?) ?? const [])

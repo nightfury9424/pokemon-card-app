@@ -39,6 +39,12 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
   BoardComment? _replyTo; // 답글 대상(컨텍스트 칩). null = 일반 댓글
   bool _sending = false;
 
+  // 좋아요(낙관적 업데이트) — _post 와 분리해 즉시 토글 + 서버 보정/실패 롤백.
+  bool _liked = false;
+  int _likeCount = 0;
+  bool _likeBusy = false; // 진행 중 같은 글 재탭 차단
+  bool _changed = false;  // 좋아요/댓글 변경 → 목록 갱신 신호(back pop result)
+
   @override
   void initState() {
     super.initState();
@@ -73,6 +79,8 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
           _notFound = true; // 404 = 삭제/숨김/미존재
         } else {
           _post = p;
+          _liked = p.likedByMe; // 서버 기준 초기화
+          _likeCount = p.likeCount;
         }
       });
     } catch (e) {
@@ -89,7 +97,13 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
     try {
       final p = await widget.repository.fetchDetail(widget.postId);
       if (!mounted || p == null) return;
-      setState(() => _post = p);
+      setState(() {
+        _post = p;
+        if (!_likeBusy) { // 좋아요 요청 진행 중이면 낙관적 상태 보존
+          _liked = p.likedByMe;
+          _likeCount = p.likeCount;
+        }
+      });
     } catch (_) {
       // 재조회 실패는 기존 화면 유지(조용히 무시).
     }
@@ -163,7 +177,13 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final titleType = (_post ?? widget.summary)?.type;
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.of(context).pop(_changed ? 'changed' : null); // 좋아요/댓글 변경 → 목록 갱신
+      },
+      child: Scaffold(
       backgroundColor: AppColors.bg,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
@@ -177,6 +197,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
         actions: _appBarActions(),
       ),
       body: _buildBody(),
+      ),
     );
   }
 
@@ -225,13 +246,11 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
         Text(post.body,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 14.5, height: 1.6)),
         if (!isOfficial) ...[
-          const SizedBox(height: 20),
-          const Divider(height: 1, color: AppColors.divider),
+          const SizedBox(height: 18),
+          _engagementRow(post), // ♥ 좋아요 수(자유글 토글) · 댓글 수
           const SizedBox(height: 16),
-          Text('댓글 ${post.commentCount}',
-              style: const TextStyle(
-                  color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
+          const Divider(height: 1, color: AppColors.divider),
+          const SizedBox(height: 12),
           ...post.comments.map(_commentTile),
           if (post.comments.isEmpty)
             const Padding(
@@ -379,6 +398,94 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
     );
   }
 
+  // 본문 아래 인게이지먼트: 자유글=하트(토글)+댓글 수 / 그 외 커뮤니티=댓글 수만(좋아요는 free 전용).
+  Widget _engagementRow(BoardPost post) {
+    final isFree = post.type == BoardType.free;
+    return Row(children: [
+      if (isFree) ...[
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _likeBusy ? null : _toggleLike,
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            alignment: Alignment.centerLeft,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(_liked ? Icons.favorite : Icons.favorite_border,
+                  size: 20, color: _liked ? AppColors.red : AppColors.textMuted),
+              const SizedBox(width: 5),
+              Text('$_likeCount',
+                  style: TextStyle(
+                      color: _liked ? AppColors.red : AppColors.textSecondary,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ),
+        const SizedBox(width: 16),
+      ],
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.chat_bubble_outline, size: 17, color: AppColors.textMuted),
+        const SizedBox(width: 5),
+        Text('${post.commentCount}',
+            style: const TextStyle(
+                color: AppColors.textSecondary, fontSize: 13.5, fontWeight: FontWeight.w600)),
+      ]),
+    ]);
+  }
+
+  // 낙관적 좋아요 토글: 즉시 반영 → 서버 응답으로 보정 / 실패 시 정확 롤백. 진행 중 재탭 차단.
+  Future<void> _toggleLike() async {
+    if (_likeBusy) return;
+    final wasLiked = _liked;
+    final wasCount = _likeCount;
+    setState(() {
+      _likeBusy = true;
+      _liked = !wasLiked;
+      _likeCount = wasLiked ? (wasCount > 0 ? wasCount - 1 : 0) : wasCount + 1; // 0 미만 금지
+    });
+    try {
+      final res = wasLiked
+          ? await widget.repository.unlikePost(widget.postId)
+          : await widget.repository.likePost(widget.postId);
+      if (!mounted) return;
+      setState(() {
+        _liked = res.likedByMe; // 서버 최종값 보정
+        _likeCount = res.likeCount;
+        _likeBusy = false;
+        _changed = true; // 목록 반영
+      });
+    } on BoardApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _liked = wasLiked; // 정확 롤백
+        _likeCount = wasCount;
+        _likeBusy = false;
+      });
+      AppInfoToast.show(context, _likeError(e));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _liked = wasLiked;
+        _likeCount = wasCount;
+        _likeBusy = false;
+      });
+      AppInfoToast.show(context, '잠시 후 다시 시도해 주세요.');
+    }
+  }
+
+  String _likeError(BoardApiException e) {
+    switch (e.statusCode) {
+      case 401:
+        return '로그인이 필요해요.';
+      case 403:
+        return '이 글은 좋아요할 수 없어요.';
+      case 404:
+        return '삭제되었거나 존재하지 않는 글이에요.';
+      default:
+        return e.message;
+    }
+  }
+
   static const _commentMax = 2000; // 서버 COMMENT_MAX 와 동일
 
   // 댓글/대댓글 액션(답글·삭제). 플래그(canReply+target / canDelete)로 노출 제어.
@@ -430,6 +537,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
       setState(() {
         _replyTo = null;
         _sending = false;
+        _changed = true; // 목록 댓글 수 갱신 신호
       });
       await _reload(); // 댓글 목록·수 갱신
       if (!mounted) return;
@@ -476,6 +584,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
     try {
       await widget.repository.deleteComment(c.id);
       if (!mounted) return;
+      _changed = true; // 목록 댓글 수 갱신 신호
       await _reload(); // 댓글 목록·수 갱신(최상위 삭제+답글 → placeholder, 대댓글 삭제 → 해당만 제거)
     } on BoardApiException catch (e) {
       if (!mounted) return;

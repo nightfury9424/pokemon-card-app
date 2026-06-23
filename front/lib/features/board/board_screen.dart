@@ -350,7 +350,10 @@ class PostRow extends StatelessWidget {
                   children: [
                     _meta(Icons.visibility_outlined, post.viewCount),
                     _meta(Icons.chat_bubble_outline, post.commentCount),
-                    if (post.likeCount > 0) _meta(Icons.favorite_border, post.likeCount),
+                    // 좋아요는 자유글 전용 — 표시만(토글은 상세에서). 내가 누른 글은 채운 하트.
+                    if (post.type == BoardType.free && post.likeCount > 0)
+                      _meta(post.likedByMe ? Icons.favorite : Icons.favorite_border, post.likeCount,
+                          color: post.likedByMe ? AppColors.red : null),
                   ],
                 ),
               ],
@@ -377,11 +380,12 @@ class PostRow extends StatelessWidget {
     );
   }
 
-  Widget _meta(IconData icon, int n) {
+  Widget _meta(IconData icon, int n, {Color? color}) {
+    final c = color ?? AppColors.textMuted;
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 13, color: AppColors.textMuted),
+      Icon(icon, size: 13, color: c),
       const SizedBox(width: 3),
-      Text('$n', style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5)),
+      Text('$n', style: TextStyle(color: c, fontSize: 11.5)),
     ]);
   }
 }

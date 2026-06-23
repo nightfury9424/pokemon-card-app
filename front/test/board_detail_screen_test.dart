@@ -64,7 +64,7 @@ void main() {
     await _pump(tester, _FakeDetail(post: _free()), _free());
     expect(tester.takeException(), isNull);
     expect(find.text('자유 본문'), findsOneWidget);
-    expect(find.textContaining('댓글 2'), findsOneWidget); // 댓글 헤더(서버 commentCount)
+    expect(find.text('2'), findsOneWidget); // 댓글 수(engagement row, listCommentCount=2)
     expect(find.text('첫 댓글'), findsOneWidget);
     expect(find.text('답글'), findsOneWidget); // 1단 대댓글
     expect(find.text('댓글을 입력하세요'), findsOneWidget); // 자유는 입력바 노출

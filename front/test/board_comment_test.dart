@@ -34,6 +34,7 @@ class _Repo extends BoardRepository {
         body: '본문',
         author: '글쓴이',
         createdAt: DateTime(2026, 6, 24, 10),
+        likeCount: 77, // engagement row 하트수와 댓글수('0'/'1') 구분용(고정)
         comments: List.of(comments),
       );
 
@@ -105,7 +106,7 @@ void main() {
     testWidgets('일반 댓글 작성 성공 → create 1회·parent null·입력 초기화·댓글 수 갱신', (tester) async {
       final repo = _Repo(comments: []);
       await _pump(tester, repo);
-      expect(find.text('댓글 0'), findsOneWidget);
+      expect(find.text('0'), findsOneWidget); // engagement row 댓글 수(하트=77 로 구분)
       await tester.enterText(_input, '첫 댓글');
       await tester.pump();
       await tester.tap(_send);
@@ -113,7 +114,7 @@ void main() {
       expect(repo.createCalls, 1);
       expect(repo.lastContent, '첫 댓글');
       expect(repo.lastParent, isNull);
-      expect(find.text('댓글 1'), findsOneWidget); // 수 갱신
+      expect(find.text('1'), findsOneWidget); // 댓글 수 갱신(engagement row)
       expect(find.text('첫 댓글'), findsOneWidget); // 목록 반영(입력은 비워짐)
     });
 
