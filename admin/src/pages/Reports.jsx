@@ -414,13 +414,22 @@ function HandleModal({ row, onClose, onDone }) {
   const [contextError, setContextError] = useState(false)
   const ctxBoxStyle = { background: '#f8fafc', borderRadius: 10, padding: '12px 14px', fontSize: 13, lineHeight: 1.6 }
 
-  // 조치별 활성: 삭제/숨김=현재 콘텐츠 존재 / 경고·정지=snapshot 또는 현재 존재(현재 삭제됐어도 증거 있으면 제재) /
-  //   기각·보류=항상. 로딩/오류(context 미로딩)=잠금. snapshot·현재 모두 없으면 파괴적 전부 잠금.
+  // 조치별 활성 — ★백엔드 계약: soft-delete 도 available=true + post/comment.deleted=true 로 옴.
+  //   숨김=글 존재·미삭제·미숨김 / 삭제=글(또는 대상 댓글) 존재·미삭제 / 경고·정지=snapshot 또는 현재 증거 존재
+  //   (현재 삭제됐어도 증거 있으면 제재) / 기각·보류=항상. 로딩/오류(context 미로딩)=잠금.
   function actionEnabled(key) {
     if (!isBoardReport || key === 'DISMISS' || key === 'NONE') return true
     if (!context) return false
-    if (key === 'WARN_USER' || key === 'SUSPEND_USER') return !!(context.available || context.snapshotAvailable)
-    return !!context.available // HIDE/DELETE_BOARD_POST, DELETE_BOARD_COMMENT
+    const post = context.post
+    const targetComment = context.thread?.comments?.find(c => c.target)
+    switch (key) {
+      case 'HIDE_BOARD_POST': return !!post && !post.deleted && !post.hidden
+      case 'DELETE_BOARD_POST': return !!post && !post.deleted
+      case 'DELETE_BOARD_COMMENT': return !!targetComment && !targetComment.deleted
+      case 'WARN_USER':
+      case 'SUSPEND_USER': return !!(context.available || context.snapshotAvailable)
+      default: return true
+    }
   }
 
   async function loadContext() {
