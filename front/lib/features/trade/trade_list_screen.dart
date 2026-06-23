@@ -1179,39 +1179,115 @@ class MarketRowPriceMeta extends StatelessWidget {
     required this.changeColor,
   });
 
+  /// 좁은 폭에서 라벨 축약 매핑(풀 → 축약 → 숨김 순으로 드롭). 미등록 라벨은 축약 없이 드롭만.
+  static const Map<String, String> _shortLabels = {
+    '한국판 예상가': '예상가',
+    '해외 참고가': '참고가',
+  };
+
+  static const double _gap = 6.0;
+  static const double _changeFloor = 11.0;
+  static const double _changeBase = 13.0;
+
   @override
   Widget build(BuildContext context) {
-    final changeStyle = TextStyle(
-      color: changeColor,
+    final priceStr = price != null ? AppColors.formatPrice(price!) : '시세 없음';
+    // 변동액·퍼센트는 항상 한 묶음(절대 분리/줄바꿈 X): "-15,530원 (-37.9%)".
+    final String? changeStr = changeAmount == null
+        ? null
+        : (changePct == null ? changeAmount! : '$changeAmount $changePct');
+
+    final priceStyle = TextStyle(
+      color: price != null ? AppColors.textSecondary : AppColors.textMuted,
       fontSize: 13,
+      fontWeight: FontWeight.w600,
+    );
+    const labelStyle = TextStyle(
+      color: AppColors.textMuted,
+      fontSize: 11,
       fontWeight: FontWeight.w700,
     );
-    return Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 6,
-      runSpacing: 2,
-      children: [
-        Text(
-          price != null ? AppColors.formatPrice(price!) : '시세 없음',
-          style: TextStyle(
-            color: price != null ? AppColors.textSecondary : AppColors.textMuted,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        // 가격 옆 inline 라벨 — 국내 예상가 / 해외 참고가 / 시세 준비중.
-        Text(
-          priceLabelText,
-          style: const TextStyle(
-            color: AppColors.textMuted,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        if (changeAmount != null) Text(changeAmount!, style: changeStyle),
-        if (changePct != null) Text(changePct!, style: changeStyle),
-      ],
+    final changeStyleBase = TextStyle(
+      color: changeColor,
+      fontSize: _changeBase,
+      fontWeight: FontWeight.w700,
     );
+
+    final scaler = MediaQuery.textScalerOf(context);
+    final fullLabel = priceLabelText.trim();
+    final shortLabel = _shortLabels[fullLabel];
+
+    return LayoutBuilder(builder: (ctx, c) {
+      final maxW = c.maxWidth;
+      final priceW = _measure(priceStr, priceStyle, scaler);
+
+      String? label;
+      double changeFont = _changeBase;
+
+      if (changeStr != null) {
+        final changeW = _measure(changeStr, changeStyleBase, scaler);
+        // 1순위: 라벨 드롭(풀→축약→숨김). 가격·변동값은 끝까지(잘림 X).
+        final roomForLabel = maxW - priceW - changeW - _gap * 2;
+        if (fullLabel.isNotEmpty && roomForLabel >= _measure(fullLabel, labelStyle, scaler)) {
+          label = fullLabel;
+        } else if (shortLabel != null && roomForLabel >= _measure(shortLabel, labelStyle, scaler)) {
+          label = shortLabel;
+        } else {
+          label = null;
+          // 2순위: 라벨 없이도 안 맞으면 변동값 글자만 floor 까지 축소(전체 축소 아님).
+          final avail = maxW - priceW - _gap;
+          double w = changeW;
+          while (changeFont > _changeFloor && w > avail) {
+            changeFont -= 1;
+            w = _measure(changeStr, changeStyleBase.copyWith(fontSize: changeFont), scaler);
+          }
+        }
+      } else {
+        final roomForLabel = maxW - priceW - _gap;
+        if (fullLabel.isNotEmpty && roomForLabel >= _measure(fullLabel, labelStyle, scaler)) {
+          label = fullLabel;
+        } else if (shortLabel != null && roomForLabel >= _measure(shortLabel, labelStyle, scaler)) {
+          label = shortLabel;
+        }
+      }
+
+      final row = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(priceStr, maxLines: 1, softWrap: false,
+              overflow: TextOverflow.visible, style: priceStyle),
+          if (label != null) ...[
+            const SizedBox(width: _gap),
+            Text(label, maxLines: 1, softWrap: false,
+                overflow: TextOverflow.clip, style: labelStyle),
+          ],
+          if (changeStr != null) ...[
+            const SizedBox(width: _gap),
+            Text(changeStr, maxLines: 1, softWrap: false,
+                overflow: TextOverflow.visible,
+                style: changeStyleBase.copyWith(fontSize: changeFont)),
+          ],
+        ],
+      );
+
+      // 최종 가드: 측정 오차/극단 폭에서도 RenderFlex overflow 없이 한 줄 유지.
+      // 숫자를 ...로 자르지 않고 필요 시에만 균등 축소(정보 보존).
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: row,
+      );
+    });
+  }
+
+  static double _measure(String s, TextStyle style, TextScaler scaler) {
+    final tp = TextPainter(
+      text: TextSpan(text: s, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      textScaler: scaler,
+    )..layout();
+    return tp.width;
   }
 }
 
