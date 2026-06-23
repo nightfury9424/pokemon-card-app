@@ -32,10 +32,30 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
   bool _notFound = false;
   Object? _error;
 
+  // 댓글/대댓글 입력
+  final TextEditingController _commentCtrl = TextEditingController();
+  final FocusNode _commentFocus = FocusNode();
+  final ScrollController _scrollCtrl = ScrollController();
+  BoardComment? _replyTo; // 답글 대상(컨텍스트 칩). null = 일반 댓글
+  bool _sending = false;
+
   @override
   void initState() {
     super.initState();
+    _commentCtrl.addListener(_onCommentChange);
     _load();
+  }
+
+  void _onCommentChange() {
+    if (mounted) setState(() {}); // 전송 버튼 활성/비활성 갱신
+  }
+
+  @override
+  void dispose() {
+    _commentCtrl.dispose();
+    _commentFocus.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -61,6 +81,17 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
         _loading = false;
         _error = e;
       });
+    }
+  }
+
+  // 댓글 작성·삭제 후 무플래시 재조회(로딩 스피너 전환 없이 _post 갱신 → 목록·댓글 수 갱신).
+  Future<void> _reload() async {
+    try {
+      final p = await widget.repository.fetchDetail(widget.postId);
+      if (!mounted || p == null) return;
+      setState(() => _post = p);
+    } catch (_) {
+      // 재조회 실패는 기존 화면 유지(조용히 무시).
     }
   }
 
@@ -186,6 +217,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
 
     // 공지 = 본문만(댓글·반응·입력 없음). 자유 = 본문 + 댓글 트리 + 입력바(동작은 다음 슬라이스).
     final content = ListView(
+      controller: _scrollCtrl,
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       children: [
         _header(post),
@@ -213,7 +245,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
     );
 
     if (isOfficial) return content;
-    return Column(children: [Expanded(child: content), _commentBar(context)]);
+    return Column(children: [Expanded(child: content), _commentBar()]);
   }
 
   Widget _header(BoardPost post) {
@@ -325,6 +357,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
                 Text(c.body,
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 13, height: 1.4)),
+                _commentActions(c),
               ],
             ),
           ),
@@ -346,38 +379,210 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
     );
   }
 
-  Widget _commentBar(BuildContext context) {
+  static const _commentMax = 2000; // 서버 COMMENT_MAX 와 동일
+
+  // 댓글/대댓글 액션(답글·삭제). 플래그(canReply+target / canDelete)로 노출 제어.
+  // 삭제 placeholder·삭제된 top 아래 답글은 서버 플래그가 canReply=false → 답글 버튼 자동 미노출.
+  Widget _commentActions(BoardComment c) {
+    final canReply = c.canReply && c.replyTargetCommentId != null;
+    if (!canReply && !c.canDelete) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(children: [
+        if (canReply) _commentAction('답글', () => _startReply(c)),
+        if (canReply && c.canDelete) const SizedBox(width: 14),
+        if (c.canDelete) _commentAction('삭제', () => _deleteComment(c), color: AppColors.red),
+      ]),
+    );
+  }
+
+  Widget _commentAction(String label, VoidCallback onTap, {Color? color}) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Text(label,
+            style: TextStyle(
+                color: color ?? AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+
+  void _startReply(BoardComment c) {
+    setState(() => _replyTo = c);
+    _commentFocus.requestFocus();
+  }
+
+  void _cancelReply() => setState(() => _replyTo = null);
+
+  Future<void> _sendComment() async {
+    final text = _commentCtrl.text.trim();
+    if (text.isEmpty || _sending) return; // 빈/공백·연타 가드
+    setState(() => _sending = true);
+    final parentId = _replyTo?.replyTargetCommentId; // 답글이면 최상위 댓글 id(서버 재검증)
+    try {
+      await widget.repository
+          .createComment(widget.postId, content: text, parentCommentId: parentId);
+      if (!mounted) return;
+      _commentCtrl.clear();
+      _commentFocus.unfocus(); // 성공 시 키보드 닫음(작성 결과 노출) — 일관 동작
+      setState(() {
+        _replyTo = null;
+        _sending = false;
+      });
+      await _reload(); // 댓글 목록·수 갱신
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollCtrl.hasClients) {
+          _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+        }
+      });
+    } on BoardApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false); // ★입력·답글모드·포커스 유지
+      AppInfoToast.show(
+          context,
+          e.code == 'CONTENT_POLICY_VIOLATION'
+              ? '부적절한 표현이 포함되어 있어 등록할 수 없습니다.'
+              : e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      AppInfoToast.show(context, '댓글을 등록하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
+  }
+
+  Future<void> _deleteComment(BoardComment c) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceCard,
+        title: const Text('댓글을 삭제할까요?',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소', style: TextStyle(color: AppColors.textMuted))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('삭제',
+                  style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await widget.repository.deleteComment(c.id);
+      if (!mounted) return;
+      await _reload(); // 댓글 목록·수 갱신(최상위 삭제+답글 → placeholder, 대댓글 삭제 → 해당만 제거)
+    } on BoardApiException catch (e) {
+      if (!mounted) return;
+      AppInfoToast.show(context, e.message);
+    } catch (_) {
+      if (!mounted) return;
+      AppInfoToast.show(context, '댓글을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
+  }
+
+  Widget _replyChip() {
+    final c = _replyTo;
+    if (c == null) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
+      color: AppColors.surfaceCard,
+      child: Row(children: [
+        const Icon(Icons.subdirectory_arrow_right, size: 14, color: AppColors.textMuted),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text('${c.author}님에게 답글 작성 중',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        ),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _cancelReply,
+          child: const Padding(
+            padding: EdgeInsets.all(4),
+            child: Icon(Icons.close, size: 16, color: AppColors.textMuted),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _commentBar() {
+    final canSend = _commentCtrl.text.trim().isNotEmpty && !_sending;
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
         decoration: const BoxDecoration(
           color: AppColors.surface,
           border: Border(top: BorderSide(color: AppColors.dividerSoft)),
         ),
-        child: Row(children: [
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceCard,
-                borderRadius: BorderRadius.circular(22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _replyChip(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceCard,
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: TextField(
+                        controller: _commentCtrl,
+                        focusNode: _commentFocus,
+                        minLines: 1,
+                        maxLines: 5,
+                        maxLength: _commentMax,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: _replyTo != null ? '답글을 입력하세요' : '댓글을 입력하세요',
+                          hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                          border: InputBorder.none,
+                          counterText: '',
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: canSend ? _sendComment : null,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: canSend ? AppColors.blue : AppColors.surfaceElevated,
+                        shape: BoxShape.circle,
+                      ),
+                      child: _sending
+                          ? const Padding(
+                              padding: EdgeInsets.all(13),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Icon(Icons.arrow_upward_rounded,
+                              color: canSend ? Colors.white : AppColors.textMuted, size: 20),
+                    ),
+                  ),
+                ],
               ),
-              child: const Text('댓글을 입력하세요',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
             ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => AppInfoToast.show(context, '댓글 기능은 다음 단계에서 추가돼요'),
-            child: Container(
-              width: 42,
-              height: 42,
-              decoration: const BoxDecoration(color: AppColors.blue, shape: BoxShape.circle),
-              child: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 20),
-            ),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }

@@ -174,6 +174,38 @@ class BoardRepository {
     }
   }
 
+  /// 댓글/1단 답글 작성 → commentId. parentCommentId 있으면 답글(최상위·미삭제 댓글 id, 서버 재검증).
+  Future<String> createComment(String postId,
+      {required String content, String? parentCommentId}) async {
+    try {
+      final body = <String, dynamic>{'content': content};
+      if (parentCommentId != null) body['parentCommentId'] = parentCommentId;
+      final res = await ApiClient.post('/api/board/posts/$postId/comments', body, silent: true);
+      if (res['status'] != 'success') {
+        throw BoardApiException((res['message'] as String?) ?? '댓글을 등록하지 못했어요.',
+            code: res['code'] as String?);
+      }
+      final data = res['data'];
+      if (data is Map && data['commentId'] is String) return data['commentId'] as String;
+      throw const BoardParseException('댓글 응답 commentId 누락');
+    } on DioException catch (e) {
+      throw _writeError(e);
+    }
+  }
+
+  /// 본인 댓글/대댓글 삭제(soft). 비본인/미존재 = 404.
+  Future<void> deleteComment(String commentId) async {
+    try {
+      final res = await ApiClient.delete('/api/board/comments/$commentId', silent: true);
+      if (res['status'] != 'success') {
+        throw BoardApiException((res['message'] as String?) ?? '댓글을 삭제하지 못했어요.',
+            code: res['code'] as String?);
+      }
+    } on DioException catch (e) {
+      throw _writeError(e);
+    }
+  }
+
   BoardApiException _writeError(DioException e) {
     final data = e.response?.data;
     final code = (data is Map && data['code'] is String) ? data['code'] as String : null;
