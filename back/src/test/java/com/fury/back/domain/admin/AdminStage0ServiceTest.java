@@ -1,6 +1,7 @@
 package com.fury.back.domain.admin;
 
 import com.fury.back.auth.AdminAllowlistFilter;
+import com.fury.back.auth.AdminAuthorizationService;
 import com.fury.back.domain.board.BoardAdminService;
 import com.fury.back.domain.board.BoardComment;
 import com.fury.back.domain.board.BoardCommentRepository;
@@ -23,12 +24,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -49,6 +51,7 @@ class AdminStage0ServiceTest {
     @Mock BoardPostRepository boardPostRepository;
     @Mock BoardCommentRepository boardCommentRepository;
     @Mock BoardAdminService boardAdminService;
+    @Mock AdminAuthorizationService adminAuthorizationService;
     @InjectMocks AdminStage0Service service;
 
     @BeforeEach
@@ -175,5 +178,110 @@ class AdminStage0ServiceTest {
         verify(tradePostRepository).save(argThat((TradePost t) -> "DELETED".equals(t.getStatus())));
         verify(chatService).broadcastTradeStatusChanged("t1", "DELETED");
         verify(boardAdminService, never()).deletePost(any(), any()); // board 분기 미발동
+    }
+
+    // ── 원문·문맥 조회(target-context): 숨김/삭제 포함·thread 한정·강조·미존재·권한 ──
+    private BoardPost post(String id, String author, String status, java.time.LocalDateTime deleted) {
+        return BoardPost.builder().postId(id).type("free").title("제목전문").content("본문전문")
+                .authorId(author).status(status).deletedAt(deleted)
+                .createdAt(java.time.LocalDateTime.now()).build();
+    }
+
+    private BoardComment cmt(String id, String parent, String author, String content, java.time.LocalDateTime deleted) {
+        return BoardComment.builder().commentId(id).postId("p1").parentCommentId(parent).authorId(author)
+                .content(content).deletedAt(deleted).createdAt(java.time.LocalDateTime.now()).build();
+    }
+
+    @Test void targetContext_boardPost_fullContent() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_POST", "p1", "a1")));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a1", "ACTIVE", null)));
+        var ctx = service.getTargetContext("r1", "admin1");
+        assertThat(ctx.isAvailable()).isTrue();
+        assertThat(ctx.getPost().getTitle()).isEqualTo("제목전문");
+        assertThat(ctx.getPost().getContent()).isEqualTo("본문전문"); // 80자 축약 아닌 전문
+        assertThat(ctx.getPost().isHidden()).isFalse();
+        assertThat(ctx.getThread()).isNull();
+    }
+
+    @Test void targetContext_hiddenPost_returned() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_POST", "p1", "a1")));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a1", "HIDDEN", null)));
+        assertThat(service.getTargetContext("r1", "admin1").getPost().isHidden()).isTrue(); // ACTIVE 필터 안 씀
+    }
+
+    @Test void targetContext_deletedPost_returned() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_POST", "p1", "a1")));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a1", "ACTIVE", java.time.LocalDateTime.now())));
+        assertThat(service.getTargetContext("r1", "admin1").getPost().isDeleted()).isTrue();
+    }
+
+    @Test void targetContext_postMissing_unavailable() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_POST", "gone", "a1")));
+        when(boardPostRepository.findById("gone")).thenReturn(Optional.empty());
+        var ctx = service.getTargetContext("r1", "admin1");
+        assertThat(ctx.isAvailable()).isFalse();
+        assertThat(ctx.getPost()).isNull();
+    }
+
+    @Test void targetContext_replyComment_topThreadOnly_targetHighlighted() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_COMMENT", "cR", "a2")));
+        var cTop = cmt("cTop", null, "a3", "최상위댓글", null);
+        var cR = cmt("cR", "cTop", "a2", "신고된대댓글", null);
+        var cOther = cmt("cOther", null, "a4", "무관댓글", null);
+        when(boardCommentRepository.findById("cR")).thenReturn(Optional.of(cR));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a3", "ACTIVE", null)));
+        when(boardCommentRepository.findByPostIdOrderByCreatedAtAsc("p1")).thenReturn(List.of(cTop, cR, cOther));
+        var ctx = service.getTargetContext("r1", "admin1");
+        assertThat(ctx.getPost().getTitle()).isEqualTo("제목전문"); // 원문 게시글
+        assertThat(ctx.getThread().getTopCommentId()).isEqualTo("cTop");
+        assertThat(ctx.getThread().getTargetCommentId()).isEqualTo("cR");
+        var ids = ctx.getThread().getComments().stream().map(AdminStage0Dto.BoardCommentView::getCommentId).toList();
+        assertThat(ids).containsExactlyInAnyOrder("cTop", "cR"); // 무관 댓글 cOther 제외
+        var target = ctx.getThread().getComments().stream().filter(AdminStage0Dto.BoardCommentView::isTarget).toList();
+        assertThat(target).hasSize(1);
+        assertThat(target.get(0).getCommentId()).isEqualTo("cR"); // 신고된 댓글 강조
+    }
+
+    @Test void targetContext_topComment_threadSelfPlusReplies() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_COMMENT", "cTop", "a3")));
+        var cTop = cmt("cTop", null, "a3", "최상위", null);
+        var cReply = cmt("cReply", "cTop", "a2", "대댓글", null);
+        when(boardCommentRepository.findById("cTop")).thenReturn(Optional.of(cTop));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a3", "ACTIVE", null)));
+        when(boardCommentRepository.findByPostIdOrderByCreatedAtAsc("p1")).thenReturn(List.of(cTop, cReply));
+        var ctx = service.getTargetContext("r1", "admin1");
+        assertThat(ctx.getThread().getTopCommentId()).isEqualTo("cTop");
+        var ids = ctx.getThread().getComments().stream().map(AdminStage0Dto.BoardCommentView::getCommentId).toList();
+        assertThat(ids).containsExactlyInAnyOrder("cTop", "cReply");
+    }
+
+    @Test void targetContext_deletedComment_returnedWithFlag() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_COMMENT", "cD", "a2")));
+        var cD = cmt("cD", null, "a2", "삭제된댓글", java.time.LocalDateTime.now());
+        when(boardCommentRepository.findById("cD")).thenReturn(Optional.of(cD));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a3", "ACTIVE", null)));
+        when(boardCommentRepository.findByPostIdOrderByCreatedAtAsc("p1")).thenReturn(List.of(cD));
+        var v = service.getTargetContext("r1", "admin1").getThread().getComments().get(0);
+        assertThat(v.isDeleted()).isTrue();
+        assertThat(v.isTarget()).isTrue();
+    }
+
+    @Test void targetContext_commentMissing_unavailable() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_COMMENT", "gone", "a2")));
+        when(boardCommentRepository.findById("gone")).thenReturn(Optional.empty());
+        assertThat(service.getTargetContext("r1", "admin1").isAvailable()).isFalse();
+    }
+
+    @Test void targetContext_nonAdmin_rejected_403() {
+        when(adminAuthorizationService.isEnforced()).thenReturn(true);
+        when(adminAuthorizationService.isAdmin("intruder")).thenReturn(false);
+        assertThatThrownBy(() -> service.getTargetContext("r1", "intruder"))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
+    }
+
+    @Test void targetContext_nonBoardType_400() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("TRADE", "t1", "s1")));
+        assertThatThrownBy(() -> service.getTargetContext("r1", "admin1"))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
     }
 }

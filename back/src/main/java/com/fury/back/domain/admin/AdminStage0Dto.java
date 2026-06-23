@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 2026-05-29 admin Stage 0 응답 DTO 모음.
@@ -101,6 +102,52 @@ public class AdminStage0Dto {
         private String memo;
         private String previousState;
         private String newState;
+        private LocalDateTime createdAt;
+    }
+
+    // ── 게시판 신고 원문·문맥 (GET /reports/{id}/target-context) — 파괴적 조치 전 관리자 확인용 ──
+    @Getter
+    @Builder
+    public static class TargetContext {
+        private String reportId;
+        private String targetType;          // BOARD_POST / BOARD_COMMENT
+        private String targetId;
+        private boolean available;          // false = 물리 삭제/미존재(원문 조회 불가)
+        private BoardPostView post;         // BOARD_POST=신고 게시글 / BOARD_COMMENT=원문 게시글
+        private BoardCommentThread thread;  // BOARD_COMMENT 만(최상위 thread + 대상 강조)
+    }
+
+    @Getter
+    @Builder
+    public static class BoardPostView {
+        private String postId;
+        private String type;
+        private String title;
+        private String content;
+        private String authorLabel;     // 표시명(공식글=운영팀, 그 외=닉네임)
+        private String status;          // ACTIVE / HIDDEN
+        private boolean hidden;         // status==HIDDEN
+        private boolean deleted;        // deletedAt != null
+        private LocalDateTime createdAt;
+    }
+
+    @Getter
+    @Builder
+    public static class BoardCommentThread {
+        private String targetCommentId; // 신고된 댓글(강조용)
+        private String topCommentId;
+        private List<BoardCommentView> comments; // 최상위 + 그 아래 대댓글만(unrelated 제외)
+    }
+
+    @Getter
+    @Builder
+    public static class BoardCommentView {
+        private String commentId;
+        private String parentCommentId;
+        private String authorLabel;
+        private String content;
+        private boolean deleted;
+        private boolean target;         // 신고된 댓글
         private LocalDateTime createdAt;
     }
 }

@@ -1,11 +1,13 @@
 package com.fury.back.domain.admin;
 
 import com.fury.back.auth.AdminAllowlistFilter;
+import com.fury.back.auth.AdminAuthorizationService;
 import com.fury.back.domain.board.BoardAdminService;
 import com.fury.back.domain.board.BoardComment;
 import com.fury.back.domain.board.BoardCommentRepository;
 import com.fury.back.domain.board.BoardPost;
 import com.fury.back.domain.board.BoardPostRepository;
+import com.fury.back.domain.board.BoardTaxonomy;
 import com.fury.back.domain.board.dto.PostModerationRequest;
 import com.fury.back.domain.chat.ChatService;
 import com.fury.back.domain.report.Report;
@@ -24,8 +26,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -49,6 +53,7 @@ public class AdminStage0Service {
     private final BoardPostRepository boardPostRepository;
     private final BoardCommentRepository boardCommentRepository;
     private final BoardAdminService boardAdminService;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     /** 활성 경고 누적이 이 수치 도달 시 자동 정지. (신고 처리 정책) */
     @org.springframework.beans.factory.annotation.Value("${app.moderation.warning-threshold:3}")
@@ -208,6 +213,99 @@ public class AdminStage0Service {
         String t = s.replaceAll("\\s+", " ").trim();
         if (t.isEmpty()) return null;
         return t.length() <= max ? t : t.substring(0, max) + "…";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // GET /api/admin/reports/{id}/target-context — 게시판 신고 원문·문맥(파괴적 조치 전 확인용)
+    //   ★일반 BoardService 의 ACTIVE·미삭제 필터 재사용 안 함 — 숨김/삭제 콘텐츠도 관리자에게 반환.
+    // ─────────────────────────────────────────────────────────────────────
+    public AdminStage0Dto.TargetContext getTargetContext(String reportId, String adminUserId) {
+        requireAdminContext(adminUserId); // 필터(웹) + 서비스 이중 검증
+        Report report = reportRepository.findById(reportId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "REPORT_NOT_FOUND"));
+        return switch (report.getTargetType()) {
+            case "BOARD_POST" -> postContext(report);
+            case "BOARD_COMMENT" -> commentContext(report);
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "게시판 신고만 원문 조회를 지원합니다.");
+        };
+    }
+
+    private void requireAdminContext(String userId) {
+        if (adminAuthorizationService.isEnforced() && !adminAuthorizationService.isAdmin(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "관리자 권한이 필요합니다.");
+        }
+    }
+
+    private AdminStage0Dto.TargetContext postContext(Report report) {
+        BoardPost p = boardPostRepository.findById(report.getTargetId()).orElse(null);
+        if (p == null) return unavailable(report); // 물리 삭제/미존재
+        return AdminStage0Dto.TargetContext.builder()
+                .reportId(report.getReportId()).targetType("BOARD_POST").targetId(report.getTargetId())
+                .available(true)
+                .post(postView(p, nicknameMap(Set.of(p.getAuthorId()))))
+                .build();
+    }
+
+    private AdminStage0Dto.TargetContext commentContext(Report report) {
+        BoardComment c = boardCommentRepository.findById(report.getTargetId()).orElse(null);
+        if (c == null) return unavailable(report);
+        BoardPost p = boardPostRepository.findById(c.getPostId()).orElse(null);
+        // 대댓글 신고면 부모(최상위)를, 최상위 댓글 신고면 자기 자신을 thread 루트로.
+        String topId = c.getParentCommentId() != null ? c.getParentCommentId() : c.getCommentId();
+        // 1 query: 게시글 전체 댓글 조회 → 해당 최상위 thread(최상위 + 그 대댓글)만 응답(unrelated 제외).
+        List<BoardComment> thread = boardCommentRepository.findByPostIdOrderByCreatedAtAsc(c.getPostId()).stream()
+                .filter(x -> x.getCommentId().equals(topId) || topId.equals(x.getParentCommentId()))
+                .toList();
+        Set<String> authorIds = new HashSet<>();
+        thread.forEach(x -> authorIds.add(x.getAuthorId()));
+        if (p != null) authorIds.add(p.getAuthorId());
+        Map<String, String> nicks = nicknameMap(authorIds);
+        List<AdminStage0Dto.BoardCommentView> views = thread.stream()
+                .map(x -> commentView(x, nicks, report.getTargetId())).toList();
+        return AdminStage0Dto.TargetContext.builder()
+                .reportId(report.getReportId()).targetType("BOARD_COMMENT").targetId(report.getTargetId())
+                .available(true)
+                .post(p == null ? null : postView(p, nicks)) // 게시글이 물리삭제돼도 댓글 thread 는 노출
+                .thread(AdminStage0Dto.BoardCommentThread.builder()
+                        .targetCommentId(report.getTargetId()).topCommentId(topId).comments(views).build())
+                .build();
+    }
+
+    private AdminStage0Dto.TargetContext unavailable(Report report) {
+        return AdminStage0Dto.TargetContext.builder()
+                .reportId(report.getReportId()).targetType(report.getTargetType())
+                .targetId(report.getTargetId()).available(false).build();
+    }
+
+    private AdminStage0Dto.BoardPostView postView(BoardPost p, Map<String, String> nicks) {
+        return AdminStage0Dto.BoardPostView.builder()
+                .postId(p.getPostId()).type(p.getType()).title(p.getTitle()).content(p.getContent())
+                .authorLabel(authorLabel(p.getType(), p.getAuthorId(), nicks))
+                .status(p.getStatus()).hidden("HIDDEN".equals(p.getStatus())).deleted(p.getDeletedAt() != null)
+                .createdAt(p.getCreatedAt())
+                .build();
+    }
+
+    private AdminStage0Dto.BoardCommentView commentView(BoardComment c, Map<String, String> nicks, String targetId) {
+        return AdminStage0Dto.BoardCommentView.builder()
+                .commentId(c.getCommentId()).parentCommentId(c.getParentCommentId())
+                .authorLabel(nicks.getOrDefault(c.getAuthorId(), "(알 수 없음)"))
+                .content(c.getContent()).deleted(c.getDeletedAt() != null)
+                .target(c.getCommentId().equals(targetId)) // 신고된 댓글 강조
+                .createdAt(c.getCreatedAt())
+                .build();
+    }
+
+    private String authorLabel(String type, String authorId, Map<String, String> nicks) {
+        if (BoardTaxonomy.isAdminType(type)) return "운영팀"; // 공식글 표시명
+        return nicks.getOrDefault(authorId, "(알 수 없음)");
+    }
+
+    private Map<String, String> nicknameMap(Set<String> userIds) {
+        if (userIds.isEmpty()) return Map.of();
+        Map<String, String> m = new HashMap<>();
+        userRepository.findAllById(userIds).forEach(u -> m.put(u.getUserId(), u.getNickname())); // batch(N+1 차단)
+        return m;
     }
 
     // ─────────────────────────────────────────────────────────────────────

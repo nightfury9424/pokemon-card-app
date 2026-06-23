@@ -64,6 +64,15 @@ public class AdminStage0Controller {
         return ApiResponse.ok(service.updateReportStatus(reportId, userId, body));
     }
 
+    // 게시판 신고 원문·문맥 — 파괴적 조치(삭제/숨김/제재) 전 관리자가 전문을 확인하기 위한 조회.
+    // 숨김·삭제된 콘텐츠도 반환(관리자 전용). 물리 삭제/미존재 = available:false.
+    @GetMapping("/reports/{reportId}/target-context")
+    public ApiResponse<AdminStage0Dto.TargetContext> targetContext(
+            @PathVariable String reportId,
+            @AuthenticationPrincipal String userId) {
+        return ApiResponse.ok(service.getTargetContext(reportId, userId));
+    }
+
     // ─────────────────────────────────────────────────────────────────────
     // GET /api/admin/admin-actions — 운영(감사) 로그 뷰어 (2026-06-07 관측성 Phase 1)
     // ─────────────────────────────────────────────────────────────────────
