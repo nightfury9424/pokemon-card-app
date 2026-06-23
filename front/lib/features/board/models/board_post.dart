@@ -92,6 +92,20 @@ class BoardComment {
     this.isAccepted = false,
     this.replies = const [],
   });
+
+  /// 백엔드 BoardCommentDto 직렬화 계약. 삭제댓글은 서버가 placeholder 노드로 채워 보냄(non-null 보장).
+  factory BoardComment.fromJson(Map<String, dynamic> j) => BoardComment(
+        id: j['id'] as String,
+        author: (j['author'] as String?) ?? '',
+        body: (j['body'] as String?) ?? '',
+        createdAt:
+            DateTime.tryParse((j['createdAt'] as String?) ?? '')?.toLocal() ?? DateTime.now(),
+        isAdmin: (j['isAdmin'] as bool?) ?? false,
+        isAccepted: (j['isAccepted'] as bool?) ?? false,
+        replies: ((j['replies'] as List?) ?? const [])
+            .map((e) => BoardComment.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
 }
 
 class BoardPost {
@@ -107,6 +121,9 @@ class BoardPost {
   final bool isAnswered; // Q&A: 답변 달림
   final List<BoardComment> comments;
 
+  /// 목록 응답(BoardPostSummaryDto)의 서버 라이브 집계값. 상세/목업은 null → comments 에서 계산.
+  final int? listCommentCount;
+
   const BoardPost({
     required this.id,
     required this.type,
@@ -119,11 +136,33 @@ class BoardPost {
     this.isPinned = false,
     this.isAnswered = false,
     this.comments = const [],
+    this.listCommentCount,
   });
+
+  /// 백엔드 BoardPostSummaryDto(목록)/BoardPostDetailDto(상세) 공통 파서.
+  /// 목록엔 comments 없음 → listCommentCount 로 댓글 수 표시. 상세엔 comments 있음.
+  factory BoardPost.fromJson(Map<String, dynamic> j) => BoardPost(
+        id: j['id'] as String,
+        type: BoardType.values.byName(j['type'] as String),
+        title: (j['title'] as String?) ?? '',
+        body: (j['body'] as String?) ?? '',
+        author: (j['author'] as String?) ?? '',
+        createdAt:
+            DateTime.tryParse((j['createdAt'] as String?) ?? '')?.toLocal() ?? DateTime.now(),
+        viewCount: (j['viewCount'] as num?)?.toInt() ?? 0,
+        likeCount: (j['likeCount'] as num?)?.toInt() ?? 0,
+        isPinned: (j['isPinned'] as bool?) ?? false,
+        isAnswered: (j['isAnswered'] as bool?) ?? false,
+        comments: ((j['comments'] as List?) ?? const [])
+            .map((e) => BoardComment.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+        listCommentCount: (j['commentCount'] as num?)?.toInt(),
+      );
 
   bool get isAdmin => type.isAdmin;
 
   int get commentCount {
+    if (listCommentCount != null) return listCommentCount!;
     var n = comments.length;
     for (final c in comments) {
       n += c.replies.length;
