@@ -78,7 +78,20 @@ public class BoardService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다.");
         }
 
-        List<BoardComment> all = commentRepository.findByPostIdOrderByCreatedAtAsc(postId);
+        // 차단 author 댓글·대댓글 → 뷰어에게 제외(글 필터와 동일 단방향 blocker→blocked).
+        final Set<String> blockedAuthors = (viewerId == null)
+                ? Collections.emptySet()
+                : blockRepository.findAllByBlockerId(viewerId).stream()
+                        .map(b -> b.getBlockedId()).collect(Collectors.toSet());
+        List<BoardComment> raw = commentRepository.findByPostIdOrderByCreatedAtAsc(postId);
+        // 차단 author 댓글 제거 + 차단으로 사라진 최상위에 달렸던 답글(부모 상실)도 제거 → 노출=집계 일치.
+        Set<String> keptTopIds = raw.stream()
+                .filter(c -> c.isTopLevel() && !blockedAuthors.contains(c.getAuthorId()))
+                .map(BoardComment::getCommentId).collect(Collectors.toSet());
+        List<BoardComment> all = raw.stream()
+                .filter(c -> !blockedAuthors.contains(c.getAuthorId()))
+                .filter(c -> c.isTopLevel() || keptTopIds.contains(c.getParentCommentId()))
+                .collect(Collectors.toList());
         Set<String> authorIds = new HashSet<>();
         authorIds.add(post.getAuthorId());
         all.stream().filter(c -> !c.isDeleted()).forEach(c -> authorIds.add(c.getAuthorId()));

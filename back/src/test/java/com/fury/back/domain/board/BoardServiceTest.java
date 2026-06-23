@@ -1,5 +1,6 @@
 package com.fury.back.domain.board;
 
+import com.fury.back.domain.block.Block;
 import com.fury.back.domain.block.BlockRepository;
 import com.fury.back.domain.board.dto.BoardCommentDto;
 import com.fury.back.domain.board.dto.BoardPostDetailDto;
@@ -143,5 +144,28 @@ class BoardServiceTest {
         BoardCommentDto c4 = d.comments().get(1);
         assertThat(c4.author()).isEqualTo("넷이");
         assertThat(c4.replies()).isEmpty(); // c5 삭제 제외
+    }
+
+    // ── 개인 차단: 뷰어가 차단한 author 의 댓글·대댓글 상세 응답에서 서버 필터 ──
+    @Test void detail_filters_blocked_author_comments_for_viewer() {
+        when(postRepo.findById("p")).thenReturn(Optional.of(active("p", "free", "community", "u1")));
+        when(blockRepo.existsByBlockerIdAndBlockedId("viewer", "u1")).thenReturn(false); // 글 author 는 미차단
+        Block bk = mock(Block.class);
+        when(bk.getBlockedId()).thenReturn("bx"); // 뷰어가 bx 차단
+        when(blockRepo.findAllByBlockerId("viewer")).thenReturn(List.of(bk));
+        when(commentRepo.findByPostIdOrderByCreatedAtAsc("p")).thenReturn(List.of(
+                c("c1", null, "u2", false, false), // 보임
+                c("c2", null, "bx", false, false), // 차단 author 최상위 → 제외
+                c("c3", "c2", "u3", false, false), // 차단 최상위의 답글 → 부모 사라져 제외
+                c("c4", "c1", "bx", false, false)  // 비차단 최상위(c1)에 달린 차단 author 답글 → 제외
+        ));
+        User u2 = mock(User.class); when(u2.getUserId()).thenReturn("u2"); when(u2.getNickname()).thenReturn("둘");
+        when(userRepo.findAllById(anySet())).thenReturn(List.of(u2));
+
+        BoardPostDetailDto d = service.getDetail("p", "viewer");
+
+        assertThat(d.comments()).extracting(BoardCommentDto::id).containsExactly("c1");
+        assertThat(d.comments().get(0).replies()).isEmpty(); // c4(bx 답글) 제외
+        assertThat(d.commentCount()).isEqualTo(1); // c1 만(c2/c3/c4 차단 제외)
     }
 }

@@ -78,9 +78,14 @@ public class BoardWriteService {
     public String createComment(String userId, String postId, CreateCommentRequest req) {
         requireAuth(userId);
         // 대상 게시글은 ACTIVE & 미삭제여야(아니면 404 존재 비노출)
-        postRepository.findById(postId)
+        BoardPost post = postRepository.findById(postId)
                 .filter(p -> p.getDeletedAt() == null && "ACTIVE".equals(p.getStatus()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
+        // 공지(official: notice/event/patch) 게시글은 댓글·대댓글 작성 금지 — 모든 사용자(관리자 포함).
+        // 답글도 같은 postId 로 들어오므로 이 가드 하나가 댓글·대댓글 모두 차단.
+        if (BoardTaxonomy.isAdminType(post.getType())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "공지 게시글에는 댓글을 작성할 수 없습니다.");
+        }
 
         String content = clean(req.content(), COMMENT_MAX, "댓글");
         rejectBanned(content);

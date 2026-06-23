@@ -107,6 +107,27 @@ class BoardWriteServiceTest {
         verify(commentRepo).save(any());
     }
 
+    // ── 공지(official) 글 댓글·대댓글 작성 거부(모든 사용자) ──
+    @Test void createComment_onOfficialPost_403() {
+        when(postRepo.findById("p")).thenReturn(Optional.of(post("p", "notice", "official", "admin", "ACTIVE", null)));
+        assertThatThrownBy(() -> service.createComment("u2", "p", new CreateCommentRequest("댓글", null)))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
+        verify(commentRepo, never()).save(any());
+    }
+
+    @Test void createReply_onOfficialPost_403() {
+        when(postRepo.findById("p")).thenReturn(Optional.of(post("p", "event", "official", "admin", "ACTIVE", null)));
+        assertThatThrownBy(() -> service.createComment("u2", "p", new CreateCommentRequest("답글", "parentX")))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
+        verify(commentRepo, never()).save(any());
+    }
+
+    @Test void createComment_onPatchOfficialPost_403() {
+        when(postRepo.findById("p")).thenReturn(Optional.of(post("p", "patch", "official", "admin", "ACTIVE", null)));
+        assertThatThrownBy(() -> service.createComment("u2", "p", new CreateCommentRequest("댓글", null)))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
+    }
+
     @Test void createComment_onHiddenPost_404() {
         when(postRepo.findById("p")).thenReturn(Optional.of(post("p", "free", "community", "u1", "HIDDEN", null)));
         assertThatThrownBy(() -> service.createComment("u2", "p", new CreateCommentRequest("c", null)))
