@@ -5,6 +5,10 @@ import com.fury.back.common.IdGenerator;
 import com.fury.back.common.ReturnData;
 import com.fury.back.domain.block.Block;
 import com.fury.back.domain.block.BlockRepository;
+import com.fury.back.domain.board.BoardComment;
+import com.fury.back.domain.board.BoardCommentRepository;
+import com.fury.back.domain.board.BoardPost;
+import com.fury.back.domain.board.BoardPostRepository;
 import com.fury.back.domain.chat.ChatRoom;
 import com.fury.back.domain.chat.ChatRoomRepository;
 import com.fury.back.domain.trade.TradePost;
@@ -25,7 +29,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class ReportController {
 
-    private static final Set<String> VALID_TYPES = Set.of("TRADE", "USER", "BUY_ORDER", "CHAT");
+    private static final Set<String> VALID_TYPES =
+            Set.of("TRADE", "USER", "BUY_ORDER", "CHAT", "BOARD_POST", "BOARD_COMMENT");
     private static final Set<String> VALID_REASONS = Set.of(
             "FRAUD", "FAKE", "ABUSIVE_PRICE", "INSULT", "SPAM", "OTHER");
 
@@ -34,6 +39,8 @@ public class ReportController {
     private final BlockRepository blockRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final TradePostRepository tradePostRepository;
+    private final BoardPostRepository boardPostRepository;
+    private final BoardCommentRepository boardCommentRepository;
 
     @Operation(summary = "신고 등록", description = "거래/사용자/매수호가/채팅 신고")
     @PostMapping
@@ -68,6 +75,12 @@ public class ReportController {
 
         // 신고 대상 사용자 해석 (1회 제한 + 자동 차단 공용).
         String targetUserId = resolveBlockTarget(targetType, targetId, reporterId);
+
+        // 게시판 신고는 대상(글/댓글)이 존재·미삭제여야 함 — 작성자 해석 실패(미존재/삭제) 시 거부.
+        if (("BOARD_POST".equals(targetType) || "BOARD_COMMENT".equals(targetType))
+                && targetUserId == null) {
+            return ReturnData.badRequest("신고할 수 없는 게시글이거나 이미 삭제되었어요.");
+        }
 
         // 1회 제한 — 같은 사용자를 이미 신고했으면 차단 (차단 풀고 재신고 방지).
         if (targetUserId != null && !targetUserId.equals(reporterId)
@@ -122,6 +135,13 @@ public class ReportController {
                     .map(r -> reporterId.equals(r.getSellerUserId())
                             ? r.getBuyerUserId() : r.getSellerUserId())
                     .orElse(null);
+            // 게시판: 글/댓글 작성자 = 제재·dedup·자동차단 대상. 미삭제만(삭제글 신고 불가).
+            case "BOARD_POST" -> boardPostRepository.findById(targetId)
+                    .filter(p -> p.getDeletedAt() == null)
+                    .map(BoardPost::getAuthorId).orElse(null);
+            case "BOARD_COMMENT" -> boardCommentRepository.findById(targetId)
+                    .filter(c -> c.getDeletedAt() == null)
+                    .map(BoardComment::getAuthorId).orElse(null);
             default -> null; // BUY_ORDER 등
         };
     }

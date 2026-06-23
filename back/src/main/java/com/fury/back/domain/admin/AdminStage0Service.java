@@ -1,6 +1,12 @@
 package com.fury.back.domain.admin;
 
 import com.fury.back.auth.AdminAllowlistFilter;
+import com.fury.back.domain.board.BoardAdminService;
+import com.fury.back.domain.board.BoardComment;
+import com.fury.back.domain.board.BoardCommentRepository;
+import com.fury.back.domain.board.BoardPost;
+import com.fury.back.domain.board.BoardPostRepository;
+import com.fury.back.domain.board.dto.PostModerationRequest;
 import com.fury.back.domain.chat.ChatService;
 import com.fury.back.domain.report.Report;
 import com.fury.back.domain.report.ReportRepository;
@@ -40,6 +46,9 @@ public class AdminStage0Service {
     private final UserWarningRepository userWarningRepository;
     private final com.fury.back.domain.inquiry.InquiryRepository inquiryRepository;
     private final AdminActionRepository adminActionRepository;
+    private final BoardPostRepository boardPostRepository;
+    private final BoardCommentRepository boardCommentRepository;
+    private final BoardAdminService boardAdminService;
 
     /** 활성 경고 누적이 이 수치 도달 시 자동 정지. (신고 처리 정책) */
     @org.springframework.beans.factory.annotation.Value("${app.moderation.warning-threshold:3}")
@@ -135,6 +144,20 @@ public class AdminStage0Service {
                 tradePostRepository.findAllById(tradeTargetIds).stream()
                         .collect(Collectors.toMap(TradePost::getTradeId, t -> t, (a, b) -> a));
 
+        // target BOARD_POST / BOARD_COMMENT batch (N+1 차단).
+        List<String> postTargetIds = reports.stream()
+                .filter(r -> "BOARD_POST".equals(r.getTargetType()))
+                .map(Report::getTargetId).distinct().toList();
+        Map<String, BoardPost> postTargetMap = postTargetIds.isEmpty() ? Map.of() :
+                boardPostRepository.findAllById(postTargetIds).stream()
+                        .collect(Collectors.toMap(BoardPost::getPostId, p -> p, (a, b) -> a));
+        List<String> commentTargetIds = reports.stream()
+                .filter(r -> "BOARD_COMMENT".equals(r.getTargetType()))
+                .map(Report::getTargetId).distinct().toList();
+        Map<String, BoardComment> commentTargetMap = commentTargetIds.isEmpty() ? Map.of() :
+                boardCommentRepository.findAllById(commentTargetIds).stream()
+                        .collect(Collectors.toMap(BoardComment::getCommentId, c -> c, (a, b) -> a));
+
         return reports.map(r -> {
             User reporter = reporterMap.get(r.getReporterId());
             String summary = switch (r.getTargetType()) {
@@ -145,6 +168,14 @@ public class AdminStage0Service {
                 case "TRADE" -> {
                     TradePost t = tradeTargetMap.get(r.getTargetId());
                     yield t != null ? t.getTitle() : null;
+                }
+                case "BOARD_POST" -> {
+                    BoardPost p = postTargetMap.get(r.getTargetId());
+                    yield p == null ? null : truncate(p.getTitle() + " — " + p.getContent(), 80);
+                }
+                case "BOARD_COMMENT" -> {
+                    BoardComment c = commentTargetMap.get(r.getTargetId());
+                    yield c == null ? null : truncate(c.getContent(), 80);
                 }
                 default -> null; // BUY_ORDER / CHAT — Stage 0 에서는 summary 생략
             };
@@ -169,6 +200,14 @@ public class AdminStage0Service {
 
     public long countByStatus(String status) {
         return reportRepository.countByStatus(status);
+    }
+
+    /** 관리자 목록 요약용 안전 축약 — null/공백/길이 방어(목록 전체 실패 방지). */
+    private static String truncate(String s, int max) {
+        if (s == null) return null;
+        String t = s.replaceAll("\\s+", " ").trim();
+        if (t.isEmpty()) return null;
+        return t.length() <= max ? t : t.substring(0, max) + "…";
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -196,6 +235,13 @@ public class AdminStage0Service {
             warnUser(report.getTargetUserId(), adminUserId, "신고 처리: " + report.getReason(), reportId);
         } else if ("DELETE_TRADE".equals(act) && "TRADE".equals(report.getTargetType())) {
             adminDeleteTradePost(report.getTargetId(), adminUserId, "신고 처리: " + report.getReason());
+        } else if ("HIDE_BOARD_POST".equals(act) && "BOARD_POST".equals(report.getTargetType())) {
+            // 기존 BoardAdminService 재사용(중복 구현 X) — 같은 트랜잭션서 모더레이션 + 자체 감사로그.
+            boardAdminService.moderatePost(adminUserId, report.getTargetId(), new PostModerationRequest("HIDE"));
+        } else if ("DELETE_BOARD_POST".equals(act) && "BOARD_POST".equals(report.getTargetType())) {
+            boardAdminService.deletePost(adminUserId, report.getTargetId());
+        } else if ("DELETE_BOARD_COMMENT".equals(act) && "BOARD_COMMENT".equals(report.getTargetType())) {
+            boardAdminService.deleteComment(adminUserId, report.getTargetId());
         }
 
         // re-fetch row for response (admin list 와 동일 형태).
