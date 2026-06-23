@@ -1231,64 +1231,64 @@ class MarketRowPriceMeta extends StatelessWidget {
         return null;
       }
 
-      // softWrap=true: 비제약(인플렉서블) 위치에선 한 줄, Flexible로 폭 제약 시에만 wrap(극단 scale 대비).
-      final priceText = Text(priceStr, softWrap: true, style: priceStyle);
+      // 가격·변동값은 '원자'(한 줄·미분리). 극단 글자배율서만 per-element scaleDown(전체 행 아님).
+      final priceAtom = _atom(priceStr, priceStyle);
 
       // 변동값 없음 → 가격(+여유 시 라벨) 한 줄.
       if (changeStr == null) {
-        return _line(priceText, pickLabel(maxW - priceW - _gap), labelStyle);
+        return _line(priceAtom, pickLabel(maxW - priceW - _gap), labelStyle);
       }
 
       final changeW = _measure(changeStr, changeStyle, scaler);
 
-      // ① 가격+변동값이 한 줄에 들어가면 한 줄(+여유 시 라벨). 라벨은 Flexible(loose)라
-      //    측정 오차 시 라벨만 clip(숫자는 절대 clip 안 함). 가격·변동값은 끝까지.
+      // ① 가격+변동값이 한 줄에 들어가면 한 줄(+여유 시 라벨, Flexible loose=라벨만 clip).
       if (priceW + _gap + changeW <= maxW - 6) {
         final label = pickLabel(maxW - priceW - changeW - _gap * 2);
         return Row(
           mainAxisSize: MainAxisSize.max,
           children: [
-            priceText,
+            priceAtom,
             if (label != null) ...[
               const SizedBox(width: _gap),
               Flexible(fit: FlexFit.loose, child: _labelText(label, labelStyle)),
             ],
             const SizedBox(width: _gap),
-            Text(changeStr,
-                maxLines: 1, softWrap: false, overflow: TextOverflow.visible, style: changeStyle),
+            _atom(changeStr, changeStyle),
           ],
         );
       }
 
-      // ② 폭 부족 → 2줄: 1줄=가격(+여유 시 라벨), 2줄=변동액·퍼센트(★한 묶음).
-      // 퍼센트만 단독 줄바꿈 금지(changeStr 통째). 글자 축소/FittedBox 없음, 행 높이 증가 허용.
-      // 극단 폭에서만 changeStr 자체 softWrap(정보 보존, ellipsis 없음).
+      // ② 폭 부족 → 2줄: 1줄=가격(+여유 시 라벨), 2줄=변동액·퍼센트(★한 묶음·한 줄 유지).
+      // 변동값은 maxLines:1·softWrap:false(원자) → 퍼센트 단독 줄바꿈 불가. 극단 폭만 per-element scaleDown.
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _line(priceText, pickLabel(maxW - priceW - _gap), labelStyle),
+          _line(priceAtom, pickLabel(maxW - priceW - _gap), labelStyle),
           const SizedBox(height: 2),
-          Text(changeStr, style: changeStyle, softWrap: true),
+          _atom(changeStr, changeStyle),
         ],
       );
     });
   }
 
-  // 가격(+여유 시 라벨) 한 줄. overflow 0 보장:
-  //  - 라벨 있음: 라벨이 들어갈 여유가 있었던 경우(pickLabel) → 가격은 한 줄로 맞음. 라벨은 Flexible(loose)로 clip.
-  //  - 라벨 없음: 극단 scale에서 가격(숫자) 자체가 폭 초과할 수 있음 → Flexible로 감싸 wrap 허용(잘림 X, 높이↑).
-  Widget _line(Widget priceText, String? label, TextStyle labelStyle) {
-    if (label == null) {
-      return Row(
-        mainAxisSize: MainAxisSize.max,
-        children: [Flexible(fit: FlexFit.loose, child: priceText)],
+  // 숫자 원자: 한 줄(maxLines:1·softWrap:false) 유지, 분리/줄바꿈 금지. 부모가 폭을 제약하는 위치
+  // (2줄의 각 줄/라벨 없는 가격)에선 극단 글자배율서만 per-element scaleDown(전체 행 아님)으로
+  // 한 줄·전체 숫자 보존(ellipsis 없음).
+  Widget _atom(String s, TextStyle style) => FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(s, maxLines: 1, softWrap: false, style: style),
       );
-    }
+
+  // 가격(+여유 시 라벨) 한 줄. 라벨==null → 가격 원자 단독(부모 폭 제약 시 극단만 scaleDown).
+  // 라벨!=null → 라벨 여유가 있었던 것이므로 가격 한 줄로 맞음, 라벨은 Flexible(loose)로 clip.
+  Widget _line(Widget priceAtom, String? label, TextStyle labelStyle) {
+    if (label == null) return priceAtom;
     return Row(
       mainAxisSize: MainAxisSize.max,
       children: [
-        priceText,
+        priceAtom,
         const SizedBox(width: _gap),
         Flexible(fit: FlexFit.loose, child: _labelText(label, labelStyle)),
       ],

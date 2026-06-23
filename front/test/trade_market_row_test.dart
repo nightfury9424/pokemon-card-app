@@ -70,6 +70,11 @@ void main() {
         expect(find.textContaining('185,600'), findsOneWidget);
         // ★변동액·퍼센트가 한 Text(분리/단독 줄바꿈 없음).
         expect(changeFinder, findsOneWidget, reason: '$name x$scale 변동값 한 묶음');
+        // ★변동값이 실제로 "한 줄" 렌더(2줄로 wrap되면 높이가 ~2배 → 검출). 가격도 한 줄.
+        final changeH = tester.getSize(changeFinder).height;
+        final priceH = tester.getSize(find.textContaining('185,600')).height;
+        expect(changeH, lessThanOrEqualTo(priceH * 1.5),
+            reason: '$name x$scale 변동값 한 줄(퍼센트 단독 줄바꿈/3줄 금지)');
       });
     }
   }
