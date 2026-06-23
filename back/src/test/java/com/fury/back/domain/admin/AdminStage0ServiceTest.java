@@ -318,6 +318,24 @@ class AdminStage0ServiceTest {
         assertThat(ctx.isChangedSinceReport()).isFalse(); // 비교 불가 → false
     }
 
+    @Test void targetContext_commentParentPostTitleEdited_changed() {
+        // 댓글 본문/thread 는 동일하지만 부모 게시글 제목이 신고 후 수정됨 → changedSinceReport=true
+        var snap = new ReportedSnapshot(1, "BOARD_COMMENT", null, null, null, null, null,
+                "원래 게시글 제목", "cR", "cTop",
+                List.of(new ReportedSnapshot.SnapshotComment("cTop", null, "A", "최상위", null),
+                        new ReportedSnapshot.SnapshotComment("cR", "cTop", "B", "대댓글", null)));
+        var rp = Report.builder().reportId("r1").reporterId("reporter").targetType("BOARD_COMMENT").targetId("cR")
+                .status("PENDING").createdAt(java.time.LocalDateTime.now()).reportedSnapshot(snap).build();
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(rp));
+        when(boardCommentRepository.findById("cR")).thenReturn(Optional.of(cmt("cR", "cTop", "B", "대댓글", null)));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(
+                BoardPost.builder().postId("p1").type("free").title("수정된 게시글 제목").content("c").authorId("a")
+                        .status("ACTIVE").createdAt(java.time.LocalDateTime.now()).build())); // 제목 상이
+        when(boardCommentRepository.findByPostIdOrderByCreatedAtAsc("p1"))
+                .thenReturn(List.of(cmt("cTop", null, "A", "최상위", null), cmt("cR", "cTop", "B", "대댓글", null)));
+        assertThat(service.getTargetContext("r1", "admin1").isChangedSinceReport()).isTrue(); // 부모 글 제목 변경 감지
+    }
+
     // ── null authorId 안전성(500 방지): 공식글/일반글/댓글 작성자 id null ──
     @Test void targetContext_officialPost_nullAuthor_label운영팀() {
         when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_POST", "p1", null)));

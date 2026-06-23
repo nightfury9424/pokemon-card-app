@@ -277,7 +277,7 @@ public class AdminStage0Service {
                 .thread(AdminStage0Dto.BoardCommentThread.builder()
                         .targetCommentId(report.getTargetId()).topCommentId(topId).comments(views).build())
                 .snapshotAvailable(snap != null)
-                .changedSinceReport(commentThreadChanged(snap, thread))
+                .changedSinceReport(commentChanged(snap, thread, p))
                 .reportedSnapshot(snap)
                 .build();
     }
@@ -296,6 +296,15 @@ public class AdminStage0Service {
         if (snap == null || current == null) return false;
         return !java.util.Objects.equals(snap.title(), current.getTitle())
                 || !java.util.Objects.equals(snap.content(), current.getContent());
+    }
+
+    // 댓글 신고 변화 감지 = 부모 게시글 제목(snapshot 보존분) + thread 구성/본문.
+    private static boolean commentChanged(ReportedSnapshot snap, List<BoardComment> current, BoardPost currentPost) {
+        if (snap == null) return false;
+        if (currentPost != null && !java.util.Objects.equals(snap.postTitle(), currentPost.getTitle())) {
+            return true; // 부모 게시글 제목 신고 후 수정
+        }
+        return commentThreadChanged(snap, current);
     }
 
     private static boolean commentThreadChanged(ReportedSnapshot snap, List<BoardComment> current) {

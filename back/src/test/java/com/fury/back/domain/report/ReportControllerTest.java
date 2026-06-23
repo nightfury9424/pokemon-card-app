@@ -110,6 +110,7 @@ class ReportControllerTest {
     @Test
     void boardPost_missing_rejected_noSave() {
         when(boardPostRepository.findById("gone")).thenReturn(Optional.empty());
+        when(reportSnapshotService.build("BOARD_POST", "gone")).thenReturn(null); // 미존재 → 거부
         controller.create(req("reporter"), body("BOARD_POST", "gone", "INSULT"));
         verify(reportRepository, never()).save(any());
     }
@@ -117,6 +118,7 @@ class ReportControllerTest {
     @Test
     void boardPost_deleted_rejected_noSave() {
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1", LocalDateTime.now())));
+        when(reportSnapshotService.build("BOARD_POST", "p1")).thenReturn(null); // 삭제 → snapshot 불가 → 거부
         controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
         verify(reportRepository, never()).save(any());
     }
@@ -124,8 +126,27 @@ class ReportControllerTest {
     @Test
     void boardComment_missing_rejected_noSave() {
         when(boardCommentRepository.findById("gone")).thenReturn(Optional.empty());
+        when(reportSnapshotService.build("BOARD_COMMENT", "gone")).thenReturn(null);
         controller.create(req("reporter"), body("BOARD_COMMENT", "gone", "SPAM"));
         verify(reportRepository, never()).save(any());
+    }
+
+    @Test
+    void boardPost_nullAuthor_reportable_savedWithSnapshot() {
+        // ★author_id 는 실DB NOT NULL이나, null 이어도 콘텐츠 존재하면 신고 가능(작성자 해석과 분리). 400 아님.
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", null, null)));
+        when(reportSnapshotService.build("BOARD_POST", "p1")).thenReturn(snap());
+        when(reportRepository.countByReporterIdAndTargetTypeAndTargetIdAndStatus("reporter", "BOARD_POST", "p1", "PENDING"))
+                .thenReturn(0L);
+        when(reportRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
+
+        ArgumentCaptor<Report> cap = ArgumentCaptor.forClass(Report.class);
+        verify(reportRepository).save(cap.capture()); // 저장됨
+        assertThat(cap.getValue().getTargetUserId()).isNull();        // dedup/자동차단만 생략
+        assertThat(cap.getValue().getReportedSnapshot()).isNotNull(); // 증거 보존
+        verify(blockRepository, never()).save(any());                 // author null → 자동차단 없음
     }
 
     @Test

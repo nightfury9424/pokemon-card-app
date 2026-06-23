@@ -39,8 +39,8 @@ public class ReportSnapshotService {
     }
 
     private ReportedSnapshot postSnapshot(String postId) {
-        BoardPost p = boardPostRepository.findById(postId).orElse(null);
-        if (p == null) return null;
+        BoardPost p = boardPostRepository.findById(postId).filter(x -> x.getDeletedAt() == null).orElse(null);
+        if (p == null) return null; // 미존재 또는 삭제 → snapshot 불가(생성측이 신고 거부)
         Set<String> ids = new HashSet<>();
         ids.add(p.getAuthorId()); // null 허용
         Map<String, String> nicks = nick(ids);
@@ -53,8 +53,8 @@ public class ReportSnapshotService {
     }
 
     private ReportedSnapshot commentSnapshot(String commentId) {
-        BoardComment c = boardCommentRepository.findById(commentId).orElse(null);
-        if (c == null) return null;
+        BoardComment c = boardCommentRepository.findById(commentId).filter(x -> x.getDeletedAt() == null).orElse(null);
+        if (c == null) return null; // 미존재 또는 삭제
         BoardPost p = boardPostRepository.findById(c.getPostId()).orElse(null);
         String topId = c.getParentCommentId() != null ? c.getParentCommentId() : c.getCommentId();
         // 1쿼리 후 해당 최상위 thread(최상위 + 그 대댓글)만 — unrelated 제외.

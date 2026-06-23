@@ -77,12 +77,6 @@ public class ReportController {
         // 신고 대상 사용자 해석 (1회 제한 + 자동 차단 공용).
         String targetUserId = resolveBlockTarget(targetType, targetId, reporterId);
 
-        // 게시판 신고는 대상(글/댓글)이 존재·미삭제여야 함 — 작성자 해석 실패(미존재/삭제) 시 거부.
-        if (("BOARD_POST".equals(targetType) || "BOARD_COMMENT".equals(targetType))
-                && targetUserId == null) {
-            return ReturnData.badRequest("신고할 수 없는 게시글이거나 이미 삭제되었어요.");
-        }
-
         // 1회 제한 — 같은 사용자를 이미 신고했으면 차단 (차단 풀고 재신고 방지).
         if (targetUserId != null && !targetUserId.equals(reporterId)
                 && reportRepository.existsByReporterIdAndTargetUserId(reporterId, targetUserId)) {
@@ -97,7 +91,8 @@ public class ReportController {
             }
         }
 
-        // 게시판 신고 = 신고 당시 원문 immutable snapshot 저장(증거 보존). 대상 사라졌으면 거부(증거 없는 신고 방지).
+        // 게시판 신고 = 신고 당시 원문 immutable snapshot 저장 + ★존재·미삭제 검증 겸함(작성자 해석과 분리 —
+        //   authorId 와 무관하게 콘텐츠만 있으면 신고 가능, dedup/자동차단만 author 있을 때). null=미존재/삭제 → 거부.
         ReportedSnapshot snapshot = null;
         if ("BOARD_POST".equals(targetType) || "BOARD_COMMENT".equals(targetType)) {
             snapshot = reportSnapshotService.build(targetType, targetId);
