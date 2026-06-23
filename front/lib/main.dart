@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'core/auth/auth_state.dart';
 import 'core/network/api_client.dart';
+import 'core/network/api_error_policy.dart';
 import 'core/notifications/chat_socket_service.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'core/notifiers/home_session_cache.dart';
@@ -20,17 +21,22 @@ Future<void> main() async {
   // ApiClient 전역 에러 핸들러 — 401/5xx/네트워크 끊김 시 통일된 AppErrorToast (가운데 ⚠ fade).
   // 이전: Material SnackBar (빨간 띠) → 사용자 정책 위반(통일 안 됨). AppErrorToast로 교체.
   ApiClient.setErrorHandler((info) {
-    // 정지 계정 — 토스트 대신 정지 게이트로(라우터가 /suspended). 사유는 게이트가 /me 로 가져옴.
-    if (info.code == 'USER_SUSPENDED') {
+    // ★정책으로 결정(ApiErrorPolicy): 인증·계정 lifecycle 은 silent 여부와 무관하게 항상,
+    //   전역 토스트는 silent(suppressToast)면 억제. silent 화면은 도메인 오류를 인라인 처리.
+    final action = ApiErrorPolicy.decide(info);
+    // 정지 계정 — 게이트로(토스트 없음).
+    if (action.markSuspended) {
       AuthState.instance.markSuspended();
       return;
     }
-    final ctx = rootScaffoldMessengerKey.currentContext;
-    if (ctx != null) {
-      AppErrorToast.show(ctx, info.message);
+    if (action.showToast) {
+      final ctx = rootScaffoldMessengerKey.currentContext;
+      if (ctx != null) {
+        AppErrorToast.show(ctx, info.message);
+      }
     }
-    if (info.isAuthError) {
-      // 토큰 만료 → 다음 요청 자동 안 보내도록 토큰 폐기 + 라우터 상태 갱신
+    if (action.clearAuthSession) {
+      // 토큰 만료 → 토큰 폐기 + 세션 캐시 초기화 + 로그아웃 전환(silent 여도 항상).
       TokenStorage.delete();
       HomeSessionCache.clear(); // 재로그인 시 이전 유저 자산/포트폴리오 홈 잔존 방지(logout 경로와 동일)
       AuthState.instance.markLoggedOut();

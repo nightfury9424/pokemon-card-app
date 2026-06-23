@@ -44,6 +44,12 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
   int _likeCount = 0;
   bool _likeBusy = false; // 진행 중 같은 글 재탭 차단
   bool _changed = false;  // 좋아요/댓글 변경 → 목록 갱신 신호(back pop result)
+  String? _deletingCommentId; // 댓글/대댓글 삭제 진행 중(이탈·중복 차단)
+  bool _postDeleting = false; // 게시글 삭제 진행 중
+
+  // 상태 변경 요청 진행 중 여부 — 진행 중엔 화면 이탈 금지(닫히면 dispose 로 성공 결과·목록 동기화 유실).
+  bool get _hasPendingMutation =>
+      _likeBusy || _sending || _deletingCommentId != null || _postDeleting;
 
   @override
   void initState() {
@@ -141,6 +147,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
   }
 
   Future<void> _delete(BoardPost p) async {
+    if (_hasPendingMutation) return; // 다른 변경 진행 중 — 중복 다이얼로그/요청 방지
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -161,15 +168,18 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
       ),
     );
     if (ok != true || !mounted) return;
+    setState(() => _postDeleting = true);
     try {
       await widget.repository.deletePost(p.id);
       if (!mounted) return;
-      Navigator.of(context).pop('deleted'); // 목록으로 변경 신호 → 새로고침
+      Navigator.of(context).pop('deleted'); // force pop(성공) — PopScope 우회. 목록 새로고침 신호
     } on BoardApiException catch (e) {
       if (!mounted) return;
-      AppInfoToast.show(context, e.message);
+      setState(() => _postDeleting = false);
+      if (e.statusCode != 401) AppInfoToast.show(context, e.message); // 401=전역 lifecycle(로그아웃)
     } catch (_) {
       if (!mounted) return;
+      setState(() => _postDeleting = false);
       AppInfoToast.show(context, '삭제하지 못했어요. 잠시 후 다시 시도해 주세요.');
     }
   }
@@ -181,9 +191,10 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        // ★좋아요 요청 진행 중엔 닫지 않음 — 닫으면 dispose 로 성공 결과(_changed/목록 동기화)가 유실됨.
-        //   AppBar 뒤로·iOS swipe-back 모두 PopScope(canPop:false) 경로라 함께 막힘. 완료/실패 후 재시도 가능.
-        if (_likeBusy) return;
+        // ★상태 변경 요청(좋아요·댓글 작성/삭제·게시글 삭제) 진행 중엔 닫지 않음 — 닫으면 dispose 로
+        //   성공 결과(_changed/목록 동기화)가 유실됨. AppBar 뒤로·iOS swipe-back 모두 PopScope(canPop:false)
+        //   경로라 함께 막힘. 완료/실패 후 재시도 가능.
+        if (_hasPendingMutation) return;
         Navigator.of(context).pop(_changed ? 'changed' : null); // 좋아요/댓글 변경 → 목록 갱신
       },
       child: Scaffold(
@@ -464,7 +475,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
         _likeCount = wasCount;
         _likeBusy = false;
       });
-      AppInfoToast.show(context, _likeError(e));
+      if (e.statusCode != 401) AppInfoToast.show(context, _likeError(e)); // 401=전역 lifecycle
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -553,6 +564,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
     } on BoardApiException catch (e) {
       if (!mounted) return;
       setState(() => _sending = false); // ★입력·답글모드·포커스 유지
+      if (e.statusCode == 401) return; // 401=전역 lifecycle(로그아웃)이 처리
       AppInfoToast.show(
           context,
           e.code == 'CONTENT_POLICY_VIOLATION'
@@ -566,6 +578,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
   }
 
   Future<void> _deleteComment(BoardComment c) async {
+    if (_hasPendingMutation) return; // 다른 변경 진행 중 — 중복 다이얼로그/요청 방지
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -584,17 +597,20 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
       ),
     );
     if (ok != true || !mounted) return;
+    setState(() => _deletingCommentId = c.id);
     try {
       await widget.repository.deleteComment(c.id);
       if (!mounted) return;
-      _changed = true; // 목록 댓글 수 갱신 신호
+      _changed = true; // 목록 댓글 수 갱신 신호(reload 전 기록 — 이탈해도 유실 안 됨)
       await _reload(); // 댓글 목록·수 갱신(최상위 삭제+답글 → placeholder, 대댓글 삭제 → 해당만 제거)
     } on BoardApiException catch (e) {
       if (!mounted) return;
-      AppInfoToast.show(context, e.message);
+      if (e.statusCode != 401) AppInfoToast.show(context, e.message); // 401=전역 lifecycle
     } catch (_) {
       if (!mounted) return;
       AppInfoToast.show(context, '댓글을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      if (mounted) setState(() => _deletingCommentId = null);
     }
   }
 

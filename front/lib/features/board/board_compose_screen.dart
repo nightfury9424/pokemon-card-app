@@ -97,6 +97,7 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
     } on BoardApiException catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false); // ★입력·키보드·포커스 유지(unfocus 안 함)
+      if (e.statusCode == 401) return; // 401=전역 lifecycle(로그아웃)이 처리
       AppInfoToast.show(
           context,
           e.code == 'CONTENT_POLICY_VIOLATION'
@@ -115,6 +116,7 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
       canPop: false, // 뒤로(시스템·AppBar)는 가로채 폐기 확인. 제출 성공 pop 은 force pop 으로 우회.
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
+        if (_submitting) return; // ★저장 요청 중엔 이탈·폐기확인 금지(성공 결과 유실 방지). 완료/실패 후 가능.
         final navigator = Navigator.of(context); // async gap 전 캡처(context-after-await 회피)
         if (await _confirmDiscard()) navigator.pop();
       },

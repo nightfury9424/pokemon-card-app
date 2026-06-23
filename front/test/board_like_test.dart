@@ -159,6 +159,22 @@ void main() {
       expect(find.text('8'), findsOneWidget);
     });
 
+    testWidgets('좋아요 401 → 롤백·busy 해제·인라인 토스트 없음(전역 lifecycle 소유)', (t) async {
+      final r = _LikeRepo(_free(liked: false, count: 3),
+          likeThrows: const BoardApiException('로그인이 필요해요.', statusCode: 401),
+          delay: const Duration(milliseconds: 30));
+      await _pump(t, r);
+      await t.tap(find.byIcon(Icons.favorite_border));
+      await t.pumpAndSettle();
+      expect(r.likeCalls, 1);
+      expect(find.byIcon(Icons.favorite_border), findsOneWidget); // 롤백
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('로그인이 필요해요.'), findsNothing); // 화면 인라인 토스트 없음(전역이 로그아웃 처리)
+      await t.tap(find.byIcon(Icons.favorite_border)); // busy 해제 → 재시도 가능
+      await t.pumpAndSettle();
+      expect(r.likeCalls, 2);
+    });
+
     testWidgets('카운트 0에서 취소 낙관적 → 음수 없음', (t) async {
       final r = _LikeRepo(_free(liked: true, count: 0),
           unlikeResult: const BoardLikeResult(likedByMe: false, likeCount: 0));
