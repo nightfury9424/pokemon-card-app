@@ -9,6 +9,25 @@
 
 ---
 
+## ★ 1.0.4 최종 제품 구조 (2026-06-23 확정 — 이 문서의 이전 "전체+다탭" 서술을 대체)
+
+게시판 = **`공지 | 자유` 단 2개 탭** (앱 진입 기본 = **자유**). `전체`·`거래후기`·`사기주의`·`Q&A` 탭, 작성 시 type 선택 **모두 제거**. 서버·DB의 type(notice/event/patch/free/tradeReview/scamAlert/qna)·컬럼은 **삭제하지 않고 향후 확장용 유지**.
+
+**공지 게시판** (열람=전체, 작성·수정·삭제=관리자만)
+- 조회 API: **`GET /api/board/posts?section=official`** (notice/event/patch 한 게시판, 글마다 공지/이벤트/업데이트 배지)
+- 고정글 우선 → 최신순. 앱에 작성 버튼·댓글 UI **미노출**.
+- ★**서버도 official 글에 일반 사용자 댓글 작성을 거부**해야 함(현재 `createComment`는 미차단 → 가드+테스트 추가 필요).
+- 홈 공지 영역도 동일 official API(고정글 우선·최신).
+
+**자유 게시판** (열람=전체, 작성=로그인 전원)
+- 조회 API: **`GET /api/board/posts?type=free`**
+- 본인만 수정·삭제, 댓글·1단 답글, 본인 댓글 삭제, 신고·차단·금칙어·관리자 모더레이션.
+- 글쓰기 화면은 type 선택 없이 **`free` 고정**.
+
+**★Q&A 답변 채택 = 1.0.4 구현 제외 (최종 변경)**: 스키마(`is_answered`/`is_accepted`)·설계 흔적은 유지하되 **1.0.4에서 구현하지 않음**. 이 문서 하단 §"Q&A 답변 채택 규칙"의 "1.0.4 포함" 전제는 본 제품 결정으로 **변경됨**(향후 확장).
+
+---
+
 ## 1. 데이터 계약 (프론트가 이미 기대하는 형태)
 - `BoardPost`{id, type, title, body, author, createdAt, viewCount, likeCount, isPinned, isAnswered, comments[], commentCount}
 - `BoardComment`{id, author, body, createdAt, isAdmin, isAccepted, replies[](1단)}
