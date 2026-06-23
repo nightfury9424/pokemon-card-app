@@ -3,7 +3,7 @@
 //   기존 Users.jsx 스타일 일관 — 흰 카드 + 보라 헤더 + 검색/필터.
 
 import { useEffect, useState } from 'react'
-import { Flag, AlertCircle, Check, X, RefreshCw } from 'lucide-react'
+import { X, RefreshCw } from 'lucide-react'
 import api from '../api'
 
 const S = {
@@ -29,6 +29,9 @@ const ACTION_LABEL = {
   WARN_USER:    '경고 발급',
   SUSPEND_USER: '계정 정지',
   DELETE_TRADE: '거래글 삭제',
+  HIDE_BOARD_POST:      '게시글 숨김',
+  DELETE_BOARD_POST:    '게시글 삭제',
+  DELETE_BOARD_COMMENT: '댓글 삭제',
   DISMISS:      '기각',
   NONE:         '조치 없음',
 }
@@ -36,6 +39,10 @@ const ACTION_LABEL = {
 // ★단일 축 "조치" — 선택 하나로 집행(resolutionAction) + 신고 상태(status)를 동시에 결정.
 //   기존엔 처리 상태/처리 액션 두 축을 따로 골라 모순 조합(기각인데 정지 등)이 가능했음.
 const DECISIONS = [
+  // 게시판 콘텐츠 조치 — 대상 타입별 노출(boardPostOnly/boardCommentOnly). 단일 축 유지(한 번에 하나).
+  { key: 'HIDE_BOARD_POST',      label: '게시글 숨김', desc: '신고된 게시글을 숨겨요. 작성자 제재 없이 노출만 차단해요.', status: 'RESOLVED', tone: 'warn',   boardPostOnly: true },
+  { key: 'DELETE_BOARD_POST',    label: '게시글 삭제', desc: '신고된 게시글을 삭제해요.',                              status: 'RESOLVED', tone: 'danger', boardPostOnly: true },
+  { key: 'DELETE_BOARD_COMMENT', label: '댓글 삭제',   desc: '신고된 댓글을 삭제해요.',                                status: 'RESOLVED', tone: 'danger', boardCommentOnly: true },
   { key: 'WARN_USER',    label: '경고 발급',     desc: '대상 유저에게 경고를 발급해요. 누적 3회 시 자동 정지.', status: 'RESOLVED',  tone: 'warn',    needsUser: true },
   { key: 'SUSPEND_USER', label: '계정 정지',     desc: '대상 유저를 즉시 정지해 앱 이용을 차단해요.',          status: 'RESOLVED',  tone: 'danger',  needsUser: true },
   { key: 'DELETE_TRADE', label: '거래글 삭제',   desc: '신고된 거래글을 삭제해요.',                            status: 'RESOLVED',  tone: 'danger',  tradeOnly: true },
@@ -209,7 +216,7 @@ export default function Reports() {
           )
         })}
         <div style={{ width: 1, background: '#e2e8f0', margin: '0 4px' }} />
-        {['ALL', 'TRADE', 'USER', 'BUY_ORDER', 'CHAT'].map(t => {
+        {['ALL', 'TRADE', 'USER', 'BUY_ORDER', 'CHAT', 'BOARD_POST', 'BOARD_COMMENT'].map(t => {
           const sel = targetFilter === t
           return (
             <button
@@ -376,11 +383,16 @@ function ChatViewModal({ roomId, onClose }) {
 }
 
 function HandleModal({ row, onClose, onDone }) {
-  // 대상 타입에 맞는 조치만 노출 — TRADE 만 거래글 삭제, BUY_ORDER 는 유저 해석 불가라 경고/정지 숨김.
+  // 대상 타입에 맞는 조치만 노출 — TRADE=거래글 삭제, BOARD_POST=숨김/삭제, BOARD_COMMENT=삭제,
+  // BUY_ORDER 는 유저 해석 불가라 경고/정지 숨김. 게시판 글/댓글은 작성자 해석되므로 경고/정지 노출.
   const isTrade = row.targetType === 'TRADE'
-  const hasUser = ['USER', 'TRADE', 'CHAT'].includes(row.targetType)
+  const isBoardPost = row.targetType === 'BOARD_POST'
+  const isBoardComment = row.targetType === 'BOARD_COMMENT'
+  const hasUser = ['USER', 'TRADE', 'CHAT', 'BOARD_POST', 'BOARD_COMMENT'].includes(row.targetType)
   const decisions = DECISIONS.filter(d => {
     if (d.tradeOnly) return isTrade
+    if (d.boardPostOnly) return isBoardPost
+    if (d.boardCommentOnly) return isBoardComment
     if (d.needsUser) return hasUser
     return true
   })
