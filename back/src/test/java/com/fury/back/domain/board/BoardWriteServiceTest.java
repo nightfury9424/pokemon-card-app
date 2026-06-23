@@ -1,5 +1,7 @@
 package com.fury.back.domain.board;
 
+import com.fury.back.common.moderation.ContentPolicyService;
+import com.fury.back.common.moderation.ContentPolicyViolationException;
 import com.fury.back.domain.board.dto.CreateCommentRequest;
 import com.fury.back.domain.board.dto.CreatePostRequest;
 import com.fury.back.domain.board.dto.UpdatePostRequest;
@@ -23,7 +25,7 @@ class BoardWriteServiceTest {
 
     @Mock BoardPostRepository postRepo;
     @Mock BoardCommentRepository commentRepo;
-    @Mock ContentFilter contentFilter;
+    @Mock ContentPolicyService contentPolicy;
     @InjectMocks BoardWriteService service;
 
     private static final LocalDateTime T = LocalDateTime.of(2026, 6, 23, 10, 0);
@@ -67,10 +69,10 @@ class BoardWriteServiceTest {
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
     }
 
-    @Test void createPost_banned_400() {
-        when(contentFilter.containsBanned(any())).thenReturn(true);
-        assertThatThrownBy(() -> service.createPost("u1", new CreatePostRequest("free", "t", "욕설")))
-                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
+    @Test void createPost_banned_blocked() {
+        doThrow(new ContentPolicyViolationException("x")).when(contentPolicy).check(any());
+        assertThatThrownBy(() -> service.createPost("u1", new CreatePostRequest("free", "t", "비속어")))
+                .isInstanceOf(ContentPolicyViolationException.class);
     }
 
     @Test void createPost_unauthenticated_401() {

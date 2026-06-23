@@ -1,6 +1,7 @@
 package com.fury.back.domain.board;
 
 import com.fury.back.auth.AdminAuthorizationService;
+import com.fury.back.common.moderation.ContentPolicyService;
 import com.fury.back.domain.admin.AdminActionService;
 import com.fury.back.domain.board.dto.AdminCreatePostRequest;
 import com.fury.back.domain.board.dto.AdminUpdatePostRequest;
@@ -25,7 +26,7 @@ class BoardAdminServiceTest {
 
     @Mock BoardPostRepository postRepo;
     @Mock BoardCommentRepository commentRepo;
-    @Mock ContentFilter contentFilter;
+    @Mock ContentPolicyService contentPolicy;
     @Mock AdminAuthorizationService adminAuth;
     @Mock AdminActionService adminActions;
     @Mock UserRepository userRepo;

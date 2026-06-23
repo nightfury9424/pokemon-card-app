@@ -3,6 +3,7 @@ package com.fury.back.domain.board;
 import com.fury.back.auth.AdminAuthorizationService;
 import com.fury.back.common.IdGenerator;
 import com.fury.back.domain.admin.AdminActionService;
+import com.fury.back.common.moderation.ContentPolicyService;
 import com.fury.back.domain.board.dto.AdminCreatePostRequest;
 import com.fury.back.domain.board.dto.AdminUpdatePostRequest;
 import com.fury.back.domain.board.dto.PostModerationRequest;
@@ -26,7 +27,7 @@ public class BoardAdminService {
 
     private final BoardPostRepository postRepository;
     private final BoardCommentRepository commentRepository;
-    private final ContentFilter contentFilter;
+    private final ContentPolicyService contentPolicy;
     private final AdminAuthorizationService adminAuthorizationService;
     private final AdminActionService adminActionService;
     private final UserRepository userRepository;
@@ -160,11 +161,10 @@ public class BoardAdminService {
         return v;
     }
 
+    // 공용 금칙어 검사(위반 시 ContentPolicyViolationException → 403 + CONTENT_POLICY_VIOLATION).
     private void rejectBanned(String... texts) {
         for (String t : texts) {
-            if (t != null && contentFilter.containsBanned(t)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "부적절한 표현이 포함되어 있습니다.");
-            }
+            contentPolicy.check(t);
         }
     }
 }
