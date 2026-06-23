@@ -79,6 +79,10 @@ void main() {
     }
   }
 
+  // 주: "기본 글자크기서 축소 없음"은 위젯테스트로 검증 불가 — 테스트 폰트('FlutterTest')가
+  //     고정폭(글자당 fontSize)이라 한글/숫자 폭이 실폰트와 크게 달라 base scale에도 FittedBox가
+  //     오작동함(테스트 아티팩트, 실버그 아님). 해당 시각 게이트는 시뮬레이터 실폰트 캡처로만 확인 가능.
+
   testWidgets('넓은 폭 → 한 줄(가격·변동 같은 줄)', (tester) async {
     await pumpMeta(tester, stressMeta(), const Size(430, 932), 1.0, width: 600);
     expect(tester.takeException(), isNull);

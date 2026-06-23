@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' show ImageFilter, lerpDouble;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
@@ -1071,6 +1072,37 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ── 카루셀 탭 전환 진단(원인 확정용, kDebugMode 한정) ──
+  // 가설: 단일 PageView에 탭마다 controller 를 갈아 끼우면 전환 첫 프레임에 새 controller 가
+  // !haveDimensions → AnimatedBuilder 가 정수 page 폴백 → 선택카드 크기/peek 스냅.
+  // 실기기/시뮬에서 내카드→시장랭킹 전환 시 아래 로그로 라이브 확정.
+  void _switchCarouselTab(int tab) {
+    _logCarouselState('pre-switch → tab=$tab');
+    setState(() => _carouselTab = tab);
+    WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _logCarouselState('post-switch frame1 → tab=$tab'));
+  }
+
+  void _logCarouselState(String tag) {
+    if (!kDebugMode) return;
+    String c(PageController pc) {
+      if (!pc.hasClients) return 'noClients';
+      try {
+        return 'attached,page=${pc.page?.toStringAsFixed(2)}';
+      } catch (_) {
+        return 'attached,noDimYet'; // haveDimensions=false (스냅 윈도우)
+      }
+    }
+
+    final items = _carouselTab == 0 ? _myCardCarouselItems() : _marketCarouselItems();
+    final len = items.isEmpty ? 1 : items.length;
+    final selIdx = (_carouselTab == 0 ? _carouselPage : _marketCarouselPage) % len;
+    debugPrint('[CAROUSEL] $tag | tab=$_carouselTab '
+        '| my=${c(_carouselController)} | market=${c(_marketCarouselController)} '
+        '| attached=${_carouselTab == 0 ? "my" : "market"} '
+        '| selIdx=$selIdx | cardKey=none(index-based)');
+  }
+
   Widget _buildCarousel() {
     // 카드 좀 더 크게 (0.40 → 0.46, max 460)
     final height = (MediaQuery.of(context).size.height * 0.46).clamp(380.0, 460.0);
@@ -1092,13 +1124,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 _CarouselTab(
                   label: _myAssets.isNotEmpty ? '내 카드' : '오늘의 TOP',
                   selected: _carouselTab == 0,
-                  onTap: () => setState(() { _carouselTab = 0; }),
+                  onTap: () => _switchCarouselTab(0),
                 ),
                 const SizedBox(width: 8),
                 _CarouselTab(
                   label: '시장 랭킹',
                   selected: _carouselTab == 1,
-                  onTap: () => setState(() { _carouselTab = 1; }),
+                  onTap: () => _switchCarouselTab(1),
                 ),
                 if (_carouselTab == 1) ...[
                   const Spacer(),
