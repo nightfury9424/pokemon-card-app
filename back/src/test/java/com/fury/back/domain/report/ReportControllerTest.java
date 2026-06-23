@@ -37,7 +37,12 @@ class ReportControllerTest {
     @Mock TradePostRepository tradePostRepository;
     @Mock BoardPostRepository boardPostRepository;
     @Mock BoardCommentRepository boardCommentRepository;
+    @Mock ReportSnapshotService reportSnapshotService;
     @InjectMocks ReportController controller;
+
+    private ReportedSnapshot snap() {
+        return new ReportedSnapshot(1, "BOARD_POST", "제목", "본문", "닉", "2026-06-24T10:00", null, null, null, null, null);
+    }
 
     private HttpServletRequest req(String userId) {
         HttpServletRequest r = mock(HttpServletRequest.class);
@@ -64,6 +69,7 @@ class ReportControllerTest {
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1", null)));
         when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(false);
         when(blockRepository.findByBlockerIdAndBlockedId("reporter", "author1")).thenReturn(Optional.empty());
+        when(reportSnapshotService.build("BOARD_POST", "p1")).thenReturn(snap()); // 신고 당시 원문 저장
         when(reportRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
@@ -72,7 +78,17 @@ class ReportControllerTest {
         verify(reportRepository).save(cap.capture());
         assertThat(cap.getValue().getTargetType()).isEqualTo("BOARD_POST");
         assertThat(cap.getValue().getTargetUserId()).isEqualTo("author1"); // 작성자 해석
+        assertThat(cap.getValue().getReportedSnapshot()).isNotNull(); // ★신고 당시 snapshot 보존
         verify(blockRepository).save(any(Block.class)); // 자동 차단(기존 흐름 재사용)
+    }
+
+    @Test
+    void boardPost_snapshotBuildNull_rejected_noSave() {
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1", null)));
+        when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(false);
+        when(reportSnapshotService.build("BOARD_POST", "p1")).thenReturn(null); // 대상 사라짐(증거 불가)
+        controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
+        verify(reportRepository, never()).save(any()); // 증거 없는 신고 저장 안 함
     }
 
     @Test
@@ -81,6 +97,7 @@ class ReportControllerTest {
         when(boardCommentRepository.findById("c1")).thenReturn(Optional.of(c));
         when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author2")).thenReturn(false);
         when(blockRepository.findByBlockerIdAndBlockedId("reporter", "author2")).thenReturn(Optional.empty());
+        when(reportSnapshotService.build("BOARD_COMMENT", "c1")).thenReturn(snap());
         when(reportRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         controller.create(req("reporter"), body("BOARD_COMMENT", "c1", "SPAM"));

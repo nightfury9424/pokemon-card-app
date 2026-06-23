@@ -41,6 +41,7 @@ public class ReportController {
     private final TradePostRepository tradePostRepository;
     private final BoardPostRepository boardPostRepository;
     private final BoardCommentRepository boardCommentRepository;
+    private final ReportSnapshotService reportSnapshotService;
 
     @Operation(summary = "신고 등록", description = "거래/사용자/매수호가/채팅 신고")
     @PostMapping
@@ -96,6 +97,15 @@ public class ReportController {
             }
         }
 
+        // 게시판 신고 = 신고 당시 원문 immutable snapshot 저장(증거 보존). 대상 사라졌으면 거부(증거 없는 신고 방지).
+        ReportedSnapshot snapshot = null;
+        if ("BOARD_POST".equals(targetType) || "BOARD_COMMENT".equals(targetType)) {
+            snapshot = reportSnapshotService.build(targetType, targetId);
+            if (snapshot == null) {
+                return ReturnData.badRequest("신고할 수 없는 게시글이거나 이미 삭제되었어요.");
+            }
+        }
+
         Report report = Report.builder()
                 .reportId(IdGenerator.generate())
                 .reporterId(reporterId)
@@ -105,6 +115,7 @@ public class ReportController {
                 .reason(reason)
                 .detail(detail)
                 .status("PENDING")
+                .reportedSnapshot(snapshot)
                 .build();
         Report saved = reportRepository.save(report);
 

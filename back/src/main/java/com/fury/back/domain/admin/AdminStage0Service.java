@@ -12,6 +12,7 @@ import com.fury.back.domain.board.dto.PostModerationRequest;
 import com.fury.back.domain.chat.ChatService;
 import com.fury.back.domain.report.Report;
 import com.fury.back.domain.report.ReportRepository;
+import com.fury.back.domain.report.ReportedSnapshot;
 import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.trade.TradePostRepository;
 import com.fury.back.domain.user.User;
@@ -241,10 +242,14 @@ public class AdminStage0Service {
         if (p == null) return unavailable(report); // 물리 삭제/미존재
         Set<String> ids = new HashSet<>();
         ids.add(p.getAuthorId()); // ★null 허용(HashSet) — 공식글/레거시 authorId null 가능. Set.of(null) NPE 회피.
+        ReportedSnapshot snap = report.getReportedSnapshot();
         return AdminStage0Dto.TargetContext.builder()
                 .reportId(report.getReportId()).targetType("BOARD_POST").targetId(report.getTargetId())
                 .available(true)
                 .post(postView(p, nicknameMap(ids)))
+                .snapshotAvailable(snap != null)
+                .changedSinceReport(postChanged(snap, p))
+                .reportedSnapshot(snap)
                 .build();
     }
 
@@ -264,19 +269,47 @@ public class AdminStage0Service {
         Map<String, String> nicks = nicknameMap(authorIds);
         List<AdminStage0Dto.BoardCommentView> views = thread.stream()
                 .map(x -> commentView(x, nicks, report.getTargetId())).toList();
+        ReportedSnapshot snap = report.getReportedSnapshot();
         return AdminStage0Dto.TargetContext.builder()
                 .reportId(report.getReportId()).targetType("BOARD_COMMENT").targetId(report.getTargetId())
                 .available(true)
                 .post(p == null ? null : postView(p, nicks)) // 게시글이 물리삭제돼도 댓글 thread 는 노출
                 .thread(AdminStage0Dto.BoardCommentThread.builder()
                         .targetCommentId(report.getTargetId()).topCommentId(topId).comments(views).build())
+                .snapshotAvailable(snap != null)
+                .changedSinceReport(commentThreadChanged(snap, thread))
+                .reportedSnapshot(snap)
                 .build();
     }
 
     private AdminStage0Dto.TargetContext unavailable(Report report) {
+        ReportedSnapshot snap = report.getReportedSnapshot();
         return AdminStage0Dto.TargetContext.builder()
                 .reportId(report.getReportId()).targetType(report.getTargetType())
-                .targetId(report.getTargetId()).available(false).build();
+                .targetId(report.getTargetId()).available(false)
+                .snapshotAvailable(snap != null).changedSinceReport(false).reportedSnapshot(snap)
+                .build();
+    }
+
+    // 신고 당시 snapshot vs 현재 내용 비교(snapshot 없으면 false=비교 불가).
+    private static boolean postChanged(ReportedSnapshot snap, BoardPost current) {
+        if (snap == null || current == null) return false;
+        return !java.util.Objects.equals(snap.title(), current.getTitle())
+                || !java.util.Objects.equals(snap.content(), current.getContent());
+    }
+
+    private static boolean commentThreadChanged(ReportedSnapshot snap, List<BoardComment> current) {
+        if (snap == null) return false;
+        List<ReportedSnapshot.SnapshotComment> snapList =
+                snap.comments() == null ? List.of() : snap.comments();
+        if (snapList.size() != current.size()) return true; // 댓글 추가/삭제
+        Map<String, BoardComment> cur = current.stream()
+                .collect(Collectors.toMap(BoardComment::getCommentId, x -> x, (a, b) -> a));
+        for (ReportedSnapshot.SnapshotComment s : snapList) {
+            BoardComment c = cur.get(s.commentId());
+            if (c == null || !java.util.Objects.equals(s.content(), c.getContent())) return true;
+        }
+        return false;
     }
 
     private AdminStage0Dto.BoardPostView postView(BoardPost p, Map<String, String> nicks) {

@@ -12,6 +12,7 @@ import com.fury.back.domain.chat.ChatService;
 import com.fury.back.domain.inquiry.InquiryRepository;
 import com.fury.back.domain.report.Report;
 import com.fury.back.domain.report.ReportRepository;
+import com.fury.back.domain.report.ReportedSnapshot;
 import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.trade.TradePostRepository;
 import com.fury.back.domain.user.User;
@@ -285,6 +286,38 @@ class AdminStage0ServiceTest {
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
     }
 
+    // ── 신고 당시 snapshot: 보존·수정감지·이전신고(없음) ──
+    private Report reportWithSnap(ReportedSnapshot snap) {
+        return Report.builder().reportId("r1").reporterId("reporter").targetType("BOARD_POST").targetId("p1")
+                .status("PENDING").createdAt(java.time.LocalDateTime.now()).reportedSnapshot(snap).build();
+    }
+
+    @Test void targetContext_snapshotPreserved_unchanged() {
+        var snap = new ReportedSnapshot(1, "BOARD_POST", "제목전문", "본문전문", "닉", "x", null, null, null, null, null);
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(reportWithSnap(snap)));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a1", "ACTIVE", null)));
+        var ctx = service.getTargetContext("r1", "admin1");
+        assertThat(ctx.isSnapshotAvailable()).isTrue();
+        assertThat(ctx.getReportedSnapshot().title()).isEqualTo("제목전문"); // 신고 당시 보존
+        assertThat(ctx.isChangedSinceReport()).isFalse(); // 현재와 동일
+    }
+
+    @Test void targetContext_postEdited_changedSinceReport() {
+        var snap = new ReportedSnapshot(1, "BOARD_POST", "원래 욕설 제목", "원래 욕설 본문", "닉", "x", null, null, null, null, null);
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(reportWithSnap(snap)));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a1", "ACTIVE", null))); // 제목전문(상이)
+        assertThat(service.getTargetContext("r1", "admin1").isChangedSinceReport()).isTrue(); // 신고 후 수정됨
+    }
+
+    @Test void targetContext_oldReport_noSnapshot_비교불가() {
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_POST", "p1", "a1"))); // snapshot null
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a1", "ACTIVE", null)));
+        var ctx = service.getTargetContext("r1", "admin1");
+        assertThat(ctx.isSnapshotAvailable()).isFalse();
+        assertThat(ctx.getReportedSnapshot()).isNull();
+        assertThat(ctx.isChangedSinceReport()).isFalse(); // 비교 불가 → false
+    }
+
     // ── null authorId 안전성(500 방지): 공식글/일반글/댓글 작성자 id null ──
     @Test void targetContext_officialPost_nullAuthor_label운영팀() {
         when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_POST", "p1", null)));
@@ -302,7 +335,7 @@ class AdminStage0ServiceTest {
 
     @Test void targetContext_comment_nullAuthor_labelUnknown() {
         when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_COMMENT", "cN", null)));
-        var cN = cmt("cN", null, null, "익명댓글", null);
+        var cN = cmt("cN", null, null, "작성자 정보가 누락된 댓글", null);
         when(boardCommentRepository.findById("cN")).thenReturn(Optional.of(cN));
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a3", "ACTIVE", null)));
         when(boardCommentRepository.findByPostIdOrderByCreatedAtAsc("p1")).thenReturn(List.of(cN));

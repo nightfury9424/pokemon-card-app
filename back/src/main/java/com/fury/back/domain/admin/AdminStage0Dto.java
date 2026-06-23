@@ -3,6 +3,8 @@ package com.fury.back.domain.admin;
 import lombok.Builder;
 import lombok.Getter;
 
+import com.fury.back.domain.report.ReportedSnapshot;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -112,9 +114,13 @@ public class AdminStage0Dto {
         private String reportId;
         private String targetType;          // BOARD_POST / BOARD_COMMENT
         private String targetId;
-        private boolean available;          // false = 물리 삭제/미존재(원문 조회 불가)
-        private BoardPostView post;         // BOARD_POST=신고 게시글 / BOARD_COMMENT=원문 게시글
-        private BoardCommentThread thread;  // BOARD_COMMENT 만(최상위 thread + 대상 강조)
+        private boolean available;          // 현재 콘텐츠 존재 여부(false=물리 삭제/미존재)
+        private BoardPostView post;         // 현재 — BOARD_POST=신고 게시글 / BOARD_COMMENT=원문 게시글
+        private BoardCommentThread thread;  // 현재 — BOARD_COMMENT 만(최상위 thread + 대상 강조)
+        // 신고 당시 증거
+        private boolean snapshotAvailable;  // 신고 당시 snapshot 보존 여부(false=이전 신고, 비교 불가)
+        private boolean changedSinceReport; // snapshot vs 현재 내용 상이(snapshot 없으면 false)
+        private ReportedSnapshot reportedSnapshot; // 신고 당시 원문(불변). 없으면 null.
     }
 
     @Getter
