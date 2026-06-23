@@ -3,6 +3,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_info_toast.dart';
 import 'models/board_post.dart';
 import 'data/board_repository.dart';
+import 'board_compose_screen.dart';
 
 /// 게시글 상세 — postId 로 상세 API 재조회(목록 summary 재사용 X).
 /// 공지(official: notice/event/patch) = 본문만 읽기(댓글·반응 UI 없음).
@@ -63,6 +64,71 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
     }
   }
 
+  // 본인 자유글(canEdit/canDelete)일 때만 ⋯ 메뉴. 공식글·타인글은 서버 플래그 false → 미노출.
+  List<Widget>? _appBarActions() {
+    final p = _post;
+    if (p == null || !(p.canEdit || p.canDelete)) return null;
+    return [
+      PopupMenuButton<String>(
+        icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
+        color: AppColors.surfaceCard,
+        onSelected: (v) {
+          if (v == 'edit') _edit(p);
+          if (v == 'delete') _delete(p);
+        },
+        itemBuilder: (_) => [
+          if (p.canEdit)
+            const PopupMenuItem(
+                value: 'edit',
+                child: Text('수정', style: TextStyle(color: AppColors.textPrimary))),
+          if (p.canDelete)
+            const PopupMenuItem(
+                value: 'delete', child: Text('삭제', style: TextStyle(color: AppColors.red))),
+        ],
+      ),
+    ];
+  }
+
+  Future<void> _edit(BoardPost p) async {
+    final updated = await Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
+        builder: (_) => BoardComposeScreen(repository: widget.repository, editing: p)));
+    if (updated != null && mounted) _load(); // 수정 성공 → 상세 갱신
+  }
+
+  Future<void> _delete(BoardPost p) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceCard,
+        title: const Text('글을 삭제할까요?',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+        content: const Text('삭제한 글은 복구할 수 없어요.',
+            style: TextStyle(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소', style: TextStyle(color: AppColors.textMuted))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('삭제',
+                  style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await widget.repository.deletePost(p.id);
+      if (!mounted) return;
+      Navigator.of(context).pop('deleted'); // 목록으로 변경 신호 → 새로고침
+    } on BoardApiException catch (e) {
+      if (!mounted) return;
+      AppInfoToast.show(context, e.message);
+    } catch (_) {
+      if (!mounted) return;
+      AppInfoToast.show(context, '삭제하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final titleType = (_post ?? widget.summary)?.type;
@@ -77,6 +143,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
         title: Text(titleType?.label ?? '게시글',
             style: const TextStyle(
                 color: AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 16)),
+        actions: _appBarActions(),
       ),
       body: _buildBody(),
     );

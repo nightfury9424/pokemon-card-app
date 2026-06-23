@@ -105,8 +105,10 @@ class ApiClient {
     }
   }
 
-  static Future<Map<String, dynamic>> post(String path, Map<String, dynamic> data) async {
-    final res = await _dio.post(path, data: data);
+  static Future<Map<String, dynamic>> post(String path, Map<String, dynamic> data,
+      {bool silent = false}) async {
+    final res = await _dio.post(path, data: data,
+        options: silent ? Options(extra: {'silentErrors': true}) : null);
     return res.data;
   }
 
@@ -133,15 +135,19 @@ class ApiClient {
     return res.data;
   }
 
-  static Future<Map<String, dynamic>> patch(String path, {Map<String, dynamic>? params, Map<String, dynamic>? data}) async {
-    final res = await _dio.patch(path, queryParameters: params, data: data);
+  static Future<Map<String, dynamic>> patch(String path,
+      {Map<String, dynamic>? params, Map<String, dynamic>? data, bool silent = false}) async {
+    final res = await _dio.patch(path, queryParameters: params, data: data,
+        options: silent ? Options(extra: {'silentErrors': true}) : null);
     return res.data;
   }
 
   /// 2026-05-29 admin Stage 0 — delete body 지원 (HTTP DELETE with optional JSON payload).
   /// 기존 호출처는 path 만 넘기던 단일 시그니처 → data optional 추가 (backward compat).
-  static Future<Map<String, dynamic>> delete(String path, {Map<String, dynamic>? data}) async {
-    final res = await _dio.delete(path, data: data);
+  static Future<Map<String, dynamic>> delete(String path,
+      {Map<String, dynamic>? data, bool silent = false}) async {
+    final res = await _dio.delete(path, data: data,
+        options: silent ? Options(extra: {'silentErrors': true}) : null);
     return res.data;
   }
 

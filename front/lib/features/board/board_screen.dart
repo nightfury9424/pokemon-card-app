@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
-import '../../core/widgets/app_info_toast.dart';
 import 'models/board_post.dart';
 import 'data/board_repository.dart';
 import 'board_detail_screen.dart';
+import 'board_compose_screen.dart';
 
 /// 게시판 — **공지 | 자유** 2탭(기본=자유). 공지=section=official(읽기전용·관리자 작성),
 /// 자유=type=free(로그인 작성·댓글·좋아요). 서버 페이지네이션·핀 우선 정렬.
@@ -119,6 +119,21 @@ class _BoardScreenState extends State<BoardScreen> {
     _load();
   }
 
+  // 자유 탭 글쓰기 FAB → root navigator 전체화면 작성. 성공 시 목록 새로고침.
+  Future<void> _openCompose() async {
+    final created = await Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute(builder: (_) => BoardComposeScreen(repository: widget.repository)));
+    if (created != null && mounted) _load();
+  }
+
+  // 상세 진입. 상세에서 수정·삭제(비-null 결과) 발생 시 목록 갱신.
+  Future<void> _openDetail(BoardPost post) async {
+    final changed = await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => BoardDetailScreen(
+            postId: post.id, summary: post, repository: widget.repository)));
+    if (changed != null && mounted) _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final fabBottomInset = AppDimens.bottomContentInsetForExtendedFab +
@@ -140,7 +155,7 @@ class _BoardScreenState extends State<BoardScreen> {
           ? null
           : FloatingActionButton.extended(
               backgroundColor: AppColors.blue,
-              onPressed: () => AppInfoToast.show(context, '작성 화면은 다음 단계에서 추가돼요'),
+              onPressed: _openCompose,
               icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.white),
               label: const Text('글쓰기',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
@@ -240,7 +255,7 @@ class _BoardScreenState extends State<BoardScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2.2))),
             );
           }
-          return PostRow(post: _posts[i]);
+          return PostRow(post: _posts[i], onTap: () => _openDetail(_posts[i]));
         },
       ),
     );
@@ -269,14 +284,14 @@ class _BoardScreenState extends State<BoardScreen> {
 
 class PostRow extends StatelessWidget {
   final BoardPost post;
-  const PostRow({super.key, required this.post});
+  final VoidCallback? onTap; // 목록에서 주입(상세 진입 + 변경 시 새로고침). null=무동작(반응형 테스트용).
+  const PostRow({super.key, required this.post, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => BoardDetailScreen(postId: post.id, summary: post))),
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Column(

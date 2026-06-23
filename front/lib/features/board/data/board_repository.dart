@@ -124,4 +124,71 @@ class BoardRepository {
       rethrow;
     }
   }
+
+  // ── 쓰기(자유글 작성·수정·삭제) ──
+  // silent: 전역 SnackBar 우회 — 금칙어 403 등은 화면에서 인라인 처리(입력 보존·고정문구).
+  // 4xx → DioException → BoardApiException(code/statusCode)로 변환. 탐지 단어는 서버도 고정문구라 미노출.
+
+  /// 자유글 작성 → 생성된 postId. type 은 서버 고정('free') 외 전송 안 함(서버가 section/author 결정).
+  Future<String> createFreePost({required String title, required String content}) async {
+    try {
+      final res = await ApiClient.post('/api/board/posts',
+          {'type': 'free', 'title': title, 'content': content}, silent: true);
+      if (res['status'] != 'success') {
+        throw BoardApiException((res['message'] as String?) ?? '글을 등록하지 못했어요.',
+            code: res['code'] as String?);
+      }
+      final data = res['data'];
+      if (data is Map && data['postId'] is String) return data['postId'] as String;
+      throw const BoardParseException('작성 응답 postId 누락');
+    } on DioException catch (e) {
+      throw _writeError(e);
+    }
+  }
+
+  /// 본인 자유글 수정(제목·본문). 비본인/미존재 = 404, 금칙어 = 403.
+  Future<void> updatePost(String postId,
+      {required String title, required String content}) async {
+    try {
+      final res = await ApiClient.patch('/api/board/posts/$postId',
+          data: {'title': title, 'content': content}, silent: true);
+      if (res['status'] != 'success') {
+        throw BoardApiException((res['message'] as String?) ?? '글을 수정하지 못했어요.',
+            code: res['code'] as String?);
+      }
+    } on DioException catch (e) {
+      throw _writeError(e);
+    }
+  }
+
+  /// 본인 자유글 삭제(soft). 비본인/미존재 = 404.
+  Future<void> deletePost(String postId) async {
+    try {
+      final res = await ApiClient.delete('/api/board/posts/$postId', silent: true);
+      if (res['status'] != 'success') {
+        throw BoardApiException((res['message'] as String?) ?? '글을 삭제하지 못했어요.',
+            code: res['code'] as String?);
+      }
+    } on DioException catch (e) {
+      throw _writeError(e);
+    }
+  }
+
+  BoardApiException _writeError(DioException e) {
+    final data = e.response?.data;
+    final code = (data is Map && data['code'] is String) ? data['code'] as String : null;
+    final serverMsg =
+        (data is Map && data['message'] is String && (data['message'] as String).isNotEmpty)
+            ? data['message'] as String
+            : null;
+    final status = e.response?.statusCode;
+    final msg = serverMsg ??
+        switch (status) {
+          401 => '로그인이 필요해요.',
+          403 => '권한이 없어요.',
+          404 => '게시글을 찾을 수 없어요.',
+          _ => '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.',
+        };
+    return BoardApiException(msg, code: code, statusCode: status);
+  }
 }
