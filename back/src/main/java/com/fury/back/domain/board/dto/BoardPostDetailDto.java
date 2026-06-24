@@ -25,6 +25,6 @@ public record BoardPostDetailDto(
         boolean canBlock,
         // 좋아요(board_post_likes 집계). likeCount=COUNT(*), likedByMe=viewer 좋아요 여부(비로그인=false).
         boolean likedByMe,
-        // 첨부 이미지 — secure proxy URL, sort_order 순(raw S3 키 미노출). 없으면 빈 리스트.
-        List<String> imageUrls
+        // 첨부 이미지 — {imageId(수정 유지용)·url(secure proxy)·sortOrder} 순. raw S3 키 미노출. 없으면 빈 리스트.
+        List<BoardPostImageDto> images
 ) {}

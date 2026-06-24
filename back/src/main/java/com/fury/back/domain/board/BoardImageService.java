@@ -19,6 +19,8 @@ public class BoardImageService {
 
     private static final String PENDING_PREFIX = "uploads/board/pending";
     private static final int MAX_PENDING_PER_USER = 10;
+    private static final int RATE_WINDOW_SEC = 60;     // 빈도 제한 창
+    private static final int MAX_PER_WINDOW = 20;       // 창당 최대 업로드
     private static final Duration TTL = Duration.ofHours(24);
 
     private final BoardImageUploadRepository uploadRepository;
@@ -30,8 +32,14 @@ public class BoardImageService {
         if (userId == null || userId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
         }
-        // 사용자별 미소비 pending 개수 제한
-        if (uploadRepository.countByUploaderIdAndStatus(userId, BoardImageUpload.PENDING) >= MAX_PENDING_PER_USER) {
+        LocalDateTime now = LocalDateTime.now();
+        // ★빈도 제한(S3 저장 전 거부) — 최근 RATE_WINDOW_SEC 초 업로드 수.
+        if (uploadRepository.countByUploaderIdAndCreatedAtAfter(userId, now.minusSeconds(RATE_WINDOW_SEC)) >= MAX_PER_WINDOW) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "업로드가 너무 잦습니다. 잠시 후 다시 시도해 주세요.");
+        }
+        // ★활성 pending 개수 제한(만료분 제외, S3 저장 전 거부).
+        if (uploadRepository.countByUploaderIdAndStatusAndExpiresAtAfter(userId, BoardImageUpload.PENDING, now) >= MAX_PENDING_PER_USER) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                     "처리되지 않은 임시 이미지가 너무 많습니다. 게시글을 등록하거나 잠시 후 다시 시도해 주세요.");
         }
@@ -46,7 +54,6 @@ public class BoardImageService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 저장에 실패했습니다.");
         }
         try {
-            LocalDateTime now = LocalDateTime.now();
             uploadRepository.save(BoardImageUpload.builder()
                     .uploadId(uploadId)
                     .uploaderId(userId)

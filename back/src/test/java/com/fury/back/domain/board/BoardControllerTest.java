@@ -148,9 +148,10 @@ class BoardControllerTest {
         BoardCommentDto comment = new BoardCommentDto(
                 "c1", "닉네임", "댓글본문", t, false, false, List.of(),
                 true, true, true, "c1", false, false); // 본인 최상위 댓글
+        var img = new com.fury.back.domain.board.dto.BoardPostImageDto("IMG_1", "/api/images/secure/abc", 0);
         BoardPostDetailDto detail = new BoardPostDetailDto(
                 "pp", "free", "제목", "본문", "글쓴이", t, 0, 3, false, false, 1, List.of(comment),
-                true, true, true, false, false, true, List.of()); // 본인 자유글, likedByMe=true, 이미지 없음
+                true, true, true, false, false, true, List.of(img)); // 본인 자유글, likedByMe=true, 이미지 1장
         when(service.getDetail(eq("pp"), any())).thenReturn(detail);
 
         mvc.perform(get("/api/board/posts/pp"))
@@ -169,7 +170,12 @@ class BoardControllerTest {
                 .andExpect(jsonPath("$.data.comments[0].replyTargetCommentId").value("c1"))
                 .andExpect(jsonPath("$.data.comments[0].canReport").value(false))
                 .andExpect(jsonPath("$.data.comments[0].canBlock").value(false))
-                .andExpect(jsonPath("$.data.comments[0].authorId").doesNotExist());
+                .andExpect(jsonPath("$.data.comments[0].authorId").doesNotExist())
+                .andExpect(jsonPath("$.data.images[0].imageId").value("IMG_1"))
+                .andExpect(jsonPath("$.data.images[0].url").value("/api/images/secure/abc"))
+                .andExpect(jsonPath("$.data.images[0].sortOrder").value(0))
+                .andExpect(jsonPath("$.data.imageUrls").doesNotExist())             // 구 필드 제거 확인
+                .andExpect(jsonPath("$.data.images[0].storageKey").doesNotExist()); // raw S3 키 미노출
     }
 
     @Test

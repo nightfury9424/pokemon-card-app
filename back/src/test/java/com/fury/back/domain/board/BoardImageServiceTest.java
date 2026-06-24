@@ -22,7 +22,8 @@ class BoardImageServiceTest {
     @InjectMocks BoardImageService service;
 
     @Test void upload_dbInsertFails_s3Compensated() throws Exception {
-        when(uploadRepo.countByUploaderIdAndStatus(any(), any())).thenReturn(0L);
+        when(uploadRepo.countByUploaderIdAndCreatedAtAfter(any(), any())).thenReturn(0L);
+        when(uploadRepo.countByUploaderIdAndStatusAndExpiresAtAfter(any(), any(), any())).thenReturn(0L);
         when(validator.validate(any()))
                 .thenReturn(new BoardImageValidator.ValidatedImage(new byte[]{1}, ".jpg", "image/jpeg"));
         when(storage.store(any(), any(), any(byte[].class), any())).thenReturn("uploads/board/pending/k.jpg");
@@ -33,10 +34,18 @@ class BoardImageServiceTest {
     }
 
     @Test void upload_tooManyPending_429() {
-        when(uploadRepo.countByUploaderIdAndStatus(any(), any())).thenReturn(10L);
+        when(uploadRepo.countByUploaderIdAndCreatedAtAfter(any(), any())).thenReturn(0L);          // 빈도 통과
+        when(uploadRepo.countByUploaderIdAndStatusAndExpiresAtAfter(any(), any(), any())).thenReturn(10L); // 활성 pending 초과
         assertThatThrownBy(() -> service.upload("u1", mock(MultipartFile.class)))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("429");
-        verifyNoInteractions(storage);
+        verifyNoInteractions(storage); // S3 저장 전 거부
+    }
+
+    @Test void upload_tooFrequent_429() {
+        when(uploadRepo.countByUploaderIdAndCreatedAtAfter(any(), any())).thenReturn(20L); // 빈도 초과
+        assertThatThrownBy(() -> service.upload("u1", mock(MultipartFile.class)))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("429");
+        verifyNoInteractions(storage); // S3 저장 전 거부
     }
 
     @Test void upload_unauthenticated_401() {
