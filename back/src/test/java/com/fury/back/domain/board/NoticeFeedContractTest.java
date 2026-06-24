@@ -26,8 +26,30 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NoticeFeedContractTest {
 
     @Autowired BoardPostRepository postRepository;
+    @Autowired BoardPostImageRepository postImageRepository;
     @Autowired BoardService boardService;
     @Autowired EntityManager em;
+
+    @Test
+    void feedSummary_thumbnailIsSortZero_andImageCount() {
+        postRepository.save(freePost("f-img"));
+        postImageRepository.save(BoardPostImage.builder().imageId("im1").postId("f-img")
+                .storageKey("uploads/board/k1.jpg").sortOrder(0).createdAt(LocalDateTime.now()).build());
+        postImageRepository.save(BoardPostImage.builder().imageId("im2").postId("f-img")
+                .storageKey("uploads/board/k2.jpg").sortOrder(1).createdAt(LocalDateTime.now()).build());
+        postRepository.save(freePost("f-noimg"));
+        em.flush();
+        em.clear();
+
+        BoardPageDto feed = boardService.getFeed("community", "free", null, 0, 20);
+        var withImg = feed.content().stream().filter(s -> s.id().equals("f-img")).findFirst().orElseThrow();
+        var noImg = feed.content().stream().filter(s -> s.id().equals("f-noimg")).findFirst().orElseThrow();
+        // ★썸네일 = sort 0 의 secure proxy URL(raw 키 아님), imageCount = 총 첨부 수.
+        assertThat(withImg.imageCount()).isEqualTo(2);
+        assertThat(withImg.thumbnailUrl()).isEqualTo("/api/images/secure/uploads/board/k1.jpg");
+        assertThat(noImg.imageCount()).isEqualTo(0);
+        assertThat(noImg.thumbnailUrl()).isNull();
+    }
 
     private BoardPost notice(String id, String title, String content, boolean pinned, LocalDateTime created) {
         return BoardPost.builder().postId(id).type("notice").section("official").title(title)

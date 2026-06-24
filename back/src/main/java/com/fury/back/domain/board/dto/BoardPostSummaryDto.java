@@ -22,5 +22,8 @@ public record BoardPostSummaryDto(
         boolean canReport,
         boolean canBlock,
         // 좋아요(board_post_likes 집계). likeCount=COUNT(*), likedByMe=viewer 좋아요 여부(비로그인=false).
-        boolean likedByMe
+        boolean likedByMe,
+        // 목록 썸네일 — 첫 이미지(sort 0) secure proxy URL(없으면 null) + 총 첨부 수. raw S3 키·전체 배열 미노출.
+        String thumbnailUrl,
+        int imageCount
 ) {}

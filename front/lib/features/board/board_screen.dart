@@ -6,6 +6,7 @@ import 'data/board_repository.dart';
 import 'board_detail_screen.dart';
 import 'board_compose_screen.dart';
 import 'models/board_filter.dart';
+import '../../core/widgets/auth_image.dart';
 
 /// 게시판 — 전체|공지|이벤트|패치노트|자유|거래후기|사기주의 7탭(기본=전체).
 /// 공식(공지/이벤트/패치)=관리자 작성·읽기전용, 사용자(자유/거래후기/사기주의)=작성·댓글·좋아요. 서버 페이지네이션·핀 우선.
@@ -363,9 +364,13 @@ class PostRow extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
             Row(
               children: [
                 _typeChip(post.type),
@@ -452,7 +457,62 @@ class PostRow extends StatelessWidget {
               ],
             ),
           ],
+                ),
+              ),
+            if (post.thumbnailUrl != null) ...[
+              const SizedBox(width: 12),
+              _thumbnail(),
+            ],
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _thumbnail() {
+    return SizedBox(
+      width: 80,
+      height: 80,
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: AuthImage(
+              url: post.thumbnailUrl!,
+              width: 80,
+              height: 80,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 80,
+                height: 80,
+                color: AppColors.surfaceCard,
+                child: const Icon(Icons.image_outlined, color: AppColors.textMuted, size: 22),
+              ),
+            ),
+          ),
+          if (post.imageCount > 1)
+            Positioned(
+              right: 4,
+              bottom: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.collections, size: 10, color: Colors.white),
+                    const SizedBox(width: 3),
+                    Text('${post.imageCount}',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

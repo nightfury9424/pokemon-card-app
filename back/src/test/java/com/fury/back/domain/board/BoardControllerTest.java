@@ -105,7 +105,7 @@ class BoardControllerTest {
         return new BoardPageDto(List.of(new BoardPostSummaryDto(
                 "pp", "notice", "제목", "본문", "운영팀",
                 LocalDateTime.of(2026, 6, 23, 10, 0), 0, 0, true, false, 0,
-                false, false, false, false, false, false)), 0, 20, 1, 1);
+                false, false, false, false, false, false, null, 0)), 0, 20, 1, 1);
     }
 
     @Test

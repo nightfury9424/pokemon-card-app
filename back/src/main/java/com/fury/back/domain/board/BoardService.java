@@ -62,12 +62,20 @@ public class BoardService {
         Map<String, Long> counts = commentCountMap(postIds);
         Map<String, Integer> likeCounts = likeCountMap(postIds);  // bulk 1쿼리
         Set<String> liked = likedPostIds(viewerId, postIds);      // bulk 1쿼리(viewer 있을 때만)
+        Map<String, ImageSummary> images = imageSummaryMap(postIds); // bulk 1쿼리(N+1 금지)
 
         List<BoardPostSummaryDto> content = list.stream()
-                .map(post -> toSummary(post, nicknames,
-                        counts.getOrDefault(post.getPostId(), 0L).intValue(), viewerId,
-                        likeCounts.getOrDefault(post.getPostId(), 0),
-                        liked.contains(post.getPostId())))
+                .map(post -> {
+                    ImageSummary is = images.get(post.getPostId());
+                    String thumbUrl = (is != null && is.thumbnailKey() != null)
+                            ? com.fury.back.storage.StorageKeyUrls.toProxyUrl(is.thumbnailKey())
+                            : null; // raw 키 미노출
+                    int imgCount = is != null ? is.count() : 0;
+                    return toSummary(post, nicknames,
+                            counts.getOrDefault(post.getPostId(), 0L).intValue(), viewerId,
+                            likeCounts.getOrDefault(post.getPostId(), 0),
+                            liked.contains(post.getPostId()), thumbUrl, imgCount);
+                })
                 .collect(Collectors.toList());
 
         return new BoardPageDto(content, posts.getNumber(), posts.getSize(),
@@ -131,7 +139,8 @@ public class BoardService {
     // ── helpers ──
 
     private BoardPostSummaryDto toSummary(BoardPost p, Map<String, String> nick, int commentCount,
-                                          String viewerId, int likeCount, boolean likedByMe) {
+                                          String viewerId, int likeCount, boolean likedByMe,
+                                          String thumbnailUrl, int imageCount) {
         BoardPermissions.PostFlags pf = BoardPermissions.forPost(
                 viewerId, p.getAuthorId(), p.getType(), p.getStatus(), p.getDeletedAt() != null);
         return new BoardPostSummaryDto(
@@ -140,8 +149,29 @@ public class BoardService {
                 p.getCreatedAt(), p.getViewCount(), likeCount,
                 p.isPinned(), p.isAnswered(), commentCount,
                 pf.mine(), pf.canEdit(), pf.canDelete(), pf.canReport(), pf.canBlock(),
-                likedByMe);
+                likedByMe, thumbnailUrl, imageCount);
     }
+
+    /** 페이지 postId 들의 첫 이미지(sort 0)·총개수 bulk 조회(N+1 금지). 첫 이미지 = sort_order 최소. */
+    private Map<String, ImageSummary> imageSummaryMap(List<String> postIds) {
+        if (postIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Integer> counts = new HashMap<>();
+        Map<String, String> firstKey = new HashMap<>();
+        // sort_order ASC 정렬 → 전 행이 sort 오름차순이라 postId 별 첫 등장 = sort 최소(=썸네일).
+        for (BoardPostImage img : postImageRepository.findByPostIdInOrderBySortOrderAsc(postIds)) {
+            counts.merge(img.getPostId(), 1, Integer::sum);
+            firstKey.putIfAbsent(img.getPostId(), img.getStorageKey());
+        }
+        Map<String, ImageSummary> m = new HashMap<>();
+        for (Map.Entry<String, Integer> e : counts.entrySet()) {
+            m.put(e.getKey(), new ImageSummary(firstKey.get(e.getKey()), e.getValue()));
+        }
+        return m;
+    }
+
+    private record ImageSummary(String thumbnailKey, int count) {}
 
     /** 게시글별 좋아요 수 batch(board_post_likes COUNT). 빈 목록이면 호출 생략. */
     private Map<String, Integer> likeCountMap(List<String> postIds) {

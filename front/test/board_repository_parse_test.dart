@@ -45,6 +45,20 @@ void main() {
     });
   });
 
+  group('목록 썸네일/이미지수 파싱', () {
+    test('thumbnailUrl + imageCount 있음', () {
+      final p = BoardPost.fromJson(Map<String, dynamic>.from(
+          {...postJson(), 'thumbnailUrl': '/api/images/secure/x', 'imageCount': 3}));
+      expect(p.thumbnailUrl, '/api/images/secure/x');
+      expect(p.imageCount, 3);
+    });
+    test('없으면 thumbnailUrl=null, imageCount=0', () {
+      final p = BoardPost.fromJson(Map<String, dynamic>.from(postJson()));
+      expect(p.thumbnailUrl, isNull);
+      expect(p.imageCount, 0);
+    });
+  });
+
   group('목록 파싱', () {
     test('정상 → posts/페이지네이션/서버 commentCount', () {
       final res = ok({

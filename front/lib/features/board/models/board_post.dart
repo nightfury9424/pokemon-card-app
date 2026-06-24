@@ -211,6 +211,8 @@ class BoardPost {
   final bool isAnswered; // Q&A: 답변 달림
   final List<BoardComment> comments;
   final List<BoardPostImage> images; // 상세 응답의 첨부 이미지(sort 순). 목록/요약엔 없음 → 빈 리스트.
+  final String? thumbnailUrl; // 목록 썸네일(첫 이미지 sort0 secure proxy). 없으면 null.
+  final int imageCount; // 총 첨부 수(목록 장수 배지용).
 
   /// 목록 응답(BoardPostSummaryDto)의 서버 라이브 집계값. 상세/목업은 null → comments 에서 계산.
   final int? listCommentCount;
@@ -236,6 +238,8 @@ class BoardPost {
     this.isAnswered = false,
     this.comments = const [],
     this.images = const [],
+    this.thumbnailUrl,
+    this.imageCount = 0,
     this.listCommentCount,
     this.mine = false,
     this.canEdit = false,
@@ -271,6 +275,8 @@ class BoardPost {
       images: ((j['images'] as List?) ?? const [])
           .map((e) => BoardPostImage.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
+      thumbnailUrl: j['thumbnailUrl'] as String?,
+      imageCount: (j['imageCount'] as num?)?.toInt() ?? 0,
       listCommentCount: (j['commentCount'] as num?)?.toInt(),
       mine: _flag(j, 'mine'),
       canEdit: _flag(j, 'canEdit'),
