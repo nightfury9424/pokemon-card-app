@@ -136,11 +136,12 @@ class BoardRepository {
   // silent: 전역 SnackBar 우회 — 금칙어 403 등은 화면에서 인라인 처리(입력 보존·고정문구).
   // 4xx → DioException → BoardApiException(code/statusCode)로 변환. 탐지 단어는 서버도 고정문구라 미노출.
 
-  /// 자유글 작성 → 생성된 postId. type 은 서버 고정('free') 외 전송 안 함(서버가 section/author 결정).
-  Future<String> createFreePost({required String title, required String content}) async {
+  /// 사용자 게시글 작성 → 생성된 postId. type=free/tradeReview/scamAlert(서버 allowlist 재검증). section/author 는 서버 결정.
+  Future<String> createPost(
+      {required String type, required String title, required String content}) async {
     try {
       final res = await ApiClient.post('/api/board/posts',
-          {'type': 'free', 'title': title, 'content': content}, silent: true);
+          {'type': type, 'title': title, 'content': content}, silent: true);
       if (res['status'] != 'success') {
         throw BoardApiException((res['message'] as String?) ?? '글을 등록하지 못했어요.',
             code: res['code'] as String?);

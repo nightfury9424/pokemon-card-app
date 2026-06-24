@@ -4,6 +4,7 @@ import 'models/board_post.dart';
 import 'data/board_repository.dart';
 import 'board_screen.dart';
 import 'board_detail_screen.dart';
+import 'models/board_filter.dart';
 
 /// 홈 카드 위 얇은 가로 공지배너 — 서버의 첫 유효 공지(핀 우선·최신순) 1개. 탭 → 상세 / › → 공지 목록.
 /// ★실 API 연결: GET /api/board/posts?section=official&type=notice. 로딩/0건/오류 = 배너 숨김(홈 비차단, 가짜 static 금지).
@@ -65,7 +66,8 @@ class HomeNoticeBannerState extends State<HomeNoticeBanner> {
     void openList() => Navigator.of(
       context,
       rootNavigator: true,
-    ).push(MaterialPageRoute(builder: (_) => const BoardScreen(initialTab: 0)));
+    ).push(MaterialPageRoute(
+        builder: (_) => const BoardScreen(initialFilter: BoardFilter.notice)));
 
     // ★접근성: 배너 전체를 상세 탭으로 감싸지 않고, 상세 영역 / 목록 영역을 형제 버튼 2개로 분리(중첩 시 스크린리더
     //   focus/action 병합 위험). 각 Semantics 가 onTap(=tap action) 직접 보유 — excludeSemantics 로 자식 GestureDetector

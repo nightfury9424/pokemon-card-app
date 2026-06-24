@@ -5,19 +5,20 @@ import 'models/board_post.dart';
 import 'data/board_repository.dart';
 import 'board_detail_screen.dart';
 import 'board_compose_screen.dart';
+import 'models/board_filter.dart';
 
-/// 게시판 — **공지 | 자유** 2탭(기본=자유). 공지=section=official(읽기전용·관리자 작성),
-/// 자유=type=free(로그인 작성·댓글·좋아요). 서버 페이지네이션·핀 우선 정렬.
+/// 게시판 — 전체|공지|이벤트|패치노트|자유|거래후기|사기주의 7탭(기본=전체).
+/// 공식(공지/이벤트/패치)=관리자 작성·읽기전용, 사용자(자유/거래후기/사기주의)=작성·댓글·좋아요. 서버 페이지네이션·핀 우선.
 class BoardScreen extends StatefulWidget {
   /// 주입 가능(테스트용 fake). 운영 기본 = const BoardRepository().
   final BoardRepository repository;
 
-  /// 진입 탭 — 0 = 공지(official), 1 = 자유(free, 기본). 홈 공지배너 › 는 0(공지 목록)으로 진입.
-  final int initialTab;
+  /// 진입 필터 — ★의미 기반(기본=전체). 홈 공지배너 › 는 BoardFilter.notice 로 진입.
+  final BoardFilter initialFilter;
   const BoardScreen({
     super.key,
     this.repository = const BoardRepository(),
-    this.initialTab = 1,
+    this.initialFilter = BoardFilter.all,
   });
 
   @override
@@ -27,8 +28,7 @@ class BoardScreen extends StatefulWidget {
 class _BoardScreenState extends State<BoardScreen> {
   static const _pageSize = 20;
 
-  late int
-  _tab; // 0 = 공지(official), 1 = 자유(free). initState 에서 widget.initialTab 로 초기화.
+  late BoardFilter _filter; // initState 에서 widget.initialFilter 로 초기화.
   final ScrollController _scroll = ScrollController();
 
   List<BoardPost> _posts = const [];
@@ -40,14 +40,13 @@ class _BoardScreenState extends State<BoardScreen> {
   int _reqToken = 0; // 탭 전환/새로고침 경쟁 방지(늦게 온 응답 폐기)
   bool _pendingScrollReset = false; // 탭 전환 시 목록 최상단 복귀
 
-  bool get _isNotice => _tab == 0;
-  String? get _section => _isNotice ? 'official' : null;
-  String? get _type => _isNotice ? null : 'free';
+  String? get _section => null; // 7탭 모두 type 기반(section 미사용)
+  String? get _type => _filter.queryType; // 전체=null(서버가 qna 제외)
 
   @override
   void initState() {
     super.initState();
-    _tab = widget.initialTab == 0 ? 0 : 1; // 방어: 0/1 외 값은 자유(1)로
+    _filter = widget.initialFilter;
     _scroll.addListener(_onScroll);
     _load();
   }
@@ -124,11 +123,11 @@ class _BoardScreenState extends State<BoardScreen> {
     }
   }
 
-  void _switchTab(int t) {
-    if (_tab == t) return;
+  void _switchFilter(BoardFilter f) {
+    if (_filter == f) return;
     _pendingScrollReset = true;
     setState(() {
-      _tab = t;
+      _filter = f;
       _posts = const [];
       _hasMore = false;
       _loadingMore = false;
@@ -136,11 +135,14 @@ class _BoardScreenState extends State<BoardScreen> {
     _load();
   }
 
-  // 자유 탭 글쓰기 FAB → root navigator 전체화면 작성. 성공 시 목록 새로고침.
+  // 글쓰기 FAB → root navigator 전체화면 작성. 현재 탭이 카테고리면 그 타입 사전선택(전체=자유). 성공 시 목록 새로고침.
   Future<void> _openCompose() async {
     final created = await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(
-        builder: (_) => BoardComposeScreen(repository: widget.repository),
+        builder: (_) => BoardComposeScreen(
+          repository: widget.repository,
+          initialType: _filter.composeType ?? BoardType.free,
+        ),
       ),
     );
     if (created != null && mounted) _load();
@@ -182,10 +184,9 @@ class _BoardScreenState extends State<BoardScreen> {
           ),
         ),
       ),
-      // 자유 탭만 글쓰기 FAB(공지는 관리자 웹 전용 = 앱 작성 버튼 없음).
-      floatingActionButton: _isNotice
-          ? null
-          : FloatingActionButton.extended(
+      // 전체 + 사용자 카테고리(자유/거래후기/사기주의)만 글쓰기 FAB. 공식(공지/이벤트/패치)=관리자 웹 전용.
+      floatingActionButton: _filter.canWrite
+          ? FloatingActionButton.extended(
               backgroundColor: AppColors.blue,
               onPressed: _openCompose,
               icon: const Icon(
@@ -200,7 +201,8 @@ class _BoardScreenState extends State<BoardScreen> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-            ),
+            )
+          : null,
       body: Column(
         children: [
           _tabBar(),
@@ -212,30 +214,28 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   Widget _tabBar() {
-    Widget tab(String label, int idx) {
-      final sel = _tab == idx;
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => _switchTab(idx),
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 11),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: sel ? AppColors.blue : Colors.transparent,
-                  width: 2,
-                ),
+    Widget tab(BoardFilter f) {
+      final sel = _filter == f;
+      return GestureDetector(
+        onTap: () => _switchFilter(f),
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: sel ? AppColors.blue : Colors.transparent,
+                width: 2,
               ),
             ),
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: sel ? AppColors.textPrimary : AppColors.textMuted,
-                fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
-                fontSize: 14.5,
-              ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            f.label,
+            style: TextStyle(
+              color: sel ? AppColors.textPrimary : AppColors.textMuted,
+              fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+              fontSize: 14.5,
             ),
           ),
         ),
@@ -248,7 +248,11 @@ class _BoardScreenState extends State<BoardScreen> {
           bottom: BorderSide(color: AppColors.dividerSoft, width: 1),
         ),
       ),
-      child: Row(children: [tab('공지', 0), tab('자유', 1)]),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Row(children: BoardFilter.values.map(tab).toList()),
+      ),
     );
   }
 
@@ -271,7 +275,9 @@ class _BoardScreenState extends State<BoardScreen> {
               height: MediaQuery.sizeOf(context).height * 0.5,
               child: Center(
                 child: Text(
-                  _isNotice ? '등록된 공지가 없어요' : '아직 글이 없어요',
+                  _filter == BoardFilter.all
+                      ? '아직 글이 없어요'
+                      : '등록된 ${_filter.label} 게시글이 없어요',
                   style: const TextStyle(color: AppColors.textMuted),
                 ),
               ),

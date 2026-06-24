@@ -18,7 +18,7 @@ class _FakeWriteRepo extends BoardRepository {
   _FakeWriteRepo({this.throwOnSubmit, this.delay = Duration.zero});
 
   @override
-  Future<String> createFreePost({required String title, required String content}) async {
+  Future<String> createPost({required String type, required String title, required String content}) async {
     createCalls++;
     lastTitle = title;
     lastBody = content;

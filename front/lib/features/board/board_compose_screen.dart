@@ -10,10 +10,14 @@ import 'models/board_post.dart';
 class BoardComposeScreen extends StatefulWidget {
   final BoardRepository repository;
   final BoardPost? editing;
+
+  /// 작성 시 사전 선택 카테고리(자유/거래후기/사기주의). 카테고리 picker UI 는 후속 슬라이스.
+  final BoardType? initialType;
   const BoardComposeScreen({
     super.key,
     this.repository = const BoardRepository(),
     this.editing,
+    this.initialType,
   });
 
   @override
@@ -90,7 +94,11 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
         if (!mounted) return;
         Navigator.of(context).pop(true); // 수정 성공 (force pop — PopScope 우회)
       } else {
-        final id = await widget.repository.createFreePost(title: title, content: body);
+        final id = await widget.repository.createPost(
+          type: (widget.initialType ?? BoardType.free).name,
+          title: title,
+          content: body,
+        );
         if (!mounted) return;
         Navigator.of(context).pop(id); // 작성 성공 → postId 반환
       }

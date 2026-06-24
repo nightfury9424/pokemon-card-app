@@ -7,6 +7,7 @@ import 'package:front/features/board/board_screen.dart';
 import 'package:front/features/board/board_detail_screen.dart';
 import 'package:front/features/board/data/board_repository.dart';
 import 'package:front/features/board/models/board_post.dart';
+import 'package:front/features/board/models/board_filter.dart';
 
 /// fetchList 호출 횟수 카운트(refresh +1 검증).
 class _CountRepo extends BoardRepository {
@@ -202,7 +203,7 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('우측 화살표 탭 → BoardScreen(initialTab 0, 공지 목록) push', (t) async {
+  testWidgets('우측 화살표 탭 → BoardScreen(initialFilter.notice, 공지 목록) push', (t) async {
     final obs = await _pumpWithObserver(
       t,
       _FakeRepo(posts: [_notice('nX', '공지제목')]),
@@ -215,7 +216,7 @@ void main() {
     ); // ★정확히 1회 push — 중첩 GestureDetector 가 부모 배너 탭까지 발동시키지 않음
     final w = routes.single.builder(t.element(find.byType(MaterialApp)));
     expect(w, isA<BoardScreen>()); // 상세(BoardDetailScreen)가 아니라 목록만 열림
-    expect((w as BoardScreen).initialTab, 0); // 공지 탭 진입
+    expect((w as BoardScreen).initialFilter, BoardFilter.notice); // 공지 진입
     await t.pumpWidget(const SizedBox());
   });
 

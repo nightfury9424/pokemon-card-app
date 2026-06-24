@@ -41,7 +41,7 @@ class _ExitRepo extends BoardRepository {
   }
 
   @override
-  Future<String> createFreePost({required String title, required String content}) async {
+  Future<String> createPost({required String type, required String title, required String content}) async {
     createPosts++;
     await Future<void>.delayed(delay);
     return 'p-new';
