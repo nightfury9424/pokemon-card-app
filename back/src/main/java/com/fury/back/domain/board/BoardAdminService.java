@@ -50,20 +50,24 @@ public class BoardAdminService {
         // 공지(notice/event/patch)는 관리자 신뢰 입력 → 사용자 금칙어 필터 미적용.
         // 길이·blank·제어문자 검증(clean)만 유지. (HTML: 앱은 Flutter Text 렌더=안전, 관리자 웹은 이스케이프 책임.)
 
+        boolean pin = Boolean.TRUE.equals(req.isPinned());
+        String newId = IdGenerator.generate();
+        if (pin) postRepository.lockOfficialPin(); // ★단일 고정 직렬화
         BoardPost post = BoardPost.builder()
-                .postId(IdGenerator.generate())
+                .postId(newId)
                 .type(type)
                 .section(BoardTaxonomy.sectionOf(type))
                 .title(title)
                 .content(content)
                 .authorId(adminUserId)                  // ★서버 결정(요청 authorId 무시), 표시명은 "운영팀"
-                .pinned(Boolean.TRUE.equals(req.isPinned()))
+                .pinned(pin)
                 .answered(false)
                 .viewCount(0)
                 .likeCount(0)
                 .status("ACTIVE")
                 .build();
         String id = postRepository.save(post).getPostId();
+        if (pin) postRepository.unpinAllOfficialExcept(id); // ★나머지 공식글 고정 해제(공식 전체 고정 1개)
         audit(adminUserId, "BOARD_POST_CREATE", id, null, "ACTIVE");
         return id;
     }
@@ -80,7 +84,14 @@ public class BoardAdminService {
         String content = req.content() == null ? null : clean(req.content(), CONTENT_MAX, "내용");
         // 공지(notice/event/patch)는 관리자 신뢰 입력 → 사용자 금칙어 필터 미적용.
         // 길이·blank·제어문자 검증(clean)만 유지. (HTML: 앱은 Flutter Text 렌더=안전, 관리자 웹은 이스케이프 책임.)
+        // ★단일 상단 고정 불변식: 이 글을 고정(true)하면 다른 공식글 고정은 전부 자동 해제.
+        if (Boolean.TRUE.equals(req.isPinned())) {
+            postRepository.lockOfficialPin(); // 직렬화(동시 ON 에도 ≤1)
+        }
         post.adminEdit(title, content, req.isPinned());
+        if (Boolean.TRUE.equals(req.isPinned())) {
+            postRepository.unpinAllOfficialExcept(postId); // 대상 pinned=true 는 auto-flush, 나머지 해제
+        }
         audit(adminUserId, "BOARD_POST_UPDATE", postId, null, null);
     }
 

@@ -3,6 +3,7 @@ package com.fury.back.domain.board;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -44,4 +45,13 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, String> {
                              @Param("pinnedOnly") boolean pinnedOnly,
                              @Param("viewerId") String viewerId,
                              Pageable pageable);
+
+    /** ★단일 상단 고정 불변식 — 대상 외 공식글 고정 전부 해제. 반환=해제된 행 수. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE BoardPost p SET p.pinned = false WHERE p.section = 'official' AND p.pinned = true AND p.postId <> :keepId")
+    int unpinAllOfficialExcept(@Param("keepId") String keepId);
+
+    /** 공식 고정 토글 직렬화 — 동시 ON 요청에도 ≤1개만 고정되도록 트랜잭션 advisory lock(동일 키). */
+    @Query(value = "SELECT pg_advisory_xact_lock(5417)", nativeQuery = true)
+    void lockOfficialPin();
 }

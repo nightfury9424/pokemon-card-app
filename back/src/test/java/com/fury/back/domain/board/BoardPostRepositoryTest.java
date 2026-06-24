@@ -107,6 +107,19 @@ class BoardPostRepositoryTest {
     }
 
     @Test
+    void unpinAllOfficialExcept_keepsOnlyTargetOfficial() {
+        posts.saveAndFlush(post("o1", "notice", "official", "u1", true, T1, "ACTIVE", null));
+        posts.saveAndFlush(post("o2", "event", "official", "u1", true, T2, "ACTIVE", null));
+        posts.saveAndFlush(post("o3", "patch", "official", "u1", true, T3, "ACTIVE", null));
+        posts.saveAndFlush(post("cc", "free", "community", "u1", true, T1, "ACTIVE", null)); // community 고정은 영향 없어야
+        int cleared = posts.unpinAllOfficialExcept("o2");
+        assertThat(cleared).isEqualTo(2); // o1, o3 해제
+        var pinned = posts.findAll().stream().filter(BoardPost::isPinned)
+                .map(BoardPost::getPostId).sorted().toList();
+        assertThat(pinned).containsExactly("cc", "o2"); // 공식은 o2만 유지, community cc 미변경
+    }
+
+    @Test
     void feed_excludes_deleted_and_hidden() {
         posts.saveAndFlush(post("p1", "free", "community", "u1", false, T1, "ACTIVE", null));
         posts.saveAndFlush(post("p2", "free", "community", "u1", false, T2, "ACTIVE", T2)); // soft-deleted

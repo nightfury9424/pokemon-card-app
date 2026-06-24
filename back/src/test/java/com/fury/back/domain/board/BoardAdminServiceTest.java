@@ -65,6 +65,45 @@ class BoardAdminServiceTest {
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
     }
 
+    // ── ★단일 상단 고정 불변식 ──
+    @Test void createOfficial_pinned_unpinsOthers_singlePin() {
+        notEnforced();
+        when(userRepo.existsById("admin1")).thenReturn(true);
+        when(postRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        service.createOfficial("admin1", new AdminCreatePostRequest("notice", "공지", "내용", true));
+        verify(postRepo).lockOfficialPin();                   // 직렬화
+        verify(postRepo).unpinAllOfficialExcept(anyString()); // 나머지 공식글 고정 해제
+    }
+
+    @Test void createOfficial_notPinned_doesNotUnpin() {
+        notEnforced();
+        when(userRepo.existsById("admin1")).thenReturn(true);
+        when(postRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        service.createOfficial("admin1", new AdminCreatePostRequest("notice", "공지", "내용", false));
+        verify(postRepo, never()).unpinAllOfficialExcept(anyString());
+        verify(postRepo, never()).lockOfficialPin();
+    }
+
+    @Test void updateOfficial_pinTrue_unpinsOthers_singlePin() {
+        notEnforced();
+        BoardPost p = post("p", "notice", "official", "ACTIVE", null);
+        when(postRepo.findById("p")).thenReturn(Optional.of(p));
+        service.updateOfficial("admin1", "p", new AdminUpdatePostRequest(null, null, true));
+        assertThat(p.isPinned()).isTrue();
+        verify(postRepo).lockOfficialPin();
+        verify(postRepo).unpinAllOfficialExcept("p"); // ★대상 외 공식글 고정 해제
+    }
+
+    @Test void updateOfficial_pinFalse_doesNotUnpinOthers() {
+        notEnforced();
+        BoardPost p = post("p", "notice", "official", "ACTIVE", null);
+        when(postRepo.findById("p")).thenReturn(Optional.of(p));
+        service.updateOfficial("admin1", "p", new AdminUpdatePostRequest(null, null, false));
+        assertThat(p.isPinned()).isFalse();
+        verify(postRepo, never()).unpinAllOfficialExcept(anyString()); // OFF 는 대상만
+        verify(postRepo, never()).lockOfficialPin();
+    }
+
     // ── updateOfficial: 공식글만 ──
     @Test void updateOfficial_officialPost_edits() {
         notEnforced();
