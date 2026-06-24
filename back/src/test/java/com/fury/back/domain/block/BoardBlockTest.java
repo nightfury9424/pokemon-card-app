@@ -111,6 +111,40 @@ class BoardBlockTest {
     }
 
     @Test
+    void blockCommentAuthor_parentPostDeletedOrMissing_notFound() {
+        // 부모 게시글이 삭제됨 — 댓글 자체는 미삭제지만 차단 불가(직접 호출 우회 차단).
+        boardPostRepository.save(post("pD", "free", "author1", true)); // deleted parent
+        boardCommentRepository.save(comment("c1", "pD", "author2", false));
+        boardCommentRepository.save(comment("c2", "pMissing", "author3", false)); // 부모 글 미존재
+        em.flush();
+        assertThatThrownBy(() -> blockController.blockCommentAuthor("viewer1", "c1"))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("404");
+        assertThatThrownBy(() -> blockController.blockCommentAuthor("viewer1", "c2"))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("404");
+    }
+
+    @Test
+    void blockCommentAuthor_parentPostOfficial_badRequest() {
+        // 공식 게시글의 댓글(방어) — canBlock=false 정책(community 아님) 과 일치하게 거부.
+        boardPostRepository.save(post("n1", "notice", "admin1", false));
+        boardCommentRepository.save(comment("c1", "n1", "author2", false));
+        em.flush();
+        assertThatThrownBy(() -> blockController.blockCommentAuthor("viewer1", "c1"))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
+    }
+
+    @Test
+    void blockPostAuthor_concurrentIdempotent_noUniqueViolation() {
+        // ON CONFLICT — 같은 (blocker,blocked) 재호출에도 unique 위반(500) 없이 1행 유지(동시 요청 안전).
+        boardPostRepository.save(post("p1", "free", "author1", false));
+        em.flush();
+        blockController.blockPostAuthor("viewer1", "p1");
+        blockController.blockPostAuthor("viewer1", "p1");
+        blockController.blockPostAuthor("viewer1", "p1");
+        assertThat(blockRepository.findAllByBlockerId("viewer1")).hasSize(1);
+    }
+
+    @Test
     void afterBlock_feedExcludesAuthorPosts() {
         boardPostRepository.save(post("p1", "free", "author1", false));
         em.flush();

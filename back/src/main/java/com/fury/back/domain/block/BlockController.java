@@ -74,29 +74,37 @@ public class BlockController {
         BoardComment comment = boardCommentRepository.findById(commentId)
                 .filter(c -> c.getDeletedAt() == null)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다."));
+        // ★UI canBlock(forComment)=in && !mine && community 와 일치 — 부모 게시글이 존재·ACTIVE·미삭제·비공식인지
+        //   서버 재검증(직접 호출 우회 차단). 운영자 댓글 작성자는 정책상 차단 허용(면제 없음).
+        BoardPost post = boardPostRepository.findById(comment.getPostId())
+                .filter(p -> p.getDeletedAt() == null && "ACTIVE".equals(p.getStatus()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
+        if (BoardTaxonomy.isAdminType(post.getType())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "공식 게시글의 댓글은 차단할 수 없습니다.");
+        }
         return applyBlock(blockerId, comment.getAuthorId());
     }
 
-    /** 공통 차단 처리 — self/blank 거부 + idempotent(이미 차단 시 200) + 신규일 때만 notifyBlock. */
+    /**
+     * 공통 차단 처리 — self/blank 거부 + ★멱등(ON CONFLICT, 동시 요청에도 unique 위반 500 없이 1행) + 신규일 때만 notifyBlock.
+     */
     private ResponseEntity<ReturnData<Map<String, String>>> applyBlock(String blockerId, String blockedId) {
         if (blockedId == null || blockedId.isBlank() || blockerId.equals(blockedId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SELF_BLOCK");
         }
-        var existing = blockRepository.findByBlockerIdAndBlockedId(blockerId, blockedId);
-        boolean created = existing.isEmpty();
-        Block block = existing.orElseGet(() -> blockRepository.save(Block.builder()
-                .blockId(IdGenerator.generate())
-                .blockerId(blockerId)
-                .blockedId(blockedId)
-                .build()));
+        String newId = IdGenerator.generate();
+        boolean created = blockRepository.insertIgnoreBlock(newId, blockerId, blockedId) > 0;
         // Phase 1: 차단한 사람 hidden_at 자동 set + 차단당한 사람 방에 SYSTEM 메시지 1회.
         // 신규 차단일 때만 수행 (idempotent — 재호출 시 중복 SYSTEM 메시지 방지). board 작성자=채팅방 없으면 no-op.
         if (created) {
             chatService.notifyBlock(blockerId, blockedId);
         }
+        String blockId = created ? newId
+                : blockRepository.findByBlockerIdAndBlockedId(blockerId, blockedId)
+                        .map(Block::getBlockId).orElse(newId);
         HttpStatus status = created ? HttpStatus.CREATED : HttpStatus.OK;
         return ResponseEntity.status(status)
-                .body(ReturnData.success(Map.of("blockId", block.getBlockId())));
+                .body(ReturnData.success(Map.of("blockId", blockId)));
     }
 
     @Operation(summary = "사용자 차단 해제")
