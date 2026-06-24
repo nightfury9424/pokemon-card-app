@@ -175,25 +175,29 @@ void main() {
     final handle = t.ensureSemantics();
     await _pump(t, _FakeRepo(posts: [_notice('nX', '점검 공지')]));
 
-    // 상세 버튼: 라벨에 실제 제목 포함(정확 일치 = 목록 라벨과 병합 안 됨) + tap action 보유.
+    // 상세 버튼: 라벨에 실제 제목 포함(정확 일치 = 목록 라벨과 병합 안 됨) + button + tap action + ≥44×44.
     final detail = find.bySemanticsLabel('공지 상세 보기: 점검 공지');
     expect(detail, findsOneWidget);
     final detailNode = t.getSemantics(detail);
     expect(detailNode.label, '공지 상세 보기: 점검 공지');
-    expect(
-      detailNode.getSemanticsData().hasAction(SemanticsAction.tap),
-      isTrue,
-    );
+    final detailData = detailNode.getSemanticsData();
+    expect(detailData.flagsCollection.isButton, isTrue);
+    expect(detailData.hasAction(SemanticsAction.tap), isTrue);
+    final detailSize = t.getSize(detail);
+    expect(detailSize.width, greaterThanOrEqualTo(44));
+    expect(detailSize.height, greaterThanOrEqualTo(44)); // ★상세 터치 높이 46 보장
 
-    // 목록 버튼: 별개 노드(라벨 정확) + tap action, 최소 44×44.
+    // 목록 버튼: 별개 노드(라벨 정확) + button + tap action + ≥44×44.
     final list = find.bySemanticsLabel('공지 목록 보기');
     expect(list, findsOneWidget);
     final listNode = t.getSemantics(list);
     expect(listNode.label, '공지 목록 보기');
-    expect(listNode.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
-    final size = t.getSize(list);
-    expect(size.width, greaterThanOrEqualTo(44));
-    expect(size.height, greaterThanOrEqualTo(44));
+    final listData = listNode.getSemanticsData();
+    expect(listData.flagsCollection.isButton, isTrue);
+    expect(listData.hasAction(SemanticsAction.tap), isTrue);
+    final listSize = t.getSize(list);
+    expect(listSize.width, greaterThanOrEqualTo(44));
+    expect(listSize.height, greaterThanOrEqualTo(44));
 
     handle.dispose();
   });

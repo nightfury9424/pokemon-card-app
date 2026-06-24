@@ -69,7 +69,7 @@ class HomeNoticeBannerState extends State<HomeNoticeBanner> {
 
     // ★접근성: 배너 전체를 상세 탭으로 감싸지 않고, 상세 영역 / 목록 영역을 형제 버튼 2개로 분리(중첩 시 스크린리더
     //   focus/action 병합 위험). 각 Semantics 가 onTap(=tap action) 직접 보유 — excludeSemantics 로 자식 GestureDetector
-    //   의 액션이 사라지지 않게. 시각 디자인·높이·아이콘 위치는 유지.
+    //   액션이 사라지지 않게. 두 영역 모두 SizedBox(height 46)로 풀 높이 터치 보장(Expanded 는 너비만 채움).
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Container(
@@ -82,56 +82,59 @@ class HomeNoticeBannerState extends State<HomeNoticeBanner> {
         ),
         child: Row(
           children: [
-            // ── 상세 버튼(형제 1): 아이콘·유형배지·제목 포함, 라벨에 실제 제목 포함 ──
+            // ── 상세 버튼(형제 1): 아이콘·유형배지·제목 포함, 라벨에 실제 제목 포함. 터치 높이 46 보장 ──
             Expanded(
-              child: Semantics(
-                button: true,
-                label: '공지 상세 보기: ${p.title}',
-                onTap: openDetail,
-                excludeSemantics: true, // 내부 제목/배지/아이콘 중복 낭독 방지(라벨에 제목 포함)
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
+              child: SizedBox(
+                height: 46,
+                child: Semantics(
+                  button: true,
+                  label: '공지 상세 보기: ${p.title}',
                   onTap: openDetail,
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.campaign,
-                        size: 17,
-                        color: AppColors.blueLight,
-                      ),
-                      const SizedBox(width: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
+                  excludeSemantics: true, // 내부 제목/배지/아이콘 중복 낭독 방지(라벨에 제목 포함)
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: openDetail,
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.campaign,
+                          size: 17,
+                          color: AppColors.blueLight,
                         ),
-                        decoration: BoxDecoration(
-                          color: p.type.color.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        child: Text(
-                          p.type.label,
-                          style: TextStyle(
-                            color: p.type.color,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: p.type.color.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: Text(
+                            p.type.label,
+                            style: TextStyle(
+                              color: p.type.color,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          p.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            p.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
