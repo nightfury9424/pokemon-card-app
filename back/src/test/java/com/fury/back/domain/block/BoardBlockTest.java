@@ -134,14 +134,29 @@ class BoardBlockTest {
     }
 
     @Test
-    void blockPostAuthor_concurrentIdempotent_noUniqueViolation() {
-        // ON CONFLICT — 같은 (blocker,blocked) 재호출에도 unique 위반(500) 없이 1행 유지(동시 요청 안전).
+    void blockPostAuthor_repeatedIdempotent_singleRow() {
+        // 순차 재호출 멱등 검증(1행 유지). 실제 동시 요청 안전성은 ON CONFLICT SQL 자체가 보장(이 테스트는 동시성 증명 아님).
         boardPostRepository.save(post("p1", "free", "author1", false));
         em.flush();
         blockController.blockPostAuthor("viewer1", "p1");
         blockController.blockPostAuthor("viewer1", "p1");
         blockController.blockPostAuthor("viewer1", "p1");
         assertThat(blockRepository.findAllByBlockerId("viewer1")).hasSize(1);
+    }
+
+    @Test
+    void block_qnaNonAdminParent_allowed() {
+        // qna = 비공식(non-admin) → forPost/forComment 의 canBlock 정책(community:=!isAdminType, BoardService:105)상
+        // 차단 허용. UI 가 차단 버튼을 노출하므로 API 도 허용해야 함(isCommunityType 로 좁히면 UI-API 어긋남).
+        boardPostRepository.save(post("q1", "qna", "author1", false));
+        boardCommentRepository.save(comment("c1", "q1", "author2", false));
+        em.flush();
+        assertThat(blockController.blockPostAuthor("viewer1", "q1").getStatusCode())
+                .isEqualTo(HttpStatus.CREATED); // qna 글 작성자 차단 허용
+        assertThat(blockController.blockCommentAuthor("viewer1", "c1").getStatusCode())
+                .isEqualTo(HttpStatus.CREATED); // qna 글의 댓글 작성자 차단 허용
+        assertThat(blockRepository.existsByBlockerIdAndBlockedId("viewer1", "author1")).isTrue();
+        assertThat(blockRepository.existsByBlockerIdAndBlockedId("viewer1", "author2")).isTrue();
     }
 
     @Test

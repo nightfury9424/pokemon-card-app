@@ -1,6 +1,5 @@
 package com.fury.back.domain.block;
 
-import com.fury.back.common.IdGenerator;
 import com.fury.back.common.ReturnData;
 import com.fury.back.domain.block.dto.BlockedUserDto;
 import com.fury.back.domain.board.BoardComment;
@@ -35,38 +34,37 @@ public class BlockController {
     private final UserRepository userRepository;
     private final BoardPostRepository boardPostRepository;
     private final BoardCommentRepository boardCommentRepository;
+    private final BlockService blockService;
 
     @Operation(summary = "사용자 차단")
     @PostMapping("/{userId}")
-    @Transactional
     public ResponseEntity<ReturnData<Map<String, String>>> block(
             @AuthenticationPrincipal String blockerId,
             @PathVariable String userId) {
         requireAuth(blockerId);
-        return applyBlock(blockerId, userId);
+        return toResponse(blockService.block(blockerId, userId)); // 트랜잭션은 BlockService 경계
     }
 
     @Operation(summary = "게시글 작성자 차단",
             description = "postId 로 작성자를 서버가 해석해 차단(raw authorId 미노출). 신고 없이 차단.")
     @PostMapping("/board-posts/{postId}")
-    @Transactional
     public ResponseEntity<ReturnData<Map<String, String>>> blockPostAuthor(
             @AuthenticationPrincipal String blockerId,
             @PathVariable String postId) {
         requireAuth(blockerId);
+        // forPost canBlock=in && !mine && !official 과 일치 — 존재·ACTIVE·미삭제·비공식 재검증(직접 호출 우회 차단).
         BoardPost post = boardPostRepository.findById(postId)
                 .filter(p -> p.getDeletedAt() == null && "ACTIVE".equals(p.getStatus()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
         if (BoardTaxonomy.isAdminType(post.getType())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "공식 게시글 작성자는 차단할 수 없습니다.");
         }
-        return applyBlock(blockerId, post.getAuthorId());
+        return toResponse(blockService.block(blockerId, post.getAuthorId()));
     }
 
     @Operation(summary = "댓글 작성자 차단",
             description = "commentId 로 작성자를 서버가 해석해 차단(raw authorId 미노출). 신고 없이 차단.")
     @PostMapping("/board-comments/{commentId}")
-    @Transactional
     public ResponseEntity<ReturnData<Map<String, String>>> blockCommentAuthor(
             @AuthenticationPrincipal String blockerId,
             @PathVariable String commentId) {
@@ -74,37 +72,23 @@ public class BlockController {
         BoardComment comment = boardCommentRepository.findById(commentId)
                 .filter(c -> c.getDeletedAt() == null)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다."));
-        // ★UI canBlock(forComment)=in && !mine && community 와 일치 — 부모 게시글이 존재·ACTIVE·미삭제·비공식인지
-        //   서버 재검증(직접 호출 우회 차단). 운영자 댓글 작성자는 정책상 차단 허용(면제 없음).
+        // ★UI canBlock(forComment) 의 community 인자는 BoardService 에서 !isAdminType 로 산출(BoardService:105) —
+        //   즉 정책상 '비공식 글의 댓글'이면 차단 가능(qna 포함). 부모 게시글 존재·ACTIVE·미삭제·비공식 재검증
+        //   (삭제/숨김/공식 글 댓글의 직접 호출 우회 차단). 운영자 댓글 작성자는 차단 허용(면제 없음).
         BoardPost post = boardPostRepository.findById(comment.getPostId())
                 .filter(p -> p.getDeletedAt() == null && "ACTIVE".equals(p.getStatus()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
         if (BoardTaxonomy.isAdminType(post.getType())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "공식 게시글의 댓글은 차단할 수 없습니다.");
         }
-        return applyBlock(blockerId, comment.getAuthorId());
+        return toResponse(blockService.block(blockerId, comment.getAuthorId()));
     }
 
-    /**
-     * 공통 차단 처리 — self/blank 거부 + ★멱등(ON CONFLICT, 동시 요청에도 unique 위반 500 없이 1행) + 신규일 때만 notifyBlock.
-     */
-    private ResponseEntity<ReturnData<Map<String, String>>> applyBlock(String blockerId, String blockedId) {
-        if (blockedId == null || blockedId.isBlank() || blockerId.equals(blockedId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SELF_BLOCK");
-        }
-        String newId = IdGenerator.generate();
-        boolean created = blockRepository.insertIgnoreBlock(newId, blockerId, blockedId) > 0;
-        // Phase 1: 차단한 사람 hidden_at 자동 set + 차단당한 사람 방에 SYSTEM 메시지 1회.
-        // 신규 차단일 때만 수행 (idempotent — 재호출 시 중복 SYSTEM 메시지 방지). board 작성자=채팅방 없으면 no-op.
-        if (created) {
-            chatService.notifyBlock(blockerId, blockedId);
-        }
-        String blockId = created ? newId
-                : blockRepository.findByBlockerIdAndBlockedId(blockerId, blockedId)
-                        .map(Block::getBlockId).orElse(newId);
-        HttpStatus status = created ? HttpStatus.CREATED : HttpStatus.OK;
+    /** BlockResult → 응답(신규=201, 기존=200). */
+    private ResponseEntity<ReturnData<Map<String, String>>> toResponse(BlockService.BlockResult r) {
+        HttpStatus status = r.created() ? HttpStatus.CREATED : HttpStatus.OK;
         return ResponseEntity.status(status)
-                .body(ReturnData.success(Map.of("blockId", blockId)));
+                .body(ReturnData.success(Map.of("blockId", r.blockId())));
     }
 
     @Operation(summary = "사용자 차단 해제")
