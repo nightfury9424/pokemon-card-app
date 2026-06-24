@@ -57,69 +57,93 @@ class HomeNoticeBannerState extends State<HomeNoticeBanner> {
     if (p == null) return const SizedBox.shrink(); // 로딩/0건/오류 = 숨김
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => Navigator.of(context, rootNavigator: true).push(
-          MaterialPageRoute(
-            builder: (_) => BoardDetailScreen(postId: p.id, summary: p),
+      // 본문 탭 = 해당 공지 상세. 스크린리더 라벨 부여(화살표와 구분).
+      child: Semantics(
+        button: true,
+        label: '공지 상세 보기',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(context, rootNavigator: true).push(
+            MaterialPageRoute(
+              builder: (_) => BoardDetailScreen(postId: p.id, summary: p),
+            ),
           ),
-        ),
-        child: Container(
-          height: 46,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.divider, width: 1),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.campaign, size: 17, color: AppColors.blueLight),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: p.type.color.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(5),
+          child: Container(
+            height: 46,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceCard,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.divider, width: 1),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.campaign,
+                  size: 17,
+                  color: AppColors.blueLight,
                 ),
-                child: Text(
-                  p.type.label,
-                  style: TextStyle(
-                    color: p.type.color,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: p.type.color.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    p.type.label,
+                    style: TextStyle(
+                      color: p.type.color,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  p.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    p.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
                 // › → 공지 목록(BoardScreen 공지 탭). 상세·목록은 root navigator = 하단탭/스캔FAB 미노출.
-                onTap: () => Navigator.of(context, rootNavigator: true).push(
-                  MaterialPageRoute(
-                    builder: (_) => const BoardScreen(initialTab: 0),
+                // ★터치 영역 44×46(가이드라인 충족) — 아이콘은 우측 정렬로 시각 위치 유지. 스크린리더 라벨로 본문과 구분.
+                Semantics(
+                  button: true,
+                  label: '공지 목록 보기',
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () =>
+                        Navigator.of(context, rootNavigator: true).push(
+                          MaterialPageRoute(
+                            builder: (_) => const BoardScreen(initialTab: 0),
+                          ),
+                        ),
+                    child: const SizedBox(
+                      width: 44,
+                      height: 46,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Icon(
+                          Icons.chevron_right,
+                          size: 18,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                child: const Icon(
-                  Icons.chevron_right,
-                  size: 18,
-                  color: AppColors.textMuted,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
