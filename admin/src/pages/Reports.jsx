@@ -625,9 +625,10 @@ function CtxBadge({ text, tone }) {
 
 // snapshot 미표시 사유 안내 — null(LEGACY)만 '이전 신고', 미지원 버전·손상은 구분(같은 null 로 합치지 않음).
 function snapshotNote(status) {
+  if (status === 'LEGACY_NOT_CAPTURED') return '이전 신고로 신고 당시 원문이 저장되지 않았습니다.'
   if (status === 'UNSUPPORTED_VERSION') return '지원하지 않는 버전의 신고 증거입니다. 시스템 점검이 필요합니다.'
   if (status === 'INVALID') return '신고 당시 증거가 손상되어 표시할 수 없습니다.'
-  return '이전 신고로 신고 당시 원문이 저장되지 않았습니다.' // LEGACY_NOT_CAPTURED
+  return '신고 증거 상태를 확인할 수 없습니다.' // 알 수 없는 status(배포 순서 엇갈림 등) — 이전 신고로 단정 금지
 }
 
 // 신고 당시 snapshot(ReportedSnapshot) → BoardContextView 가 쓰는 {post, thread} 형태로 변환(렌더 재사용).

@@ -1,5 +1,6 @@
 package com.fury.back.domain.report;
 
+import com.fury.back.domain.board.BoardComment;
 import com.fury.back.domain.board.BoardPost;
 import com.fury.back.domain.board.BoardPostRepository;
 import com.fury.back.domain.board.BoardCommentRepository;
@@ -55,5 +56,19 @@ class ReportSnapshotServiceTest {
 
     @Test void nonBoard_returnsNull() {
         assertThat(service.build("TRADE", "t1")).isNull();
+    }
+
+    @Test void comment_valid_buildsDeepValidSnapshot() {
+        var top = BoardComment.builder().commentId("cTop").postId("p1").authorId("a1").content("최상위").createdAt(LocalDateTime.now()).build();
+        var reply = BoardComment.builder().commentId("cR").parentCommentId("cTop").postId("p1").authorId("a2").content("신고된 대댓글").createdAt(LocalDateTime.now()).build();
+        when(boardCommentRepository.findById("cR")).thenReturn(Optional.of(reply));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("제목", "본문")));
+        when(boardCommentRepository.findByPostIdOrderByCreatedAtAsc("p1")).thenReturn(List.of(top, reply));
+        when(userRepository.findAllById(any())).thenReturn(List.of());
+        var snap = service.build("BOARD_COMMENT", "cR"); // 대댓글 신고 → 부모 thread snapshot
+        assertThat(snap.hasRequiredFields()).isTrue();
+        assertThat(snap.targetCommentId()).isEqualTo("cR");
+        assertThat(snap.topCommentId()).isEqualTo("cTop");
+        assertThat(snap.comments()).hasSize(2);
     }
 }

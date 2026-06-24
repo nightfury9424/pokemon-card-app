@@ -44,7 +44,17 @@ public record ReportedSnapshot(
             return title != null && content != null;
         }
         if ("BOARD_COMMENT".equals(targetType)) {
-            return targetCommentId != null && topCommentId != null && comments != null;
+            // comments 는 null 도 빈 배열도 불가. 각 댓글 commentId·content 필수, commentId 중복 금지.
+            if (targetCommentId == null || topCommentId == null || comments == null || comments.isEmpty()) {
+                return false;
+            }
+            java.util.Set<String> ids = new java.util.HashSet<>();
+            for (SnapshotComment c : comments) {
+                if (c == null || c.commentId() == null || c.content() == null) return false;
+                if (!ids.add(c.commentId())) return false; // commentId 중복
+            }
+            // 신고 대상·최상위 댓글이 thread 에 존재(중복 없음 → 각 정확히 1회). parentCommentId 만 정상 nullable.
+            return ids.contains(targetCommentId) && ids.contains(topCommentId);
         }
         return false;
     }

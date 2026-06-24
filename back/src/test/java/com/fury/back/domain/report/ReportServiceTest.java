@@ -76,22 +76,41 @@ class ReportServiceTest {
         verify(blockRepository, never()).saveAndFlush(any());
     }
 
-    @Test void blockUniqueRace_convertedToBadRequest() {
-        // ★block unique(blocker,blocked) 경쟁 = 동일 신고자·대상 동시 신고 → DataIntegrityViolation → 400 중복 안내.
+    @Test void blockUniqueConstraint_convertedToBadRequest() {
+        // ★uq_blocks_blocker_blocked 위반(동시 신고 경쟁)만 400 중복 안내로 변환.
         when(blockRepository.findByBlockerIdAndBlockedId("reporter", "victim")).thenReturn(Optional.empty());
         when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
-        when(blockRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("block unique"));
+        when(blockRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException(
+                "could not execute statement; violates unique constraint \"uq_blocks_blocker_blocked\""));
         assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim"))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
     }
 
-    @Test void blockGenericFailure_propagatesRaw_notMaskedAsDuplicate() {
-        // ★DataIntegrity 아닌 block 실패는 중복으로 위장하지 않고 그대로 전파(5xx) → @Transactional 롤백.
+    @Test void blockOtherConstraint_propagatesRaw_notMaskedAsDuplicate() {
+        // ★block 의 다른 제약(NOT NULL 등)은 중복으로 위장하지 않고 그대로 전파(5xx).
+        when(blockRepository.findByBlockerIdAndBlockedId("reporter", "victim")).thenReturn(Optional.empty());
+        when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
+        when(blockRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException(
+                "null value in column \"blocked_id\" violates not-null constraint"));
+        assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test void blockGenericFailure_propagatesRaw() {
+        // DataIntegrity 아닌 block 실패(transient 등)도 그대로 전파 → @Transactional 롤백.
         when(blockRepository.findByBlockerIdAndBlockedId("reporter", "victim")).thenReturn(Optional.empty());
         when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
         when(blockRepository.saveAndFlush(any())).thenThrow(new RuntimeException("transient"));
         assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim"))
-                .isInstanceOf(RuntimeException.class)
-                .isNotInstanceOf(ResponseStatusException.class);
+                .isInstanceOf(RuntimeException.class).isNotInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test void reportSaveDataIntegrity_propagatesRaw_blockNotReached() {
+        // ★신고 저장 단계 DB 오류(JSONB/NOT NULL 등)는 중복으로 위장하지 않고 전파, block 단계 도달 안 함.
+        when(reportRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException(
+                "could not serialize jsonb column"));
+        assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        verify(blockRepository, never()).saveAndFlush(any());
     }
 }

@@ -46,8 +46,13 @@ public class ReportService {
                 .status("PENDING")
                 .reportedSnapshot(snapshot)
                 .build();
-        // ★즉시 flush — JSONB 직렬화/NOT NULL 등 신고 저장 단계의 DB 오류는 여기서 터져 그대로 전파(5xx, 중복으로 위장 금지).
-        reportRepository.saveAndFlush(report);
+        // ★즉시 flush — 여기서 터지는 DB 오류는 신고 저장 단계. (RC) reports unique 적용 시 그 제약 경쟁만 중복으로,
+        //   그 외(JSONB/NOT NULL/스키마)는 5xx 로 전파.
+        try {
+            reportRepository.saveAndFlush(report);
+        } catch (DataIntegrityViolationException e) {
+            throw dedupOrRethrow(e);
+        }
 
         // 자동 차단 — ★같은 트랜잭션. 실패 시 신고도 롤백(부분성공 방지). 이미 차단돼 있으면 생략.
         if (targetUserId != null && !targetUserId.equals(reporterId)
@@ -59,11 +64,34 @@ public class ReportService {
                         .blockedId(targetUserId)
                         .build());
             } catch (DataIntegrityViolationException e) {
-                // ★여기 도달하는 DataIntegrityViolation 은 block unique(blocker,blocked) 경쟁뿐(신고 저장은 위에서 이미 flush됨)
-                //   = 동일 신고자·대상 동시 신고(dedup 중복). tx 롤백 + 중복 안내로만 변환(다른 DB 오류는 위에서 전파).
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미 신고하신 항목입니다. 검토 중이에요.");
+                // ★block unique(uq_blocks_blocker_blocked) 경쟁만 중복으로 변환. block 의 다른 제약(NOT NULL·길이 등)은 5xx.
+                throw dedupOrRethrow(e);
             }
         }
         return report.getReportId();
+    }
+
+    // 알려진 dedup 제약(자동차단 unique·향후 reports 신고 unique) 위반만 "중복 신고"(400) 로, 그 외 DB 오류는 그대로(5xx).
+    private static final java.util.Set<String> DEDUP_CONSTRAINTS = java.util.Set.of(
+            "uq_blocks_blocker_blocked",    // 자동차단 unique(blocker_id, blocked_id) 경쟁
+            "uq_reports_reporter_target");  // (RC 적용 시) 같은 신고자·대상 중복 신고
+
+    private static RuntimeException dedupOrRethrow(DataIntegrityViolationException e) {
+        if (isDedupConstraintViolation(e)) {
+            return new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미 신고하신 항목입니다. 검토 중이에요.");
+        }
+        return e; // 진짜 DB 장애를 중복으로 위장하지 않음
+    }
+
+    private static boolean isDedupConstraintViolation(DataIntegrityViolationException e) {
+        StringBuilder text = new StringBuilder();
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof org.hibernate.exception.ConstraintViolationException cve && cve.getConstraintName() != null) {
+                return DEDUP_CONSTRAINTS.contains(cve.getConstraintName().toLowerCase()); // Hibernate 가 제약명 추출 → 정확 매칭
+            }
+            if (t.getMessage() != null) text.append(' ').append(t.getMessage());
+        }
+        String lower = text.toString().toLowerCase(); // 추출 실패 시 방어 — 메시지 체인에서 알려진 dedup 제약명 탐지
+        return DEDUP_CONSTRAINTS.stream().anyMatch(lower::contains);
     }
 }
