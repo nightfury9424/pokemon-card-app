@@ -282,18 +282,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             MaterialPageRoute(builder: (_) => const BoardScreen())),
       ),
       _HubTile(
-        icon: Icons.card_giftcard_rounded,
+        icon: Icons.question_mark_rounded,
         iconColor: AppColors.textMuted,
-        label: '오리파',
+        label: '?',
         comingSoon: true,
-        onTap: () => AppInfoToast.show(context, '오리파는 오픈 준비 중이에요'),
+        onTap: () => AppInfoToast.show(context, '오픈 준비 중이에요'),
       ),
       _HubTile(
-        icon: Icons.gavel_rounded,
+        icon: Icons.question_mark_rounded,
         iconColor: AppColors.textMuted,
-        label: '경매',
+        label: '?',
         comingSoon: true,
-        onTap: () => AppInfoToast.show(context, '경매는 오픈 준비 중이에요'),
+        onTap: () => AppInfoToast.show(context, '오픈 준비 중이에요'),
       ),
     ]);
   }

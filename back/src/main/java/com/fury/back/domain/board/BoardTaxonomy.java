@@ -29,11 +29,11 @@ public final class BoardTaxonomy {
 
     private static final Set<String> ADMIN_TYPES = Set.of("notice", "event", "patch");
     private static final Set<String> SECTIONS = Set.of(SECTION_OFFICIAL, SECTION_COMMUNITY, SECTION_QNA);
-    /** 일반 사용자가 작성 가능한 타입(공식·qna 제외). 작성 allowlist. */
-    private static final Set<String> USER_WRITABLE_TYPES = Set.of("free", "tradeReview", "scamAlert");
-    /** 게시판 UI 에 노출하는 타입(qna 제외). 전체 피드/탭은 이 6개만. */
+    /** ★일반 사용자 작성 가능 타입 = 자유(free)만. 거래후기·사기주의·공식·qna 작성 차단. */
+    private static final Set<String> USER_WRITABLE_TYPES = Set.of("free");
+    /** 게시판 UI 노출 타입 = 공지 3종(notice/event/patch) + 자유(free). qna·tradeReview·scamAlert 제외. */
     private static final Set<String> BOARD_VISIBLE_TYPES =
-            Set.of("notice", "event", "patch", "free", "tradeReview", "scamAlert");
+            Set.of("notice", "event", "patch", "free");
 
     public static boolean isValidType(String type) {
         return type != null && TYPE_TO_SECTION.containsKey(type);

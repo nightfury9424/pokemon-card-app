@@ -20,23 +20,21 @@ class _Repo extends BoardRepository {
 }
 
 void main() {
-  testWidgets('카테고리 pill 3종 + 선택 변경 → createPost 에 선택 타입 전송', (t) async {
+  testWidgets('카테고리 선택 UI 제거(거래후기/사기주의 없음) + 무조건 free 작성', (t) async {
     final repo = _Repo();
     await t.pumpWidget(
         MaterialApp(home: BoardComposeScreen(repository: repo, initialType: BoardType.free)));
-    expect(find.text('자유'), findsOneWidget);
-    expect(find.text('거래후기'), findsOneWidget);
-    expect(find.text('사기주의'), findsOneWidget);
+    // ★카테고리 pill 제거 — 자유게시판 글쓰기는 항상 free
+    expect(find.text('거래후기'), findsNothing);
+    expect(find.text('사기주의'), findsNothing);
 
-    await t.tap(find.text('거래후기'));
-    await t.pump();
     await t.enterText(find.byType(TextField).first, '제목입니다');
     await t.enterText(find.byType(TextField).last, '본문 내용입니다');
     await t.pump();
     await t.tap(find.text('등록'));
     await t.pumpAndSettle();
 
-    expect(repo.lastType, 'tradeReview'); // 선택한 카테고리 전송
+    expect(repo.lastType, 'free'); // 무조건 free 전송
     expect(repo.lastUploadIds, isEmpty); // 이미지 없음
   });
 
@@ -53,10 +51,10 @@ void main() {
     expect(find.byIcon(Icons.add_a_photo_outlined), findsOneWidget);
   });
 
-  testWidgets('수정모드 — 타입 고정(단일 pill) + 기존 제목 표시', (t) async {
+  testWidgets('수정모드 — 카테고리 선택 UI 없음 + 기존 제목 표시', (t) async {
     final editing = BoardPost(
       id: 'p1',
-      type: BoardType.tradeReview,
+      type: BoardType.free,
       title: '기존 제목',
       body: '기존 본문',
       author: '나',
@@ -64,35 +62,9 @@ void main() {
     );
     await t.pumpWidget(MaterialApp(home: BoardComposeScreen(repository: _Repo(), editing: editing)));
     expect(find.text('글 수정'), findsOneWidget);
-    expect(find.text('거래후기'), findsOneWidget); // 고정 카테고리
-    expect(find.text('자유'), findsNothing); // 다른 카테고리 선택 불가
+    expect(find.text('거래후기'), findsNothing); // 카테고리 pill 없음
+    expect(find.text('사기주의'), findsNothing);
     expect(find.widgetWithText(TextField, '기존 제목'), findsOneWidget);
-  });
-
-  testWidgets('카테고리만 변경 후 뒤로 → 폐기 확인 다이얼로그', (t) async {
-    await t.pumpWidget(MaterialApp(
-      home: Builder(
-        builder: (ctx) => Scaffold(
-          body: Center(
-            child: ElevatedButton(
-              onPressed: () => Navigator.push(
-                  ctx,
-                  MaterialPageRoute(
-                      builder: (_) => BoardComposeScreen(
-                          repository: _Repo(), initialType: BoardType.free))),
-              child: const Text('open'),
-            ),
-          ),
-        ),
-      ),
-    ));
-    await t.tap(find.text('open'));
-    await t.pumpAndSettle();
-    await t.tap(find.text('사기주의')); // 제목·본문 그대로, 카테고리만 변경
-    await t.pump();
-    await t.tap(find.byType(BackButton));
-    await t.pumpAndSettle();
-    expect(find.text('작성을 취소할까요?'), findsOneWidget); // ★카테고리 변경도 dirty
   });
 
   group('boardPhotoIntakeCount(잔여 슬롯·최대5)', () {

@@ -32,35 +32,45 @@ class _RecordRepo extends BoardRepository {
 }
 
 void main() {
-  testWidgets('initialFilter.notice → type=notice 로 진입(section 미사용)', (t) async {
+  testWidgets('initialFilter.notice → section=official 로 진입(공지/이벤트/패치 통합)', (t) async {
     final repo = _RecordRepo();
     await t.pumpWidget(
       MaterialApp(home: BoardScreen(initialFilter: BoardFilter.notice, repository: repo)),
     );
     await t.pumpAndSettle();
-    expect(repo.lastSection, isNull);
-    expect(repo.lastType, 'notice');
+    expect(repo.lastSection, 'official');
+    expect(repo.lastType, isNull);
     expect(find.text('등록된 공지 게시글이 없어요'), findsOneWidget);
   });
 
-  testWidgets('기본(미지정) → 전체(type=null) + 7탭 라벨 노출', (t) async {
+  testWidgets('기본(미지정) → 전체(type=null) + 3탭(전체/공지/자유)만 노출', (t) async {
     final repo = _RecordRepo();
     await t.pumpWidget(MaterialApp(home: BoardScreen(repository: repo)));
     await t.pumpAndSettle();
     expect(repo.lastSection, isNull);
     expect(repo.lastType, isNull); // 전체=미필터
+    expect(BoardFilter.values.length, 3);
     for (final f in BoardFilter.values) {
-      expect(find.text(f.label), findsWidgets); // 전체|공지|이벤트|패치노트|자유|거래후기|사기주의
+      expect(find.text(f.label), findsWidgets); // 전체|공지|자유
+    }
+    // ★폐기된 탭 라벨은 노출 안 됨
+    for (final gone in ['이벤트', '패치노트', '거래후기', '사기주의']) {
+      expect(find.text(gone), findsNothing);
     }
   });
 
-  testWidgets('탭 전환: 거래후기 → type=tradeReview', (t) async {
+  testWidgets('탭 전환: 자유 → type=free / 공지 → section=official', (t) async {
     final repo = _RecordRepo();
     await t.pumpWidget(MaterialApp(home: BoardScreen(repository: repo)));
     await t.pumpAndSettle();
-    await t.tap(find.text('거래후기'));
+    await t.tap(find.text('자유'));
     await t.pumpAndSettle();
-    expect(repo.lastType, 'tradeReview');
+    expect(repo.lastType, 'free');
+    expect(repo.lastSection, isNull);
+    await t.tap(find.text('공지'));
+    await t.pumpAndSettle();
+    expect(repo.lastSection, 'official'); // 공지=official 통합
+    expect(repo.lastType, isNull);
   });
 
   testWidgets('앱 resume → 목록 재조회(관리자 핀 변경 최신화)', (t) async {

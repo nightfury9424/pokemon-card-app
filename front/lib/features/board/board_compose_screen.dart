@@ -10,7 +10,6 @@ import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/auth_image.dart';
 import 'data/board_repository.dart';
 import 'models/board_post.dart';
-import 'models/board_filter.dart';
 
 /// 게시판 글 작성·수정 — root navigator 전체화면(하단 탭바·스캔 FAB 미노출).
 /// editing == null → 작성(카테고리 선택), non-null → 본인 글 수정(타입 고정, 제목·본문·이미지).
@@ -330,8 +329,6 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
             children: [
-              _categoryRow(),
-              const SizedBox(height: 16),
               TextField(
                 controller: _title,
                 maxLength: _titleMax,
@@ -382,37 +379,6 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
             style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
       );
 
-  Widget _categoryRow() {
-    final types = _isEdit ? [_selectedType] : userWritableBoardTypes;
-    return Wrap(
-      spacing: 8,
-      children: types.map((t) {
-        final sel = t == _selectedType;
-        return GestureDetector(
-          onTap: _isEdit || _submitting ? null : () => setState(() => _selectedType = t),
-          behavior: HitTestBehavior.opaque,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-            decoration: BoxDecoration(
-              color: sel ? AppColors.blueDeep.withValues(alpha: 0.30) : AppColors.surfaceCard,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: sel ? AppColors.blue : AppColors.divider,
-                width: sel ? 1.4 : 1,
-              ),
-            ),
-            child: Text(t.label,
-                style: TextStyle(
-                  color: sel ? AppColors.blueLight : AppColors.textSecondary,
-                  fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                  fontSize: 13.5,
-                )),
-          ),
-        );
-      }).toList(),
-    );
-  }
 
   Widget _photoSection() {
     return Column(

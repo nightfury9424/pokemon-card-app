@@ -53,13 +53,21 @@ class BoardWriteServiceTest {
     @Test void createPost_userType_derives_section_and_author() {
         when(postRepo.save(any())).thenAnswer(i -> i.getArgument(0));
         ArgumentCaptor<BoardPost> cap = ArgumentCaptor.forClass(BoardPost.class);
-        service.createPost("u1", new CreatePostRequest("tradeReview", "제목", "본문"));
+        service.createPost("u1", new CreatePostRequest("free", "제목", "본문"));
         verify(postRepo).save(cap.capture());
         BoardPost saved = cap.getValue();
         assertThat(saved.getSection()).isEqualTo("community"); // 서버 도출
-        assertThat(saved.getType()).isEqualTo("tradeReview");
+        assertThat(saved.getType()).isEqualTo("free");
         assertThat(saved.getAuthorId()).isEqualTo("u1");       // 서버 결정
         assertThat(saved.getStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test void createPost_tradeReviewOrScamAlert_403() {
+        // ★최종 IA: 사용자 작성 = 자유(free)만. 거래후기·사기주의는 차단(앱 UI 제거 + 서버 allowlist=free).
+        assertThatThrownBy(() -> service.createPost("u1", new CreatePostRequest("tradeReview", "t", "c")))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
+        assertThatThrownBy(() -> service.createPost("u1", new CreatePostRequest("scamAlert", "t", "c")))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
     }
 
     @Test void createPost_officialType_403() {

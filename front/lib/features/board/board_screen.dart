@@ -53,8 +53,8 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
   int _reqToken = 0; // 탭 전환/새로고침 경쟁 방지(늦게 온 응답 폐기)
   bool _pendingScrollReset = false; // 탭 전환 시 목록 최상단 복귀
 
-  String? get _section => null; // 7탭 모두 type 기반(section 미사용)
-  String? get _type => _filter.queryType; // 전체=null(서버가 qna 제외)
+  String? get _section => _filter.querySection; // 공지=official(공지/이벤트/패치 통합)
+  String? get _type => _filter.queryType; // 자유=free, 전체=null(서버가 노출타입만)
 
   @override
   void initState() {
@@ -194,7 +194,7 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
       MaterialPageRoute(
         builder: (_) => BoardComposeScreen(
           repository: widget.repository,
-          initialType: _filter.composeType ?? BoardType.free,
+          initialType: _filter.composeType,
         ),
       ),
     );

@@ -73,15 +73,16 @@ class BoardPostRepositoryTest {
     @Test
     void feed_filters_by_section_type_and_pins_first() {
         posts.saveAndFlush(post("pa", "free", "community", "u1", false, T2, "ACTIVE", null));
-        posts.saveAndFlush(post("pb", "tradeReview", "community", "u2", true, T1, "ACTIVE", null)); // pinned, earlier
+        posts.saveAndFlush(post("pb", "free", "community", "u2", true, T1, "ACTIVE", null)); // pinned, earlier
         posts.saveAndFlush(post("pc", "notice", "official", "u3", false, T3, "ACTIVE", null));
+        posts.saveAndFlush(post("pd", "tradeReview", "community", "u4", false, T3, "ACTIVE", null)); // ★폐기타입 → 피드 제외
 
         Page<BoardPost> community = posts.findFeed("community", null, null, PageRequest.of(0, 10));
         assertThat(community.getContent()).extracting(BoardPost::getPostId)
-                .containsExactly("pb", "pa"); // pinned first, then newer; pc(official) excluded
+                .containsExactly("pb", "pa"); // pinned first, then newer; pc(official)·pd(tradeReview) 제외
 
-        Page<BoardPost> freeOnly = posts.findFeed("community", "free", null, PageRequest.of(0, 10));
-        assertThat(freeOnly.getContent()).extracting(BoardPost::getPostId).containsExactly("pa");
+        Page<BoardPost> official = posts.findFeed("official", null, null, PageRequest.of(0, 10));
+        assertThat(official.getContent()).extracting(BoardPost::getPostId).containsExactly("pc"); // 공지(official)
     }
 
     @Test
