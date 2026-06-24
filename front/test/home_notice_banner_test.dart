@@ -171,11 +171,67 @@ void main() {
       _FakeRepo(posts: [_notice('nX', '공지제목')]),
     );
     await t.tap(find.byIcon(Icons.chevron_right));
-    final route = obs.pushed.whereType<MaterialPageRoute>().last;
-    final w = route.builder(t.element(find.byType(MaterialApp)));
-    expect(w, isA<BoardScreen>());
+    final routes = obs.pushed.whereType<MaterialPageRoute>().toList();
+    expect(
+      routes.length,
+      1,
+    ); // ★정확히 1회 push — 중첩 GestureDetector 가 부모 배너 탭까지 발동시키지 않음
+    final w = routes.single.builder(t.element(find.byType(MaterialApp)));
+    expect(w, isA<BoardScreen>()); // 상세(BoardDetailScreen)가 아니라 목록만 열림
     expect((w as BoardScreen).initialTab, 0); // 공지 탭 진입
     await t.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('IndexedStack 탭 재진입 — fetchList 재호출 없음(1회 유지), refresh 시에만 +1', (
+    t,
+  ) async {
+    final repo = _CountRepo();
+    final key = GlobalKey<HomeNoticeBannerState>();
+    var idx = 0;
+    await t.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (ctx, setState) => Scaffold(
+            body: IndexedStack(
+              index: idx,
+              children: [
+                HomeNoticeBanner(key: key, repository: repo),
+                const Center(child: Text('다른탭 본문')),
+              ],
+            ),
+            bottomNavigationBar: Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => setState(() => idx = 0),
+                    child: const Text('홈탭'),
+                  ),
+                ),
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => setState(() => idx = 1),
+                    child: const Text('다른탭'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(repo.calls, 1); // 홈 최초 진입
+    await t.tap(find.text('다른탭'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('홈탭'));
+    await t.pumpAndSettle();
+    expect(
+      repo.calls,
+      1,
+    ); // ★재진입에도 1회 유지(IndexedStack keepalive = 중복 API 호출 없음)
+    await key.currentState!.refresh();
+    await t.pumpAndSettle();
+    expect(repo.calls, 2); // pull-to-refresh 시에만 +1
   });
 
   testWidgets('refresh() → fetchList 추가 호출(+1), Future 완료 await 가능', (t) async {

@@ -6,8 +6,12 @@ import 'package:front/features/board/models/board_post.dart';
 /// ① ReturnData.status=fail(HTTP 200이어도) → 실패  ② unknown type/잘못된 날짜/형식오류 → 파싱예외
 /// (조용히 빈 목록·now() 위장 금지).
 void main() {
-  Map<String, dynamic> ok(Object? data) =>
-      {'status': 'success', 'code': 'S000', 'message': '성공', 'data': data};
+  Map<String, dynamic> ok(Object? data) => {
+    'status': 'success',
+    'code': 'S000',
+    'message': '성공',
+    'data': data,
+  };
 
   Map<String, dynamic> postJson({
     String id = 'p1',
@@ -15,21 +19,20 @@ void main() {
     String createdAt = '2026-06-23T10:00:00',
     int commentCount = 3,
     List? comments,
-  }) =>
-      {
-        'id': id,
-        'type': type,
-        'title': '제목',
-        'body': '본문',
-        'author': '닉네임',
-        'createdAt': createdAt,
-        'viewCount': 10,
-        'likeCount': 2,
-        'isPinned': false,
-        'isAnswered': false,
-        'commentCount': commentCount,
-        'comments': ?comments,
-      };
+  }) => {
+    'id': id,
+    'type': type,
+    'title': '제목',
+    'body': '본문',
+    'author': '닉네임',
+    'createdAt': createdAt,
+    'viewCount': 10,
+    'likeCount': 2,
+    'isPinned': false,
+    'isAnswered': false,
+    'commentCount': commentCount,
+    'comments': ?comments,
+  };
 
   group('토큰 파서', () {
     test('알려진 토큰 → enum', () {
@@ -54,51 +57,125 @@ void main() {
       final r = BoardListResult.parse(res);
       expect(r.posts.length, 2);
       expect(r.posts.first.id, 'a');
-      expect(r.posts.first.commentCount, 7); // 서버 listCommentCount 사용(목록엔 comments 없음)
+      expect(
+        r.posts.first.commentCount,
+        7,
+      ); // 서버 listCommentCount 사용(목록엔 comments 없음)
       expect(r.hasMore, isFalse);
     });
 
+    test('공지(official notice) 피드 항목 — 홈 배너 계약 필드 파싱', () {
+      // 백엔드 BoardPostSummaryDto(official notice) JSON → Flutter BoardPost.fromJson 일치 검증.
+      final res = ok({
+        'content': [postJson(id: 'n1', type: 'notice')],
+        'page': 0,
+        'size': 5,
+        'totalElements': 1,
+        'totalPages': 1,
+      });
+      final p = BoardListResult.parse(res).posts.single;
+      expect(p.type, BoardType.notice);
+      expect(p.id, 'n1');
+      expect(p.title, '제목'); // 배너 표시
+      expect(p.body, '본문'); // 상세 본문(전문)
+    });
+
     test('hasMore — page 0 / totalPages 3 → true', () {
-      final res = ok({'content': [], 'page': 0, 'size': 20, 'totalElements': 50, 'totalPages': 3});
+      final res = ok({
+        'content': [],
+        'page': 0,
+        'size': 20,
+        'totalElements': 50,
+        'totalPages': 3,
+      });
       expect(BoardListResult.parse(res).hasMore, isTrue);
     });
 
     test('★status=fail(HTTP 200) → BoardApiException (성공 오인 금지)', () {
-      final res = {'status': 'fail', 'code': 'E003', 'message': '잘못된 요청', 'data': {'content': []}};
-      expect(() => BoardListResult.parse(res),
-          throwsA(isA<BoardApiException>().having((e) => e.code, 'code', 'E003')));
+      final res = {
+        'status': 'fail',
+        'code': 'E003',
+        'message': '잘못된 요청',
+        'data': {'content': []},
+      };
+      expect(
+        () => BoardListResult.parse(res),
+        throwsA(isA<BoardApiException>().having((e) => e.code, 'code', 'E003')),
+      );
     });
 
     test('★unknown type → BoardParseException (빈 목록 위장 금지)', () {
-      final res = ok({'content': [postJson(type: 'nopeType')], 'page': 0, 'size': 20, 'totalElements': 1, 'totalPages': 1});
-      expect(() => BoardListResult.parse(res), throwsA(isA<BoardParseException>()));
+      final res = ok({
+        'content': [postJson(type: 'nopeType')],
+        'page': 0,
+        'size': 20,
+        'totalElements': 1,
+        'totalPages': 1,
+      });
+      expect(
+        () => BoardListResult.parse(res),
+        throwsA(isA<BoardParseException>()),
+      );
     });
 
     test('★잘못된 createdAt → BoardParseException (now() 위장 금지)', () {
-      final res = ok({'content': [postJson(createdAt: 'not-a-date')], 'page': 0, 'size': 20, 'totalElements': 1, 'totalPages': 1});
-      expect(() => BoardListResult.parse(res), throwsA(isA<BoardParseException>()));
+      final res = ok({
+        'content': [postJson(createdAt: 'not-a-date')],
+        'page': 0,
+        'size': 20,
+        'totalElements': 1,
+        'totalPages': 1,
+      });
+      expect(
+        () => BoardListResult.parse(res),
+        throwsA(isA<BoardParseException>()),
+      );
     });
 
     test('data 형식 오류 → BoardParseException', () {
-      expect(() => BoardListResult.parse(ok('not-a-map')), throwsA(isA<BoardParseException>()));
+      expect(
+        () => BoardListResult.parse(ok('not-a-map')),
+        throwsA(isA<BoardParseException>()),
+      );
     });
 
     test('content 형식 오류 → BoardParseException', () {
-      expect(() => BoardListResult.parse(ok({'content': 'nope'})), throwsA(isA<BoardParseException>()));
+      expect(
+        () => BoardListResult.parse(ok({'content': 'nope'})),
+        throwsA(isA<BoardParseException>()),
+      );
     });
   });
 
   group('상세 파싱', () {
     test('정상 → 댓글 1단 트리 + isAccepted', () {
-      final res = ok(postJson(id: 'q1', type: 'qna', comments: [
-        {
-          'id': 'c1', 'author': '운영팀', 'body': '답', 'createdAt': '2026-06-23T11:00:00',
-          'isAdmin': true, 'isAccepted': true,
-          'replies': [
-            {'id': 'r1', 'author': 'u', 'body': '감사', 'createdAt': '2026-06-23T12:00:00', 'isAdmin': false, 'isAccepted': false, 'replies': []}
+      final res = ok(
+        postJson(
+          id: 'q1',
+          type: 'qna',
+          comments: [
+            {
+              'id': 'c1',
+              'author': '운영팀',
+              'body': '답',
+              'createdAt': '2026-06-23T11:00:00',
+              'isAdmin': true,
+              'isAccepted': true,
+              'replies': [
+                {
+                  'id': 'r1',
+                  'author': 'u',
+                  'body': '감사',
+                  'createdAt': '2026-06-23T12:00:00',
+                  'isAdmin': false,
+                  'isAccepted': false,
+                  'replies': [],
+                },
+              ],
+            },
           ],
-        }
-      ]));
+        ),
+      );
       final post = parseBoardDetail(res);
       expect(post.type, BoardType.qna);
       expect(post.comments.length, 1);
@@ -108,17 +185,28 @@ void main() {
     });
 
     test('status=fail → BoardApiException', () {
-      final res = {'status': 'fail', 'code': 'E002', 'message': '없음', 'data': null};
+      final res = {
+        'status': 'fail',
+        'code': 'E002',
+        'message': '없음',
+        'data': null,
+      };
       expect(() => parseBoardDetail(res), throwsA(isA<BoardApiException>()));
     });
 
     test('data null/형식오류 → BoardParseException', () {
-      expect(() => parseBoardDetail(ok(null)), throwsA(isA<BoardParseException>()));
+      expect(
+        () => parseBoardDetail(ok(null)),
+        throwsA(isA<BoardParseException>()),
+      );
     });
 
     test('id 누락 → BoardParseException', () {
       final bad = postJson()..remove('id');
-      expect(() => parseBoardDetail(ok(bad)), throwsA(isA<BoardParseException>()));
+      expect(
+        () => parseBoardDetail(ok(bad)),
+        throwsA(isA<BoardParseException>()),
+      );
     });
   });
 }
