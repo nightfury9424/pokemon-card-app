@@ -93,4 +93,15 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('글쓰기'), findsNothing); // 공식 카테고리=앱 작성 불가
   });
+
+  testWidgets('탭바 — 3탭이어도 왼쪽 정렬·전체폭(가운데 안 모임)', (t) async {
+    final repo = _RecordRepo();
+    t.view.physicalSize = const Size(390, 844);
+    t.view.devicePixelRatio = 1.0;
+    addTearDown(() => t.view.resetPhysicalSize());
+    await t.pumpWidget(MaterialApp(home: BoardScreen(repository: repo)));
+    await t.pumpAndSettle();
+    // 첫 탭(전체)은 왼쪽 끝 근처(13 패딩+α). 가운데 모이면 100+ 라 실패.
+    expect(t.getTopLeft(find.text('전체')).dx, lessThan(40));
+  });
 }

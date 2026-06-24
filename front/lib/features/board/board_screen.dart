@@ -304,6 +304,7 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
     }
 
     return Container(
+      width: double.infinity, // ★전체폭 고정 — 탭이 적어도(3개) 왼쪽정렬·전체폭 구분선 유지(가운데 모임 방지)
       padding: const EdgeInsets.fromLTRB(13, 6, 13, 10),
       decoration: const BoxDecoration(
         border: Border(
