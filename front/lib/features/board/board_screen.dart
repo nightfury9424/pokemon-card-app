@@ -8,6 +8,18 @@ import 'board_compose_screen.dart';
 import 'models/board_filter.dart';
 import '../../core/widgets/auth_image.dart';
 
+/// 재조회한 페이지들을 순서대로 병합 + postId 중복 제거(핀 이동으로 페이지 간 옮겨진 글 중복 방지). 테스트 가능.
+List<BoardPost> mergeBoardPages(List<List<BoardPost>> pages) {
+  final out = <BoardPost>[];
+  final seen = <String>{};
+  for (final page in pages) {
+    for (final p in page) {
+      if (seen.add(p.id)) out.add(p);
+    }
+  }
+  return out;
+}
+
 /// 게시판 — 전체|공지|이벤트|패치노트|자유|거래후기|사기주의 7탭(기본=전체).
 /// 공식(공지/이벤트/패치)=관리자 작성·읽기전용, 사용자(자유/거래후기/사기주의)=작성·댓글·좋아요. 서버 페이지네이션·핀 우선.
 class BoardScreen extends StatefulWidget {
@@ -101,21 +113,31 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
     }
   }
 
-  // 무플래시 재조회(page 0) — 스피너 전환 없이 목록만 갱신. resume·목록 복귀 시 핀/내용 최신화.
+  // 무플래시 재조회 — 스피너 전환 없이 목록 갱신. resume·목록 복귀 시 핀/내용 최신화.
+  // ★현재 로드한 페이지 범위(0.._page)를 모두 재조회·병합 → 페이지네이션 보존(첫 20개로 축소 방지).
+  //   순서 병합 + postId 중복 제거(핀 이동으로 페이지 간 옮겨진 글 중복 방지) + 토큰으로 loadMore 경쟁 차단.
   Future<void> _silentReload() async {
-    final token = ++_reqToken;
+    final token = ++_reqToken; // in-flight load/loadMore 무효화
+    final pageCount = _page + 1;
     try {
-      final r = await widget.repository.fetchList(
-        section: _section,
-        type: _type,
-        page: 0,
-        size: _pageSize,
-      );
-      if (!mounted || token != _reqToken) return;
+      final pages = <List<BoardPost>>[];
+      BoardListResult? last;
+      for (int p = 0; p < pageCount; p++) {
+        final r = await widget.repository.fetchList(
+          section: _section,
+          type: _type,
+          page: p,
+          size: _pageSize,
+        );
+        if (!mounted || token != _reqToken) return; // 더 새 요청·언마운트 → 폐기(기존 유지)
+        pages.add(r.posts);
+        last = r;
+      }
+      if (!mounted || token != _reqToken || last == null) return;
       setState(() {
-        _posts = r.posts;
-        _page = r.page;
-        _hasMore = r.hasMore;
+        _posts = mergeBoardPages(pages);
+        _page = last!.page;
+        _hasMore = last.hasMore;
         _error = null;
       });
     } catch (_) {
