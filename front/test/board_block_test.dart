@@ -85,7 +85,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.byIcon(Icons.more_vert));
     await t.pumpAndSettle();
-    expect(find.text('신고'), findsOneWidget);
+    expect(find.text('신고하기'), findsOneWidget);
     expect(find.text('사용자 차단'), findsNothing);
   });
 

@@ -38,9 +38,9 @@ public final class BoardPermissions {
         boolean mine = in && viewerId.equals(authorId);          // ★순수 소유
         boolean official = BoardTaxonomy.isAdminType(type);
         boolean active = "ACTIVE".equals(status) && !deleted;
-        boolean canEdit = mine && !official && active;           // 공식글=앱 수정/삭제 금지
-        boolean canReport = in && !mine && !official;            // 자기/공식 신고 불가
-        boolean canBlock = in && !mine && !official;             // 자기/운영 차단 불가
+        boolean canEdit = mine && !official && active;           // 공식글=앱 수정/삭제 금지(관리자 웹 전용)
+        boolean canReport = in && !mine;                         // ★1.0.4: 공식글 포함 비본인 글 신고 가능
+        boolean canBlock = in && !mine && !official;             // 공식(운영팀) 차단 불가, 그 외 비본인 차단
         return new PostFlags(mine, canEdit, canEdit, canReport, canBlock);
     }
 

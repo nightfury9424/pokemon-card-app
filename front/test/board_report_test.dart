@@ -16,6 +16,7 @@ BoardPost _post({
   bool canReport = false,
   bool canEdit = false,
   bool canDelete = false,
+  bool canBlock = false,
   List<BoardComment> comments = const [],
 }) => BoardPost(
   id: 'f1',
@@ -30,6 +31,7 @@ BoardPost _post({
   canEdit: canEdit,
   canDelete: canDelete,
   canReport: canReport,
+  canBlock: canBlock,
 );
 
 BoardComment _comment({bool canReport = false, bool canDelete = false}) =>
@@ -59,18 +61,19 @@ Future<void> _openSheet(WidgetTester t) async {
   await _pump(t, _post(canReport: true));
   await t.tap(find.byIcon(Icons.more_vert));
   await t.pumpAndSettle();
-  await t.tap(find.text('신고'));
+  await t.tap(find.text('신고하기'));
   await t.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('게시글 canReport=true → ⋯ 메뉴에 신고 노출(비본인=수정/삭제 없음)', (t) async {
-    await _pump(t, _post(canReport: true));
+  testWidgets('공식글/비본인(canReport, 차단·수정·삭제 불가) → 신고하기만 노출', (t) async {
+    await _pump(t, _post(canReport: true)); // canEdit/canDelete/canBlock=false = 공식글 일반사용자 시점
     await t.tap(find.byIcon(Icons.more_vert));
     await t.pumpAndSettle();
-    expect(find.text('신고'), findsOneWidget);
+    expect(find.text('신고하기'), findsOneWidget);
     expect(find.text('수정'), findsNothing);
     expect(find.text('삭제'), findsNothing);
+    expect(find.text('사용자 차단'), findsNothing); // 공식(운영팀) 차단 불가
   });
 
   testWidgets('본인 글(canEdit/canDelete) → 수정/삭제만, 신고 미노출', (t) async {
@@ -82,7 +85,7 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('수정'), findsOneWidget);
     expect(find.text('삭제'), findsOneWidget);
-    expect(find.text('신고'), findsNothing);
+    expect(find.text('신고하기'), findsNothing);
   });
 
   testWidgets('플래그 모두 false(공식/본문만) → ⋯ 메뉴 자체 미노출', (t) async {
@@ -90,18 +93,28 @@ void main() {
     expect(find.byIcon(Icons.more_vert), findsNothing);
   });
 
-  testWidgets('게시글 신고 탭 → 게시글 대상 ReportSheet(board 사유, ABUSIVE_PRICE 제외)', (
+  testWidgets('다른 사용자 글 신고 탭 → 게시글 대상 ReportSheet(autoBlock, board 사유, ABUSIVE_PRICE 제외)', (
     t,
   ) async {
-    await _pump(t, _post(canReport: true));
+    await _pump(t, _post(canReport: true, canBlock: true)); // 커뮤니티 비본인 → autoBlock
     await t.tap(find.byIcon(Icons.more_vert));
     await t.pumpAndSettle();
-    await t.tap(find.text('신고'));
+    await t.tap(find.text('신고하기'));
     await t.pumpAndSettle();
     expect(find.text('신고하기'), findsOneWidget); // ReportSheet 제목
     expect(find.text('욕설 / 비방'), findsOneWidget); // board 사유
     expect(find.text('시세 교란'), findsNothing); // ABUSIVE_PRICE 제외
     expect(find.textContaining('게시글'), findsWidgets); // autoBlock 경고 targetNoun
+  });
+
+  testWidgets('공식글 신고(canBlock=false) → autoBlock 경고 없음(운영팀 차단 안 함)', (t) async {
+    await _pump(t, _post(canReport: true)); // canBlock=false = 공식글 일반사용자 시점
+    await t.tap(find.byIcon(Icons.more_vert));
+    await t.pumpAndSettle();
+    await t.tap(find.text('신고하기'));
+    await t.pumpAndSettle();
+    expect(find.text('신고하기'), findsOneWidget); // 시트는 열림
+    expect(find.textContaining('게시글'), findsNothing); // ★autoBlock 경고(targetNoun) 미노출
   });
 
   testWidgets('댓글 canReport=true → 신고 노출 + 탭 시 댓글 대상 ReportSheet', (t) async {

@@ -158,7 +158,8 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
     }
   }
 
-  // ⋯ 메뉴 — 본인 자유글=수정/삭제 / 비본인·비공식=신고(서버 canReport). 공식글·삭제·숨김은 서버 플래그 false → 미노출.
+  // ⋯ 메뉴 — 본인=수정/삭제 / 비본인=신고하기(+커뮤니티는 사용자 차단). 공식글=신고하기만(차단·수정·삭제 불가).
+  //   ★compact popup: 항목 높이 44·좌우 16·텍스트 폭에 맞는 좁은 너비·다크 surface + radius 12.
   List<Widget>? _appBarActions() {
     final p = _post;
     if (p == null || !(p.canEdit || p.canDelete || p.canReport || p.canBlock)) {
@@ -168,6 +169,14 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
       PopupMenuButton<String>(
         icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
         color: AppColors.surfaceCard,
+        elevation: 8,
+        position: PopupMenuPosition.under,
+        menuPadding: const EdgeInsets.symmetric(vertical: 4),
+        constraints: const BoxConstraints(minWidth: 132),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.divider, width: 1),
+        ),
         onSelected: (v) {
           if (v == 'edit') _edit(p);
           if (v == 'delete') _delete(p);
@@ -175,37 +184,42 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
           if (v == 'block') _blockPostAuthor(p);
         },
         itemBuilder: (_) => [
-          if (p.canEdit)
-            const PopupMenuItem(
-                value: 'edit',
-                child: Text('수정', style: TextStyle(color: AppColors.textPrimary))),
-          if (p.canDelete)
-            const PopupMenuItem(
-                value: 'delete', child: Text('삭제', style: TextStyle(color: AppColors.red))),
-          if (p.canReport)
-            const PopupMenuItem(
-                value: 'report',
-                child: Text('신고', style: TextStyle(color: AppColors.textPrimary))),
-          if (p.canBlock)
-            const PopupMenuItem(
-                value: 'block',
-                child: Text('사용자 차단', style: TextStyle(color: AppColors.textPrimary))),
+          if (p.canEdit) _menuItem('edit', '수정', AppColors.textPrimary),
+          if (p.canDelete) _menuItem('delete', '삭제', AppColors.red),
+          if (p.canReport) _menuItem('report', '신고하기', AppColors.textPrimary),
+          if (p.canBlock) _menuItem('block', '사용자 차단', AppColors.textPrimary),
         ],
       ),
     ];
   }
 
-  // 게시글 신고 — 공용 ReportSheet 재사용(BOARD_POST, autoBlock=신고 시 작성자 자동 차단).
-  // 성공 시 작성자 차단으로 글이 사라지므로 상세를 유지하지 않고 pop('changed') → 목록 재조회(삭제와 동일 패턴).
+  // compact 메뉴 항목 — 높이 44·좌우 16·중간 굵기.
+  PopupMenuItem<String> _menuItem(String value, String label, Color color) {
+    return PopupMenuItem<String>(
+      value: value,
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Text(label,
+          style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w500)),
+    );
+  }
+
+  // 게시글 신고 — 공용 ReportSheet 재사용(BOARD_POST). autoBlock=차단 가능 글만(=커뮤니티 비본인).
+  // ★공식글(운영팀, canBlock=false)은 작성자 차단 없이 신고만 → 글 유지·토스트. 차단형은 글이 사라지므로 pop('changed').
   Future<void> _reportPost(BoardPost p) async {
+    final autoBlock = p.canBlock;
     final reported = await ReportSheet.show(context,
         targetType: 'BOARD_POST',
         targetId: p.id,
         targetNoun: '게시글',
-        autoBlock: true,
+        autoBlock: autoBlock,
         reasons: boardReportReasons);
     if (!mounted || !reported) return;
-    Navigator.of(context).pop('changed'); // imperative pop = PopScope 우회
+    if (autoBlock) {
+      Navigator.of(context).pop('changed'); // 작성자 차단으로 글 사라짐 → 목록 재조회
+    } else {
+      AppInfoToast.show(context, '신고가 접수되었어요.'); // 공식글 신고: 글 유지
+    }
   }
 
   // 신고 없이 작성자 차단 — 확인 후 board-post 차단 API(서버가 작성자 해석). 성공 시 콘텐츠 사라짐 → pop('changed').

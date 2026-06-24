@@ -50,11 +50,14 @@ class BoardPermissionsTest {
         assertThat(f.canBlock()).isFalse();
     }
 
-    @Test void post_official_other_all_false() {
+    @Test void post_official_other_reportable_notBlockable() {
+        // ★1.0.4: 공식글(운영팀)도 비본인이면 신고 가능. 단 수정/삭제·운영팀 차단은 불가.
         var f = BoardPermissions.forPost("viewer", "admin", "event", "ACTIVE", false);
         assertThat(f.mine()).isFalse();
-        assertThat(f.canReport()).isFalse(); // 공식글은 신고/차단 불가
-        assertThat(f.canBlock()).isFalse();
+        assertThat(f.canEdit()).isFalse();
+        assertThat(f.canDelete()).isFalse();
+        assertThat(f.canReport()).isTrue();  // ★공식글 신고 가능
+        assertThat(f.canBlock()).isFalse();  // 운영팀 차단 불가
     }
 
     @Test void post_owner_canEdit_requires_active() {
