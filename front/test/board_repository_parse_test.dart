@@ -59,6 +59,28 @@ void main() {
     });
   });
 
+  group('이미지 항목 엄격 파싱', () {
+    test('정상', () {
+      final img = BoardPostImage.fromJson(
+          {'imageId': 'i1', 'url': '/api/images/secure/x', 'sortOrder': 0});
+      expect(img.imageId, 'i1');
+      expect(img.url, '/api/images/secure/x');
+      expect(img.sortOrder, 0);
+    });
+    test('imageId 누락 → FormatException', () {
+      expect(() => BoardPostImage.fromJson({'url': '/x', 'sortOrder': 0}),
+          throwsA(isA<FormatException>()));
+    });
+    test('url 빈 문자열 → FormatException', () {
+      expect(() => BoardPostImage.fromJson({'imageId': 'i', 'url': '', 'sortOrder': 0}),
+          throwsA(isA<FormatException>()));
+    });
+    test('sortOrder 음수 → FormatException', () {
+      expect(() => BoardPostImage.fromJson({'imageId': 'i', 'url': '/x', 'sortOrder': -1}),
+          throwsA(isA<FormatException>()));
+    });
+  });
+
   group('목록 파싱', () {
     test('정상 → posts/페이지네이션/서버 commentCount', () {
       final res = ok({

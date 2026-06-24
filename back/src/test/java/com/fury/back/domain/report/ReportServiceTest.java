@@ -27,7 +27,7 @@ class ReportServiceTest {
     @InjectMocks ReportService service;
 
     private ReportedSnapshot snap() {
-        return new ReportedSnapshot(1, "BOARD_POST", "제목", "본문", "닉", "x", null, null, null, null, null);
+        return new ReportedSnapshot(1, "BOARD_POST", "제목", "본문", "닉", "x", null, 0, null, null, null, null, null);
     }
 
     @Test void boardPost_buildsSnapshot_saves_andBlocks() {

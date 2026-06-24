@@ -50,6 +50,7 @@ class AdminStage0ServiceTest {
     @Mock InquiryRepository inquiryRepository;
     @Mock AdminActionRepository adminActionRepository;
     @Mock BoardPostRepository boardPostRepository;
+    @Mock com.fury.back.domain.board.BoardPostImageRepository boardPostImageRepository;
     @Mock BoardCommentRepository boardCommentRepository;
     @Mock BoardAdminService boardAdminService;
     @Mock AdminAuthorizationService adminAuthorizationService;
@@ -293,7 +294,7 @@ class AdminStage0ServiceTest {
     }
 
     @Test void targetContext_snapshotPreserved_unchanged() {
-        var snap = new ReportedSnapshot(1, "BOARD_POST", "제목전문", "본문전문", "닉", "x", null, null, null, null, null);
+        var snap = new ReportedSnapshot(1, "BOARD_POST", "제목전문", "본문전문", "닉", "x", null, 0, null, null, null, null, null);
         when(reportRepository.findById("r1")).thenReturn(Optional.of(reportWithSnap(snap)));
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a1", "ACTIVE", null)));
         var ctx = service.getTargetContext("r1", "admin1");
@@ -304,7 +305,7 @@ class AdminStage0ServiceTest {
     }
 
     @Test void targetContext_unsupportedVersion_distinctFromLegacy() {
-        var snap = new ReportedSnapshot(2, "BOARD_POST", "제목전문", "본문전문", "닉", "x", null, null, null, null, null);
+        var snap = new ReportedSnapshot(2, "BOARD_POST", "제목전문", "본문전문", "닉", "x", null, 0, null, null, null, null, null);
         when(reportRepository.findById("r1")).thenReturn(Optional.of(reportWithSnap(snap)));
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a1", "ACTIVE", null)));
         var ctx = service.getTargetContext("r1", "admin1");
@@ -315,7 +316,7 @@ class AdminStage0ServiceTest {
     }
 
     @Test void targetContext_postEdited_changedSinceReport() {
-        var snap = new ReportedSnapshot(1, "BOARD_POST", "원래 욕설 제목", "원래 욕설 본문", "닉", "x", null, null, null, null, null);
+        var snap = new ReportedSnapshot(1, "BOARD_POST", "원래 욕설 제목", "원래 욕설 본문", "닉", "x", null, 0, null, null, null, null, null);
         when(reportRepository.findById("r1")).thenReturn(Optional.of(reportWithSnap(snap)));
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a1", "ACTIVE", null))); // 제목전문(상이)
         assertThat(service.getTargetContext("r1", "admin1").isChangedSinceReport()).isTrue(); // 신고 후 수정됨
@@ -333,7 +334,7 @@ class AdminStage0ServiceTest {
 
     @Test void targetContext_commentParentPostTitleEdited_changed() {
         // 댓글 본문/thread 는 동일하지만 부모 게시글 제목이 신고 후 수정됨 → changedSinceReport=true
-        var snap = new ReportedSnapshot(1, "BOARD_COMMENT", null, null, null, null, null,
+        var snap = new ReportedSnapshot(1, "BOARD_COMMENT", null, null, null, null, null, 0, null,
                 "원래 게시글 제목", "cR", "cTop",
                 List.of(new ReportedSnapshot.SnapshotComment("cTop", null, "A", "최상위", null),
                         new ReportedSnapshot.SnapshotComment("cR", "cTop", "B", "대댓글", null)));

@@ -18,6 +18,8 @@ public record ReportedSnapshot(
         String authorLabel,          // 공식글=운영팀 / 일반=닉네임 / 누락=(알 수 없음). raw id 아님.
         String targetCreatedAt,      // ISO
         String targetUpdatedAt,      // ISO (없으면 null)
+        int imageCount,              // 신고 당시 첨부 이미지 수(이후 수정으로 사라져도 보존)
+        List<String> imageKeys,      // 신고 당시 storage key. ★raw 키만(공개 URL·binary 금지) — 조회 측이 secure proxy 변환.
         // ── BOARD_COMMENT ──
         String postTitle,
         String targetCommentId,

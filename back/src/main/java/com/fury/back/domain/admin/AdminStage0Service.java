@@ -52,6 +52,7 @@ public class AdminStage0Service {
     private final com.fury.back.domain.inquiry.InquiryRepository inquiryRepository;
     private final AdminActionRepository adminActionRepository;
     private final BoardPostRepository boardPostRepository;
+    private final com.fury.back.domain.board.BoardPostImageRepository boardPostImageRepository;
     private final BoardCommentRepository boardCommentRepository;
     private final BoardAdminService boardAdminService;
     private final AdminAuthorizationService adminAuthorizationService;
@@ -252,8 +253,30 @@ public class AdminStage0Service {
                 .snapshotStatus(snapStatus)
                 .snapshotAvailable(snapOk)
                 .changedSinceReport(snapOk && postChanged(snap, p))
-                .reportedSnapshot(snapOk ? snap : null)
+                .reportedSnapshot(snapOk ? sanitizeSnapshot(snap) : null)
+                .snapshotImageCount(snapOk ? snap.imageCount() : 0)
+                .snapshotImageUrls(snapOk ? proxyUrls(snap.imageKeys()) : java.util.List.of())
+                .currentImageUrls(currentImageUrls(p.getPostId()))
                 .build();
+    }
+
+    /** raw storage key → secure proxy URL(관리자 화면 노출용, raw 키 미노출). */
+    private java.util.List<String> proxyUrls(java.util.List<String> keys) {
+        if (keys == null) return java.util.List.of();
+        return keys.stream().map(com.fury.back.storage.StorageKeyUrls::toProxyUrl).toList();
+    }
+
+    private java.util.List<String> currentImageUrls(String postId) {
+        return boardPostImageRepository.findByPostIdOrderBySortOrderAsc(postId).stream()
+                .map(i -> com.fury.back.storage.StorageKeyUrls.toProxyUrl(i.getStorageKey())).toList();
+    }
+
+    /** 관리자 응답용 snapshot 사본 — ★raw imageKeys 제거(proxy URL 은 snapshotImageUrls 로 별도 전달). */
+    private ReportedSnapshot sanitizeSnapshot(ReportedSnapshot s) {
+        if (s == null) return null;
+        return new ReportedSnapshot(s.version(), s.targetType(), s.title(), s.content(), s.authorLabel(),
+                s.targetCreatedAt(), s.targetUpdatedAt(), s.imageCount(), null,
+                s.postTitle(), s.targetCommentId(), s.topCommentId(), s.comments());
     }
 
     private AdminStage0Dto.TargetContext commentContext(Report report) {
@@ -284,7 +307,7 @@ public class AdminStage0Service {
                 .snapshotStatus(snapStatus)
                 .snapshotAvailable(snapOk)
                 .changedSinceReport(snapOk && commentChanged(snap, thread, p))
-                .reportedSnapshot(snapOk ? snap : null)
+                .reportedSnapshot(snapOk ? sanitizeSnapshot(snap) : null) // 댓글엔 이미지 없음(키도 null)
                 .build();
     }
 

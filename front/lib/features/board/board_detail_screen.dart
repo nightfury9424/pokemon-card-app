@@ -877,17 +877,16 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
               onTap: () => _openGallery(post, i),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: AspectRatio(
-                  aspectRatio: 4 / 3,
+                child: Container(
+                  width: double.infinity,
+                  height: 380, // 높이 상한(고정). contain 이라 세로형 카드도 잘리지 않고 레터박스로 표시.
+                  color: AppColors.surfaceCard, // 이미지 주변 빈 공간 배경
                   child: AuthImage(
                     url: post.images[i].url,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: AppColors.surfaceCard,
-                      child: const Center(
-                          child: Icon(Icons.image_outlined,
-                              color: AppColors.textMuted, size: 28)),
-                    ),
+                    fit: BoxFit.contain, // ★원본 비율 유지 — 카드 세로사진 위아래 잘림 방지
+                    errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(Icons.image_outlined,
+                            color: AppColors.textMuted, size: 28)),
                   ),
                 ),
               ),

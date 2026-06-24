@@ -10,11 +10,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ReportedSnapshotTest {
 
     @Test void boardPost_requiresTitleAndContent() {
-        assertThat(new ReportedSnapshot(1, "BOARD_POST", "t", "c", null, null, null, null, null, null, null)
+        assertThat(new ReportedSnapshot(1, "BOARD_POST", "t", "c", null, null, null, 0, null, null, null, null, null)
                 .hasRequiredFields()).isTrue();
-        assertThat(new ReportedSnapshot(1, "BOARD_POST", null, "c", null, null, null, null, null, null, null)
+        assertThat(new ReportedSnapshot(1, "BOARD_POST", null, "c", null, null, null, 0, null, null, null, null, null)
                 .hasRequiredFields()).isFalse(); // title 누락
-        assertThat(new ReportedSnapshot(1, "BOARD_POST", "t", null, null, null, null, null, null, null, null)
+        assertThat(new ReportedSnapshot(1, "BOARD_POST", "t", null, null, null, null, 0, null, null, null, null, null)
                 .hasRequiredFields()).isFalse(); // content 누락
     }
 
@@ -22,7 +22,7 @@ class ReportedSnapshotTest {
         return new ReportedSnapshot.SnapshotComment(id, null, "라벨", content, null);
     }
     private ReportedSnapshot cmt(List<ReportedSnapshot.SnapshotComment> comments, String target, String top) {
-        return new ReportedSnapshot(1, "BOARD_COMMENT", null, null, null, null, null, "pt", target, top, comments);
+        return new ReportedSnapshot(1, "BOARD_COMMENT", null, null, null, null, null, 0, null, "pt", target, top, comments);
     }
 
     @Test void boardComment_deepValidation() {
@@ -40,7 +40,7 @@ class ReportedSnapshotTest {
     }
 
     @Test void unknownType_false() {
-        assertThat(new ReportedSnapshot(1, "TRADE", null, null, null, null, null, null, null, null, null)
+        assertThat(new ReportedSnapshot(1, "TRADE", null, null, null, null, null, 0, null, null, null, null, null)
                 .hasRequiredFields()).isFalse();
     }
 }

@@ -24,6 +24,7 @@ import static org.mockito.Mockito.when;
 class ReportSnapshotServiceTest {
 
     @Mock BoardPostRepository boardPostRepository;
+    @Mock com.fury.back.domain.board.BoardPostImageRepository boardPostImageRepository;
     @Mock BoardCommentRepository boardCommentRepository;
     @Mock UserRepository userRepository;
     @InjectMocks ReportSnapshotService service;
@@ -39,6 +40,22 @@ class ReportSnapshotServiceTest {
         var snap = service.build("BOARD_POST", "p1");
         assertThat(snap.version()).isEqualTo(ReportedSnapshot.CURRENT_VERSION);
         assertThat(snap.hasRequiredFields()).isTrue();
+    }
+
+    @Test void post_snapshot_capturesImageKeysAndCount() {
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("t", "c")));
+        when(userRepository.findAllById(any())).thenReturn(List.of());
+        when(boardPostImageRepository.findByPostIdOrderBySortOrderAsc("p1")).thenReturn(List.of(
+                com.fury.back.domain.board.BoardPostImage.builder().imageId("i1").postId("p1")
+                        .storageKey("uploads/board/k1.jpg").sortOrder(0)
+                        .createdAt(java.time.LocalDateTime.now()).build(),
+                com.fury.back.domain.board.BoardPostImage.builder().imageId("i2").postId("p1")
+                        .storageKey("uploads/board/k2.jpg").sortOrder(1)
+                        .createdAt(java.time.LocalDateTime.now()).build()));
+        var snap = service.build("BOARD_POST", "p1");
+        // ★신고 당시 이미지 = raw storage key 보존(이후 수정·삭제돼도). secure proxy 변환은 관리자 조회 측.
+        assertThat(snap.imageCount()).isEqualTo(2);
+        assertThat(snap.imageKeys()).containsExactly("uploads/board/k1.jpg", "uploads/board/k2.jpg");
     }
 
     @Test void post_missingContent_throws_notStored() {

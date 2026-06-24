@@ -121,7 +121,11 @@ public class AdminStage0Dto {
         private boolean snapshotAvailable;  // 표시·제재 가능 = snapshotStatus AVAILABLE 일 때만 true
         private String snapshotStatus;      // AVAILABLE / LEGACY_NOT_CAPTURED(기존 신고·정상 null) / UNSUPPORTED_VERSION / INVALID
         private boolean changedSinceReport; // snapshot vs 현재 내용 상이(AVAILABLE 아니면 false)
-        private ReportedSnapshot reportedSnapshot; // 신고 당시 원문(불변). AVAILABLE 일 때만, 아니면 null.
+        private ReportedSnapshot reportedSnapshot; // 신고 당시 원문(불변, ★imageKeys 제거됨). AVAILABLE 일 때만, 아니면 null.
+        // 이미지 — ★secure proxy URL 만(raw storage key 미노출). 신고 당시 vs 현재 구분.
+        private int snapshotImageCount;          // 신고 당시 첨부 수
+        private java.util.List<String> snapshotImageUrls; // 신고 당시 이미지(이후 수정·삭제돼도 보존)
+        private java.util.List<String> currentImageUrls;  // 현재 게시글 이미지(비교용)
     }
 
     @Getter

@@ -190,11 +190,19 @@ class BoardPostImage {
   final int sortOrder;
   const BoardPostImage({required this.imageId, required this.url, required this.sortOrder});
 
-  factory BoardPostImage.fromJson(Map<String, dynamic> j) => BoardPostImage(
-        imageId: (j['imageId'] as String?) ?? '',
-        url: (j['url'] as String?) ?? '',
-        sortOrder: (j['sortOrder'] as num?)?.toInt() ?? 0,
-      );
+  /// ★엄격 파싱 — imageId/url 필수, sortOrder 0 이상. 빈 문자열·음수·누락이면 FormatException.
+  /// (이미지 항목은 상세 응답에서만 파싱 → 잘못된 항목 1건이면 상세 전체가 BoardParseException 으로 처리되어
+  ///  잘못된 imageId 가 수정 요청에 섞이는 것을 차단. 목록은 thumbnailUrl/imageCount 만이라 영향 없음.)
+  factory BoardPostImage.fromJson(Map<String, dynamic> j) {
+    final imageId = j['imageId'] as String?;
+    final url = j['url'] as String?;
+    final sortOrder = (j['sortOrder'] as num?)?.toInt();
+    if (imageId == null || imageId.isEmpty || url == null || url.isEmpty ||
+        sortOrder == null || sortOrder < 0) {
+      throw FormatException('잘못된 이미지 항목: $j');
+    }
+    return BoardPostImage(imageId: imageId, url: url, sortOrder: sortOrder);
+  }
 }
 
 class BoardPost {

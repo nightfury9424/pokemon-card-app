@@ -34,7 +34,7 @@ class ReportPersistenceTest {
     @Test
     @Transactional
     void jsonb_roundtrip_nestedComments_preservesAll() {
-        var snap = new ReportedSnapshot(1, "BOARD_COMMENT", null, null, null, null, null,
+        var snap = new ReportedSnapshot(1, "BOARD_COMMENT", null, null, null, null, null, 0, null,
                 "원문 게시글 제목", "cR", "cTop",
                 List.of(new ReportedSnapshot.SnapshotComment("cTop", null, "최상위", "최상위 댓글 한글 본문", "2026-06-24T10:00"),
                         new ReportedSnapshot.SnapshotComment("cR", "cTop", "신고된이", "신고된 욕설 대댓글", null)));

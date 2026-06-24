@@ -27,6 +27,7 @@ public class ReportSnapshotService {
 
     private final BoardPostRepository boardPostRepository;
     private final BoardCommentRepository boardCommentRepository;
+    private final com.fury.back.domain.board.BoardPostImageRepository boardPostImageRepository;
     private final com.fury.back.domain.user.UserRepository userRepository;
 
     @Transactional(readOnly = true)
@@ -49,11 +50,16 @@ public class ReportSnapshotService {
         Set<String> ids = new HashSet<>();
         ids.add(p.getAuthorId()); // null 허용
         Map<String, String> nicks = nick(ids);
+        // 신고 당시 첨부 이미지 storage key(이후 수정으로 사라져도 증거 보존). raw 키만 — 조회 측이 secure proxy 변환.
+        List<String> imageKeys = boardPostImageRepository.findByPostIdOrderBySortOrderAsc(postId).stream()
+                .map(com.fury.back.domain.board.BoardPostImage::getStorageKey)
+                .toList();
         return new ReportedSnapshot(
                 ReportedSnapshot.CURRENT_VERSION, "BOARD_POST",
                 p.getTitle(), p.getContent(),
                 authorLabel(p.getType(), p.getAuthorId(), nicks),
                 iso(p.getCreatedAt()), iso(p.getUpdatedAt()),
+                imageKeys.size(), imageKeys,
                 null, null, null, null);
     }
 
@@ -77,6 +83,7 @@ public class ReportSnapshotService {
         return new ReportedSnapshot(
                 ReportedSnapshot.CURRENT_VERSION, "BOARD_COMMENT",
                 null, null, null, null, null,
+                0, null, // 댓글 신고엔 이미지 없음
                 p == null ? null : p.getTitle(), c.getCommentId(), topId, sc);
     }
 
