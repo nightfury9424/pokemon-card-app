@@ -29,8 +29,9 @@ class HomeNoticeBannerState extends State<HomeNoticeBanner> {
     _fetch();
   }
 
-  /// 홈 pull-to-refresh 에서 외부 호출(관리자 공지 변경 → 최신 반영). 탭 재진입은 IndexedStack 유지라 재호출 없음.
-  void refresh() => _fetch();
+  /// 홈 pull-to-refresh 에서 await 가능하도록 Future 반환(관리자 공지 변경 → 최신 반영).
+  /// _fetch 내부에서 오류를 자체 흡수(throw 안 함) → 홈 새로고침을 차단하지 않음. 탭 재진입은 IndexedStack 유지라 재호출 없음.
+  Future<void> refresh() => _fetch();
 
   Future<void> _fetch() async {
     final reqId = ++_reqId;

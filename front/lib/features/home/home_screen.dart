@@ -541,8 +541,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return RefreshIndicator(
       key: const ValueKey('home-content'),
       onRefresh: () async {
-        await _loadAll();
-        _noticeBannerKey.currentState?.refresh(); // 홈 새로고침에 공지 배너도 동반 재조회
+        // 홈 데이터 + 공지 재조회를 병렬로 모두 완료까지 대기(공지 오류는 _fetch 가 자체 흡수 → 새로고침 비차단).
+        await Future.wait([
+          _loadAll(),
+          _noticeBannerKey.currentState?.refresh() ?? Future<void>.value(),
+        ]);
       },
       color: AppColors.blue,
       backgroundColor: AppColors.surface,
@@ -1702,7 +1705,7 @@ class _NotificationSheetState extends State<_NotificationSheet> {
                 : ListView.separated(
                     controller: controller,
                     itemCount: _items.length,
-                    separatorBuilder: (_, __) =>
+                    separatorBuilder: (_, _) =>
                         const Divider(height: 1, color: AppColors.dividerSoft),
                     itemBuilder: (ctx, i) {
                       final n = _items[i];
