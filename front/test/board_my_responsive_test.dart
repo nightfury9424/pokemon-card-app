@@ -11,7 +11,7 @@ class _FakeBoardRepo extends BoardRepository {
   const _FakeBoardRepo();
   @override
   Future<BoardListResult> fetchList(
-      {String? section, String? type, int page = 0, int size = 20}) async {
+      {String? section, String? type, String? q, bool pinnedOnly = false, int page = 0, int size = 20}) async {
     final posts = BoardMock.posts;
     return BoardListResult(
         posts: posts, page: 0, size: size, totalPages: 1, totalElements: posts.length);

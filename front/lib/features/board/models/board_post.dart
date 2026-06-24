@@ -98,6 +98,13 @@ extension BoardTypeMeta on BoardType {
       case BoardType.qna: return Icons.help_outline;
     }
   }
+
+  /// ★게시판 노출/engagement 허용 타입 = 공지 3종 + 자유. 좋아요·댓글 노출 게이트(서버 isBoardVisibleType 와 일치).
+  bool get isBoardVisible =>
+      this == BoardType.notice ||
+      this == BoardType.event ||
+      this == BoardType.patch ||
+      this == BoardType.free;
 }
 
 /// 게시판 섹션 (상단 탭).

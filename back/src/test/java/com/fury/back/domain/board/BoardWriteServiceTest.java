@@ -222,25 +222,26 @@ class BoardWriteServiceTest {
         verify(commentRepo).save(any());
     }
 
-    // ── 공지(official) 글 댓글·대댓글 작성 거부(모든 사용자) ──
-    @Test void createComment_onOfficialPost_403() {
+    // ── ★1.0.4: 공식(official: notice/event/patch) 글 댓글 허용. qna 는 계속 차단 ──
+    @Test void createComment_onOfficialPost_ok() {
         when(postRepo.findById("p")).thenReturn(Optional.of(post("p", "notice", "official", "admin", "ACTIVE", null)));
-        assertThatThrownBy(() -> service.createComment("u2", "p", new CreateCommentRequest("댓글", null)))
-                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
-        verify(commentRepo, never()).save(any());
+        when(commentRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        service.createComment("u2", "p", new CreateCommentRequest("댓글", null));
+        verify(commentRepo).save(any()); // ★공식글 댓글 허용
     }
 
-    @Test void createReply_onOfficialPost_403() {
-        when(postRepo.findById("p")).thenReturn(Optional.of(post("p", "event", "official", "admin", "ACTIVE", null)));
-        assertThatThrownBy(() -> service.createComment("u2", "p", new CreateCommentRequest("답글", "parentX")))
-                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
-        verify(commentRepo, never()).save(any());
-    }
-
-    @Test void createComment_onPatchOfficialPost_403() {
+    @Test void createComment_onPatchOfficialPost_ok() {
         when(postRepo.findById("p")).thenReturn(Optional.of(post("p", "patch", "official", "admin", "ACTIVE", null)));
+        when(commentRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        service.createComment("u2", "p", new CreateCommentRequest("댓글", null));
+        verify(commentRepo).save(any());
+    }
+
+    @Test void createComment_onQnaPost_403() {
+        when(postRepo.findById("p")).thenReturn(Optional.of(post("p", "qna", "qna", "u1", "ACTIVE", null)));
         assertThatThrownBy(() -> service.createComment("u2", "p", new CreateCommentRequest("댓글", null)))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
+        verify(commentRepo, never()).save(any());
     }
 
     @Test void createComment_onHiddenPost_404() {

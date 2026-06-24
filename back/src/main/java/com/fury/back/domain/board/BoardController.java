@@ -36,11 +36,13 @@ public class BoardController {
     public ReturnData<BoardPageDto> list(
             @RequestParam(required = false) String section,
             @RequestParam(required = false) String type,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "false") boolean pinnedOnly,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             HttpServletRequest request) {
         String viewerId = optionalUserId(request);
-        return ReturnData.success(boardService.getFeed(section, type, viewerId, page, size));
+        return ReturnData.success(boardService.getFeed(section, type, q, pinnedOnly, viewerId, page, size));
     }
 
     @Operation(summary = "게시글 상세", description = "댓글 트리(1단 답글) 포함. 미존재/삭제/숨김=404.")

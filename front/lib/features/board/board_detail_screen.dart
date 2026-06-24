@@ -338,9 +338,9 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
     }
 
     final post = _post!;
-    final isOfficial = post.isAdmin; // notice/event/patch = 관리자 공지계열
 
-    // 공지 = 본문만(댓글·반응·입력 없음). 자유 = 본문 + 댓글 트리 + 입력바(동작은 다음 슬라이스).
+    // ★1.0.4: 공식글(공지/이벤트/패치)도 자유글과 동일하게 좋아요·댓글·대댓글·입력바 노출.
+    //   (게시글 자체 수정·삭제만 관리자 전용 — 그건 서버 canEdit/canDelete 로 게이트)
     final content = ListView(
       controller: _scrollCtrl,
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
@@ -350,25 +350,22 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
         Text(post.body,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 14.5, height: 1.6)),
         _imageGallery(post), // 첨부 이미지(있으면) — 공지·자유 공통, 본문 아래
-        if (!isOfficial) ...[
-          const SizedBox(height: 18),
-          _engagementRow(post), // ♥ 좋아요 수(자유글 토글) · 댓글 수
-          const SizedBox(height: 16),
-          const Divider(height: 1, color: AppColors.divider),
-          const SizedBox(height: 12),
-          ...post.comments.map(_commentTile),
-          if (post.comments.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                  child: Text('아직 댓글이 없어요',
-                      style: TextStyle(color: AppColors.textMuted, fontSize: 13))),
-            ),
-        ],
+        const SizedBox(height: 18),
+        _engagementRow(post), // ♥ 좋아요 토글 · 댓글 수 (공식글 포함)
+        const SizedBox(height: 16),
+        const Divider(height: 1, color: AppColors.divider),
+        const SizedBox(height: 12),
+        ...post.comments.map(_commentTile),
+        if (post.comments.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+                child: Text('아직 댓글이 없어요',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 13))),
+          ),
       ],
     );
 
-    if (isOfficial) return content;
     return Column(children: [Expanded(child: content), _commentBar()]);
   }
 
@@ -395,7 +392,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
           ),
           if (post.isPinned) ...[
             const SizedBox(width: 7),
-            const Icon(Icons.push_pin, size: 14, color: AppColors.gold),
+            _pinBadge(),
           ],
         ]),
         const SizedBox(height: 12),
@@ -503,11 +500,27 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
     );
   }
 
-  // 본문 아래 인게이지먼트: 자유글=하트(토글)+댓글 수 / 그 외 커뮤니티=댓글 수만(좋아요는 free 전용).
+  // ★고정 표시 — 노란 압정 대신 절제된 파란 '고정' 배지(앱 배지 체계 재사용).
+  Widget _pinBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.blue.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.push_pin, size: 10, color: AppColors.blueLight),
+        SizedBox(width: 3),
+        Text('고정',
+            style: TextStyle(color: AppColors.blueLight, fontSize: 9.5, fontWeight: FontWeight.w800)),
+      ]),
+    );
+  }
+
+  // 본문 아래 인게이지먼트: 좋아요(토글) + 댓글 수. ★1.0.4 공식글 포함 모든 노출글에 노출. 활성 좋아요=파란색.
   Widget _engagementRow(BoardPost post) {
-    final isFree = post.type == BoardType.free;
     return Row(children: [
-      if (isFree) ...[
+      if (post.type.isBoardVisible) ...[
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: _likeBusy ? null : _toggleLike,
@@ -516,11 +529,11 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
             alignment: Alignment.centerLeft,
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(_liked ? Icons.favorite : Icons.favorite_border,
-                  size: 20, color: _liked ? AppColors.red : AppColors.textMuted),
+                  size: 20, color: _liked ? AppColors.blue : AppColors.textMuted),
               const SizedBox(width: 5),
               Text('$_likeCount',
                   style: TextStyle(
-                      color: _liked ? AppColors.red : AppColors.textSecondary,
+                      color: _liked ? AppColors.blue : AppColors.textSecondary,
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600)),
             ]),
@@ -529,7 +542,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
         const SizedBox(width: 16),
       ],
       Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.chat_bubble_outline, size: 17, color: AppColors.textMuted),
+        const Icon(Icons.chat_bubble_outline_rounded, size: 17, color: AppColors.textMuted),
         const SizedBox(width: 5),
         Text('${post.commentCount}',
             style: const TextStyle(

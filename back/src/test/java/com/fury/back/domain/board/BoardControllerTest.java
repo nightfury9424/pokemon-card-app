@@ -110,13 +110,13 @@ class BoardControllerTest {
 
     @Test
     void list_anonymous_calls_service_with_null_viewer_and_200() throws Exception {
-        when(service.getFeed(isNull(), isNull(), isNull(), eq(0), eq(20))).thenReturn(onePage());
+        when(service.getFeed(isNull(), isNull(), isNull(), anyBoolean(), isNull(), eq(0), eq(20))).thenReturn(onePage());
 
         mvc.perform(get("/api/board/posts"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("pp")));
 
-        verify(service).getFeed(null, null, null, 0, 20);
+        verify(service).getFeed(null, null, null, false, null, 0, 20);
         verifyNoInteractions(jwtUtil); // 헤더 없으면 jwt 미호출
     }
 
@@ -124,17 +124,17 @@ class BoardControllerTest {
     void list_loggedIn_passes_viewerId() throws Exception {
         when(jwtUtil.isValid("tok")).thenReturn(true);
         when(jwtUtil.extractUserId("tok")).thenReturn("u1");
-        when(service.getFeed(any(), any(), eq("u1"), anyInt(), anyInt())).thenReturn(onePage());
+        when(service.getFeed(any(), any(), any(), anyBoolean(), eq("u1"), anyInt(), anyInt())).thenReturn(onePage());
 
         mvc.perform(get("/api/board/posts").header("Authorization", "Bearer tok"))
                 .andExpect(status().isOk());
 
-        verify(service).getFeed(null, null, "u1", 0, 20);
+        verify(service).getFeed(null, null, null, false, "u1", 0, 20);
     }
 
     @Test
     void list_badRequest_maps_to_400() throws Exception {
-        when(service.getFeed(any(), any(), any(), anyInt(), anyInt()))
+        when(service.getFeed(any(), any(), any(), anyBoolean(), any(), anyInt(), anyInt()))
                 .thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "섹션과 타입이 일치하지 않습니다."));
 
         mvc.perform(get("/api/board/posts").param("section", "community").param("type", "qna"))
@@ -180,7 +180,7 @@ class BoardControllerTest {
 
     @Test
     void list_json_exposes_post_flags() throws Exception {
-        when(service.getFeed(any(), any(), any(), anyInt(), anyInt())).thenReturn(onePage());
+        when(service.getFeed(any(), any(), any(), anyBoolean(), any(), anyInt(), anyInt())).thenReturn(onePage());
         mvc.perform(get("/api/board/posts"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].mine").value(false))

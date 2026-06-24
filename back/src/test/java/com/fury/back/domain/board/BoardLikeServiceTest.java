@@ -90,10 +90,13 @@ class BoardLikeServiceTest {
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("404");
     }
 
-    @Test void like_official_403() {
+    @Test void like_official_allowed() {
+        // ★1.0.4: 공식글(notice/event/patch)도 좋아요 허용
         when(postRepo.findById("p")).thenReturn(Optional.of(post("notice", "ACTIVE", "author", null)));
-        assertThatThrownBy(() -> service.like("u1", "p"))
-                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
+        when(likeRepo.countByPostId("p")).thenReturn(1L);
+        BoardLikeResponse r = service.like("u1", "p");
+        assertThat(r.likedByMe()).isTrue();
+        assertThat(r.likeCount()).isEqualTo(1);
     }
 
     @Test void like_nonFree_community_type_403() {

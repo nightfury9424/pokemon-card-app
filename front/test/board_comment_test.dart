@@ -279,11 +279,11 @@ void main() {
       expect(find.text('삭제'), findsOneWidget);
     });
 
-    testWidgets('공지 상세 → 댓글 입력창·입력 미노출', (tester) async {
+    testWidgets('공지 상세 → 댓글 입력창·입력 노출(1.0.4 공식글 engagement)', (tester) async {
       final repo = _Repo(type: 'notice', comments: []);
       await _pump(tester, repo);
-      expect(find.byType(TextField), findsNothing);
-      expect(find.text('댓글을 입력하세요'), findsNothing);
+      expect(find.byType(TextField), findsOneWidget); // ★공식글도 입력창 노출
+      expect(find.text('댓글을 입력하세요'), findsOneWidget);
     });
   });
 

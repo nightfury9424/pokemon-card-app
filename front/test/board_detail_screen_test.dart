@@ -102,12 +102,12 @@ void main() {
     expect(find.text('댓글을 입력하세요'), findsOneWidget); // 자유는 입력바 노출
   });
 
-  testWidgets('공지 상세 — 본문만(댓글/입력바 없음)', (tester) async {
+  testWidgets('공지 상세 — 본문 + 댓글·입력바 노출(1.0.4 공식글 engagement)', (tester) async {
     await _pump(tester, _FakeDetail(post: _official()), _official());
     expect(tester.takeException(), isNull);
     expect(find.text('공지 본문'), findsOneWidget);
-    expect(find.textContaining('댓글'), findsNothing); // 댓글 섹션 없음
-    expect(find.text('댓글을 입력하세요'), findsNothing); // 입력바 없음
+    expect(find.text('댓글을 입력하세요'), findsOneWidget); // ★공식글도 입력바 노출
+    expect(find.text('아직 댓글이 없어요'), findsOneWidget); // 댓글 섹션 노출
     expect(find.textContaining('조회'), findsNothing); // viewCount 0 → 숨김
   });
 

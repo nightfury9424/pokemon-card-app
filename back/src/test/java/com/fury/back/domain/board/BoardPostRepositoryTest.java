@@ -77,12 +77,33 @@ class BoardPostRepositoryTest {
         posts.saveAndFlush(post("pc", "notice", "official", "u3", false, T3, "ACTIVE", null));
         posts.saveAndFlush(post("pd", "tradeReview", "community", "u4", false, T3, "ACTIVE", null)); // ★폐기타입 → 피드 제외
 
-        Page<BoardPost> community = posts.findFeed("community", null, null, PageRequest.of(0, 10));
+        Page<BoardPost> community = posts.findFeed("community", null, null, false, null, PageRequest.of(0, 10));
         assertThat(community.getContent()).extracting(BoardPost::getPostId)
                 .containsExactly("pb", "pa"); // pinned first, then newer; pc(official)·pd(tradeReview) 제외
 
-        Page<BoardPost> official = posts.findFeed("official", null, null, PageRequest.of(0, 10));
+        Page<BoardPost> official = posts.findFeed("official", null, null, false, null, PageRequest.of(0, 10));
         assertThat(official.getContent()).extracting(BoardPost::getPostId).containsExactly("pc"); // 공지(official)
+    }
+
+    @Test
+    void feed_titleSearch_titleOnly_caseInsensitive() {
+        posts.saveAndFlush(BoardPost.builder().postId("s1").type("free").section("community")
+                .title("Charizard 시세").content("body").authorId("u1").pinned(false).answered(false)
+                .viewCount(0).likeCount(0).status("ACTIVE").createdAt(T3).build());
+        posts.saveAndFlush(BoardPost.builder().postId("s2").type("free").section("community")
+                .title("일반글").content("Charizard 본문").authorId("u1").pinned(false).answered(false)
+                .viewCount(0).likeCount(0).status("ACTIVE").createdAt(T2).build());
+        // 서비스가 %charizard%(소문자) 로 조립 전달 → 제목만·대소문자 무시(본문 s2 제외)
+        Page<BoardPost> r = posts.findFeed("community", null, "%charizard%", false, null, PageRequest.of(0, 10));
+        assertThat(r.getContent()).extracting(BoardPost::getPostId).containsExactly("s1");
+    }
+
+    @Test
+    void feed_pinnedOnly_returnsOnlyPinned() {
+        posts.saveAndFlush(post("pp1", "notice", "official", "u1", true, T2, "ACTIVE", null));  // pinned
+        posts.saveAndFlush(post("pp2", "notice", "official", "u1", false, T3, "ACTIVE", null)); // not pinned
+        Page<BoardPost> r = posts.findFeed("official", null, null, true, null, PageRequest.of(0, 10));
+        assertThat(r.getContent()).extracting(BoardPost::getPostId).containsExactly("pp1"); // 고정만(배너 계약)
     }
 
     @Test
@@ -91,7 +112,7 @@ class BoardPostRepositoryTest {
         posts.saveAndFlush(post("p2", "free", "community", "u1", false, T2, "ACTIVE", T2)); // soft-deleted
         posts.saveAndFlush(post("p3", "free", "community", "u1", false, T3, "HIDDEN", null)); // moderated
 
-        Page<BoardPost> feed = posts.findFeed(null, null, null, PageRequest.of(0, 10));
+        Page<BoardPost> feed = posts.findFeed(null, null, null, false, null, PageRequest.of(0, 10));
         assertThat(feed.getContent()).extracting(BoardPost::getPostId).containsExactly("p1");
     }
 
@@ -101,10 +122,10 @@ class BoardPostRepositoryTest {
         posts.saveAndFlush(post("py", "free", "community", "ay", false, T1, "ACTIVE", null));
         insertBlock("viewer", "ax");
 
-        Page<BoardPost> asViewer = posts.findFeed(null, null, "viewer", PageRequest.of(0, 10));
+        Page<BoardPost> asViewer = posts.findFeed(null, null, null, false, "viewer", PageRequest.of(0, 10));
         assertThat(asViewer.getContent()).extracting(BoardPost::getPostId).containsExactly("py");
 
-        Page<BoardPost> anon = posts.findFeed(null, null, null, PageRequest.of(0, 10));
+        Page<BoardPost> anon = posts.findFeed(null, null, null, false, null, PageRequest.of(0, 10));
         assertThat(anon.getContent()).extracting(BoardPost::getPostId).containsExactly("px", "py");
     }
 
@@ -114,9 +135,9 @@ class BoardPostRepositoryTest {
         posts.saveAndFlush(post("p_b", "free", "community", "u1", false, T1, "ACTIVE", null));
         posts.saveAndFlush(post("p_c", "free", "community", "u1", false, T1, "ACTIVE", null));
 
-        List<String> page0 = posts.findFeed(null, null, null, PageRequest.of(0, 2))
+        List<String> page0 = posts.findFeed(null, null, null, false, null, PageRequest.of(0, 2))
                 .getContent().stream().map(BoardPost::getPostId).toList();
-        List<String> page1 = posts.findFeed(null, null, null, PageRequest.of(1, 2))
+        List<String> page1 = posts.findFeed(null, null, null, false, null, PageRequest.of(1, 2))
                 .getContent().stream().map(BoardPost::getPostId).toList();
 
         assertThat(page0).containsExactly("p_c", "p_b"); // post_id DESC tiebreak
@@ -148,14 +169,14 @@ class BoardPostRepositoryTest {
             posts.saveAndFlush(post("a" + i, "free", "community", "u" + i, false, T1.plusSeconds(i), "ACTIVE", null));
         }
         stats.clear();
-        posts.findFeed("community", null, null, PageRequest.of(0, 50)).getContent();
+        posts.findFeed("community", null, null, false, null, PageRequest.of(0, 50)).getContent();
         long q5 = stats.getPrepareStatementCount();
 
         for (int i = 0; i < 15; i++) {
             posts.saveAndFlush(post("b" + i, "free", "community", "v" + i, false, T1.plusSeconds(100 + i), "ACTIVE", null));
         }
         stats.clear();
-        List<BoardPost> content = posts.findFeed("community", null, null, PageRequest.of(0, 50)).getContent();
+        List<BoardPost> content = posts.findFeed("community", null, null, false, null, PageRequest.of(0, 50)).getContent();
         long q20 = stats.getPrepareStatementCount();
 
         assertThat(content).hasSize(20);

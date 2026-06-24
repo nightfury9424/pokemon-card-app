@@ -6,9 +6,10 @@ import 'board_screen.dart';
 import 'board_detail_screen.dart';
 import 'models/board_filter.dart';
 
-/// 홈 카드 위 얇은 가로 공지배너 — 서버의 첫 유효 공지(핀 우선·최신순) 1개. 탭 → 상세 / › → 공지 목록.
-/// ★실 API 연결: GET /api/board/posts?section=official&type=notice. 로딩/0건/오류 = 배너 숨김(홈 비차단, 가짜 static 금지).
-/// pull-to-refresh 재조회는 홈이 GlobalKey 로 refresh() 호출(관리자 공지 변경 → 최신 반영).
+/// 홈 카드 위 얇은 가로 공지배너 — ★고정된 공식 게시물(notice/event/patch 중 pinned)만 1개. 탭 → 상세 / › → 공지 목록.
+/// ★실 API: GET /api/board/posts?section=official&pinnedOnly=true&size=1. 고정 공식글 0건/로딩/오류 = 배너 숨김.
+///   (관리자가 고정 해제하면 즉시 배너에서 사라짐 — 더 이상 '최신 공지' 가 아니라 '고정 공지' 가 source of truth)
+/// pull-to-refresh 재조회는 홈이 GlobalKey 로 refresh() 호출(관리자 고정 변경 → 최신 반영).
 class HomeNoticeBanner extends StatefulWidget {
   final BoardRepository repository;
   const HomeNoticeBanner({
@@ -37,12 +38,12 @@ class HomeNoticeBannerState extends State<HomeNoticeBanner> {
   Future<void> _fetch() async {
     final reqId = ++_reqId;
     try {
-      // 서버 반환 순서 그대로(핀 우선 → 최신순). 첫 유효 공지만 사용. hidden/deleted 는 서버가 이미 제외.
+      // ★고정된 공식글만(pinnedOnly). 핀 우선·최신순 → 첫 항목 = 최신 고정 공식글. 고정 0건이면 빈 결과 → 배너 숨김.
       final res = await widget.repository.fetchList(
         section: 'official',
-        type: 'notice',
+        pinnedOnly: true,
         page: 0,
-        size: 5,
+        size: 1,
       );
       if (!mounted || reqId != _reqId) return; // stale 폐기
       setState(() => _post = res.posts.isEmpty ? null : res.posts.first);

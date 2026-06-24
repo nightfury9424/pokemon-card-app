@@ -37,7 +37,7 @@ class _FakeRepo extends BoardRepository {
   const _FakeRepo();
   @override
   Future<BoardListResult> fetchList(
-      {String? section, String? type, int page = 0, int size = 20}) async {
+      {String? section, String? type, String? q, bool pinnedOnly = false, int page = 0, int size = 20}) async {
     return BoardListResult(
         posts: [_post()], page: 0, size: size, totalPages: 1, totalElements: 1);
   }

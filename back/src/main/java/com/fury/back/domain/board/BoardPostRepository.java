@@ -19,6 +19,8 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, String> {
               AND p.type IN ('notice', 'event', 'patch', 'free')
               AND (:section IS NULL OR p.section = :section)
               AND (:type IS NULL OR p.type = :type)
+              AND (:q IS NULL OR LOWER(p.title) LIKE :q)
+              AND (:pinnedOnly = false OR p.pinned = true)
               AND (:viewerId IS NULL OR NOT EXISTS (
                     SELECT 1 FROM com.fury.back.domain.block.Block b
                     WHERE b.blockerId = :viewerId AND b.blockedId = p.authorId))
@@ -30,12 +32,16 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, String> {
               AND p.type IN ('notice', 'event', 'patch', 'free')
               AND (:section IS NULL OR p.section = :section)
               AND (:type IS NULL OR p.type = :type)
+              AND (:q IS NULL OR LOWER(p.title) LIKE :q)
+              AND (:pinnedOnly = false OR p.pinned = true)
               AND (:viewerId IS NULL OR NOT EXISTS (
                     SELECT 1 FROM com.fury.back.domain.block.Block b
                     WHERE b.blockerId = :viewerId AND b.blockedId = p.authorId))
             """)
     Page<BoardPost> findFeed(@Param("section") String section,
                              @Param("type") String type,
+                             @Param("q") String q,
+                             @Param("pinnedOnly") boolean pinnedOnly,
                              @Param("viewerId") String viewerId,
                              Pageable pageable);
 }

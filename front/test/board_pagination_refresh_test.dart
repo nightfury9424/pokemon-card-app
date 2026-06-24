@@ -33,6 +33,8 @@ class _PagedRepo extends BoardRepository {
   Future<BoardListResult> fetchList({
     String? section,
     String? type,
+    String? q,
+    bool pinnedOnly = false,
     int page = 0,
     int size = 20,
   }) async {

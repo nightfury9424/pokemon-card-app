@@ -111,12 +111,17 @@ class BoardRepository {
   Future<BoardListResult> fetchList({
     String? section,
     String? type,
+    String? q, // ★제목 검색어(현재 탭 범위). 서버가 trim+title-only LIKE. 빈 값은 미전송.
+    bool pinnedOnly = false, // ★고정 공식글만(홈 배너용).
     int page = 0,
     int size = 20,
   }) async {
     final params = <String, dynamic>{'page': page, 'size': size};
     if (section != null) params['section'] = section;
     if (type != null) params['type'] = type;
+    final trimmed = q?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) params['q'] = trimmed;
+    if (pinnedOnly) params['pinnedOnly'] = true;
     final res = await ApiClient.get('/api/board/posts', params: params);
     return BoardListResult.parse(res, fallbackPage: page, fallbackSize: size);
   }

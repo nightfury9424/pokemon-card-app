@@ -17,6 +17,8 @@ class _CountRepo extends BoardRepository {
   Future<BoardListResult> fetchList({
     String? section,
     String? type,
+    String? q,
+    bool pinnedOnly = false,
     int page = 0,
     int size = 20,
   }) async {
@@ -39,6 +41,8 @@ class _GatedRepo extends BoardRepository {
   Future<BoardListResult> fetchList({
     String? section,
     String? type,
+    String? q,
+    bool pinnedOnly = false,
     int page = 0,
     int size = 20,
   }) {
@@ -72,6 +76,7 @@ class _FakeRepo extends BoardRepository {
   final bool fail;
   String? lastSection;
   String? lastType;
+  bool? lastPinnedOnly;
   int? lastSize;
   _FakeRepo({this.posts = const [], this.fail = false});
 
@@ -79,11 +84,14 @@ class _FakeRepo extends BoardRepository {
   Future<BoardListResult> fetchList({
     String? section,
     String? type,
+    String? q,
+    bool pinnedOnly = false,
     int page = 0,
     int size = 20,
   }) async {
     lastSection = section;
     lastType = type;
+    lastPinnedOnly = pinnedOnly;
     lastSize = size;
     if (fail) throw Exception('network down');
     return BoardListResult(
@@ -121,7 +129,7 @@ Future<void> _pump(WidgetTester t, BoardRepository repo) async {
 }
 
 void main() {
-  testWidgets('첫 유효 공지(서버 핀 우선 순서의 첫 항목) 표시 + official/notice 질의', (t) async {
+  testWidgets('고정 공식글(핀 우선 첫 항목) 표시 + official/pinnedOnly 질의', (t) async {
     final repo = _FakeRepo(
       posts: [_notice('n1', '핀 공지', pinned: true), _notice('n2', '일반 공지')],
     );
@@ -130,7 +138,8 @@ void main() {
     expect(find.text('일반 공지'), findsNothing); // 배너는 첫 항목만
     expect(find.byIcon(Icons.campaign), findsOneWidget);
     expect(repo.lastSection, 'official');
-    expect(repo.lastType, 'notice');
+    expect(repo.lastType, isNull); // ★type 미지정(공지/이벤트/패치 통합)
+    expect(repo.lastPinnedOnly, isTrue); // ★고정된 공식글만
   });
 
   testWidgets('공지 0건 → 배너 숨김(SizedBox)', (t) async {

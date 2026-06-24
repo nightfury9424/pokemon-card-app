@@ -68,10 +68,12 @@ public final class BoardPermissions {
         boolean mine = in && viewerId.equals(authorId);
         // 대댓글에도 답글 버튼 노출하되 대상은 항상 최상위 댓글(2단 이상 금지). 서버가 createComment 에서 재검증.
         // ★최상위 부모가 삭제된 경우엔 답글 불가(서버도 거부) → canReply=false, target=null.
-        boolean canReply = in && community && !parentTopDeleted;
+        // ★1.0.4: 공식글(community=false)에도 댓글 답글·신고·차단 허용 → community 게이트 제거.
+        //   (공식 '게시글' 자체의 수정/삭제는 forPost 에서 계속 관리자 전용으로 유지)
+        boolean canReply = in && !parentTopDeleted;
         String replyTarget = parentTopDeleted ? null : (parentCommentId != null ? parentCommentId : commentId);
-        boolean canReport = in && !mine && community;            // ★운영자 댓글이어도 면제 없음
-        boolean canBlock = in && !mine && community;
+        boolean canReport = in && !mine;            // ★운영자 댓글이어도 면제 없음
+        boolean canBlock = in && !mine;
         return new CommentFlags(mine, mine, canReply, replyTarget, canReport, canBlock);
     }
 }

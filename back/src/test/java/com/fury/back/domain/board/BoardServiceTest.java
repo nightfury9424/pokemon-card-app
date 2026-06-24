@@ -83,13 +83,13 @@ class BoardServiceTest {
 
     // ── size clamp ──
     @Test void feed_size_clamped_to_max_50_and_default_20() {
-        when(postRepo.findFeed(any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(postRepo.findFeed(any(), any(), any(), anyBoolean(), any(), any())).thenReturn(new PageImpl<>(List.of()));
         ArgumentCaptor<Pageable> cap = ArgumentCaptor.forClass(Pageable.class);
 
         service.getFeed(null, null, null, 0, 999); // size>50 → 50
         service.getFeed(null, null, null, 0, 0);   // size<=0 → 20
 
-        verify(postRepo, times(2)).findFeed(any(), any(), any(), cap.capture());
+        verify(postRepo, times(2)).findFeed(any(), any(), any(), anyBoolean(), any(), cap.capture());
         assertThat(cap.getAllValues().get(0).getPageSize()).isEqualTo(50);
         assertThat(cap.getAllValues().get(1).getPageSize()).isEqualTo(20);
     }
@@ -231,7 +231,7 @@ class BoardServiceTest {
         when(blockRepo.existsByBlockerIdAndBlockedId("viewer", "author1")).thenReturn(false);
         when(blockRepo.findAllByBlockerId("viewer")).thenReturn(List.of());
         when(commentRepo.findByPostIdOrderByCreatedAtAsc("p")).thenReturn(List.of());
-        when(postRepo.findFeed(any(), any(), eq("viewer"), any())).thenReturn(new PageImpl<>(List.of(p)));
+        when(postRepo.findFeed(any(), any(), any(), anyBoolean(), eq("viewer"), any())).thenReturn(new PageImpl<>(List.of(p)));
         when(commentRepo.countActiveByPostIds(anyList())).thenReturn(List.of());
         when(userRepo.findAllById(anySet())).thenReturn(List.of());
 
@@ -296,7 +296,7 @@ class BoardServiceTest {
         when(blockRepo.existsByBlockerIdAndBlockedId("viewer", "author1")).thenReturn(false);
         when(blockRepo.findAllByBlockerId("viewer")).thenReturn(List.of());
         when(commentRepo.findByPostIdOrderByCreatedAtAsc("p")).thenReturn(List.of());
-        when(postRepo.findFeed(any(), any(), eq("viewer"), any())).thenReturn(new PageImpl<>(List.of(p)));
+        when(postRepo.findFeed(any(), any(), any(), anyBoolean(), eq("viewer"), any())).thenReturn(new PageImpl<>(List.of(p)));
         when(commentRepo.countActiveByPostIds(anyList())).thenReturn(List.of());
         when(userRepo.findAllById(anySet())).thenReturn(List.of());
         when(likeRepo.countByPostIdIn(anyList())).thenReturn(List.<Object[]>of(new Object[]{"p", 2L}));

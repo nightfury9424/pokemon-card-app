@@ -25,6 +25,7 @@ public class BoardService {
 
     private static final int DEFAULT_SIZE = 20;
     private static final int MAX_SIZE = 50;
+    private static final int MAX_QUERY_LEN = 50; // 제목 검색어 최대 길이
     private static final String ADMIN_AUTHOR = "운영팀";
     private static final String UNKNOWN_AUTHOR = "알 수 없음";
     private static final String DELETED_AUTHOR = "(삭제됨)";
@@ -38,7 +39,8 @@ public class BoardService {
     private final BoardPostImageRepository postImageRepository;
 
     @Transactional(readOnly = true)
-    public BoardPageDto getFeed(String section, String type, String viewerId, int page, int size) {
+    public BoardPageDto getFeed(String section, String type, String q, boolean pinnedOnly,
+                                String viewerId, int page, int size) {
         if (section != null && !BoardTaxonomy.isValidSection(section)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "잘못된 섹션입니다.");
         }
@@ -53,7 +55,12 @@ public class BoardService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "page 는 0 이상이어야 합니다.");
         }
         int s = size <= 0 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
-        Page<BoardPost> posts = postRepository.findFeed(section, type, viewerId, PageRequest.of(page, s));
+        // ★제목 검색어: trim + 빈 문자열=null(미적용) + 최대 길이 클램프. 본문/작성자 미검색(repo가 title만 LIKE).
+        String nq = (q == null || q.isBlank()) ? null : q.trim();
+        if (nq != null && nq.length() > MAX_QUERY_LEN) nq = nq.substring(0, MAX_QUERY_LEN);
+        // ★PG가 null 파라미터를 bytea 로 추론(lower(bytea) 오류) → %·LOWER 를 Java 에서 조립해 LIKE 직접 전달.
+        String qLike = (nq == null) ? null : "%" + nq.toLowerCase() + "%";
+        Page<BoardPost> posts = postRepository.findFeed(section, type, qLike, pinnedOnly, viewerId, PageRequest.of(page, s));
         List<BoardPost> list = posts.getContent();
 
         List<String> postIds = list.stream().map(BoardPost::getPostId).collect(Collectors.toList());
@@ -80,6 +87,12 @@ public class BoardService {
 
         return new BoardPageDto(content, posts.getNumber(), posts.getSize(),
                 posts.getTotalElements(), posts.getTotalPages());
+    }
+
+    /** 검색·핀필터 없는 5-arg 오버로드(q=null, pinnedOnly=false) — 기존 호출 호환. */
+    @Transactional(readOnly = true)
+    public BoardPageDto getFeed(String section, String type, String viewerId, int page, int size) {
+        return getFeed(section, type, null, false, viewerId, page, size);
     }
 
     @Transactional(readOnly = true)

@@ -45,9 +45,9 @@ public class BoardLikeService {
         BoardPost post = postRepository.findById(postId)
                 .filter(p -> p.getDeletedAt() == null && "ACTIVE".equals(p.getStatus()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
-        // ★1.0.4: 자유글(type='free')만 좋아요. tradeReview/scamAlert/qna/official 전부 거부.
-        if (!"free".equals(post.getType())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "자유게시판 글만 좋아요할 수 있습니다.");
+        // ★1.0.4: 노출 타입(notice/event/patch/free)에 좋아요 허용 — 공지계열 포함. qna/그 외=거부.
+        if (!BoardTaxonomy.isBoardVisibleType(post.getType())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "좋아요할 수 없는 게시글입니다.");
         }
     }
 }

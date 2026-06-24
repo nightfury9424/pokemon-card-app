@@ -197,13 +197,13 @@ void main() {
   });
 
   group('노출 제어', () {
-    testWidgets('공지 상세 → 하트 미노출', (t) async {
+    testWidgets('공지 상세 → 하트 노출(1.0.4 공식글 좋아요)', (t) async {
       final notice = BoardPost(
           id: 'p1', type: BoardType.notice, title: '공지', body: '본문', author: '운영',
           createdAt: DateTime(2026, 6, 24, 10));
       await _pump(t, _LikeRepo(notice));
-      expect(find.byIcon(Icons.favorite), findsNothing);
-      expect(find.byIcon(Icons.favorite_border), findsNothing);
+      expect(find.byIcon(Icons.favorite_border), findsOneWidget); // ★공식글도 하트 노출(빈 하트)
+      expect(find.byIcon(Icons.favorite), findsNothing); // 아직 안 누름
     });
 
     testWidgets('자유 외 커뮤니티(거래후기) → 하트 미노출', (t) async {

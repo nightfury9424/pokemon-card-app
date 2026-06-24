@@ -132,11 +132,11 @@ class BoardPermissionsTest {
         assertThat(f.canBlock()).isTrue();
     }
 
-    @Test void comment_nonCommunity_no_reply_report_block() {
-        // 공식글 댓글(존재하면 안 되나 방어): community=false → reply/report/block 불가
+    @Test void comment_official_has_reply_report_block() {
+        // ★1.0.4: 공식글 댓글도 답글·신고·차단 허용(community 게이트 제거)
         var f = BoardPermissions.forComment("viewer", "u1", "c1", null, false, false);
-        assertThat(f.canReply()).isFalse();
-        assertThat(f.canReport()).isFalse();
-        assertThat(f.canBlock()).isFalse();
+        assertThat(f.canReply()).isTrue();
+        assertThat(f.canReport()).isTrue();
+        assertThat(f.canBlock()).isTrue();
     }
 }

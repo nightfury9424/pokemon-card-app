@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
@@ -53,6 +54,13 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
   int _reqToken = 0; // 탭 전환/새로고침 경쟁 방지(늦게 온 응답 폐기)
   bool _pendingScrollReset = false; // 탭 전환 시 목록 최상단 복귀
 
+  // ★제목 검색(현재 탭 범위). _query=활성 검색어(trim·빈=미적용). debounce 300ms·최신요청만(reqToken).
+  final TextEditingController _searchCtrl = TextEditingController();
+  bool _searchMode = false; // 검색 입력창 열림
+  String _query = '';
+  Timer? _debounce;
+  static const _maxQueryLen = 50;
+
   String? get _section => _filter.querySection; // 공지=official(공지/이벤트/패치 통합)
   String? get _type => _filter.queryType; // 자유=free, 전체=null(서버가 노출타입만)
 
@@ -68,8 +76,37 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _debounce?.cancel();
+    _searchCtrl.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  // ── 제목 검색 ──
+  void _startSearch() => setState(() => _searchMode = true);
+
+  // 검색 종료 + 검색어 있었으면 원래 목록 복원.
+  void _exitSearch() {
+    _debounce?.cancel();
+    _searchCtrl.clear();
+    final had = _query.isNotEmpty;
+    setState(() {
+      _searchMode = false;
+      _query = '';
+    });
+    if (had) _load(); // 검색어 제거 → 원래 목록 복원
+  }
+
+  // 입력 debounce(300ms). 같은 검색어면 무시. 최신요청만 reqToken 으로 반영(오래된 응답 폐기).
+  void _onSearchChanged(String raw) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      var q = raw.trim();
+      if (q.length > _maxQueryLen) q = q.substring(0, _maxQueryLen);
+      if (q == _query) return;
+      setState(() => _query = q);
+      _load();
+    });
   }
 
   // 앱 resume 시 무플래시 재조회 — 관리자 고정/해제 등 백그라운드 중 변경(핀 우선순위 포함)을 최신화.
@@ -88,6 +125,7 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
       final r = await widget.repository.fetchList(
         section: _section,
         type: _type,
+        q: _query.isEmpty ? null : _query,
         page: 0,
         size: _pageSize,
       );
@@ -153,6 +191,7 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
       final r = await widget.repository.fetchList(
         section: _section,
         type: _type,
+        q: _query.isEmpty ? null : _query,
         page: _page + 1,
         size: _pageSize,
       );
@@ -230,14 +269,58 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
         elevation: 0,
         scrolledUnderElevation: 0,
         titleSpacing: 20,
-        title: const Text(
-          '게시판',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w800,
-            fontSize: 20,
+        title: _searchMode
+            ? TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                maxLength: _maxQueryLen,
+                buildCounter: (_, {required int currentLength, required bool isFocused, int? maxLength}) => null,
+                onChanged: (raw) {
+                  setState(() {}); // clear 아이콘 표시 갱신
+                  _onSearchChanged(raw);
+                },
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
+                decoration: InputDecoration(
+                  hintText: '제목 검색',
+                  hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 16),
+                  border: InputBorder.none,
+                  isCollapsed: true,
+                  suffixIcon: _searchCtrl.text.isEmpty
+                      ? null
+                      : GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            _debounce?.cancel();
+                            _searchCtrl.clear();
+                            if (_query.isNotEmpty) {
+                              setState(() => _query = '');
+                              _load(); // 검색어 제거 → 원래 목록 복원(즉시)
+                            } else {
+                              setState(() {});
+                            }
+                          },
+                          child: const Icon(Icons.clear, size: 18, color: AppColors.textMuted),
+                        ),
+                ),
+              )
+            : const Text(
+                '게시판',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 20,
+                ),
+              ),
+        actions: [
+          IconButton(
+            icon: Icon(_searchMode ? Icons.close : Icons.search,
+                color: AppColors.textPrimary, size: 22),
+            onPressed: _searchMode ? _exitSearch : _startSearch,
+            tooltip: _searchMode ? '검색 닫기' : '제목 검색',
           ),
-        ),
+        ],
       ),
       // 전체 + 사용자 카테고리(자유/거래후기/사기주의)만 글쓰기 FAB. 공식(공지/이벤트/패치)=관리자 웹 전용.
       floatingActionButton: _filter.canWrite
@@ -337,10 +420,13 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
               height: MediaQuery.sizeOf(context).height * 0.5,
               child: Center(
                 child: Text(
-                  _filter == BoardFilter.all
-                      ? '아직 글이 없어요'
-                      : '등록된 ${_filter.label} 게시글이 없어요',
+                  _query.isNotEmpty
+                      ? "'$_query' 검색 결과가 없어요"
+                      : _filter == BoardFilter.all
+                          ? '아직 글이 없어요'
+                          : '등록된 ${_filter.label} 게시글이 없어요',
                   style: const TextStyle(color: AppColors.textMuted),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),
@@ -431,7 +517,7 @@ class PostRow extends StatelessWidget {
                 _typeChip(post.type),
                 if (post.isPinned) ...[
                   const SizedBox(width: 6),
-                  const Icon(Icons.push_pin, size: 13, color: AppColors.gold),
+                  _pinBadge(),
                 ],
               ],
             ),
@@ -499,13 +585,13 @@ class PostRow extends StatelessWidget {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     _meta(Icons.visibility_outlined, post.viewCount),
-                    _meta(Icons.chat_bubble_outline, post.commentCount),
-                    // 좋아요는 자유글 전용 — 표시만(토글은 상세에서). 내가 누른 글은 채운 하트.
-                    if (post.type == BoardType.free && post.likeCount > 0)
+                    _meta(Icons.chat_bubble_outline_rounded, post.commentCount),
+                    // ★좋아요 표시(토글은 상세) — 공식글 포함 모든 노출글. 내가 누른 글=파란 채운 하트.
+                    if (post.likeCount > 0)
                       _meta(
                         post.likedByMe ? Icons.favorite : Icons.favorite_border,
                         post.likeCount,
-                        color: post.likedByMe ? AppColors.red : null,
+                        color: post.likedByMe ? AppColors.blue : null,
                       ),
                   ],
                 ),
@@ -606,6 +692,23 @@ class PostRow extends StatelessWidget {
         const SizedBox(width: 3),
         Text('$n', style: TextStyle(color: c, fontSize: 11.5)),
       ],
+    );
+  }
+
+  // ★고정 표시 — 노란 압정 대신 절제된 파란 '고정' 배지(상세와 동일 규칙).
+  Widget _pinBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.blue.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.push_pin, size: 10, color: AppColors.blueLight),
+        SizedBox(width: 3),
+        Text('고정',
+            style: TextStyle(color: AppColors.blueLight, fontSize: 9.5, fontWeight: FontWeight.w800)),
+      ]),
     );
   }
 }

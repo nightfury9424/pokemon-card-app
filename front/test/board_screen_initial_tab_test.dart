@@ -8,6 +8,7 @@ import 'package:front/features/board/models/board_filter.dart';
 class _RecordRepo extends BoardRepository {
   String? lastSection;
   String? lastType;
+  String? lastQ;
   int fetchCount = 0;
   _RecordRepo();
 
@@ -15,11 +16,14 @@ class _RecordRepo extends BoardRepository {
   Future<BoardListResult> fetchList({
     String? section,
     String? type,
+    String? q,
+    bool pinnedOnly = false,
     int page = 0,
     int size = 20,
   }) async {
     lastSection = section;
     lastType = type;
+    lastQ = q;
     if (page == 0) fetchCount++;
     return BoardListResult(
       posts: const [],
@@ -92,6 +96,26 @@ void main() {
     await t.tap(find.text('공지'));
     await t.pumpAndSettle();
     expect(find.text('글쓰기'), findsNothing); // 공식 카테고리=앱 작성 불가
+  });
+
+  testWidgets('검색 — 아이콘 탭 → 입력창 + 제목 q 전달(debounce) / clear 시 q 제거·복원', (t) async {
+    final repo = _RecordRepo();
+    await t.pumpWidget(MaterialApp(home: BoardScreen(repository: repo)));
+    await t.pumpAndSettle();
+    expect(repo.lastQ, isNull); // 초기엔 검색 없음
+
+    await t.tap(find.byIcon(Icons.search));
+    await t.pumpAndSettle();
+    expect(find.byType(TextField), findsOneWidget); // 입력창 노출
+
+    await t.enterText(find.byType(TextField), '  리자몽  '); // 공백 포함
+    await t.pump(const Duration(milliseconds: 350)); // debounce 경과
+    await t.pumpAndSettle();
+    expect(repo.lastQ, '리자몽'); // trim 후 제목 검색어 전달
+
+    await t.tap(find.byIcon(Icons.clear)); // clear → 원래 목록 복원
+    await t.pumpAndSettle();
+    expect(repo.lastQ, isNull);
   });
 
   testWidgets('탭바 — 3탭이어도 왼쪽 정렬·전체폭(가운데 안 모임)', (t) async {
