@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
@@ -31,16 +34,24 @@ class BoardComposeScreen extends StatefulWidget {
 
 enum _UploadState { uploading, done, failed }
 
+/// JPEG 변환 결과 — file(원본 또는 변환 임시파일), isTemp(변환 임시파일이면 정리 대상).
+class _Prepared {
+  final File file;
+  final bool isTemp;
+  _Prepared(this.file, this.isTemp);
+}
+
 /// 미리보기 1장 — 신규 pick(file→업로드→uploadId) 또는 수정모드 기존 이미지(existingImageId+url).
 class _PhotoItem {
   final String key;
   final File? file; // 신규 pick 로컬 파일(썸네일) — 기존이면 null
   final String? existingImageId; // 수정모드 기존 이미지
   final String? existingUrl; // 수정모드 기존 이미지 proxy URL
+  final bool isTemp; // image 패키지로 JPEG 변환된 임시파일이면 true → 정리 대상
   String? uploadId; // 업로드 완료 시 세팅(신규)
   _UploadState state;
 
-  _PhotoItem.pick(this.file)
+  _PhotoItem.pick(this.file, {this.isTemp = false})
       : key = UniqueKey().toString(),
         existingImageId = null,
         existingUrl = null,
@@ -50,10 +61,18 @@ class _PhotoItem {
   _PhotoItem.existing(this.existingImageId, this.existingUrl)
       : key = UniqueKey().toString(),
         file = null,
+        isTemp = false,
         uploadId = null,
         state = _UploadState.done;
 
   bool get isExisting => existingImageId != null;
+}
+
+/// 잔여 슬롯 계산(테스트 가능) — 현재 current 장 + 선택 picked 장 → 실제 받을 수(최대 max).
+int boardPhotoIntakeCount(int current, int picked, {int max = 5}) {
+  final remaining = max - current;
+  if (remaining <= 0) return 0;
+  return picked < remaining ? picked : remaining;
 }
 
 class _BoardComposeScreenState extends State<BoardComposeScreen> {
@@ -66,6 +85,7 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
   late final String _initTitle;
   late final String _initBody;
   late BoardType _selectedType;
+  late final BoardType _initialType;
   final List<_PhotoItem> _photos = [];
   late final int _initialImageCount;
   bool _submitting = false;
@@ -77,7 +97,10 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
   bool get _photosDirty =>
       _photos.length != _initialImageCount || _photos.any((p) => !p.isExisting);
   bool get _dirty =>
-      _title.text != _initTitle || _body.text != _initBody || _photosDirty;
+      _title.text != _initTitle ||
+      _body.text != _initBody ||
+      _selectedType != _initialType ||
+      _photosDirty;
 
   /// 제목·본문 유효 + 업로드 중/실패 없음 + 저장 중 아님.
   bool get _canSubmit =>
@@ -93,6 +116,7 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
     _initTitle = widget.editing?.title ?? '';
     _initBody = widget.editing?.body ?? '';
     _selectedType = widget.editing?.type ?? widget.initialType ?? BoardType.free;
+    _initialType = _selectedType;
     _title = TextEditingController(text: _initTitle)..addListener(_onChange);
     _body = TextEditingController(text: _initBody)..addListener(_onChange);
     // 수정모드: 기존 이미지를 같은 목록으로 표시(sort 순).
@@ -109,6 +133,9 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
 
   @override
   void dispose() {
+    for (final p in _photos) {
+      if (p.isTemp && p.file != null) p.file!.delete().ignore(); // 변환 임시파일 정리
+    }
     _title.dispose();
     _body.dispose();
     super.dispose();
@@ -127,49 +154,67 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
   }
 
   // ───────── 이미지 ─────────
-  Future<void> _pickPhoto() async {
+  /// 다중 선택(잔여 슬롯만큼) → 각자 JPEG 확인/변환 → 독립 업로드.
+  Future<void> _pickPhotos() async {
     if (_photos.length >= _maxPhotos || _submitting) return;
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-      maxWidth: 1080,
-    );
-    if (picked == null) return;
-    final file = File(picked.path);
-    // ★HEIC 등 비-JPEG/PNG 차단 — image_picker(quality85)가 JPEG 재인코딩하지만 매직바이트로 재확인.
-    if (!await _isJpegOrPng(file)) {
+    final picked = await ImagePicker().pickMultiImage(imageQuality: 85, maxWidth: 1080);
+    if (picked.isEmpty || !mounted) return;
+    final take = boardPhotoIntakeCount(_photos.length, picked.length, max: _maxPhotos);
+    if (picked.length > take) {
+      AppInfoToast.show(context, '사진은 최대 $_maxPhotos장까지 첨부할 수 있어요.');
+    }
+    for (final x in picked.take(take)) {
+      await _intake(x.path); // 선택 순서 유지(순차 추가), 업로드는 각자 독립
+    }
+  }
+
+  /// 단일 파일 intake — JPEG/PNG 확인(아니면 실제 JPEG 재인코딩) → _photos 추가 → 독립 업로드.
+  Future<void> _intake(String path) async {
+    final prepared = await _ensureJpegOrPng(File(path));
+    if (prepared == null) {
       if (mounted) {
         AppInfoToast.show(context, '지원하지 않는 이미지예요. JPEG 또는 PNG 사진을 첨부해 주세요.');
       }
       return;
     }
-    final item = _PhotoItem.pick(file);
-    if (!mounted) return;
+    if (!mounted) {
+      if (prepared.isTemp) prepared.file.delete().ignore();
+      return;
+    }
+    final item = _PhotoItem.pick(prepared.file, isTemp: prepared.isTemp);
     setState(() => _photos.add(item));
-    await _upload(item);
+    unawaited(_upload(item));
   }
 
-  Future<bool> _isJpegOrPng(File f) async {
-    RandomAccessFile? raf;
+  /// JPEG/PNG면 원본 그대로, 아니면 image 패키지로 **실제 JPEG 재인코딩**(임시파일·확장자 변경 아님).
+  /// image_picker(quality)가 iOS HEIC→JPEG 네이티브 변환을 이미 수행 → 대개 원본이 JPEG.
+  /// image 패키지가 디코드 못하는 포맷(미변환 HEIC 등)은 null → 호출부가 안내.
+  Future<_Prepared?> _ensureJpegOrPng(File f) async {
     try {
-      raf = await f.open();
-      final head = await raf.read(8);
-      if (head.length >= 3 && head[0] == 0xFF && head[1] == 0xD8 && head[2] == 0xFF) {
-        return true; // JPEG
+      final bytes = await f.readAsBytes();
+      if (_magicJpegOrPng(bytes)) return _Prepared(f, false);
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) return null;
+      final jpg = img.encodeJpg(decoded, quality: 85);
+      final dir = await getTemporaryDirectory();
+      final tmp = File('${dir.path}/board_${DateTime.now().microsecondsSinceEpoch}.jpg');
+      await tmp.writeAsBytes(jpg);
+      if (!_magicJpegOrPng(await tmp.readAsBytes())) {
+        tmp.delete().ignore();
+        return null; // 변환 결과 재검증 실패
       }
-      if (head.length >= 4 &&
-          head[0] == 0x89 &&
-          head[1] == 0x50 &&
-          head[2] == 0x4E &&
-          head[3] == 0x47) {
-        return true; // PNG
-      }
-      return false;
+      return _Prepared(tmp, true);
     } catch (_) {
-      return false;
-    } finally {
-      await raf?.close();
+      return null;
     }
+  }
+
+  static bool _magicJpegOrPng(List<int> b) {
+    if (b.length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF) return true; // JPEG
+    if (b.length >= 4 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47) {
+      return true; // PNG
+    }
+    return false;
   }
 
   Future<void> _upload(_PhotoItem item) async {
@@ -195,6 +240,7 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
   }
 
   void _remove(_PhotoItem item) {
+    if (item.isTemp && item.file != null) item.file!.delete().ignore(); // 변환 임시파일 정리
     setState(() => _photos.remove(item)); // 신규=고아(cron 정리), 기존=S3 보존(목록에서만 제외)
   }
 
@@ -449,7 +495,7 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
 
   Widget _addTile() {
     return GestureDetector(
-      onTap: _pickPhoto,
+      onTap: _pickPhotos,
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: 78,

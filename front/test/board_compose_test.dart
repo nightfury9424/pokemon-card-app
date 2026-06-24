@@ -68,4 +68,37 @@ void main() {
     expect(find.text('자유'), findsNothing); // 다른 카테고리 선택 불가
     expect(find.widgetWithText(TextField, '기존 제목'), findsOneWidget);
   });
+
+  testWidgets('카테고리만 변경 후 뒤로 → 폐기 확인 다이얼로그', (t) async {
+    await t.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (ctx) => Scaffold(
+          body: Center(
+            child: ElevatedButton(
+              onPressed: () => Navigator.push(
+                  ctx,
+                  MaterialPageRoute(
+                      builder: (_) => BoardComposeScreen(
+                          repository: _Repo(), initialType: BoardType.free))),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    ));
+    await t.tap(find.text('open'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('사기주의')); // 제목·본문 그대로, 카테고리만 변경
+    await t.pump();
+    await t.tap(find.byType(BackButton));
+    await t.pumpAndSettle();
+    expect(find.text('작성을 취소할까요?'), findsOneWidget); // ★카테고리 변경도 dirty
+  });
+
+  group('boardPhotoIntakeCount(잔여 슬롯·최대5)', () {
+    test('0장+7선택 → 5(최대)', () => expect(boardPhotoIntakeCount(0, 7), 5));
+    test('3장+5선택 → 2(잔여만 반영)', () => expect(boardPhotoIntakeCount(3, 5), 2));
+    test('5장+1선택 → 0(가득)', () => expect(boardPhotoIntakeCount(5, 1), 0));
+    test('2장+1선택 → 1', () => expect(boardPhotoIntakeCount(2, 1), 1));
+  });
 }
