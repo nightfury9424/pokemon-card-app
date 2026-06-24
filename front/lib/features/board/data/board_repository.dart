@@ -138,10 +138,17 @@ class BoardRepository {
 
   /// 사용자 게시글 작성 → 생성된 postId. type=free/tradeReview/scamAlert(서버 allowlist 재검증). section/author 는 서버 결정.
   Future<String> createPost(
-      {required String type, required String title, required String content}) async {
+      {required String type,
+      required String title,
+      required String content,
+      List<String> imageUploadIds = const []}) async {
     try {
-      final res = await ApiClient.post('/api/board/posts',
-          {'type': type, 'title': title, 'content': content}, silent: true);
+      final res = await ApiClient.post('/api/board/posts', {
+        'type': type,
+        'title': title,
+        'content': content,
+        if (imageUploadIds.isNotEmpty) 'imageUploadIds': imageUploadIds,
+      }, silent: true);
       if (res['status'] != 'success') {
         throw BoardApiException((res['message'] as String?) ?? '글을 등록하지 못했어요.',
             code: res['code'] as String?);
@@ -154,12 +161,33 @@ class BoardRepository {
     }
   }
 
+  /// 이미지 임시 업로드 → uploadId. 작성 시 imageUploadIds / 수정 시 images 로 연결(raw 키 직접 전송 안 함).
+  Future<String> uploadImage(String filePath) async {
+    try {
+      final res = await ApiClient.uploadFile('/api/board/images', filePath);
+      if (res['status'] != 'success') {
+        throw BoardApiException((res['message'] as String?) ?? '이미지를 업로드하지 못했어요.',
+            code: res['code'] as String?);
+      }
+      final data = res['data'];
+      if (data is Map && data['uploadId'] is String) return data['uploadId'] as String;
+      throw const BoardParseException('업로드 응답 uploadId 누락');
+    } on DioException catch (e) {
+      throw _writeError(e);
+    }
+  }
+
   /// 본인 자유글 수정(제목·본문). 비본인/미존재 = 404, 금칙어 = 403.
   Future<void> updatePost(String postId,
-      {required String title, required String content}) async {
+      {required String title,
+      required String content,
+      List<Map<String, String>>? images}) async {
     try {
-      final res = await ApiClient.patch('/api/board/posts/$postId',
-          data: {'title': title, 'content': content}, silent: true);
+      final res = await ApiClient.patch('/api/board/posts/$postId', data: {
+        'title': title,
+        'content': content,
+        'images': ?images, // null=이미지 미변경(기존 유지). [{existingImageId}|{uploadId}] 최종 순서
+      }, silent: true);
       if (res['status'] != 'success') {
         throw BoardApiException((res['message'] as String?) ?? '글을 수정하지 못했어요.',
             code: res['code'] as String?);

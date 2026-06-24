@@ -18,7 +18,11 @@ class _FakeWriteRepo extends BoardRepository {
   _FakeWriteRepo({this.throwOnSubmit, this.delay = Duration.zero});
 
   @override
-  Future<String> createPost({required String type, required String title, required String content}) async {
+  Future<String> createPost(
+      {required String type,
+      required String title,
+      required String content,
+      List<String> imageUploadIds = const []}) async {
     createCalls++;
     lastTitle = title;
     lastBody = content;
@@ -29,7 +33,9 @@ class _FakeWriteRepo extends BoardRepository {
 
   @override
   Future<void> updatePost(String postId,
-      {required String title, required String content}) async {
+      {required String title,
+      required String content,
+      List<Map<String, String>>? images}) async {
     updateCalls++;
     lastTitle = title;
     lastBody = content;

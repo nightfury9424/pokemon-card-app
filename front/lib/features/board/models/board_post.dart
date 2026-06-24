@@ -183,6 +183,20 @@ class BoardComment {
       );
 }
 
+/// 게시글 첨부 이미지 — imageId(수정 시 기존 이미지 유지·순서용)·url(secure proxy)·sortOrder. raw 키 없음.
+class BoardPostImage {
+  final String imageId;
+  final String url;
+  final int sortOrder;
+  const BoardPostImage({required this.imageId, required this.url, required this.sortOrder});
+
+  factory BoardPostImage.fromJson(Map<String, dynamic> j) => BoardPostImage(
+        imageId: (j['imageId'] as String?) ?? '',
+        url: (j['url'] as String?) ?? '',
+        sortOrder: (j['sortOrder'] as num?)?.toInt() ?? 0,
+      );
+}
+
 class BoardPost {
   final String id;
   final BoardType type;
@@ -196,6 +210,7 @@ class BoardPost {
   final bool isPinned;
   final bool isAnswered; // Q&A: 답변 달림
   final List<BoardComment> comments;
+  final List<BoardPostImage> images; // 상세 응답의 첨부 이미지(sort 순). 목록/요약엔 없음 → 빈 리스트.
 
   /// 목록 응답(BoardPostSummaryDto)의 서버 라이브 집계값. 상세/목업은 null → comments 에서 계산.
   final int? listCommentCount;
@@ -220,6 +235,7 @@ class BoardPost {
     this.isPinned = false,
     this.isAnswered = false,
     this.comments = const [],
+    this.images = const [],
     this.listCommentCount,
     this.mine = false,
     this.canEdit = false,
@@ -251,6 +267,9 @@ class BoardPost {
       isAnswered: (j['isAnswered'] as bool?) ?? false,
       comments: ((j['comments'] as List?) ?? const [])
           .map((e) => BoardComment.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      images: ((j['images'] as List?) ?? const [])
+          .map((e) => BoardPostImage.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
       listCommentCount: (j['commentCount'] as num?)?.toInt(),
       mine: _flag(j, 'mine'),
