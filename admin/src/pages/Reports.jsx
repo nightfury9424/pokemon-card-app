@@ -519,7 +519,10 @@ function HandleModal({ row, onClose, onDone }) {
                     {context.changedSinceReport && <span style={{ marginLeft: 6 }}><CtxBadge text="신고 후 수정됨" tone="danger" /></span>}
                   </div>
                   {context.snapshotAvailable ? (
-                    <BoardContextView ctx={snapshotToCtx(context.reportedSnapshot)} />
+                    <>
+                      <BoardContextView ctx={snapshotToCtx(context.reportedSnapshot)} />
+                      <ImageStrip urls={context.snapshotImageUrls} count={context.snapshotImageCount} />
+                    </>
                   ) : (
                     <div style={{ ...ctxBoxStyle, color: '#94a3b8' }}>{snapshotNote(context.snapshotStatus)}</div>
                   )}
@@ -527,7 +530,10 @@ function HandleModal({ row, onClose, onDone }) {
                 <div>
                   <div style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 6 }}>현재 내용</div>
                   {context.available ? (
-                    <BoardContextView ctx={context} />
+                    <>
+                      <BoardContextView ctx={context} />
+                      <ImageStrip urls={context.currentImageUrls} count={(context.currentImageUrls || []).length} />
+                    </>
                   ) : (
                     <div style={{ ...ctxBoxStyle, color: '#94a3b8' }}>현재 콘텐츠가 삭제되었거나 없습니다.</div>
                   )}
@@ -632,6 +638,36 @@ function snapshotNote(status) {
 }
 
 // 신고 당시 snapshot(ReportedSnapshot) → BoardContextView 가 쓰는 {post, thread} 형태로 변환(렌더 재사용).
+// secure proxy 이미지(/api/images/secure/..)를 admin 토큰으로 blob 다운로드 → objectURL. raw storage key 미노출.
+function AuthImg({ url, size = 72 }) {
+  const [src, setSrc] = useState(null)
+  const [err, setErr] = useState(false)
+  useEffect(() => {
+    let revoked = false
+    let objectUrl = null
+    api.get(url.replace(/^\/api/, ''), { responseType: 'blob' })
+      .then(r => { if (!revoked) { objectUrl = URL.createObjectURL(r.data); setSrc(objectUrl) } })
+      .catch(() => { if (!revoked) setErr(true) })
+    return () => { revoked = true; if (objectUrl) URL.revokeObjectURL(objectUrl) }
+  }, [url])
+  const box = { width: size, height: size, borderRadius: 8, objectFit: 'cover', border: '1px solid #e2e8f0', background: '#f1f5f9' }
+  if (err) return <div style={{ ...box, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 10 }}>이미지</div>
+  if (!src) return <div style={box} />
+  return <img src={src} alt="" style={box} />
+}
+
+function ImageStrip({ urls, count }) {
+  if (!count) return null
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>첨부 이미지 {count}장</div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {(urls || []).map((u, i) => <AuthImg key={i} url={u} />)}
+      </div>
+    </div>
+  )
+}
+
 function snapshotToCtx(snap) {
   if (!snap) return { post: null, thread: null }
   if (snap.targetType === 'BOARD_POST') {
