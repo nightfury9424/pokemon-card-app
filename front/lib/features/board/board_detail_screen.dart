@@ -56,10 +56,11 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
   bool _changed = false;  // 좋아요/댓글 변경 → 목록 갱신 신호(back pop result)
   String? _deletingCommentId; // 댓글/대댓글 삭제 진행 중(이탈·중복 차단)
   bool _postDeleting = false; // 게시글 삭제 진행 중
+  bool _blocking = false; // 사용자 차단 요청 진행 중(이탈·중복 차단)
 
   // 상태 변경 요청 진행 중 여부 — 진행 중엔 화면 이탈 금지(닫히면 dispose 로 성공 결과·목록 동기화 유실).
   bool get _hasPendingMutation =>
-      _likeBusy || _sending || _deletingCommentId != null || _postDeleting;
+      _likeBusy || _sending || _deletingCommentId != null || _postDeleting || _blocking;
 
   @override
   void initState() {
@@ -128,7 +129,9 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
   // ⋯ 메뉴 — 본인 자유글=수정/삭제 / 비본인·비공식=신고(서버 canReport). 공식글·삭제·숨김은 서버 플래그 false → 미노출.
   List<Widget>? _appBarActions() {
     final p = _post;
-    if (p == null || !(p.canEdit || p.canDelete || p.canReport)) return null;
+    if (p == null || !(p.canEdit || p.canDelete || p.canReport || p.canBlock)) {
+      return null;
+    }
     return [
       PopupMenuButton<String>(
         icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
@@ -137,6 +140,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
           if (v == 'edit') _edit(p);
           if (v == 'delete') _delete(p);
           if (v == 'report') _reportPost(p);
+          if (v == 'block') _blockPostAuthor(p);
         },
         itemBuilder: (_) => [
           if (p.canEdit)
@@ -150,6 +154,10 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
             const PopupMenuItem(
                 value: 'report',
                 child: Text('신고', style: TextStyle(color: AppColors.textPrimary))),
+          if (p.canBlock)
+            const PopupMenuItem(
+                value: 'block',
+                child: Text('사용자 차단', style: TextStyle(color: AppColors.textPrimary))),
         ],
       ),
     ];
@@ -166,6 +174,51 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
         reasons: boardReportReasons);
     if (!mounted || !reported) return;
     Navigator.of(context).pop('changed'); // imperative pop = PopScope 우회
+  }
+
+  // 신고 없이 작성자 차단 — 확인 후 board-post 차단 API(서버가 작성자 해석). 성공 시 콘텐츠 사라짐 → pop('changed').
+  Future<void> _blockPostAuthor(BoardPost p) async {
+    if (_hasPendingMutation) return;
+    if (!await _confirmBlock() || !mounted) return;
+    setState(() => _blocking = true);
+    try {
+      await widget.repository.blockPostAuthor(p.id);
+      if (!mounted) return;
+      Navigator.of(context).pop('changed'); // imperative pop = PopScope 우회
+    } on BoardApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _blocking = false);
+      if (e.statusCode != 401) AppInfoToast.show(context, e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _blocking = false);
+      AppInfoToast.show(context, '차단하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
+  }
+
+  // 차단 확인 다이얼로그(게시글·댓글 공용). 차단=true.
+  Future<bool> _confirmBlock() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceCard,
+        title: const Text('사용자를 차단할까요?',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+        content: const Text(
+            '이 사용자를 차단하면 해당 사용자의 게시글과 댓글이 표시되지 않습니다.\n차단 목록에서 언제든 해제할 수 있습니다.',
+            style: TextStyle(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소', style: TextStyle(color: AppColors.textMuted))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('차단',
+                  style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    return ok == true;
   }
 
   Future<void> _edit(BoardPost p) async {
@@ -538,6 +591,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
       if (canReply) _commentAction('답글', () => _startReply(c)),
       if (c.canDelete) _commentAction('삭제', () => _deleteComment(c), color: AppColors.red),
       if (c.canReport) _commentAction('신고', () => _reportComment(c)),
+      if (c.canBlock) _commentAction('차단', () => _blockCommentAuthor(c)),
     ];
     if (items.isEmpty) return const SizedBox.shrink();
     return Padding(
@@ -563,6 +617,29 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
     if (!mounted || !reported) return;
     _changed = true; // 목록 댓글 수 갱신 신호
     await _reload();
+  }
+
+  // 댓글 작성자 차단(신고 없이) — 확인 후 board-comment 차단 API. 성공 시 작성자 댓글이 서버 필터로 thread 에서
+  // 사라짐. 상세는 유지하고 thread 만 무플래시 재조회.
+  Future<void> _blockCommentAuthor(BoardComment c) async {
+    if (_hasPendingMutation) return;
+    if (!await _confirmBlock() || !mounted) return;
+    setState(() => _blocking = true);
+    try {
+      await widget.repository.blockCommentAuthor(c.id);
+      if (!mounted) return;
+      setState(() => _blocking = false);
+      _changed = true;
+      await _reload();
+    } on BoardApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _blocking = false);
+      if (e.statusCode != 401) AppInfoToast.show(context, e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _blocking = false);
+      AppInfoToast.show(context, '차단하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
   }
 
   Widget _commentAction(String label, VoidCallback onTap, {Color? color}) {

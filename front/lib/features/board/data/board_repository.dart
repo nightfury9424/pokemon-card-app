@@ -181,6 +181,34 @@ class BoardRepository {
     }
   }
 
+  /// 게시글 작성자 차단(신고 없이). postId 로 서버가 작성자 해석(raw authorId 미전송). 본인/공식=400, 미존재/삭제=404.
+  Future<void> blockPostAuthor(String postId) async {
+    try {
+      final res = await ApiClient.post(
+          '/api/blocks/board-posts/$postId', const {}, silent: true);
+      if (res['status'] != 'success') {
+        throw BoardApiException((res['message'] as String?) ?? '차단하지 못했어요.',
+            code: res['code'] as String?);
+      }
+    } on DioException catch (e) {
+      throw _writeError(e);
+    }
+  }
+
+  /// 댓글 작성자 차단(신고 없이). commentId 로 서버가 작성자 해석. 본인=400, 미존재/삭제=404.
+  Future<void> blockCommentAuthor(String commentId) async {
+    try {
+      final res = await ApiClient.post(
+          '/api/blocks/board-comments/$commentId', const {}, silent: true);
+      if (res['status'] != 'success') {
+        throw BoardApiException((res['message'] as String?) ?? '차단하지 못했어요.',
+            code: res['code'] as String?);
+      }
+    } on DioException catch (e) {
+      throw _writeError(e);
+    }
+  }
+
   /// 댓글/1단 답글 작성 → commentId. parentCommentId 있으면 답글(최상위·미삭제 댓글 id, 서버 재검증).
   Future<String> createComment(String postId,
       {required String content, String? parentCommentId}) async {

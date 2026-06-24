@@ -3,6 +3,11 @@ package com.fury.back.domain.block;
 import com.fury.back.common.IdGenerator;
 import com.fury.back.common.ReturnData;
 import com.fury.back.domain.block.dto.BlockedUserDto;
+import com.fury.back.domain.board.BoardComment;
+import com.fury.back.domain.board.BoardCommentRepository;
+import com.fury.back.domain.board.BoardPost;
+import com.fury.back.domain.board.BoardPostRepository;
+import com.fury.back.domain.board.BoardTaxonomy;
 import com.fury.back.domain.chat.ChatService;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
@@ -28,6 +33,8 @@ public class BlockController {
     private final BlockRepository blockRepository;
     private final ChatService chatService;
     private final UserRepository userRepository;
+    private final BoardPostRepository boardPostRepository;
+    private final BoardCommentRepository boardCommentRepository;
 
     @Operation(summary = "사용자 차단")
     @PostMapping("/{userId}")
@@ -36,21 +43,56 @@ public class BlockController {
             @AuthenticationPrincipal String blockerId,
             @PathVariable String userId) {
         requireAuth(blockerId);
-        if (blockerId.equals(userId)) {
+        return applyBlock(blockerId, userId);
+    }
+
+    @Operation(summary = "게시글 작성자 차단",
+            description = "postId 로 작성자를 서버가 해석해 차단(raw authorId 미노출). 신고 없이 차단.")
+    @PostMapping("/board-posts/{postId}")
+    @Transactional
+    public ResponseEntity<ReturnData<Map<String, String>>> blockPostAuthor(
+            @AuthenticationPrincipal String blockerId,
+            @PathVariable String postId) {
+        requireAuth(blockerId);
+        BoardPost post = boardPostRepository.findById(postId)
+                .filter(p -> p.getDeletedAt() == null && "ACTIVE".equals(p.getStatus()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
+        if (BoardTaxonomy.isAdminType(post.getType())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "공식 게시글 작성자는 차단할 수 없습니다.");
+        }
+        return applyBlock(blockerId, post.getAuthorId());
+    }
+
+    @Operation(summary = "댓글 작성자 차단",
+            description = "commentId 로 작성자를 서버가 해석해 차단(raw authorId 미노출). 신고 없이 차단.")
+    @PostMapping("/board-comments/{commentId}")
+    @Transactional
+    public ResponseEntity<ReturnData<Map<String, String>>> blockCommentAuthor(
+            @AuthenticationPrincipal String blockerId,
+            @PathVariable String commentId) {
+        requireAuth(blockerId);
+        BoardComment comment = boardCommentRepository.findById(commentId)
+                .filter(c -> c.getDeletedAt() == null)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다."));
+        return applyBlock(blockerId, comment.getAuthorId());
+    }
+
+    /** 공통 차단 처리 — self/blank 거부 + idempotent(이미 차단 시 200) + 신규일 때만 notifyBlock. */
+    private ResponseEntity<ReturnData<Map<String, String>>> applyBlock(String blockerId, String blockedId) {
+        if (blockedId == null || blockedId.isBlank() || blockerId.equals(blockedId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SELF_BLOCK");
         }
-
-        var existing = blockRepository.findByBlockerIdAndBlockedId(blockerId, userId);
+        var existing = blockRepository.findByBlockerIdAndBlockedId(blockerId, blockedId);
         boolean created = existing.isEmpty();
         Block block = existing.orElseGet(() -> blockRepository.save(Block.builder()
                 .blockId(IdGenerator.generate())
                 .blockerId(blockerId)
-                .blockedId(userId)
+                .blockedId(blockedId)
                 .build()));
         // Phase 1: 차단한 사람 hidden_at 자동 set + 차단당한 사람 방에 SYSTEM 메시지 1회.
-        // 신규 차단일 때만 수행 (idempotent — 재호출 시 중복 SYSTEM 메시지 방지).
+        // 신규 차단일 때만 수행 (idempotent — 재호출 시 중복 SYSTEM 메시지 방지). board 작성자=채팅방 없으면 no-op.
         if (created) {
-            chatService.notifyBlock(blockerId, userId);
+            chatService.notifyBlock(blockerId, blockedId);
         }
         HttpStatus status = created ? HttpStatus.CREATED : HttpStatus.OK;
         return ResponseEntity.status(status)
