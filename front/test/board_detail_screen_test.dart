@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:front/core/widgets/auth_image.dart';
 import 'package:front/features/board/board_detail_screen.dart';
 import 'package:front/features/board/data/board_repository.dart';
 import 'package:front/features/board/models/board_post.dart';
@@ -60,6 +62,36 @@ Future<void> _pump(WidgetTester t, BoardRepository repo, BoardPost? summary) asy
 }
 
 void main() {
+  setUp(() {
+    // AuthImage → TokenStorage(flutter_secure_storage) 플러그인 mock (갤러리 렌더용).
+    TestWidgetsFlutterBinding.ensureInitialized();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+      (call) async => null,
+    );
+  });
+
+  testWidgets('이미지 글 → 본문 아래 갤러리 2장 + 탭→전체화면 뷰어', (tester) async {
+    final post = BoardPost(
+      id: 'f1',
+      type: BoardType.free,
+      title: '제목',
+      body: '본문',
+      author: 'u',
+      createdAt: DateTime(2026, 1, 1),
+      images: const [
+        BoardPostImage(imageId: 'i1', url: '/api/images/secure/a', sortOrder: 0),
+        BoardPostImage(imageId: 'i2', url: '/api/images/secure/b', sortOrder: 1),
+      ],
+    );
+    await _pump(tester, _FakeDetail(post: post), post);
+    expect(find.byType(AuthImage), findsNWidgets(2)); // 본문 아래 갤러리 2장
+    await tester.tap(find.byType(AuthImage).first);
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.close), findsOneWidget); // 전체화면 뷰어 열림
+    expect(find.text('1 / 2'), findsOneWidget); // 페이지 표시
+  });
+
   testWidgets('자유 상세 — 본문 + 댓글트리 표시', (tester) async {
     await _pump(tester, _FakeDetail(post: _free()), _free());
     expect(tester.takeException(), isNull);

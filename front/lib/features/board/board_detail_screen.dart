@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_info_toast.dart';
+import '../../core/widgets/auth_image.dart';
 import 'models/board_post.dart';
 import 'data/board_repository.dart';
 import 'board_compose_screen.dart';
@@ -362,6 +363,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
         const SizedBox(height: 18),
         Text(post.body,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 14.5, height: 1.6)),
+        _imageGallery(post), // 첨부 이미지(있으면) — 공지·자유 공통, 본문 아래
         if (!isOfficial) ...[
           const SizedBox(height: 18),
           _engagementRow(post), // ♥ 좋아요 수(자유글 토글) · 댓글 수
@@ -858,6 +860,123 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// 첨부 이미지 갤러리 — 본문 아래 full-width 세로 스택(4:3 cover). 탭 → 전체화면 스와이프·확대.
+  Widget _imageGallery(BoardPost post) {
+    if (post.images.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        children: [
+          for (int i = 0; i < post.images.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => _openGallery(post, i),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: AuthImage(
+                    url: post.images[i].url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: AppColors.surfaceCard,
+                      child: const Center(
+                          child: Icon(Icons.image_outlined,
+                              color: AppColors.textMuted, size: 28)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _openGallery(BoardPost post, int index) {
+    Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => _BoardGalleryViewer(images: post.images, initialIndex: index),
+    ));
+  }
+}
+
+/// 전체화면 이미지 뷰어 — 스와이프(PageView) + 핀치 확대(InteractiveViewer) + 닫기/페이지 표시.
+class _BoardGalleryViewer extends StatefulWidget {
+  final List<BoardPostImage> images;
+  final int initialIndex;
+  const _BoardGalleryViewer({required this.images, required this.initialIndex});
+
+  @override
+  State<_BoardGalleryViewer> createState() => _BoardGalleryViewerState();
+}
+
+class _BoardGalleryViewerState extends State<_BoardGalleryViewer> {
+  late final PageController _pc = PageController(initialPage: widget.initialIndex);
+  late int _current = widget.initialIndex;
+
+  @override
+  void dispose() {
+    _pc.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: _pc,
+            itemCount: widget.images.length,
+            onPageChanged: (i) => setState(() => _current = i),
+            itemBuilder: (_, i) => InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              child: Center(
+                child: AuthImage(
+                  url: widget.images[i].url,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white54,
+                      size: 48),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    if (widget.images.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 14),
+                        child: Text('${_current + 1} / ${widget.images.length}',
+                            style: const TextStyle(color: Colors.white, fontSize: 14)),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
