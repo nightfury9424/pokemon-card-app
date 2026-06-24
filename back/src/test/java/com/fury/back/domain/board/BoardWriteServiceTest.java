@@ -59,6 +59,12 @@ class BoardWriteServiceTest {
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
     }
 
+    @Test void createPost_qnaType_403() {
+        // ★qna 는 유효 타입이나 사용자 작성 allowlist(free/tradeReview/scamAlert) 밖 → 403 (직접 호출 우회 차단).
+        assertThatThrownBy(() -> service.createPost("u1", new CreatePostRequest("qna", "t", "c")))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
+    }
+
     @Test void createPost_invalidType_400() {
         assertThatThrownBy(() -> service.createPost("u1", new CreatePostRequest("xxx", "t", "c")))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");

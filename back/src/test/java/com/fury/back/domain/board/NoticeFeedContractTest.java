@@ -41,6 +41,12 @@ class NoticeFeedContractTest {
                 .status("ACTIVE").createdAt(LocalDateTime.now()).build();
     }
 
+    private BoardPost qnaPost(String id) {
+        return BoardPost.builder().postId(id).type("qna").section("qna").title("질문글")
+                .content("x").authorId("u1").answered(false).viewCount(0).likeCount(0)
+                .status("ACTIVE").createdAt(LocalDateTime.now()).build();
+    }
+
     @Test
     void officialNotice_db_to_feed_servesBannerContract() {
         postRepository.save(notice("n-old", "이전 공지", "이전 본문", false, LocalDateTime.now().minusDays(2)));
@@ -57,6 +63,18 @@ class NoticeFeedContractTest {
         assertThat(first.type()).isEqualTo("notice");
         assertThat(first.title()).isEqualTo("고정 점검 공지");
         assertThat(first.body()).isEqualTo("점검 본문 전문입니다."); // ★전문(축약 아님) — 배너/상세가 읽는 body
+    }
+
+    @Test
+    void allFeed_excludesQna() {
+        // ★전체 피드(section=null, type=null)는 qna 를 노출하지 않음 — board 노출 6타입만(qna 폐기).
+        postRepository.save(freePost("f1"));
+        postRepository.save(qnaPost("q1"));
+        em.flush();
+        em.clear();
+        BoardPageDto feed = boardService.getFeed(null, null, null, 0, 20);
+        assertThat(feed.content()).extracting("type").contains("free").doesNotContain("qna");
+        assertThat(feed.content()).extracting("id").doesNotContain("q1");
     }
 
     @Test

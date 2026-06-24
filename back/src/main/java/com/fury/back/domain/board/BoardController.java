@@ -54,7 +54,7 @@ public class BoardController {
 
     // ── 사용자 쓰기 (인증 필요 — userId null 이면 서비스가 401) ──
 
-    @Operation(summary = "게시글 작성", description = "일반 사용자 타입만(free/tradeReview/scamAlert/qna). 공지계열=403.")
+    @Operation(summary = "게시글 작성", description = "사용자 작성 allowlist(free/tradeReview/scamAlert)만. 공지계열·qna=403.")
     @PostMapping("/posts")
     public ReturnData<Map<String, String>> createPost(
             @RequestBody CreatePostRequest req, HttpServletRequest request) {

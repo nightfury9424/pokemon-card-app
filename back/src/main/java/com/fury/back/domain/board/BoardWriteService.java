@@ -35,9 +35,9 @@ public class BoardWriteService {
         if (!BoardTaxonomy.isValidType(type)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "잘못된 게시판 타입입니다.");
         }
-        if (BoardTaxonomy.isAdminType(type)) {
-            // notice/event/patch 는 관리자 전용 → 사용자 작성 차단
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "공지 계열은 작성할 수 없습니다.");
+        // ★allowlist — 자유/거래후기/사기주의만 허용. 공식(notice/event/patch)·qna 는 직접 호출도 403.
+        if (!BoardTaxonomy.isUserWritableType(type)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "작성할 수 없는 게시판 타입입니다.");
         }
         String title = clean(req.title(), TITLE_MAX, "제목");
         String content = clean(req.content(), CONTENT_MAX, "내용");

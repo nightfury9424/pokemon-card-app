@@ -16,6 +16,7 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, String> {
     @Query(value = """
             SELECT p FROM BoardPost p
             WHERE p.deletedAt IS NULL AND p.status = 'ACTIVE'
+              AND p.section <> 'qna'
               AND (:section IS NULL OR p.section = :section)
               AND (:type IS NULL OR p.type = :type)
               AND (:viewerId IS NULL OR NOT EXISTS (
@@ -26,6 +27,7 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, String> {
             countQuery = """
             SELECT COUNT(p) FROM BoardPost p
             WHERE p.deletedAt IS NULL AND p.status = 'ACTIVE'
+              AND p.section <> 'qna'
               AND (:section IS NULL OR p.section = :section)
               AND (:type IS NULL OR p.type = :type)
               AND (:viewerId IS NULL OR NOT EXISTS (
