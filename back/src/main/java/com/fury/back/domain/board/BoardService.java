@@ -35,6 +35,7 @@ public class BoardService {
     private final BlockRepository blockRepository;
     private final UserRepository userRepository;
     private final BoardPostLikeRepository likeRepository;
+    private final BoardPostImageRepository postImageRepository;
 
     @Transactional(readOnly = true)
     public BoardPageDto getFeed(String section, String type, String viewerId, int page, int size) {
@@ -111,13 +112,16 @@ public class BoardService {
         List<String> ids = List.of(post.getPostId());
         int likeCount = likeCountMap(ids).getOrDefault(post.getPostId(), 0);   // board_post_likes COUNT(*)
         boolean likedByMe = likedPostIds(viewerId, ids).contains(post.getPostId());
+        List<String> imageUrls = postImageRepository.findByPostIdOrderBySortOrderAsc(post.getPostId()).stream()
+                .map(img -> com.fury.back.storage.StorageKeyUrls.toProxyUrl(img.getStorageKey())) // raw 키 미노출
+                .toList();
         return new BoardPostDetailDto(
                 post.getPostId(), post.getType(), post.getTitle(), post.getContent(),
                 authorLabel(post.getType(), post.getAuthorId(), nicknames),
                 post.getCreatedAt(), post.getViewCount(), likeCount,
                 post.isPinned(), post.isAnswered(), activeCount, comments,
                 pf.mine(), pf.canEdit(), pf.canDelete(), pf.canReport(), pf.canBlock(),
-                likedByMe);
+                likedByMe, imageUrls);
     }
 
     // ── helpers ──

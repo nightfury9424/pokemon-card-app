@@ -150,7 +150,7 @@ class BoardControllerTest {
                 true, true, true, "c1", false, false); // 본인 최상위 댓글
         BoardPostDetailDto detail = new BoardPostDetailDto(
                 "pp", "free", "제목", "본문", "글쓴이", t, 0, 3, false, false, 1, List.of(comment),
-                true, true, true, false, false, true); // 본인 자유글, likedByMe=true, likeCount=3
+                true, true, true, false, false, true, List.of()); // 본인 자유글, likedByMe=true, 이미지 없음
         when(service.getDetail(eq("pp"), any())).thenReturn(detail);
 
         mvc.perform(get("/api/board/posts/pp"))

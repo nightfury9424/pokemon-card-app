@@ -26,7 +26,15 @@ class BoardWriteServiceTest {
     @Mock BoardPostRepository postRepo;
     @Mock BoardCommentRepository commentRepo;
     @Mock ContentPolicyService contentPolicy;
+    @Mock BoardImageUploadRepository imageUploadRepo;
+    @Mock BoardPostImageRepository postImageRepo;
     @InjectMocks BoardWriteService service;
+
+    private BoardImageUpload upload(String id, String owner, String status, LocalDateTime expires) {
+        return BoardImageUpload.builder().uploadId(id).uploaderId(owner)
+                .storageKey("uploads/board/pending/" + id + ".jpg")
+                .status(status).createdAt(T).expiresAt(expires).build();
+    }
 
     private static final LocalDateTime T = LocalDateTime.of(2026, 6, 23, 10, 0);
 
@@ -63,6 +71,65 @@ class BoardWriteServiceTest {
         // ★qna 는 유효 타입이나 사용자 작성 allowlist(free/tradeReview/scamAlert) 밖 → 403 (직접 호출 우회 차단).
         assertThatThrownBy(() -> service.createPost("u1", new CreatePostRequest("qna", "t", "c")))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
+    }
+
+    // ── createPost 이미지 연결(uploadId 소유권·일회성) ──
+    @Test void createPost_validUpload_attachesImage() {
+        when(postRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(imageUploadRepo.findAllByUploadIdIn(any()))
+                .thenReturn(java.util.List.of(upload("up1", "u1", "PENDING", LocalDateTime.now().plusHours(1))));
+        service.createPost("u1", new CreatePostRequest("free", "제목", "본문", java.util.List.of("up1")));
+        verify(postImageRepo).save(any()); // board_post_images 연결됨
+    }
+
+    @Test void createPost_otherUserUpload_400() {
+        when(postRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(imageUploadRepo.findAllByUploadIdIn(any()))
+                .thenReturn(java.util.List.of(upload("up1", "other", "PENDING", LocalDateTime.now().plusHours(1))));
+        assertThatThrownBy(() -> service.createPost("u1",
+                new CreatePostRequest("free", "t", "c", java.util.List.of("up1"))))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
+        verify(postImageRepo, never()).save(any());
+    }
+
+    @Test void createPost_consumedUpload_400() {
+        when(postRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(imageUploadRepo.findAllByUploadIdIn(any()))
+                .thenReturn(java.util.List.of(upload("up1", "u1", "CONSUMED", LocalDateTime.now().plusHours(1))));
+        assertThatThrownBy(() -> service.createPost("u1",
+                new CreatePostRequest("free", "t", "c", java.util.List.of("up1"))))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
+    }
+
+    @Test void createPost_expiredUpload_400() {
+        when(postRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(imageUploadRepo.findAllByUploadIdIn(any()))
+                .thenReturn(java.util.List.of(upload("up1", "u1", "PENDING", LocalDateTime.now().minusHours(1))));
+        assertThatThrownBy(() -> service.createPost("u1",
+                new CreatePostRequest("free", "t", "c", java.util.List.of("up1"))))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
+    }
+
+    @Test void createPost_tooManyImages_400() {
+        when(postRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        assertThatThrownBy(() -> service.createPost("u1",
+                new CreatePostRequest("free", "t", "c", java.util.List.of("a", "b", "c", "d", "e", "f"))))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
+    }
+
+    @Test void createPost_dupUpload_400() {
+        when(postRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        assertThatThrownBy(() -> service.createPost("u1",
+                new CreatePostRequest("free", "t", "c", java.util.List.of("up1", "up1"))))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
+    }
+
+    @Test void updatePost_otherPostExistingImage_400() {
+        when(postRepo.findById("p")).thenReturn(Optional.of(post("p", "free", "community", "u1", "ACTIVE", null)));
+        when(postImageRepo.findByPostIdOrderBySortOrderAsc("p")).thenReturn(java.util.List.of()); // 이 글엔 이미지 없음
+        var items = java.util.List.of(new UpdatePostRequest.ImageItem("other-post-img", null)); // 타 게시글 imageId
+        assertThatThrownBy(() -> service.updatePost("u1", "p", new UpdatePostRequest("제목", "본문", items)))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
     }
 
     @Test void createPost_invalidType_400() {

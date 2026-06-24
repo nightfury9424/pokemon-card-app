@@ -34,6 +34,7 @@ class BoardServiceTest {
     @Mock BlockRepository blockRepo;
     @Mock UserRepository userRepo;
     @Mock BoardPostLikeRepository likeRepo;
+    @Mock BoardPostImageRepository postImageRepo;
     @InjectMocks BoardService service;
 
     // 좋아요 bulk 조회 기본값(빈) — likedByMe/likeCount 미지정 테스트 NPE 방지. 개별 테스트서 재스텁.
