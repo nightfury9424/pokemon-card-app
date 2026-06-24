@@ -861,7 +861,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
                   child: AuthImage(
                     url: post.images[i].url,
                     fit: BoxFit.contain, // ★원본 비율 유지 — 카드 세로사진 위아래 잘림 방지
-                    errorBuilder: (_, __, ___) => const Center(
+                    errorBuilder: (_, _, _) => const Center(
                         child: Icon(Icons.image_outlined,
                             color: AppColors.textMuted, size: 28)),
                   ),
@@ -919,7 +919,7 @@ class _BoardGalleryViewerState extends State<_BoardGalleryViewer> {
                 child: AuthImage(
                   url: widget.images[i].url,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
+                  errorBuilder: (_, _, _) => const Icon(
                       Icons.broken_image_outlined,
                       color: Colors.white54,
                       size: 48),
