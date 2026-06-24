@@ -116,7 +116,7 @@ void main() {
 
     await t.tap(find.text('삭제')); // 댓글 액션
     await t.pumpAndSettle();
-    await t.tap(find.widgetWithText(TextButton, '삭제')); // 확인 → 삭제(지연)
+    await t.tap(find.descendant(of: find.byType(Dialog), matching: find.text('삭제'))); // 확인 → 삭제(지연)
     await t.pump(const Duration(milliseconds: 250)); // 다이얼로그 dismiss
     await t.tap(find.byType(BackButton)); // 요청 중 뒤로
     await t.pump();
@@ -139,7 +139,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('삭제')); // 메뉴 항목
     await t.pumpAndSettle();
-    await t.tap(find.widgetWithText(TextButton, '삭제')); // 확인 → 삭제(지연)
+    await t.tap(find.descendant(of: find.byType(Dialog), matching: find.text('삭제'))); // 확인 → 삭제(지연)
     await t.pump(const Duration(milliseconds: 250));
     await t.tap(find.byType(BackButton)); // 요청 중 뒤로
     await t.pump();

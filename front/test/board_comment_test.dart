@@ -218,7 +218,7 @@ void main() {
       await tester.tap(find.text('삭제'));
       await tester.pumpAndSettle();
       expect(find.text('댓글을 삭제할까요?'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, '삭제')); // 다이얼로그 확인
+      await tester.tap(find.descendant(of: find.byType(Dialog), matching: find.text('삭제'))); // 다이얼로그 확인
       await tester.pumpAndSettle();
       expect(repo.deleteCalls, 1);
     });
@@ -229,7 +229,7 @@ void main() {
       await _pump(tester, repo);
       await tester.tap(find.text('삭제')); // 대댓글의 삭제(유일)
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, '삭제'));
+      await tester.tap(find.descendant(of: find.byType(Dialog), matching: find.text('삭제')));
       await tester.pumpAndSettle();
       expect(repo.deleteCalls, 1);
     });
@@ -239,7 +239,7 @@ void main() {
       await _pump(tester, repo);
       await tester.tap(find.text('삭제'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, '취소'));
+      await tester.tap(find.descendant(of: find.byType(Dialog), matching: find.text('취소')));
       await tester.pumpAndSettle();
       expect(repo.deleteCalls, 0);
     });
@@ -251,14 +251,14 @@ void main() {
       await _pump(tester, repo);
       await tester.tap(find.text('삭제'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, '삭제'));
+      await tester.tap(find.descendant(of: find.byType(Dialog), matching: find.text('삭제')));
       await tester.pumpAndSettle();
       expect(repo.deleteCalls, 1);
       expect(find.text('내댓글'), findsOneWidget); // 유지
       // 재시도
       await tester.tap(find.text('삭제'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, '삭제'));
+      await tester.tap(find.descendant(of: find.byType(Dialog), matching: find.text('삭제')));
       await tester.pumpAndSettle();
       expect(repo.deleteCalls, 2);
     });

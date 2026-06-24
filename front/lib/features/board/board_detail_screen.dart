@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/auth_image.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
 import 'models/board_post.dart';
 import 'data/board_repository.dart';
 import 'board_compose_screen.dart';
@@ -37,7 +38,7 @@ class BoardDetailScreen extends StatefulWidget {
   State<BoardDetailScreen> createState() => _BoardDetailScreenState();
 }
 
-class _BoardDetailScreenState extends State<BoardDetailScreen> {
+class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindingObserver {
   BoardPost? _post;
   bool _loading = true;
   bool _notFound = false;
@@ -67,7 +68,14 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
   void initState() {
     super.initState();
     _commentCtrl.addListener(_onCommentChange);
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  // 앱 resume 시 무플래시 재조회 — 관리자 고정/해제 등 백그라운드 중 변경(핀 상태 포함)을 최신화.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) _reload();
   }
 
   void _onCommentChange() {
@@ -76,6 +84,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _commentCtrl.dispose();
     _commentFocus.dispose();
     _scrollCtrl.dispose();
@@ -221,25 +230,13 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
 
   // 차단 확인 다이얼로그(게시글·댓글 공용). 차단=true.
   Future<bool> _confirmBlock() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text('사용자를 차단할까요?',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
-        content: const Text(
-            '이 사용자를 차단하면 해당 사용자의 게시글과 댓글이 표시되지 않습니다.\n차단 목록에서 언제든 해제할 수 있습니다.',
-            style: TextStyle(color: AppColors.textSecondary)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('취소', style: TextStyle(color: AppColors.textMuted))),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('차단',
-                  style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700))),
-        ],
-      ),
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '사용자를 차단할까요?',
+      message: '이 사용자를 차단하면 해당 사용자의 게시글과 댓글이 표시되지 않습니다.\n차단 목록에서 언제든 해제할 수 있습니다.',
+      cancelLabel: '취소',
+      confirmLabel: '차단',
+      destructive: true,
     );
     return ok == true;
   }
@@ -252,24 +249,13 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
 
   Future<void> _delete(BoardPost p) async {
     if (_hasPendingMutation) return; // 다른 변경 진행 중 — 중복 다이얼로그/요청 방지
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text('글을 삭제할까요?',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
-        content: const Text('삭제한 글은 복구할 수 없어요.',
-            style: TextStyle(color: AppColors.textSecondary)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('취소', style: TextStyle(color: AppColors.textMuted))),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('삭제',
-                  style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700))),
-        ],
-      ),
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '글을 삭제할까요?',
+      message: '삭제한 글은 복구할 수 없어요.',
+      cancelLabel: '취소',
+      confirmLabel: '삭제',
+      destructive: true,
     );
     if (ok != true || !mounted) return;
     setState(() => _postDeleting = true);
@@ -728,22 +714,13 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
 
   Future<void> _deleteComment(BoardComment c) async {
     if (_hasPendingMutation) return; // 다른 변경 진행 중 — 중복 다이얼로그/요청 방지
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text('댓글을 삭제할까요?',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('취소', style: TextStyle(color: AppColors.textMuted))),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('삭제',
-                  style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w700))),
-        ],
-      ),
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '댓글을 삭제할까요?',
+      message: '삭제한 댓글은 복구할 수 없어요.',
+      cancelLabel: '취소',
+      confirmLabel: '삭제',
+      destructive: true,
     );
     if (ok != true || !mounted) return;
     setState(() => _deletingCommentId = c.id);

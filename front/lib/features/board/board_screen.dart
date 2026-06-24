@@ -26,7 +26,7 @@ class BoardScreen extends StatefulWidget {
   State<BoardScreen> createState() => _BoardScreenState();
 }
 
-class _BoardScreenState extends State<BoardScreen> {
+class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
   static const _pageSize = 20;
 
   late BoardFilter _filter; // initState 에서 widget.initialFilter 로 초기화.
@@ -49,13 +49,21 @@ class _BoardScreenState extends State<BoardScreen> {
     super.initState();
     _filter = widget.initialFilter;
     _scroll.addListener(_onScroll);
+    WidgetsBinding.instance.addObserver(this);
     _load();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scroll.dispose();
     super.dispose();
+  }
+
+  // 앱 resume 시 무플래시 재조회 — 관리자 고정/해제 등 백그라운드 중 변경(핀 우선순위 포함)을 최신화.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) _silentReload();
   }
 
   Future<void> _load() async {
@@ -90,6 +98,28 @@ class _BoardScreenState extends State<BoardScreen> {
         _loading = false;
         _error = e;
       });
+    }
+  }
+
+  // 무플래시 재조회(page 0) — 스피너 전환 없이 목록만 갱신. resume·목록 복귀 시 핀/내용 최신화.
+  Future<void> _silentReload() async {
+    final token = ++_reqToken;
+    try {
+      final r = await widget.repository.fetchList(
+        section: _section,
+        type: _type,
+        page: 0,
+        size: _pageSize,
+      );
+      if (!mounted || token != _reqToken) return;
+      setState(() {
+        _posts = r.posts;
+        _page = r.page;
+        _hasMore = r.hasMore;
+        _error = null;
+      });
+    } catch (_) {
+      // 재조회 실패는 기존 목록 유지(조용히 무시).
     }
   }
 
@@ -151,7 +181,7 @@ class _BoardScreenState extends State<BoardScreen> {
 
   // 상세 진입. 상세에서 수정·삭제(비-null 결과) 발생 시 목록 갱신.
   Future<void> _openDetail(BoardPost post) async {
-    final changed = await Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => BoardDetailScreen(
           postId: post.id,
@@ -160,7 +190,9 @@ class _BoardScreenState extends State<BoardScreen> {
         ),
       ),
     );
-    if (changed != null && mounted) _load();
+    if (!mounted) return;
+    // 복귀 시 무플래시 갱신 — 삭제·수정 반영 + 관리자 핀 변경 최신화(변경 없어도 핀 동기화).
+    _silentReload();
   }
 
   @override

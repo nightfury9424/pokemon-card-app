@@ -8,6 +8,7 @@ import 'package:front/features/board/models/board_filter.dart';
 class _RecordRepo extends BoardRepository {
   String? lastSection;
   String? lastType;
+  int fetchCount = 0;
   _RecordRepo();
 
   @override
@@ -19,6 +20,7 @@ class _RecordRepo extends BoardRepository {
   }) async {
     lastSection = section;
     lastType = type;
+    if (page == 0) fetchCount++;
     return BoardListResult(
       posts: const [],
       page: 0,
@@ -59,6 +61,17 @@ void main() {
     await t.tap(find.text('거래후기'));
     await t.pumpAndSettle();
     expect(repo.lastType, 'tradeReview');
+  });
+
+  testWidgets('앱 resume → 목록 재조회(관리자 핀 변경 최신화)', (t) async {
+    final repo = _RecordRepo();
+    await t.pumpWidget(MaterialApp(home: BoardScreen(repository: repo)));
+    await t.pumpAndSettle();
+    final before = repo.fetchCount; // 초기 로드 1
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await t.pumpAndSettle();
+    expect(repo.fetchCount, greaterThan(before)); // resume 시 page0 재조회
   });
 
   testWidgets('FAB — 전체=노출, 공지(공식)=미노출', (t) async {

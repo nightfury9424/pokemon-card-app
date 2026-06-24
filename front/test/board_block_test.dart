@@ -53,9 +53,9 @@ BoardComment _comment({bool canBlock = false}) => BoardComment(
   canBlock: canBlock,
 );
 
-// 확인 다이얼로그의 '차단' 버튼(댓글 액션 '차단' 과 구분).
+// 확인 다이얼로그(AppConfirmDialog=Dialog)의 '차단' 버튼(댓글 액션 '차단' 과 구분).
 Finder _dialogBlock() =>
-    find.descendant(of: find.byType(AlertDialog), matching: find.text('차단'));
+    find.descendant(of: find.byType(Dialog), matching: find.text('차단'));
 
 void main() {
   testWidgets('게시글 canBlock=true → ⋯ 메뉴에 사용자 차단 노출', (t) async {
