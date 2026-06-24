@@ -118,9 +118,10 @@ public class AdminStage0Dto {
         private BoardPostView post;         // 현재 — BOARD_POST=신고 게시글 / BOARD_COMMENT=원문 게시글
         private BoardCommentThread thread;  // 현재 — BOARD_COMMENT 만(최상위 thread + 대상 강조)
         // 신고 당시 증거
-        private boolean snapshotAvailable;  // 신고 당시 snapshot 보존 여부(false=이전 신고, 비교 불가)
-        private boolean changedSinceReport; // snapshot vs 현재 내용 상이(snapshot 없으면 false)
-        private ReportedSnapshot reportedSnapshot; // 신고 당시 원문(불변). 없으면 null.
+        private boolean snapshotAvailable;  // 표시·제재 가능 = snapshotStatus AVAILABLE 일 때만 true
+        private String snapshotStatus;      // AVAILABLE / LEGACY_NOT_CAPTURED(기존 신고·정상 null) / UNSUPPORTED_VERSION / INVALID
+        private boolean changedSinceReport; // snapshot vs 현재 내용 상이(AVAILABLE 아니면 false)
+        private ReportedSnapshot reportedSnapshot; // 신고 당시 원문(불변). AVAILABLE 일 때만, 아니면 null.
     }
 
     @Getter

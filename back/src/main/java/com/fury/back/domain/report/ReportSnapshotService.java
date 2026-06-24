@@ -31,11 +31,16 @@ public class ReportSnapshotService {
 
     @Transactional(readOnly = true)
     public ReportedSnapshot build(String targetType, String targetId) {
-        return switch (targetType) {
+        ReportedSnapshot snap = switch (targetType) {
             case "BOARD_POST" -> postSnapshot(targetId);
             case "BOARD_COMMENT" -> commentSnapshot(targetId);
             default -> null; // 비-board 는 snapshot 없음
         };
+        // ★불완전 snapshot 저장 금지(증거 무결성). 콘텐츠 NOT NULL 이라 정상엔 안 나오나 서버 버그/이상 데이터 방어 — loud fail.
+        if (snap != null && !snap.hasRequiredFields()) {
+            throw new IllegalStateException("불완전한 신고 snapshot 필수 필드 누락: " + targetType + "/" + targetId);
+        }
+        return snap;
     }
 
     private ReportedSnapshot postSnapshot(String postId) {

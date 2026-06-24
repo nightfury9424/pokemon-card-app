@@ -115,14 +115,15 @@ class ReportControllerTest {
     }
 
     @Test
-    void blockRaceDataIntegrity_mappedToDuplicate_notThrown() {
-        // 자동차단 unique 경쟁(동일 신고자·대상 동시 신고) → service tx 롤백 + DataIntegrityViolation → 중복 안내(500 아님).
+    void genericDataIntegrity_propagates_notMaskedAsDuplicate() {
+        // ★block 경쟁은 service 가 400 으로 변환. 그 외 DataIntegrityViolation(JSONB/NOT NULL 등)은 컨트롤러가
+        //   중복으로 위장하지 않고 그대로 전파(5xx) — 진짜 DB 장애를 숨기지 않음.
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1")));
         when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(false);
         when(reportService.create(any(), any(), any(), any(), any(), any()))
-                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("block unique"));
-        controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT")); // throw 하지 않음
-        verify(reportService).create(any(), any(), any(), any(), any(), any());
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("schema mismatch"));
+        assertThatThrownBy(() -> controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT")))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
 
     @Test

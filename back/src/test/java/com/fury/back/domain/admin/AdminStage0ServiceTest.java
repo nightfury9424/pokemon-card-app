@@ -297,9 +297,21 @@ class AdminStage0ServiceTest {
         when(reportRepository.findById("r1")).thenReturn(Optional.of(reportWithSnap(snap)));
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a1", "ACTIVE", null)));
         var ctx = service.getTargetContext("r1", "admin1");
+        assertThat(ctx.getSnapshotStatus()).isEqualTo("AVAILABLE");
         assertThat(ctx.isSnapshotAvailable()).isTrue();
         assertThat(ctx.getReportedSnapshot().title()).isEqualTo("제목전문"); // 신고 당시 보존
         assertThat(ctx.isChangedSinceReport()).isFalse(); // 현재와 동일
+    }
+
+    @Test void targetContext_unsupportedVersion_distinctFromLegacy() {
+        var snap = new ReportedSnapshot(2, "BOARD_POST", "제목전문", "본문전문", "닉", "x", null, null, null, null, null);
+        when(reportRepository.findById("r1")).thenReturn(Optional.of(reportWithSnap(snap)));
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a1", "ACTIVE", null)));
+        var ctx = service.getTargetContext("r1", "admin1");
+        assertThat(ctx.getSnapshotStatus()).isEqualTo("UNSUPPORTED_VERSION"); // 레거시 null 과 구분
+        assertThat(ctx.isSnapshotAvailable()).isFalse();    // 표시·제재 불가
+        assertThat(ctx.getReportedSnapshot()).isNull();      // v1 렌더러로 렌더 금지
+        assertThat(ctx.isChangedSinceReport()).isFalse();
     }
 
     @Test void targetContext_postEdited_changedSinceReport() {
@@ -313,6 +325,7 @@ class AdminStage0ServiceTest {
         when(reportRepository.findById("r1")).thenReturn(Optional.of(report("BOARD_POST", "p1", "a1"))); // snapshot null
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "a1", "ACTIVE", null)));
         var ctx = service.getTargetContext("r1", "admin1");
+        assertThat(ctx.getSnapshotStatus()).isEqualTo("LEGACY_NOT_CAPTURED"); // null = 오직 기존 신고
         assertThat(ctx.isSnapshotAvailable()).isFalse();
         assertThat(ctx.getReportedSnapshot()).isNull();
         assertThat(ctx.isChangedSinceReport()).isFalse(); // 비교 불가 → false

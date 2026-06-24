@@ -8,6 +8,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
@@ -16,7 +17,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-/** 신고 생성 원자 처리 — snapshot + 신고 저장 + 자동 차단(같은 트랜잭션). block 실패 전파(롤백 보장). */
+/** 신고 생성 원자 처리 — snapshot + 신고 저장 + 자동 차단(한 트랜잭션). block unique 경쟁만 중복으로 변환, 그 외 전파. */
 @ExtendWith(MockitoExtension.class)
 class ReportServiceTest {
 
@@ -32,57 +33,65 @@ class ReportServiceTest {
     @Test void boardPost_buildsSnapshot_saves_andBlocks() {
         when(reportSnapshotService.build("BOARD_POST", "p1")).thenReturn(snap());
         when(blockRepository.findByBlockerIdAndBlockedId("reporter", "author1")).thenReturn(Optional.empty());
-        when(reportRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
 
         service.create("reporter", "BOARD_POST", "p1", "INSULT", null, "author1");
 
         ArgumentCaptor<Report> cap = ArgumentCaptor.forClass(Report.class);
-        verify(reportRepository).save(cap.capture());
-        assertThat(cap.getValue().getReportedSnapshot()).isNotNull();   // 신고 당시 snapshot 저장
+        verify(reportRepository).saveAndFlush(cap.capture());
+        assertThat(cap.getValue().getReportedSnapshot()).isNotNull();
         assertThat(cap.getValue().getTargetUserId()).isEqualTo("author1");
-        verify(blockRepository).save(any(Block.class));                 // 자동 차단
+        verify(blockRepository).saveAndFlush(any(Block.class));
     }
 
     @Test void boardSnapshotNull_rejects_noSave_noBlock() {
-        when(reportSnapshotService.build("BOARD_POST", "gone")).thenReturn(null); // 미존재/삭제
+        when(reportSnapshotService.build("BOARD_POST", "gone")).thenReturn(null);
         assertThatThrownBy(() -> service.create("reporter", "BOARD_POST", "gone", "INSULT", null, "author1"))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
-        verify(reportRepository, never()).save(any());
-        verify(blockRepository, never()).save(any());
+        verify(reportRepository, never()).saveAndFlush(any());
+        verify(blockRepository, never()).saveAndFlush(any());
     }
 
     @Test void user_noSnapshot_saves_andBlocks() {
         when(blockRepository.findByBlockerIdAndBlockedId("reporter", "victim")).thenReturn(Optional.empty());
-        when(reportRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-
+        when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
         service.create("reporter", "USER", "victim", "INSULT", null, "victim");
-
-        verify(reportSnapshotService, never()).build(any(), any()); // 비-board snapshot 없음
-        verify(reportRepository).save(any());
-        verify(blockRepository).save(any());
+        verify(reportSnapshotService, never()).build(any(), any());
+        verify(reportRepository).saveAndFlush(any());
+        verify(blockRepository).saveAndFlush(any());
     }
 
     @Test void nullTargetUserId_noBlock() {
-        when(reportRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
         service.create("reporter", "BUY_ORDER", "bo1", "OTHER", null, null);
-        verify(reportRepository).save(any());
-        verify(blockRepository, never()).save(any()); // targetUserId null → 자동차단 없음
+        verify(reportRepository).saveAndFlush(any());
+        verify(blockRepository, never()).saveAndFlush(any());
     }
 
     @Test void alreadyBlocked_noDuplicateBlock() {
         when(blockRepository.findByBlockerIdAndBlockedId("reporter", "victim"))
                 .thenReturn(Optional.of(mock(Block.class)));
-        when(reportRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
         service.create("reporter", "USER", "victim", "INSULT", null, "victim");
-        verify(blockRepository, never()).save(any()); // 이미 차단 → 중복 안 함
+        verify(blockRepository, never()).saveAndFlush(any());
     }
 
-    @Test void blockFailure_propagates_notSwallowed() {
-        // ★block 저장 실패 → 예외 전파(swallow X) → @Transactional 이 신고도 롤백(부분성공 방지)
+    @Test void blockUniqueRace_convertedToBadRequest() {
+        // ★block unique(blocker,blocked) 경쟁 = 동일 신고자·대상 동시 신고 → DataIntegrityViolation → 400 중복 안내.
         when(blockRepository.findByBlockerIdAndBlockedId("reporter", "victim")).thenReturn(Optional.empty());
-        when(reportRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-        when(blockRepository.save(any())).thenThrow(new RuntimeException("block fail"));
+        when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
+        when(blockRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("block unique"));
         assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim"))
-                .isInstanceOf(RuntimeException.class);
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
+    }
+
+    @Test void blockGenericFailure_propagatesRaw_notMaskedAsDuplicate() {
+        // ★DataIntegrity 아닌 block 실패는 중복으로 위장하지 않고 그대로 전파(5xx) → @Transactional 롤백.
+        when(blockRepository.findByBlockerIdAndBlockedId("reporter", "victim")).thenReturn(Optional.empty());
+        when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
+        when(blockRepository.saveAndFlush(any())).thenThrow(new RuntimeException("transient"));
+        assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim"))
+                .isInstanceOf(RuntimeException.class)
+                .isNotInstanceOf(ResponseStatusException.class);
     }
 }

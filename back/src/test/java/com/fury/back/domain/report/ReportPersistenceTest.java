@@ -69,7 +69,7 @@ class ReportPersistenceTest {
     void atomicity_blockFailure_rollsBackReport() {
         // ★block 저장 실패 시 신고도 롤백(부분성공='차단만 되고 신고 없음' 방지) — 같은 @Transactional.
         when(blockRepository.findByBlockerIdAndBlockedId(any(), any())).thenReturn(Optional.empty());
-        when(blockRepository.save(any())).thenThrow(new RuntimeException("block fail"));
+        when(blockRepository.saveAndFlush(any())).thenThrow(new RuntimeException("block fail"));
         long before = reportRepository.count();
         assertThatThrownBy(() -> reportService.create("u1", "USER", "victim", "INSULT", null, "victim"))
                 .isInstanceOf(RuntimeException.class);

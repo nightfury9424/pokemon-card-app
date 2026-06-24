@@ -4,6 +4,7 @@ import com.fury.back.common.IdGenerator;
 import com.fury.back.domain.block.Block;
 import com.fury.back.domain.block.BlockRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,16 +46,23 @@ public class ReportService {
                 .status("PENDING")
                 .reportedSnapshot(snapshot)
                 .build();
-        reportRepository.save(report); // JSONB 직렬화 실패 시 여기서 예외 → 트랜잭션 롤백
+        // ★즉시 flush — JSONB 직렬화/NOT NULL 등 신고 저장 단계의 DB 오류는 여기서 터져 그대로 전파(5xx, 중복으로 위장 금지).
+        reportRepository.saveAndFlush(report);
 
         // 자동 차단 — ★같은 트랜잭션. 실패 시 신고도 롤백(부분성공 방지). 이미 차단돼 있으면 생략.
         if (targetUserId != null && !targetUserId.equals(reporterId)
                 && blockRepository.findByBlockerIdAndBlockedId(reporterId, targetUserId).isEmpty()) {
-            blockRepository.save(Block.builder()
-                    .blockId(IdGenerator.generate())
-                    .blockerId(reporterId)
-                    .blockedId(targetUserId)
-                    .build());
+            try {
+                blockRepository.saveAndFlush(Block.builder()
+                        .blockId(IdGenerator.generate())
+                        .blockerId(reporterId)
+                        .blockedId(targetUserId)
+                        .build());
+            } catch (DataIntegrityViolationException e) {
+                // ★여기 도달하는 DataIntegrityViolation 은 block unique(blocker,blocked) 경쟁뿐(신고 저장은 위에서 이미 flush됨)
+                //   = 동일 신고자·대상 동시 신고(dedup 중복). tx 롤백 + 중복 안내로만 변환(다른 DB 오류는 위에서 전파).
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미 신고하신 항목입니다. 검토 중이에요.");
+            }
         }
         return report.getReportId();
     }

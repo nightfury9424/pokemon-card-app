@@ -33,4 +33,19 @@ public record ReportedSnapshot(
     ) {}
 
     public static final int CURRENT_VERSION = 1;
+
+    /**
+     * targetType 별 필수 필드 충족 여부(version 무관 구조 검증).
+     * BOARD_POST=title·content / BOARD_COMMENT=targetCommentId·topCommentId·comments(절대 null 금지).
+     * 미충족 = INVALID — 생성 시 저장 거부, 조회 시 관리자 오류 상태(레거시 null 과 구분).
+     */
+    public boolean hasRequiredFields() {
+        if ("BOARD_POST".equals(targetType)) {
+            return title != null && content != null;
+        }
+        if ("BOARD_COMMENT".equals(targetType)) {
+            return targetCommentId != null && topCommentId != null && comments != null;
+        }
+        return false;
+    }
 }

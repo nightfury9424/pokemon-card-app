@@ -243,13 +243,16 @@ public class AdminStage0Service {
         Set<String> ids = new HashSet<>();
         ids.add(p.getAuthorId()); // ★null 허용(HashSet) — 공식글/레거시 authorId null 가능. Set.of(null) NPE 회피.
         ReportedSnapshot snap = report.getReportedSnapshot();
+        String snapStatus = snapshotStatus(snap);
+        boolean snapOk = "AVAILABLE".equals(snapStatus);
         return AdminStage0Dto.TargetContext.builder()
                 .reportId(report.getReportId()).targetType("BOARD_POST").targetId(report.getTargetId())
                 .available(true)
                 .post(postView(p, nicknameMap(ids)))
-                .snapshotAvailable(snap != null)
-                .changedSinceReport(postChanged(snap, p))
-                .reportedSnapshot(snap)
+                .snapshotStatus(snapStatus)
+                .snapshotAvailable(snapOk)
+                .changedSinceReport(snapOk && postChanged(snap, p))
+                .reportedSnapshot(snapOk ? snap : null)
                 .build();
     }
 
@@ -270,25 +273,39 @@ public class AdminStage0Service {
         List<AdminStage0Dto.BoardCommentView> views = thread.stream()
                 .map(x -> commentView(x, nicks, report.getTargetId())).toList();
         ReportedSnapshot snap = report.getReportedSnapshot();
+        String snapStatus = snapshotStatus(snap);
+        boolean snapOk = "AVAILABLE".equals(snapStatus);
         return AdminStage0Dto.TargetContext.builder()
                 .reportId(report.getReportId()).targetType("BOARD_COMMENT").targetId(report.getTargetId())
                 .available(true)
                 .post(p == null ? null : postView(p, nicks)) // 게시글이 물리삭제돼도 댓글 thread 는 노출
                 .thread(AdminStage0Dto.BoardCommentThread.builder()
                         .targetCommentId(report.getTargetId()).topCommentId(topId).comments(views).build())
-                .snapshotAvailable(snap != null)
-                .changedSinceReport(commentChanged(snap, thread, p))
-                .reportedSnapshot(snap)
+                .snapshotStatus(snapStatus)
+                .snapshotAvailable(snapOk)
+                .changedSinceReport(snapOk && commentChanged(snap, thread, p))
+                .reportedSnapshot(snapOk ? snap : null)
                 .build();
     }
 
     private AdminStage0Dto.TargetContext unavailable(Report report) {
         ReportedSnapshot snap = report.getReportedSnapshot();
+        String snapStatus = snapshotStatus(snap);
+        boolean snapOk = "AVAILABLE".equals(snapStatus);
         return AdminStage0Dto.TargetContext.builder()
                 .reportId(report.getReportId()).targetType(report.getTargetType())
                 .targetId(report.getTargetId()).available(false)
-                .snapshotAvailable(snap != null).changedSinceReport(false).reportedSnapshot(snap)
+                .snapshotStatus(snapStatus).snapshotAvailable(snapOk)
+                .changedSinceReport(false).reportedSnapshot(snapOk ? snap : null)
                 .build();
+    }
+
+    // 신고 당시 snapshot 상태 — null(=정상·기존신고)만 LEGACY, 미지원 버전·필수누락을 같은 null 로 합치지 않음.
+    private static String snapshotStatus(ReportedSnapshot snap) {
+        if (snap == null) return "LEGACY_NOT_CAPTURED";
+        if (snap.version() != ReportedSnapshot.CURRENT_VERSION) return "UNSUPPORTED_VERSION";
+        if (!snap.hasRequiredFields()) return "INVALID";
+        return "AVAILABLE";
     }
 
     // 신고 당시 snapshot vs 현재 내용 비교(snapshot 없으면 false=비교 불가).
