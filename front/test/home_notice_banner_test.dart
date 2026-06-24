@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:front/features/board/home_notice_banner.dart';
 import 'package:front/features/board/board_screen.dart';
@@ -150,19 +151,51 @@ void main() {
     expect(find.text(long), findsOneWidget); // 전체 텍스트는 위젯에 보존(시각적으로만 ellipsis)
   });
 
-  testWidgets('배너 본문 탭 → 해당 postId 의 BoardDetailScreen push', (t) async {
+  testWidgets('상세 영역 탭 → BoardDetailScreen 단일 push(postId 일치, 목록 push 0)', (
+    t,
+  ) async {
     final obs = await _pumpWithObserver(
       t,
       _FakeRepo(posts: [_notice('nX', '공지제목')]),
     );
-    await t.tap(find.text('공지제목')); // 본문(제목) 탭 → body onTap
-    final route = obs.pushed.whereType<MaterialPageRoute>().last;
-    final w = route.builder(
+    await t.tap(find.text('공지제목')); // 상세 영역(제목) 탭
+    final routes = obs.pushed.whereType<MaterialPageRoute>().toList();
+    expect(routes.length, 1); // 정확히 1회(형제 목록 버튼은 미발동)
+    final w = routes.single.builder(
       t.element(find.byType(MaterialApp)),
     ); // mount 없이 위젯만 구성(네트워크 회피)
     expect(w, isA<BoardDetailScreen>());
     expect((w as BoardDetailScreen).postId, 'nX'); // 배너 공지 id 와 정확히 일치
     await t.pumpWidget(const SizedBox()); // pending 라우트 정리(상세 build 방지)
+  });
+
+  testWidgets('접근성: 상세/목록 형제 버튼 — 분리 노드·tap action·제목 포함 라벨·목록 44×44', (
+    t,
+  ) async {
+    final handle = t.ensureSemantics();
+    await _pump(t, _FakeRepo(posts: [_notice('nX', '점검 공지')]));
+
+    // 상세 버튼: 라벨에 실제 제목 포함(정확 일치 = 목록 라벨과 병합 안 됨) + tap action 보유.
+    final detail = find.bySemanticsLabel('공지 상세 보기: 점검 공지');
+    expect(detail, findsOneWidget);
+    final detailNode = t.getSemantics(detail);
+    expect(detailNode.label, '공지 상세 보기: 점검 공지');
+    expect(
+      detailNode.getSemanticsData().hasAction(SemanticsAction.tap),
+      isTrue,
+    );
+
+    // 목록 버튼: 별개 노드(라벨 정확) + tap action, 최소 44×44.
+    final list = find.bySemanticsLabel('공지 목록 보기');
+    expect(list, findsOneWidget);
+    final listNode = t.getSemantics(list);
+    expect(listNode.label, '공지 목록 보기');
+    expect(listNode.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+    final size = t.getSize(list);
+    expect(size.width, greaterThanOrEqualTo(44));
+    expect(size.height, greaterThanOrEqualTo(44));
+
+    handle.dispose();
   });
 
   testWidgets('우측 화살표 탭 → BoardScreen(initialTab 0, 공지 목록) push', (t) async {

@@ -55,96 +55,111 @@ class HomeNoticeBannerState extends State<HomeNoticeBanner> {
   Widget build(BuildContext context) {
     final p = _post;
     if (p == null) return const SizedBox.shrink(); // 로딩/0건/오류 = 숨김
+
+    // 포인터 탭(GestureDetector)과 스크린리더 탭(Semantics.onTap)이 같은 동작을 쓰도록 콜백 공유.
+    void openDetail() => Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        builder: (_) => BoardDetailScreen(postId: p.id, summary: p),
+      ),
+    );
+    void openList() => Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const BoardScreen(initialTab: 0)));
+
+    // ★접근성: 배너 전체를 상세 탭으로 감싸지 않고, 상세 영역 / 목록 영역을 형제 버튼 2개로 분리(중첩 시 스크린리더
+    //   focus/action 병합 위험). 각 Semantics 가 onTap(=tap action) 직접 보유 — excludeSemantics 로 자식 GestureDetector
+    //   의 액션이 사라지지 않게. 시각 디자인·높이·아이콘 위치는 유지.
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      // 본문 탭 = 해당 공지 상세. 스크린리더 라벨 부여(화살표와 구분).
-      child: Semantics(
-        button: true,
-        label: '공지 상세 보기',
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => Navigator.of(context, rootNavigator: true).push(
-            MaterialPageRoute(
-              builder: (_) => BoardDetailScreen(postId: p.id, summary: p),
-            ),
-          ),
-          child: Container(
-            height: 46,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceCard,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.divider, width: 1),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.campaign,
-                  size: 17,
-                  color: AppColors.blueLight,
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: p.type.color.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: Text(
-                    p.type.label,
-                    style: TextStyle(
-                      color: p.type.color,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    p.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                // › → 공지 목록(BoardScreen 공지 탭). 상세·목록은 root navigator = 하단탭/스캔FAB 미노출.
-                // ★터치 영역 44×46(가이드라인 충족) — 아이콘은 우측 정렬로 시각 위치 유지. 스크린리더 라벨로 본문과 구분.
-                Semantics(
-                  button: true,
-                  label: '공지 목록 보기',
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () =>
-                        Navigator.of(context, rootNavigator: true).push(
-                          MaterialPageRoute(
-                            builder: (_) => const BoardScreen(initialTab: 0),
+      child: Container(
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.divider, width: 1),
+        ),
+        child: Row(
+          children: [
+            // ── 상세 버튼(형제 1): 아이콘·유형배지·제목 포함, 라벨에 실제 제목 포함 ──
+            Expanded(
+              child: Semantics(
+                button: true,
+                label: '공지 상세 보기: ${p.title}',
+                onTap: openDetail,
+                excludeSemantics: true, // 내부 제목/배지/아이콘 중복 낭독 방지(라벨에 제목 포함)
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: openDetail,
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.campaign,
+                        size: 17,
+                        color: AppColors.blueLight,
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: p.type.color.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          p.type.label,
+                          style: TextStyle(
+                            color: p.type.color,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                    child: const SizedBox(
-                      width: 44,
-                      height: 46,
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Icon(
-                          Icons.chevron_right,
-                          size: 18,
-                          color: AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          p.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // ── 목록 버튼(형제 2): › → 공지 목록(공지 탭). 터치 44×46, 아이콘 우측정렬로 시각 위치 유지 ──
+            Semantics(
+              button: true,
+              label: '공지 목록 보기',
+              onTap: openList,
+              excludeSemantics: true,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: openList,
+                child: const SizedBox(
+                  width: 44,
+                  height: 46,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: AppColors.textMuted,
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
