@@ -214,28 +214,34 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   Widget _tabBar() {
+    // 목업 pill 탭 — 선택=파란 외곽선·파란 텍스트·옅은 파란 배경 / 비선택=어두운 배경·약한 테두리.
     Widget tab(BoardFilter f) {
       final sel = _filter == f;
-      return GestureDetector(
-        onTap: () => _switchFilter(f),
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: sel ? AppColors.blue : Colors.transparent,
-                width: 2,
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3.5),
+        child: GestureDetector(
+          onTap: () => _switchFilter(f),
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+            decoration: BoxDecoration(
+              color: sel
+                  ? AppColors.blueDeep.withValues(alpha: 0.30)
+                  : AppColors.surfaceCard,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: sel ? AppColors.blue : AppColors.divider,
+                width: sel ? 1.4 : 1,
               ),
             ),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            f.label,
-            style: TextStyle(
-              color: sel ? AppColors.textPrimary : AppColors.textMuted,
-              fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
-              fontSize: 14.5,
+            child: Text(
+              f.label,
+              style: TextStyle(
+                color: sel ? AppColors.blueLight : AppColors.textSecondary,
+                fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 13.5,
+              ),
             ),
           ),
         ),
@@ -243,6 +249,7 @@ class _BoardScreenState extends State<BoardScreen> {
     }
 
     return Container(
+      padding: const EdgeInsets.fromLTRB(13, 6, 13, 10),
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(color: AppColors.dividerSoft, width: 1),
@@ -250,7 +257,6 @@ class _BoardScreenState extends State<BoardScreen> {
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 6),
         child: Row(children: BoardFilter.values.map(tab).toList()),
       ),
     );
