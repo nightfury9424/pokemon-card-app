@@ -88,16 +88,6 @@ class BoardMock {
     return list;
   }
 
-  /// 홈 배너용 — 핀 공지/이벤트 최신.
-  static List<BoardPost> bannerItems() {
-    return posts
-        .where((p) => p.type == BoardType.notice || p.type == BoardType.event)
-        .toList()
-      ..sort((a, b) {
-        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
-        return b.createdAt.compareTo(a.createdAt);
-      });
-  }
 
   /// 상대 시간 표시.
   static String relativeTime(DateTime t) {

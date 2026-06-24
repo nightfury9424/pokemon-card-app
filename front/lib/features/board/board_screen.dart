@@ -11,7 +11,14 @@ import 'board_compose_screen.dart';
 class BoardScreen extends StatefulWidget {
   /// 주입 가능(테스트용 fake). 운영 기본 = const BoardRepository().
   final BoardRepository repository;
-  const BoardScreen({super.key, this.repository = const BoardRepository()});
+
+  /// 진입 탭 — 0 = 공지(official), 1 = 자유(free, 기본). 홈 공지배너 › 는 0(공지 목록)으로 진입.
+  final int initialTab;
+  const BoardScreen({
+    super.key,
+    this.repository = const BoardRepository(),
+    this.initialTab = 1,
+  });
 
   @override
   State<BoardScreen> createState() => _BoardScreenState();
@@ -20,7 +27,8 @@ class BoardScreen extends StatefulWidget {
 class _BoardScreenState extends State<BoardScreen> {
   static const _pageSize = 20;
 
-  int _tab = 1; // 0 = 공지(official), 1 = 자유(free). 기본 = 자유.
+  late int
+  _tab; // 0 = 공지(official), 1 = 자유(free). initState 에서 widget.initialTab 로 초기화.
   final ScrollController _scroll = ScrollController();
 
   List<BoardPost> _posts = const [];
@@ -39,6 +47,7 @@ class _BoardScreenState extends State<BoardScreen> {
   @override
   void initState() {
     super.initState();
+    _tab = widget.initialTab == 0 ? 0 : 1; // 방어: 0/1 외 값은 자유(1)로
     _scroll.addListener(_onScroll);
     _load();
   }
@@ -57,7 +66,11 @@ class _BoardScreenState extends State<BoardScreen> {
     });
     try {
       final r = await widget.repository.fetchList(
-          section: _section, type: _type, page: 0, size: _pageSize);
+        section: _section,
+        type: _type,
+        page: 0,
+        size: _pageSize,
+      );
       if (!mounted || token != _reqToken) return; // 늦게 온 이전 탭 응답 폐기
       setState(() {
         _posts = r.posts;
@@ -86,7 +99,11 @@ class _BoardScreenState extends State<BoardScreen> {
     setState(() => _loadingMore = true);
     try {
       final r = await widget.repository.fetchList(
-          section: _section, type: _type, page: _page + 1, size: _pageSize);
+        section: _section,
+        type: _type,
+        page: _page + 1,
+        size: _pageSize,
+      );
       if (!mounted || token != _reqToken) return;
       setState(() {
         _posts = [..._posts, ...r.posts];
@@ -122,21 +139,31 @@ class _BoardScreenState extends State<BoardScreen> {
   // 자유 탭 글쓰기 FAB → root navigator 전체화면 작성. 성공 시 목록 새로고침.
   Future<void> _openCompose() async {
     final created = await Navigator.of(context, rootNavigator: true).push(
-        MaterialPageRoute(builder: (_) => BoardComposeScreen(repository: widget.repository)));
+      MaterialPageRoute(
+        builder: (_) => BoardComposeScreen(repository: widget.repository),
+      ),
+    );
     if (created != null && mounted) _load();
   }
 
   // 상세 진입. 상세에서 수정·삭제(비-null 결과) 발생 시 목록 갱신.
   Future<void> _openDetail(BoardPost post) async {
-    final changed = await Navigator.of(context).push(MaterialPageRoute(
+    final changed = await Navigator.of(context).push(
+      MaterialPageRoute(
         builder: (_) => BoardDetailScreen(
-            postId: post.id, summary: post, repository: widget.repository)));
+          postId: post.id,
+          summary: post,
+          repository: widget.repository,
+        ),
+      ),
+    );
     if (changed != null && mounted) _load();
   }
 
   @override
   Widget build(BuildContext context) {
-    final fabBottomInset = AppDimens.bottomContentInsetForExtendedFab +
+    final fabBottomInset =
+        AppDimens.bottomContentInsetForExtendedFab +
         MediaQuery.viewPaddingOf(context).bottom;
 
     return Scaffold(
@@ -146,9 +173,14 @@ class _BoardScreenState extends State<BoardScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         titleSpacing: 20,
-        title: const Text('게시판',
-            style: TextStyle(
-                color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 20)),
+        title: const Text(
+          '게시판',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+          ),
+        ),
       ),
       // 자유 탭만 글쓰기 FAB(공지는 관리자 웹 전용 = 앱 작성 버튼 없음).
       floatingActionButton: _isNotice
@@ -156,9 +188,18 @@ class _BoardScreenState extends State<BoardScreen> {
           : FloatingActionButton.extended(
               backgroundColor: AppColors.blue,
               onPressed: _openCompose,
-              icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.white),
-              label: const Text('글쓰기',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              icon: const Icon(
+                Icons.edit_outlined,
+                size: 18,
+                color: Colors.white,
+              ),
+              label: const Text(
+                '글쓰기',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
       body: Column(
         children: [
@@ -188,12 +229,14 @@ class _BoardScreenState extends State<BoardScreen> {
               ),
             ),
             alignment: Alignment.center,
-            child: Text(label,
-                style: TextStyle(
-                  color: sel ? AppColors.textPrimary : AppColors.textMuted,
-                  fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
-                  fontSize: 14.5,
-                )),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: sel ? AppColors.textPrimary : AppColors.textMuted,
+                fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                fontSize: 14.5,
+              ),
+            ),
           ),
         ),
       );
@@ -201,7 +244,9 @@ class _BoardScreenState extends State<BoardScreen> {
 
     return Container(
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.dividerSoft, width: 1)),
+        border: Border(
+          bottom: BorderSide(color: AppColors.dividerSoft, width: 1),
+        ),
       ),
       child: Row(children: [tab('공지', 0), tab('자유', 1)]),
     );
@@ -225,8 +270,10 @@ class _BoardScreenState extends State<BoardScreen> {
             SizedBox(
               height: MediaQuery.sizeOf(context).height * 0.5,
               child: Center(
-                child: Text(_isNotice ? '등록된 공지가 없어요' : '아직 글이 없어요',
-                    style: const TextStyle(color: AppColors.textMuted)),
+                child: Text(
+                  _isNotice ? '등록된 공지가 없어요' : '아직 글이 없어요',
+                  style: const TextStyle(color: AppColors.textMuted),
+                ),
               ),
             ),
           ],
@@ -249,10 +296,12 @@ class _BoardScreenState extends State<BoardScreen> {
             return const Padding(
               padding: EdgeInsets.symmetric(vertical: 18),
               child: Center(
-                  child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2.2))),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                ),
+              ),
             );
           }
           return PostRow(post: _posts[i], onTap: () => _openDetail(_posts[i]));
@@ -269,12 +318,20 @@ class _BoardScreenState extends State<BoardScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(msg, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+          Text(
+            msg,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+          ),
           const SizedBox(height: 8),
           TextButton(
             onPressed: _load,
-            child: const Text('다시 시도',
-                style: TextStyle(color: AppColors.blue, fontWeight: FontWeight.w700)),
+            child: const Text(
+              '다시 시도',
+              style: TextStyle(
+                color: AppColors.blue,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -307,17 +364,27 @@ class PostRow extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(post.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+            Text(
+              post.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(post.body.replaceAll('\n', ' '),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 13, height: 1.35)),
+            Text(
+              post.body.replaceAll('\n', ' '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                height: 1.35,
+              ),
+            ),
             const SizedBox(height: 9),
             // 적응형 메타 — 넓으면 한 줄(양끝정렬), 좁거나 큰 글자면 메타가 둘째 줄로 전환.
             // 핵심정보(작성자·시간·조회·댓글·좋아요)를 ellipsis 로 숨기지 않음(Wrap 이 줄바꿈으로 처리).
@@ -327,21 +394,32 @@ class PostRow extends StatelessWidget {
               spacing: 8,
               runSpacing: 6,
               children: [
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                  // 닉네임만 통제불가 단일필드라 최후수단 ellipsis(point6). 시간은 안 숨김.
-                  Flexible(
-                    child: Text(post.author,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 닉네임만 통제불가 단일필드라 최후수단 ellipsis(point6). 시간은 안 숨김.
+                    Flexible(
+                      child: Text(
+                        post.author,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600)),
-                  ),
-                  const _Dot(),
-                  Text(boardRelativeTime(post.createdAt),
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5)),
-                ]),
+                          color: AppColors.textSecondary,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const _Dot(),
+                    Text(
+                      boardRelativeTime(post.createdAt),
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
                 // 메타는 폭이 모자라면 자기들끼리도 줄바꿈(숫자 안 숨김).
                 Wrap(
                   spacing: 12,
@@ -352,8 +430,11 @@ class PostRow extends StatelessWidget {
                     _meta(Icons.chat_bubble_outline, post.commentCount),
                     // 좋아요는 자유글 전용 — 표시만(토글은 상세에서). 내가 누른 글은 채운 하트.
                     if (post.type == BoardType.free && post.likeCount > 0)
-                      _meta(post.likedByMe ? Icons.favorite : Icons.favorite_border, post.likeCount,
-                          color: post.likedByMe ? AppColors.red : null),
+                      _meta(
+                        post.likedByMe ? Icons.favorite : Icons.favorite_border,
+                        post.likeCount,
+                        color: post.likedByMe ? AppColors.red : null,
+                      ),
                   ],
                 ),
               ],
@@ -371,22 +452,34 @@ class PostRow extends StatelessWidget {
         color: type.color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(type.icon, size: 12, color: type.color),
-        const SizedBox(width: 4),
-        Text(type.label,
-            style: TextStyle(color: type.color, fontSize: 11, fontWeight: FontWeight.w700)),
-      ]),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(type.icon, size: 12, color: type.color),
+          const SizedBox(width: 4),
+          Text(
+            type.label,
+            style: TextStyle(
+              color: type.color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _meta(IconData icon, int n, {Color? color}) {
     final c = color ?? AppColors.textMuted;
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 13, color: c),
-      const SizedBox(width: 3),
-      Text('$n', style: TextStyle(color: c, fontSize: 11.5)),
-    ]);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: c),
+        const SizedBox(width: 3),
+        Text('$n', style: TextStyle(color: c, fontSize: 11.5)),
+      ],
+    );
   }
 }
 
@@ -394,7 +487,10 @@ class _Dot extends StatelessWidget {
   const _Dot();
   @override
   Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 6),
-        child: Text('·', style: TextStyle(color: AppColors.textMuted, fontSize: 11.5)),
-      );
+    padding: EdgeInsets.symmetric(horizontal: 6),
+    child: Text(
+      '·',
+      style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
+    ),
+  );
 }
