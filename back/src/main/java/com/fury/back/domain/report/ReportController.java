@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
@@ -95,7 +96,13 @@ public class ReportController {
         try {
             reportId = reportService.create(reporterId, targetType, targetId, reason, detail, targetUserId);
         } catch (ResponseStatusException e) {
-            return ReturnData.badRequest(e.getReason());
+            if (e.getStatusCode().value() == 400) {
+                return ReturnData.badRequest(e.getReason()); // snapshot 불가(미존재/삭제)
+            }
+            throw e; // 400 외 status 는 의미 유실 없이 전파
+        } catch (DataIntegrityViolationException e) {
+            // 자동차단 unique(blocker,blocked) 경쟁 = 동일 신고자·대상 동시 신고(= dedup 중복). tx 전체 롤백됨 → 중복 안내.
+            return ReturnData.badRequest("이미 신고하신 항목입니다. 검토 중이에요.");
         }
         return ReturnData.success(Map.of("reportId", reportId));
     }

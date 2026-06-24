@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -111,5 +112,27 @@ class ReportControllerTest {
                 .thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "신고할 수 없는 게시글이거나 이미 삭제되었어요."));
         controller.create(req("reporter"), body("BOARD_POST", "gone", "INSULT")); // throw 하지 않음
         verify(reportService).create(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void blockRaceDataIntegrity_mappedToDuplicate_notThrown() {
+        // 자동차단 unique 경쟁(동일 신고자·대상 동시 신고) → service tx 롤백 + DataIntegrityViolation → 중복 안내(500 아님).
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1")));
+        when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(false);
+        when(reportService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("block unique"));
+        controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT")); // throw 하지 않음
+        verify(reportService).create(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void nonBadRequestStatus_rethrown_notFlattened() {
+        // 400 외 ResponseStatusException 은 badRequest 로 뭉개지 않고 전파(상태 의미 보존).
+        when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1")));
+        when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(false);
+        when(reportService.create(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "nope"));
+        assertThatThrownBy(() -> controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT")))
+                .isInstanceOf(ResponseStatusException.class);
     }
 }
