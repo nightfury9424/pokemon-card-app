@@ -51,6 +51,18 @@ Future<void> _pump(WidgetTester t, BoardPost post) async {
   await t.pumpAndSettle();
 }
 
+// 게시글 신고 시트 열기(키 큰 화면 = 시트 위 배리어 영역 확보).
+Future<void> _openSheet(WidgetTester t) async {
+  t.view.physicalSize = const Size(1000, 3000);
+  t.view.devicePixelRatio = 1.0;
+  addTearDown(t.view.reset);
+  await _pump(t, _post(canReport: true));
+  await t.tap(find.byIcon(Icons.more_vert));
+  await t.pumpAndSettle();
+  await t.tap(find.text('신고'));
+  await t.pumpAndSettle();
+}
+
 void main() {
   testWidgets('게시글 canReport=true → ⋯ 메뉴에 신고 노출(비본인=수정/삭제 없음)', (t) async {
     await _pump(t, _post(canReport: true));
@@ -106,14 +118,36 @@ void main() {
     expect(find.text('신고'), findsNothing);
   });
 
-  testWidgets('ReportSheet 는 PopScope 로 감싸짐(제출 중 배경탭·드래그·뒤로 이탈 가드)', (t) async {
-    await _pump(t, _post(canReport: true));
-    await t.tap(find.byIcon(Icons.more_vert));
+  testWidgets('ReportSheet 배경 탭 → 시트 유지(isDismissible:false)', (t) async {
+    await _openSheet(t);
+    expect(find.text('신고하기'), findsOneWidget);
+    await t.tapAt(const Offset(500, 30)); // 시트 위 배리어 영역
     await t.pumpAndSettle();
-    await t.tap(find.text('신고'));
+    expect(find.text('신고하기'), findsOneWidget); // 배경 탭으로 닫히지 않음
+  });
+
+  testWidgets('ReportSheet 아래로 드래그 → 시트 유지(enableDrag:false)', (t) async {
+    await _openSheet(t);
+    await t.drag(find.text('신고하기'), const Offset(0, 600));
     await t.pumpAndSettle();
-    // 시트 콘텐츠('신고하기')가 PopScope 하위 → canPop:!_submitting 가드 연결 확인.
-    expect(find.ancestor(of: find.text('신고하기'), matching: find.byType(PopScope)),
-        findsOneWidget);
+    expect(find.text('신고하기'), findsOneWidget); // 드래그로 닫히지 않음
+  });
+
+  testWidgets('ReportSheet 닫기(X) 버튼(제출 전) → 닫힘', (t) async {
+    await _openSheet(t);
+    expect(find.text('신고하기'), findsOneWidget);
+    await t.tap(find.byIcon(Icons.close));
+    await t.pumpAndSettle();
+    expect(find.text('신고하기'), findsNothing); // 명시적 닫기는 동작
+  });
+
+  testWidgets('ReportSheet 는 PopScope(canPop:!submitting) 로 감싸짐(시스템 뒤로 가드)', (
+    t,
+  ) async {
+    await _openSheet(t);
+    expect(
+      find.ancestor(of: find.text('신고하기'), matching: find.byType(PopScope)),
+      findsOneWidget,
+    );
   });
 }

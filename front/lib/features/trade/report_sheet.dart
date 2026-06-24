@@ -33,6 +33,8 @@ class ReportSheet {
       context: context,
       backgroundColor: AppColors.surfaceCard,
       isScrollControlled: true,
+      isDismissible: false, // 배경 탭 닫기 차단 — 제출 중 닫혀 갱신 누락되는 경로 제거(닫기는 X 버튼·뒤로로만)
+      enableDrag: false, // 아래로 드래그 닫기 차단(동일)
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -110,7 +112,7 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !_submitting, // 제출 중 배경탭·드래그·뒤로가기 차단(닫히면 서버는 성공인데 호출부가 false → 갱신 누락)
+      canPop: !_submitting, // 제출 중 시스템 뒤로가기 차단(배경탭·드래그는 showModalBottomSheet 에서 항상 차단)
       child: SafeArea(
         child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -129,9 +131,24 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text('신고하기',
-                style: TextStyle(
-                    color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text('신고하기',
+                      style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold)),
+                ),
+                // 배경탭·드래그 닫기를 막았으므로 명시적 닫기 버튼 제공. 제출 중엔 비활성(닫기 차단), 제출 전엔 취소(false).
+                IconButton(
+                  onPressed: _submitting ? null : () => Navigator.of(context).pop(false),
+                  icon: const Icon(Icons.close, color: AppColors.textMuted, size: 22),
+                  splashRadius: 20,
+                  tooltip: '닫기',
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
