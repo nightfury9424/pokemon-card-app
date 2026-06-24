@@ -109,8 +109,10 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
+    return PopScope(
+      canPop: !_submitting, // 제출 중 배경탭·드래그·뒤로가기 차단(닫히면 서버는 성공인데 호출부가 false → 갱신 누락)
+      child: SafeArea(
+        child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -256,6 +258,7 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

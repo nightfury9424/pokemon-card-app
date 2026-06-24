@@ -105,4 +105,15 @@ void main() {
     await _pump(t, _post(comments: [_comment()]));
     expect(find.text('신고'), findsNothing);
   });
+
+  testWidgets('ReportSheet 는 PopScope 로 감싸짐(제출 중 배경탭·드래그·뒤로 이탈 가드)', (t) async {
+    await _pump(t, _post(canReport: true));
+    await t.tap(find.byIcon(Icons.more_vert));
+    await t.pumpAndSettle();
+    await t.tap(find.text('신고'));
+    await t.pumpAndSettle();
+    // 시트 콘텐츠('신고하기')가 PopScope 하위 → canPop:!_submitting 가드 연결 확인.
+    expect(find.ancestor(of: find.text('신고하기'), matching: find.byType(PopScope)),
+        findsOneWidget);
+  });
 }

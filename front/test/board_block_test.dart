@@ -7,19 +7,24 @@ import 'package:front/features/board/models/board_post.dart';
 /// 게시판 차단(신고 없이) UI — canBlock 게이팅 + 확인 다이얼로그 + board-post/comment 차단 호출 검증.
 class _BlockRepo extends BoardRepository {
   final BoardPost post;
+  bool goneAfterBlock = false; // true 면 차단 후 fetchDetail null(작성자=게시글 작성자 → 상세 404)
+  bool _blocked = false;
   String? lastBlockedPost;
   String? lastBlockedComment;
   _BlockRepo(this.post);
   @override
-  Future<BoardPost?> fetchDetail(String id) async => post;
+  Future<BoardPost?> fetchDetail(String id) async =>
+      (goneAfterBlock && _blocked) ? null : post;
   @override
   Future<void> blockPostAuthor(String postId) async {
     lastBlockedPost = postId;
+    _blocked = true;
   }
 
   @override
   Future<void> blockCommentAuthor(String commentId) async {
     lastBlockedComment = commentId;
+    _blocked = true;
   }
 }
 
@@ -148,5 +153,29 @@ void main() {
     await t.tap(_dialogBlock());
     await t.pumpAndSettle();
     expect(repo.lastBlockedComment, 'c1');
+  });
+
+  testWidgets('댓글 작성자=게시글 작성자 → 차단 후 상세 404 → pop(changed)', (t) async {
+    final repo = _BlockRepo(_post(comments: [_comment(canBlock: true)]))
+      ..goneAfterBlock = true; // 차단하면 게시글도 404
+    await t.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (ctx) => ElevatedButton(
+            onPressed: () => Navigator.push(ctx,
+                MaterialPageRoute(builder: (_) => BoardDetailScreen(postId: 'f1', repository: repo))),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    ));
+    await t.tap(find.text('open'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('차단')); // 댓글 차단
+    await t.pumpAndSettle();
+    await t.tap(_dialogBlock());
+    await t.pumpAndSettle();
+    expect(repo.lastBlockedComment, 'c1');
+    expect(find.byType(BoardDetailScreen), findsNothing); // 404 → 오류화면 대신 pop
   });
 }

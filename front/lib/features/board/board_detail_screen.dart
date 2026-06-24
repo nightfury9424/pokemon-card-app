@@ -126,6 +126,28 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
     }
   }
 
+  // 댓글 신고/차단 후 재조회 — 그 작성자가 게시글 작성자이기도 하면 차단으로 상세가 404가 됨.
+  // 이 경우 오류 화면에 남기지 않고 pop('changed')로 목록 재조회. 아니면 thread 만 무플래시 갱신.
+  Future<void> _reloadOrPopIfGone() async {
+    try {
+      final p = await widget.repository.fetchDetail(widget.postId);
+      if (!mounted) return;
+      if (p == null) {
+        Navigator.of(context).pop('changed'); // 게시글 작성자=차단 대상 → 상세 불가 → 목록으로
+        return;
+      }
+      setState(() {
+        _post = p;
+        if (!_likeBusy) {
+          _liked = p.likedByMe;
+          _likeCount = p.likeCount;
+        }
+      });
+    } catch (_) {
+      // 재조회 실패는 기존 화면 유지(조용히 무시).
+    }
+  }
+
   // ⋯ 메뉴 — 본인 자유글=수정/삭제 / 비본인·비공식=신고(서버 canReport). 공식글·삭제·숨김은 서버 플래그 false → 미노출.
   List<Widget>? _appBarActions() {
     final p = _post;
@@ -616,7 +638,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
         reasons: boardReportReasons);
     if (!mounted || !reported) return;
     _changed = true; // 목록 댓글 수 갱신 신호
-    await _reload();
+    await _reloadOrPopIfGone(); // 작성자=게시글 작성자면 차단으로 상세 404 → pop('changed')
   }
 
   // 댓글 작성자 차단(신고 없이) — 확인 후 board-comment 차단 API. 성공 시 작성자 댓글이 서버 필터로 thread 에서
@@ -630,7 +652,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
       if (!mounted) return;
       setState(() => _blocking = false);
       _changed = true;
-      await _reload();
+      await _reloadOrPopIfGone(); // 작성자=게시글 작성자면 차단으로 상세 404 → pop('changed')
     } on BoardApiException catch (e) {
       if (!mounted) return;
       setState(() => _blocking = false);
