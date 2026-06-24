@@ -101,15 +101,21 @@ export default function Notices() {
     setActionError('')
     try {
       await api.delete('/admin/board/posts/' + row.id)
-      await load(page)
+      reloadAfterRemove()
     } catch (e) {
       if (e.response?.status === 404) {
+        reloadAfterRemove() // 이미 삭제됨 → 목록 갱신(빈 페이지면 이전으로)
         setActionError('이미 삭제된 공지예요. 목록을 갱신했어요.')
-        await load(page)
       } else {
         setActionError(e.response?.data?.message ?? '삭제하지 못했어요.') // 행 유지
       }
     }
+  }
+
+  // 마지막 남은 행을 삭제하면 현재 페이지가 비므로 이전 페이지로(page 0 은 빈 상태 표시). setPage→useEffect 가 load.
+  function reloadAfterRemove() {
+    if (rows.length === 1 && page > 0) setPage(p => p - 1)
+    else load(page)
   }
 
   return (
@@ -196,7 +202,12 @@ export default function Notices() {
           mode={modal.mode}
           row={modal.row}
           onClose={() => setModal(null)}
-          onDone={() => { setModal(null); load(modal.mode === 'create' ? 0 : page); if (modal.mode === 'create') setPage(0) }}
+          onDone={() => {
+            const created = modal.mode === 'create'
+            setModal(null)
+            if (created && page !== 0) setPage(0) // 작성 → page 0 으로 이동(useEffect 가 load). 이미 0 이면 아래서 직접 load.
+            else load(page)
+          }}
         />
       )}
     </div>
@@ -268,7 +279,10 @@ function ComposeModal({ mode, row, onClose, onDone }) {
               })}
             </div>
           ) : (
-            <TypeBadge type={type} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <TypeBadge type={type} />
+              <span style={{ fontSize: 11, color: '#94a3b8' }}>유형은 작성 후 변경할 수 없어요</span>
+            </div>
           )}
         </div>
 
