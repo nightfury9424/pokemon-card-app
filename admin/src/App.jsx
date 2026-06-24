@@ -10,6 +10,7 @@ import Login from './pages/Login'
 import Alerts from './pages/Alerts'
 import Reports from './pages/Reports'
 import Inquiries from './pages/Inquiries'
+import Notices from './pages/Notices'
 import Appeals from './pages/Appeals'
 import AdminActions from './pages/AdminActions'
 
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="alerts" element={<Alerts />} />
           <Route path="reports" element={<Reports />} />
           <Route path="inquiries" element={<Inquiries />} />
+          <Route path="notices" element={<Notices />} />
           <Route path="appeals" element={<Appeals />} />
           <Route path="admin-actions" element={<AdminActions />} />
         </Route>
