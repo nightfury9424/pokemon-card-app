@@ -4,6 +4,16 @@ import '../../core/widgets/app_info_toast.dart';
 import 'models/board_post.dart';
 import 'data/board_repository.dart';
 import 'board_compose_screen.dart';
+import '../trade/report_sheet.dart';
+
+/// 게시판 신고 사유 — 백엔드 VALID_REASONS 중 게시판에 적합한 값만(ABUSIVE_PRICE=시세교란 제외).
+const List<Map<String, String>> boardReportReasons = [
+  {'code': 'INSULT', 'label': '욕설 / 비방', 'desc': '부적절한 언행'},
+  {'code': 'SPAM', 'label': '스팸 / 광고', 'desc': '도배, 광고성 글'},
+  {'code': 'FRAUD', 'label': '사기 / 허위', 'desc': '사기 의심, 허위 정보'},
+  {'code': 'FAKE', 'label': '조작 / 사칭', 'desc': '위조·사칭 콘텐츠'},
+  {'code': 'OTHER', 'label': '기타', 'desc': '직접 사유 입력'},
+];
 
 /// 게시글 상세 — postId 로 상세 API 재조회(목록 summary 재사용 X).
 /// 공지(official: notice/event/patch) = 본문만 읽기(댓글·반응 UI 없음).
@@ -115,10 +125,10 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
     }
   }
 
-  // 본인 자유글(canEdit/canDelete)일 때만 ⋯ 메뉴. 공식글·타인글은 서버 플래그 false → 미노출.
+  // ⋯ 메뉴 — 본인 자유글=수정/삭제 / 비본인·비공식=신고(서버 canReport). 공식글·삭제·숨김은 서버 플래그 false → 미노출.
   List<Widget>? _appBarActions() {
     final p = _post;
-    if (p == null || !(p.canEdit || p.canDelete)) return null;
+    if (p == null || !(p.canEdit || p.canDelete || p.canReport)) return null;
     return [
       PopupMenuButton<String>(
         icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
@@ -126,6 +136,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
         onSelected: (v) {
           if (v == 'edit') _edit(p);
           if (v == 'delete') _delete(p);
+          if (v == 'report') _reportPost(p);
         },
         itemBuilder: (_) => [
           if (p.canEdit)
@@ -135,9 +146,26 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
           if (p.canDelete)
             const PopupMenuItem(
                 value: 'delete', child: Text('삭제', style: TextStyle(color: AppColors.red))),
+          if (p.canReport)
+            const PopupMenuItem(
+                value: 'report',
+                child: Text('신고', style: TextStyle(color: AppColors.textPrimary))),
         ],
       ),
     ];
+  }
+
+  // 게시글 신고 — 공용 ReportSheet 재사용(BOARD_POST, autoBlock=신고 시 작성자 자동 차단).
+  // 성공 시 작성자 차단으로 글이 사라지므로 상세를 유지하지 않고 pop('changed') → 목록 재조회(삭제와 동일 패턴).
+  Future<void> _reportPost(BoardPost p) async {
+    final reported = await ReportSheet.show(context,
+        targetType: 'BOARD_POST',
+        targetId: p.id,
+        targetNoun: '게시글',
+        autoBlock: true,
+        reasons: boardReportReasons);
+    if (!mounted || !reported) return;
+    Navigator.of(context).pop('changed'); // imperative pop = PopScope 우회
   }
 
   Future<void> _edit(BoardPost p) async {
@@ -502,19 +530,39 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> {
 
   static const _commentMax = 2000; // 서버 COMMENT_MAX 와 동일
 
-  // 댓글/대댓글 액션(답글·삭제). 플래그(canReply+target / canDelete)로 노출 제어.
-  // 삭제 placeholder·삭제된 top 아래 답글은 서버 플래그가 canReply=false → 답글 버튼 자동 미노출.
+  // 댓글/대댓글 액션(답글·삭제·신고). 플래그(canReply+target / canDelete / canReport)로 노출 제어.
+  // 삭제 placeholder·본인·공식 작성 댓글은 서버 플래그 false → 해당 버튼 자동 미노출.
   Widget _commentActions(BoardComment c) {
     final canReply = c.canReply && c.replyTargetCommentId != null;
-    if (!canReply && !c.canDelete) return const SizedBox.shrink();
+    final items = <Widget>[
+      if (canReply) _commentAction('답글', () => _startReply(c)),
+      if (c.canDelete) _commentAction('삭제', () => _deleteComment(c), color: AppColors.red),
+      if (c.canReport) _commentAction('신고', () => _reportComment(c)),
+    ];
+    if (items.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 6),
       child: Row(children: [
-        if (canReply) _commentAction('답글', () => _startReply(c)),
-        if (canReply && c.canDelete) const SizedBox(width: 14),
-        if (c.canDelete) _commentAction('삭제', () => _deleteComment(c), color: AppColors.red),
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const SizedBox(width: 14),
+          items[i],
+        ],
       ]),
     );
+  }
+
+  // 댓글/대댓글 신고 — 공용 ReportSheet(BOARD_COMMENT, autoBlock). 성공 시 작성자 차단 → 해당 작성자 댓글이
+  // 서버 필터로 thread 에서 사라짐. 상세는 유지하고 thread 만 무플래시 재조회.
+  Future<void> _reportComment(BoardComment c) async {
+    final reported = await ReportSheet.show(context,
+        targetType: 'BOARD_COMMENT',
+        targetId: c.id,
+        targetNoun: '댓글',
+        autoBlock: true,
+        reasons: boardReportReasons);
+    if (!mounted || !reported) return;
+    _changed = true; // 목록 댓글 수 갱신 신호
+    await _reload();
   }
 
   Widget _commentAction(String label, VoidCallback onTap, {Color? color}) {

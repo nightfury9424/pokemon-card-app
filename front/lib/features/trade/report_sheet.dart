@@ -20,15 +20,16 @@ class ReportSheet {
   /// [targetNoun] 경고 문구 주어 (예: '판매자', '구매자', '사용자')
   /// [autoBlock] true 면 "신고 시 자동 차단" 문구 노출(백엔드 resolveBlockTarget 지원: TRADE/USER/CHAT).
   /// BUY_ORDER 는 현재 백엔드 자동차단 미지원 → false (문구 정확성). 자동차단 백엔드 지원은 1.0.1.
-  static Future<void> show(
+  /// 반환: 신고 제출 성공 시 true, 취소/닫기 시 false (호출부가 후속 갱신 판단 — 기존 fire-and-forget 호출은 무영향).
+  static Future<bool> show(
     BuildContext context, {
     required String targetType,
     required String targetId,
     String targetNoun = '사용자',
     List<Map<String, String>>? reasons,
     bool autoBlock = true,
-  }) {
-    return showModalBottomSheet<void>(
+  }) async {
+    final submitted = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: AppColors.surfaceCard,
       isScrollControlled: true,
@@ -46,6 +47,7 @@ class ReportSheet {
         ),
       ),
     );
+    return submitted ?? false; // 제출 성공(pop(true))=true, 취소/배경탭/닫기(null)=false
   }
 }
 
@@ -96,7 +98,7 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
         AppErrorToast.show(context, res['message']?.toString() ?? '신고 접수에 실패했어요.');
         return;
       }
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true); // ★제출 성공 신호(호출부가 후속 갱신 판단)
       AppSuccessToast.show(context, '신고가 접수되었습니다');
     } catch (_) {
       if (!mounted) return;
