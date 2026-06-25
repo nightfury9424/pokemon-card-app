@@ -1,5 +1,6 @@
 package com.fury.back.domain.board;
 
+import com.fury.back.auth.AdminAuthorizationService;
 import com.fury.back.common.IdGenerator;
 import com.fury.back.common.moderation.ContentPolicyService;
 import com.fury.back.domain.board.dto.CreateCommentRequest;
@@ -38,6 +39,7 @@ public class BoardWriteService {
     private final ContentPolicyService contentPolicy;
     private final BoardImageUploadRepository imageUploadRepository;
     private final BoardPostImageRepository postImageRepository;
+    private final AdminAuthorizationService adminAuth;
 
     @Transactional
     public String createPost(String userId, CreatePostRequest req) {
@@ -160,6 +162,19 @@ public class BoardWriteService {
     @Transactional
     public String createComment(String userId, String postId, CreateCommentRequest req) {
         requireAuth(userId);
+        return createCommentInternal(userId, postId, req, false);
+    }
+
+    /** ★운영팀(Admin 웹) 공지/게시글 댓글·대댓글 — admin=true 로 저장(앱에서 '운영팀' 표시·차단불가). 엔드포인트는 admin-gated. */
+    @Transactional
+    public String createAdminComment(String adminUserId, String postId, CreateCommentRequest req) {
+        if (adminUserId == null || !adminAuth.isAdmin(adminUserId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "관리자 권한이 필요합니다.");
+        }
+        return createCommentInternal(adminUserId, postId, req, true);
+    }
+
+    private String createCommentInternal(String userId, String postId, CreateCommentRequest req, boolean asAdmin) {
         // 대상 게시글은 ACTIVE & 미삭제여야(아니면 404 존재 비노출)
         BoardPost post = postRepository.findById(postId)
                 .filter(p -> p.getDeletedAt() == null && "ACTIVE".equals(p.getStatus()))
@@ -170,7 +185,7 @@ public class BoardWriteService {
         }
 
         String content = clean(req.content(), COMMENT_MAX, "댓글");
-        rejectBanned(content);
+        if (!asAdmin) rejectBanned(content); // 운영팀 댓글은 금칙어 게이트 제외(신뢰 주체)
 
         String parentId = req.parentCommentId();
         if (parentId != null) {
@@ -193,7 +208,7 @@ public class BoardWriteService {
                 .parentCommentId(parentId)
                 .authorId(userId)
                 .content(content)
-                .admin(false)
+                .admin(asAdmin)
                 .accepted(false)
                 .build();
         return commentRepository.save(comment).getCommentId();

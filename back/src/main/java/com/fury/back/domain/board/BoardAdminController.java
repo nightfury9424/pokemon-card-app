@@ -4,6 +4,7 @@ import com.fury.back.auth.JwtUtil;
 import com.fury.back.common.ReturnData;
 import com.fury.back.domain.board.dto.AdminCreatePostRequest;
 import com.fury.back.domain.board.dto.AdminUpdatePostRequest;
+import com.fury.back.domain.board.dto.CreateCommentRequest;
 import com.fury.back.domain.board.dto.PostModerationRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,6 +28,7 @@ import java.util.Map;
 public class BoardAdminController {
 
     private final BoardAdminService boardAdminService;
+    private final BoardWriteService boardWriteService;
     private final JwtUtil jwtUtil;
 
     @Operation(summary = "공식글 작성", description = "notice/event/patch 만. author=서버결정(관리자).")
@@ -35,6 +37,14 @@ public class BoardAdminController {
             @RequestBody AdminCreatePostRequest req, HttpServletRequest request) {
         String adminUserId = requireUserId(request);
         return ReturnData.success(Map.of("postId", boardAdminService.createOfficial(adminUserId, req)));
+    }
+
+    @Operation(summary = "운영팀 댓글·대댓글 작성", description = "공지/게시글에 admin=true(운영팀)로 저장. 앱에서 '운영팀' 표시·차단불가.")
+    @PostMapping("/posts/{postId}/comments")
+    public ReturnData<Map<String, String>> createComment(
+            @PathVariable String postId, @RequestBody CreateCommentRequest req, HttpServletRequest request) {
+        String adminUserId = requireUserId(request);
+        return ReturnData.success(Map.of("commentId", boardWriteService.createAdminComment(adminUserId, postId, req)));
     }
 
     @Operation(summary = "공식글 수정", description = "공식글만 내용 수정 가능(사용자 글 내용수정 불가).")

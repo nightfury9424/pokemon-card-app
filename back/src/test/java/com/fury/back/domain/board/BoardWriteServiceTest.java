@@ -1,5 +1,6 @@
 package com.fury.back.domain.board;
 
+import com.fury.back.auth.AdminAuthorizationService;
 import com.fury.back.common.moderation.ContentPolicyService;
 import com.fury.back.common.moderation.ContentPolicyViolationException;
 import com.fury.back.domain.board.dto.CreateCommentRequest;
@@ -28,6 +29,7 @@ class BoardWriteServiceTest {
     @Mock ContentPolicyService contentPolicy;
     @Mock BoardImageUploadRepository imageUploadRepo;
     @Mock BoardPostImageRepository postImageRepo;
+    @Mock AdminAuthorizationService adminAuth;
     @InjectMocks BoardWriteService service;
 
     private BoardImageUpload upload(String id, String owner, String status, LocalDateTime expires) {
@@ -47,6 +49,46 @@ class BoardWriteServiceTest {
     private BoardComment comment(String id, String postId, String parent, String author, boolean deleted) {
         return BoardComment.builder().commentId(id).postId(postId).parentCommentId(parent).authorId(author)
                 .content("c").admin(false).accepted(false).createdAt(T).deletedAt(deleted ? T : null).build();
+    }
+
+    // ── 운영팀(Admin 웹) 댓글 (#13) ──
+    @Test void createAdminComment_byAdmin_onOfficial_savesAdminTrue() {
+        when(adminAuth.isAdmin("admin1")).thenReturn(true);
+        when(postRepo.findById("n")).thenReturn(Optional.of(post("n", "notice", "official", "admin1", "ACTIVE", null)));
+        when(commentRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        service.createAdminComment("admin1", "n", new CreateCommentRequest("운영팀 공지 댓글", null));
+        ArgumentCaptor<BoardComment> cap = ArgumentCaptor.forClass(BoardComment.class);
+        verify(commentRepo).save(cap.capture());
+        assertThat(cap.getValue().isAdmin()).isTrue();          // ★앱에서 운영팀 표시
+        assertThat(cap.getValue().getAuthorId()).isEqualTo("admin1");
+    }
+
+    @Test void createAdminComment_nonAdmin_403_noSave() {
+        when(adminAuth.isAdmin("u2")).thenReturn(false);
+        assertThatThrownBy(() -> service.createAdminComment("u2", "n", new CreateCommentRequest("x", null)))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
+        verify(commentRepo, never()).save(any());
+    }
+
+    @Test void createAdminComment_replyToUserComment_savesAdminTrue() {
+        when(adminAuth.isAdmin("admin1")).thenReturn(true);
+        when(postRepo.findById("n")).thenReturn(Optional.of(post("n", "notice", "official", "admin1", "ACTIVE", null)));
+        when(commentRepo.findById("uc")).thenReturn(Optional.of(comment("uc", "n", null, "u1", false)));
+        when(commentRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        service.createAdminComment("admin1", "n", new CreateCommentRequest("운영팀 답글", "uc"));
+        ArgumentCaptor<BoardComment> cap = ArgumentCaptor.forClass(BoardComment.class);
+        verify(commentRepo).save(cap.capture());
+        assertThat(cap.getValue().isAdmin()).isTrue();
+        assertThat(cap.getValue().getParentCommentId()).isEqualTo("uc");
+    }
+
+    @Test void createComment_regular_savesAdminFalse() { // 회귀: 일반 댓글은 그대로 admin=false
+        when(postRepo.findById("p")).thenReturn(Optional.of(post("p", "free", "community", "u1", "ACTIVE", null)));
+        when(commentRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        service.createComment("u2", "p", new CreateCommentRequest("안녕하세요", null));
+        ArgumentCaptor<BoardComment> cap = ArgumentCaptor.forClass(BoardComment.class);
+        verify(commentRepo).save(cap.capture());
+        assertThat(cap.getValue().isAdmin()).isFalse();
     }
 
     // ── createPost ──
