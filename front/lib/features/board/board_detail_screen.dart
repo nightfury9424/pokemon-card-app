@@ -158,51 +158,105 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
     }
   }
 
-  // ⋯ 메뉴 — 본인=수정/삭제 / 비본인=신고하기(+커뮤니티는 사용자 차단). 공식글=신고하기만(차단·수정·삭제 불가).
-  //   ★compact popup: 항목 높이 44·좌우 16·텍스트 폭에 맞는 좁은 너비·다크 surface + radius 12.
+  // ⋯ 액션 — 본인=수정/삭제 / 비본인=신고하기(+커뮤니티 사용자 차단) / 공식글=신고하기만. 위에서 내려오는 팝업 X.
   List<Widget>? _appBarActions() {
     final p = _post;
     if (p == null || !(p.canEdit || p.canDelete || p.canReport || p.canBlock)) {
       return null;
     }
     return [
-      PopupMenuButton<String>(
+      IconButton(
         icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
-        color: AppColors.surfaceCard,
-        elevation: 8,
-        position: PopupMenuPosition.under,
-        menuPadding: const EdgeInsets.symmetric(vertical: 4),
-        constraints: const BoxConstraints(minWidth: 132),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppColors.divider, width: 1),
-        ),
-        onSelected: (v) {
-          if (v == 'edit') _edit(p);
-          if (v == 'delete') _delete(p);
-          if (v == 'report') _reportPost(p);
-          if (v == 'block') _blockPostAuthor(p);
-        },
-        itemBuilder: (_) => [
-          if (p.canEdit) _menuItem('edit', '수정', AppColors.textPrimary),
-          if (p.canDelete) _menuItem('delete', '삭제', AppColors.red),
-          if (p.canReport) _menuItem('report', '신고하기', AppColors.textPrimary),
-          if (p.canBlock) _menuItem('block', '사용자 차단', AppColors.textPrimary),
-        ],
+        onPressed: () => _showActionSheet(p),
       ),
     ];
   }
 
-  // compact 메뉴 항목 — 높이 44·좌우 16·중간 굵기.
-  PopupMenuItem<String> _menuItem(String value, String label, Color color) {
-    return PopupMenuItem<String>(
-      value: value,
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Text(label,
-          style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w500)),
+  // ★당근식 하단 액션 시트 — 아래에서 올라옴. 액션 카드 + 닫기 카드(분리). 다크 surface·radius.
+  Future<void> _showActionSheet(BoardPost p) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final items = <Widget>[];
+        void add(String value, IconData icon, String label, Color color) {
+          if (items.isNotEmpty) items.add(_sheetDivider());
+          items.add(_sheetItem(ctx, value, icon, label, color));
+        }
+        if (p.canEdit) add('edit', Icons.edit_outlined, '수정', AppColors.textPrimary);
+        if (p.canDelete) add('delete', Icons.delete_outline, '삭제', AppColors.red);
+        if (p.canReport) add('report', Icons.report_outlined, '신고하기', AppColors.red);
+        if (p.canBlock) add('block', Icons.block, '사용자 차단', AppColors.textPrimary);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                      color: AppColors.divider, borderRadius: BorderRadius.circular(2)),
+                ),
+                Container(
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                      color: AppColors.surfaceCard, borderRadius: BorderRadius.circular(14)),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: items),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                      color: AppColors.surfaceCard, borderRadius: BorderRadius.circular(14)),
+                  child: _sheetItem(ctx, null, null, '닫기', AppColors.textPrimary, center: true),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted || action == null) return;
+    if (action == 'edit') _edit(p);
+    if (action == 'delete') _delete(p);
+    if (action == 'report') _reportPost(p);
+    if (action == 'block') _blockPostAuthor(p);
+  }
+
+  Widget _sheetItem(BuildContext ctx, String? value, IconData? icon, String label, Color color,
+      {bool center = false}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => Navigator.of(ctx).pop(value),
+        child: SizedBox(
+          height: 54,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Row(
+              mainAxisAlignment: center ? MainAxisAlignment.center : MainAxisAlignment.start,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 20, color: color),
+                  const SizedBox(width: 14),
+                ],
+                Text(label,
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 15.5,
+                        fontWeight: center ? FontWeight.w700 : FontWeight.w500)),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
+
+  Widget _sheetDivider() => const Divider(height: 1, thickness: 1, color: AppColors.divider);
 
   // 게시글 신고 — 공용 ReportSheet 재사용(BOARD_POST). autoBlock=차단 가능 글만(=커뮤니티 비본인).
   // ★공식글(운영팀, canBlock=false)은 작성자 차단 없이 신고만 → 글 유지·토스트. 차단형은 글이 사라지므로 pop('changed').
