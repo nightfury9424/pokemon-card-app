@@ -1,0 +1,57 @@
+# 게시판 모더레이션 + 검색/공지 배포 runbook (2026-06-26)
+
+> ★현재 운영 **미변경**(running `7ee334d7`, live dist `index-N8GFmNfy.js`, DB 미마이그, nightfury block row 1건 유지).
+> 아래 Deploy 섹션은 **네 신호 후** 실행. App Store 제출은 별도 승인.
+
+## 준비 완료 (실행 안 함)
+- **백업** `prod:~/predeploy_20260626/`: back_inspect.json·back_env.txt·docker-compose.prod.yml·admin_dist_live.tar.gz(SHA c0719285)·reports_schema.sql(105줄)·reports_data.sql(2 row)·reports_indexes.sql·blocks_nightfury.csv(1 row)
+- **롤백 태그** `pokefolio-back:rollback-pre-moderation-20260626` = `7ee334d7`
+- **신규 Backend 이미지** `pokefolio-back:board-moderation-20260626` = `946045c4` — clean staging `/opt/pokefolio/releases/moderation-20260626`(prod base + 승인 10 Java + 2 SQL, 허용 경로 외 diff 0, DEPLOY_MANIFEST.sha256). 검증: 컴파일 RC=0 · 부팅 14s · 검색 스모크 어비스아이 39·다크라이 21 (HTTP 200, 실데이터)
+- **신규 Admin dist** 로컬 `/tmp/admin_dist_new.tar.gz`(JS `index-9zQVtCbW.js` 신규·CSS `index-DwEH7bzJ.css` live와 동일) — Notices(앱미리보기·운영팀댓글) 신규 + Reports(첨부이미지) preserved
+
+## Deploy (revised order — 이미지/dist 빌드·검증은 이미 완료)
+```bash
+# 1) 백업 재확인
+ls -la ~/predeploy_20260626/
+# 2) 점검 모드 ON (S3 app-config/maintenance.json=true) — 짧은 전환(구 service가 신규 index 경쟁 500 회피)
+# 3) DB migration (트랜잭션 BEGIN..COMMIT 내장)
+docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db \
+  < /opt/pokefolio/releases/moderation-20260626/back/sql/reports_dedup_migration.sql
+docker exec pokefolio-postgres psql -U pokefolio -d pokemon_card_db -c \
+  "SELECT indexname FROM pg_indexes WHERE tablename='reports' AND indexname LIKE 'uq_%'"  # 2개 확인
+# 4) 신규 Backend 이미지 기동
+docker tag pokefolio-back:board-moderation-20260626 pokefolio-back:latest
+cd /opt/pokefolio/app && docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps pokefolio-back
+docker logs --tail 30 pokefolio-back | grep "Started BackApplication"   # health
+# 5) API 스모크: 공식글 신고→report 1·block 0 / 일반글 신고→자동차단 / 검색 어비스아이 39 / 신고처리 200
+# 6) Admin dist 교체
+cd /opt/pokefolio/app/admin && cp -r dist dist.bak_pre_moderation_$(date +%Y%m%d_%H%M)
+#    (로컬 /tmp/admin_dist_new.tar.gz scp → prod → rm -rf dist/* && tar xzf … -C dist)
+# 7) Admin 스모크: 공지 미리보기·운영팀 댓글 작성·신고 첨부이미지 표시
+# 8) 점검 모드 OFF
+# 9) 전체 운영 스모크(이미지·문의·Card·Price·Auth 정상)
+# 10) nightfury 잘못된 차단 row 1건만 삭제 (#11)
+docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db -c \
+  "DELETE FROM blocks WHERE block_id='ae9500e5b6e340c69b864cd334cff887'"
+```
+
+## Rollback
+```bash
+# Backend
+docker tag pokefolio-back:rollback-pre-moderation-20260626 pokefolio-back:latest
+cd /opt/pokefolio/app && docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps pokefolio-back
+# DB
+docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db \
+  < /opt/pokefolio/releases/moderation-20260626/back/sql/reports_dedup_rollback.sql
+# Admin
+cd /opt/pokefolio/app/admin && rm -rf dist && mv dist.bak_pre_moderation_* dist   # 또는 ~/predeploy_20260626/admin_dist_live.tar.gz 복원
+# nightfury (필요 시 복원)
+docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db -c \
+  "\copy blocks FROM '~/predeploy_20260626/blocks_nightfury.csv' WITH CSV HEADER"
+```
+
+## 배포 후 실검 체크리스트
+공식글 신고→report·block0 / 일반글 신고→자동차단 / 공식글 일반유저 댓글 차단가능 / 운영팀 댓글 신고가능·차단불가 / Admin 공지 댓글·대댓글 작성·앱 운영팀 배지·댓글수 일치 / Admin 신고 처리 성공(#4) / 어비스아이 검색 / 카운터 0포함 / 검색 복귀 상태유지·키보드닫힘 / 홈배너 / 이미지·문의·Card·Price·Auth 정상 → 통과 후 새 IPA.
+
+## 미실행(금지) — 네 승인 전
+DB COMMIT · 신규 이미지 latest 전환·기동 · Admin dist 교체 · nightfury 삭제 · IPA 생성 · TestFlight · App Store 제출
