@@ -6,6 +6,7 @@ import com.fury.back.domain.board.BoardComment;
 import com.fury.back.domain.board.BoardCommentRepository;
 import com.fury.back.domain.board.BoardPost;
 import com.fury.back.domain.board.BoardPostRepository;
+import com.fury.back.domain.board.BoardTaxonomy;
 import com.fury.back.domain.chat.ChatRoom;
 import com.fury.back.domain.chat.ChatRoomRepository;
 import com.fury.back.domain.trade.TradePost;
@@ -70,9 +71,15 @@ public class ReportController {
         if (!VALID_REASONS.contains(reason)) {
             return ReturnData.badRequest("reason은 " + VALID_REASONS + " 중 하나여야 합니다.");
         }
+        // ★기타(OTHER) 사유는 직접 입력 필수 — detail 이 null/공백뿐이면 거부(Front 우회 요청도 서버에서 차단).
+        if ("OTHER".equals(reason) && (detail == null || detail.isBlank())) {
+            return ReturnData.badRequest("기타 사유는 상세 내용을 입력해야 합니다.");
+        }
 
         // 신고 대상 사용자 해석 (1회 제한 + 자동 차단 공용).
         String targetUserId = resolveBlockTarget(targetType, targetId, reporterId);
+        // ★자동차단 적용 여부 — 운영팀 대상(공식글/운영팀 댓글)은 자동차단 금지(신고만). 그 외(거래/사용자/채팅)는 기존대로.
+        boolean autoBlock = resolveAutoBlock(targetType, targetId);
 
         // 1회 제한 — 같은 사용자를 이미 신고했으면 차단 (차단 풀고 재신고 방지).
         if (targetUserId != null && !targetUserId.equals(reporterId)
@@ -93,7 +100,7 @@ public class ReportController {
         //   (dedup/자동차단만 targetUserId 있을 때).
         final String reportId;
         try {
-            reportId = reportService.create(reporterId, targetType, targetId, reason, detail, targetUserId);
+            reportId = reportService.create(reporterId, targetType, targetId, reason, detail, targetUserId, autoBlock);
         } catch (ResponseStatusException e) {
             // snapshot 불가(미존재/삭제) + block 경쟁 중복 = service 가 BAD_REQUEST 로 변환. 400 만 매핑.
             if (e.getStatusCode().value() == 400) {
@@ -122,6 +129,18 @@ public class ReportController {
                     .filter(c -> c.getDeletedAt() == null)
                     .map(BoardComment::getAuthorId).orElse(null);
             default -> null; // BUY_ORDER 등
+        };
+    }
+
+    /** 자동차단 적용 여부 — 운영팀 대상(공식글 type=notice/event/patch, 운영팀이 쓴 댓글)이면 false(신고만 생성, 차단 row 0).
+     *  그 외(거래/사용자/채팅, 일반 사용자 글·댓글)는 true. 대상 미존재면 false(어차피 신고 거부됨). */
+    private boolean resolveAutoBlock(String targetType, String targetId) {
+        return switch (targetType) {
+            case "BOARD_POST" -> boardPostRepository.findById(targetId)
+                    .map(p -> !BoardTaxonomy.isAdminType(p.getType())).orElse(false);
+            case "BOARD_COMMENT" -> boardCommentRepository.findById(targetId)
+                    .map(c -> !c.isAdmin()).orElse(false);
+            default -> true; // TRADE/USER/CHAT = 기존 자동차단 유지
         };
     }
 

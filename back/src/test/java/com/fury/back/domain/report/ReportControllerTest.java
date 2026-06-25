@@ -61,11 +61,11 @@ class ReportControllerTest {
     void boardPost_create_resolvesAuthor_delegates() {
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1")));
         when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(false);
-        when(reportService.create(any(), any(), any(), any(), any(), any())).thenReturn("rid");
+        when(reportService.create(any(), any(), any(), any(), any(), any(), anyBoolean())).thenReturn("rid");
 
         controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
 
-        verify(reportService).create("reporter", "BOARD_POST", "p1", "INSULT", null, "author1"); // 작성자 해석 후 위임
+        verify(reportService).create("reporter", "BOARD_POST", "p1", "INSULT", null, "author1", true); // 작성자 해석 후 위임(일반글=autoBlock true)
     }
 
     @Test
@@ -73,27 +73,34 @@ class ReportControllerTest {
         BoardComment c = BoardComment.builder().commentId("c1").authorId("author2").content("b").build();
         when(boardCommentRepository.findById("c1")).thenReturn(Optional.of(c));
         when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author2")).thenReturn(false);
-        when(reportService.create(any(), any(), any(), any(), any(), any())).thenReturn("rid");
+        when(reportService.create(any(), any(), any(), any(), any(), any(), anyBoolean())).thenReturn("rid");
 
         controller.create(req("reporter"), body("BOARD_COMMENT", "c1", "SPAM"));
 
-        verify(reportService).create("reporter", "BOARD_COMMENT", "c1", "SPAM", null, "author2");
+        verify(reportService).create("reporter", "BOARD_COMMENT", "c1", "SPAM", null, "author2", true); // 일반 사용자 댓글=autoBlock true
     }
 
     @Test
     void user_create_regression_delegates() {
         when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "victim")).thenReturn(false);
-        when(reportService.create(any(), any(), any(), any(), any(), any())).thenReturn("rid");
+        when(reportService.create(any(), any(), any(), any(), any(), any(), anyBoolean())).thenReturn("rid");
 
         controller.create(req("reporter"), body("USER", "victim", "INSULT"));
 
-        verify(reportService).create("reporter", "USER", "victim", "INSULT", null, "victim");
+        verify(reportService).create("reporter", "USER", "victim", "INSULT", null, "victim", true); // USER=기존 자동차단 유지
     }
 
     @Test
     void invalidType_rejected_noDelegate() {
         controller.create(req("reporter"), body("WHATEVER", "x", "INSULT"));
-        verify(reportService, never()).create(any(), any(), any(), any(), any(), any());
+        verify(reportService, never()).create(any(), any(), any(), any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void otherReason_blankDetail_rejected_noDelegate() {
+        // ★기타(OTHER) 사유 직접입력 누락 → 서버가 거부(Front 우회 차단). 위임 안 함.
+        controller.create(req("reporter"), body("BOARD_POST", "p1", "OTHER")); // detail 없음
+        verify(reportService, never()).create(any(), any(), any(), any(), any(), any(), anyBoolean());
     }
 
     @Test
@@ -101,17 +108,17 @@ class ReportControllerTest {
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1")));
         when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(true);
         controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
-        verify(reportService, never()).create(any(), any(), any(), any(), any(), any()); // 중복 → 위임 안 함
+        verify(reportService, never()).create(any(), any(), any(), any(), any(), any(), anyBoolean()); // 중복 → 위임 안 함
     }
 
     @Test
     void serviceRejects_handledNotThrown() {
         // board 대상 미존재/삭제 → service 가 BAD_REQUEST → 컨트롤러가 catch 해서 fail 응답(예외 전파 X).
         when(boardPostRepository.findById("gone")).thenReturn(Optional.empty());
-        when(reportService.create(any(), any(), any(), any(), any(), any()))
+        when(reportService.create(any(), any(), any(), any(), any(), any(), anyBoolean()))
                 .thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "신고할 수 없는 게시글이거나 이미 삭제되었어요."));
         controller.create(req("reporter"), body("BOARD_POST", "gone", "INSULT")); // throw 하지 않음
-        verify(reportService).create(any(), any(), any(), any(), any(), any());
+        verify(reportService).create(any(), any(), any(), any(), any(), any(), anyBoolean());
     }
 
     @Test
@@ -120,7 +127,7 @@ class ReportControllerTest {
         //   중복으로 위장하지 않고 그대로 전파(5xx) — 진짜 DB 장애를 숨기지 않음.
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1")));
         when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(false);
-        when(reportService.create(any(), any(), any(), any(), any(), any()))
+        when(reportService.create(any(), any(), any(), any(), any(), any(), anyBoolean()))
                 .thenThrow(new org.springframework.dao.DataIntegrityViolationException("schema mismatch"));
         assertThatThrownBy(() -> controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT")))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
@@ -131,7 +138,7 @@ class ReportControllerTest {
         // 400 외 ResponseStatusException 은 badRequest 로 뭉개지 않고 전파(상태 의미 보존).
         when(boardPostRepository.findById("p1")).thenReturn(Optional.of(post("p1", "author1")));
         when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "author1")).thenReturn(false);
-        when(reportService.create(any(), any(), any(), any(), any(), any()))
+        when(reportService.create(any(), any(), any(), any(), any(), any(), anyBoolean()))
                 .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "nope"));
         assertThatThrownBy(() -> controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT")))
                 .isInstanceOf(ResponseStatusException.class);

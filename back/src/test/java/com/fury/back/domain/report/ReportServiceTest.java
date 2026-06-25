@@ -44,6 +44,18 @@ class ReportServiceTest {
         verify(blockRepository).saveAndFlush(any(Block.class));
     }
 
+    @Test void boardPost_autoBlockFalse_saves_noBlock() {
+        // ★공식글(운영팀) 신고 = autoBlock=false → 신고 row 만 생성, 차단 row 절대 생성 안 함(운영팀 자동차단 금지).
+        when(reportSnapshotService.build("BOARD_POST", "p1")).thenReturn(snap());
+        when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
+
+        service.create("reporter", "BOARD_POST", "p1", "INSULT", null, "admin1", false);
+
+        verify(reportRepository).saveAndFlush(any());
+        verify(blockRepository, never()).saveAndFlush(any());                  // 차단 row 0 보장
+        verify(blockRepository, never()).findByBlockerIdAndBlockedId(any(), any()); // 차단 경로 진입 안 함
+    }
+
     @Test void boardSnapshotNull_rejects_noSave_noBlock() {
         when(reportSnapshotService.build("BOARD_POST", "gone")).thenReturn(null);
         assertThatThrownBy(() -> service.create("reporter", "BOARD_POST", "gone", "INSULT", null, "author1"))

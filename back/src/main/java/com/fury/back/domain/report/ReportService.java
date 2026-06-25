@@ -23,9 +23,24 @@ public class ReportService {
     private final BlockRepository blockRepository;
     private final ReportSnapshotService reportSnapshotService;
 
+    /**
+     * ★★테스트 호환 전용 오버로드(기본 autoBlock=true). 운영 런타임 경로는 ReportController 가 7-arg(autoBlock
+     * 명시)만 호출한다 — 공식글/운영팀 자동차단 우회 방지를 위해 신규 운영 코드는 이 6-arg 를 호출하지 말 것.
+     * (main 전수 검색 2026-06-26: 6-arg 운영 호출 0건 확인.)
+     */
     @Transactional
     public String create(String reporterId, String targetType, String targetId,
                          String reason, String detail, String targetUserId) {
+        return create(reporterId, targetType, targetId, reason, detail, targetUserId, true);
+    }
+
+    /**
+     * @param autoBlock 신고와 동시에 작성자 자동 차단 여부. ★공식글/운영팀 댓글 등 운영팀 대상은 false
+     *                  (컨트롤러가 판정) → 신고 row 만 생성하고 차단 row 는 절대 만들지 않음.
+     */
+    @Transactional
+    public String create(String reporterId, String targetType, String targetId,
+                         String reason, String detail, String targetUserId, boolean autoBlock) {
         // 게시판 신고 = 신고 당시 원문 immutable snapshot + 존재·미삭제 검증(작성자 해석과 분리). null=미존재/삭제 → 거부.
         ReportedSnapshot snapshot = null;
         if ("BOARD_POST".equals(targetType) || "BOARD_COMMENT".equals(targetType)) {
@@ -54,8 +69,8 @@ public class ReportService {
             throw dedupOrRethrow(e);
         }
 
-        // 자동 차단 — ★같은 트랜잭션. 실패 시 신고도 롤백(부분성공 방지). 이미 차단돼 있으면 생략.
-        if (targetUserId != null && !targetUserId.equals(reporterId)
+        // 자동 차단 — ★autoBlock 일 때만(운영팀/공식 대상 제외). 같은 트랜잭션, 실패 시 신고도 롤백. 이미 차단됐으면 생략.
+        if (autoBlock && targetUserId != null && !targetUserId.equals(reporterId)
                 && blockRepository.findByBlockerIdAndBlockedId(reporterId, targetUserId).isEmpty()) {
             try {
                 blockRepository.saveAndFlush(Block.builder()
