@@ -53,5 +53,19 @@ docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db -c \
 ## 배포 후 실검 체크리스트
 공식글 신고→report·block0 / 일반글 신고→자동차단 / 공식글 일반유저 댓글 차단가능 / 운영팀 댓글 신고가능·차단불가 / Admin 공지 댓글·대댓글 작성·앱 운영팀 배지·댓글수 일치 / Admin 신고 처리 성공(#4) / 어비스아이 검색 / 카운터 0포함 / 검색 복귀 상태유지·키보드닫힘 / 홈배너 / 이미지·문의·Card·Price·Auth 정상 → 통과 후 새 IPA.
 
+## 배포 전 최종 검증 (4/4 통과, 2026-06-26)
+1. **최종 staging 소스 전체 테스트** — staging(prod base+내10) + 내 테스트 9파일 로컬 조립, `cleanTest test` = **252 / 0 fail / 0 error / 0 skip**(29클래스, #14 6/0·#15 8/0).
+2. **base==prod 증명(JAR)** — `7ee334d7` vs staging `946045c4` BOOT-INF/classes 차이 = **내 10 클래스만**(+BoardService$ImageSummary inner), 그 외 0 / BOOT-INF/lib **0 diff(236 jar)**. → boardimg-pathscoped-20260625 = `7ee334d7`의 정확한 소스 + staging = base+내10 확정.
+3. **admin baseline==live** — admin/ git 변경 = **Notices+Reports 2파일뿐**(Reports=live, package/lock/config 무변경). baseline JS≠live는 **번들러 환경 비결정성**(공통 prefix 3088B 후 전반분기·크기차 685B 0.08%·CSS 정확일치) = 소스변경 아님. 소스 delta vs live = **내 Notices뿐**.
+4. **백업·마이그·롤백 사이클(임시 DB, ON_ERROR_STOP=1)** — schema/data 복원 OK → migration(uq 2개) OK → rollback(원본 정확복원) OK. nightfury 정확히 1건.
+
+### 기록 SHA / 식별자
+- 신규 Backend 이미지: **`sha256:946045c416dea2620b44ec3954ed3e15794e284f679d5c8899341bf5e1656ba0`** (tag `board-moderation-20260626`)
+- 롤백 이미지: `pokefolio-back:rollback-pre-moderation-20260626` = `7ee334d7`
+- 최종 Admin dist tar SHA-256: **`1c3d79419ba4754c5f348483492d377c9334ba2f2203c2068203b901fe76122d`** (JS `index-9zQVtCbW.js` 신규 / CSS `index-DwEH7bzJ.css` = live)
+- live Admin dist JS(보존): `index-N8GFmNfy.js`
+- nightfury 삭제 대상: block_id `ae9500e5b6e340c69b864cd334cff887`
+- healthcheck(postgres): `pg_isready -U nightfury -d pokemon_card_db` / Backend: "Started BackApplication" 로그 + 검색 API 200
+
 ## 미실행(금지) — 네 승인 전
 DB COMMIT · 신규 이미지 latest 전환·기동 · Admin dist 교체 · nightfury 삭제 · IPA 생성 · TestFlight · App Store 제출
