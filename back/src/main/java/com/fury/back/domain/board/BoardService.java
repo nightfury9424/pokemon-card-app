@@ -1,5 +1,6 @@
 package com.fury.back.domain.board;
 
+import com.fury.back.auth.AdminAuthorizationService;
 import com.fury.back.domain.block.BlockRepository;
 import com.fury.back.domain.board.dto.*;
 import com.fury.back.domain.user.User;
@@ -37,6 +38,7 @@ public class BoardService {
     private final UserRepository userRepository;
     private final BoardPostLikeRepository likeRepository;
     private final BoardPostImageRepository postImageRepository;
+    private final AdminAuthorizationService adminAuth; // 작성자 운영팀 여부(공통 차단 판정)
 
     @Transactional(readOnly = true)
     public BoardPageDto getFeed(String section, String type, String q, boolean pinnedOnly,
@@ -129,7 +131,8 @@ public class BoardService {
         int activeCount = (int) all.stream().filter(c -> !c.isDeleted()).count();
 
         BoardPermissions.PostFlags pf = BoardPermissions.forPost(
-                viewerId, post.getAuthorId(), post.getType(), post.getStatus(), post.getDeletedAt() != null);
+                viewerId, post.getAuthorId(), post.getType(), post.getStatus(), post.getDeletedAt() != null,
+                adminAuth.isAdmin(post.getAuthorId()));
         List<String> ids = List.of(post.getPostId());
         int likeCount = likeCountMap(ids).getOrDefault(post.getPostId(), 0);   // board_post_likes COUNT(*)
         boolean likedByMe = likedPostIds(viewerId, ids).contains(post.getPostId());
@@ -155,7 +158,8 @@ public class BoardService {
                                           String viewerId, int likeCount, boolean likedByMe,
                                           String thumbnailUrl, int imageCount) {
         BoardPermissions.PostFlags pf = BoardPermissions.forPost(
-                viewerId, p.getAuthorId(), p.getType(), p.getStatus(), p.getDeletedAt() != null);
+                viewerId, p.getAuthorId(), p.getType(), p.getStatus(), p.getDeletedAt() != null,
+                adminAuth.isAdmin(p.getAuthorId()));
         return new BoardPostSummaryDto(
                 p.getPostId(), p.getType(), p.getTitle(), p.getContent(),
                 authorLabel(p.getType(), p.getAuthorId(), nick),
@@ -244,7 +248,8 @@ public class BoardService {
                                          String viewerId, boolean community, boolean parentTopDeleted) {
         String author = c.isAdmin() ? ADMIN_AUTHOR : nick.getOrDefault(c.getAuthorId(), UNKNOWN_AUTHOR);
         BoardPermissions.CommentFlags f = BoardPermissions.forComment(
-                viewerId, c.getAuthorId(), c.getCommentId(), c.getParentCommentId(), false, community, parentTopDeleted);
+                viewerId, c.getAuthorId(), c.getCommentId(), c.getParentCommentId(), false,
+                parentTopDeleted, c.isAdmin(), adminAuth.isAdmin(c.getAuthorId()));
         return new BoardCommentDto(c.getCommentId(), author, c.getContent(),
                 c.getCreatedAt(), c.isAdmin(), c.isAccepted(), replies,
                 f.mine(), f.canDelete(), f.canReply(), f.replyTargetCommentId(), f.canReport(), f.canBlock());

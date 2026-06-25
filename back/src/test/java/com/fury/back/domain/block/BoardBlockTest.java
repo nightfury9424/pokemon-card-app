@@ -124,10 +124,21 @@ class BoardBlockTest {
     }
 
     @Test
-    void blockCommentAuthor_parentPostOfficial_badRequest() {
-        // 공식 게시글의 댓글(방어) — canBlock=false 정책(community 아님) 과 일치하게 거부.
+    void blockCommentAuthor_regularCommentOnOfficialPost_blockable() {
+        // ★2026-06-26 정책: 공식글이어도 ★일반 사용자가 쓴 댓글은 차단 가능(부모글 타입 아니라 댓글 작성자 기준).
         boardPostRepository.save(post("n1", "notice", "admin1", false));
-        boardCommentRepository.save(comment("c1", "n1", "author2", false));
+        boardCommentRepository.save(comment("c1", "n1", "author2", false)); // 일반 사용자(isAdmin=false) 댓글
+        em.flush();
+        blockController.blockCommentAuthor("viewer1", "c1"); // 예외 없이 차단 성공
+        assertThat(blockRepository.findAllByBlockerId("viewer1")).hasSize(1);
+    }
+
+    @Test
+    void blockCommentAuthor_adminComment_badRequest() {
+        // ★운영팀이 쓴 댓글은 차단 불가(신고만). 부모글 타입과 무관하게 댓글 작성자 운영팀 여부로 판정.
+        boardPostRepository.save(post("n1", "notice", "admin1", false));
+        boardCommentRepository.save(BoardComment.builder().commentId("c1").postId("n1").authorId("admin1")
+                .content("댓글").admin(true).accepted(false).createdAt(LocalDateTime.now()).build()); // 운영팀 댓글
         em.flush();
         assertThatThrownBy(() -> blockController.blockCommentAuthor("viewer1", "c1"))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");

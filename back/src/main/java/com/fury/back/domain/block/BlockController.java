@@ -4,9 +4,10 @@ import com.fury.back.common.ReturnData;
 import com.fury.back.domain.block.dto.BlockedUserDto;
 import com.fury.back.domain.board.BoardComment;
 import com.fury.back.domain.board.BoardCommentRepository;
+import com.fury.back.auth.AdminAuthorizationService;
+import com.fury.back.domain.board.BoardPermissions;
 import com.fury.back.domain.board.BoardPost;
 import com.fury.back.domain.board.BoardPostRepository;
-import com.fury.back.domain.board.BoardTaxonomy;
 import com.fury.back.domain.chat.ChatService;
 import com.fury.back.domain.user.User;
 import com.fury.back.domain.user.UserRepository;
@@ -35,6 +36,7 @@ public class BlockController {
     private final BoardPostRepository boardPostRepository;
     private final BoardCommentRepository boardCommentRepository;
     private final BlockService blockService;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     @Operation(summary = "사용자 차단")
     @PostMapping("/{userId}")
@@ -52,12 +54,14 @@ public class BlockController {
             @AuthenticationPrincipal String blockerId,
             @PathVariable String postId) {
         requireAuth(blockerId);
-        // forPost canBlock=in && !mine && !official 과 일치 — 존재·ACTIVE·미삭제·비공식 재검증(직접 호출 우회 차단).
+        // 존재·ACTIVE·미삭제 재검증(직접 호출 우회 차단).
         BoardPost post = boardPostRepository.findById(postId)
                 .filter(p -> p.getDeletedAt() == null && "ACTIVE".equals(p.getStatus()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
-        if (BoardTaxonomy.isAdminType(post.getType())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "공식 게시글 작성자는 차단할 수 없습니다.");
+        // ★공통 판정(autoBlock·UI canBlock 과 동일) — 공식글 타입 OR 운영팀 작성자(자유글 포함)면 차단 금지.
+        if (!BoardPermissions.canBlockPostAuthor(blockerId, post.getAuthorId(), post.getType(),
+                adminAuthorizationService.isAdmin(post.getAuthorId()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "운영팀 작성자는 차단할 수 없습니다.");
         }
         return toResponse(blockService.block(blockerId, post.getAuthorId()));
     }
@@ -72,14 +76,15 @@ public class BlockController {
         BoardComment comment = boardCommentRepository.findById(commentId)
                 .filter(c -> c.getDeletedAt() == null)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다."));
-        // ★UI canBlock(forComment) 의 community 인자는 BoardService 에서 !isAdminType 로 산출(BoardService:105) —
-        //   즉 정책상 '비공식 글의 댓글'이면 차단 가능(qna 포함). 부모 게시글 존재·ACTIVE·미삭제·비공식 재검증
-        //   (삭제/숨김/공식 글 댓글의 직접 호출 우회 차단). 운영자 댓글 작성자는 차단 허용(면제 없음).
-        BoardPost post = boardPostRepository.findById(comment.getPostId())
+        // 부모 게시글 존재·ACTIVE·미삭제 재검증(삭제/숨김 글 댓글의 직접 호출 우회 차단).
+        boardPostRepository.findById(comment.getPostId())
                 .filter(p -> p.getDeletedAt() == null && "ACTIVE".equals(p.getStatus()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
-        if (BoardTaxonomy.isAdminType(post.getType())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "공식 게시글의 댓글은 차단할 수 없습니다.");
+        // ★공통 판정 — 차단 가능 여부는 부모글 타입이 아니라 ★댓글 작성자 기준. 공식글의 일반 사용자 댓글은 차단 가능,
+        //   운영팀이 쓴 댓글(comment.isAdmin OR allowlist)만 차단 불가.
+        if (!BoardPermissions.canBlockCommentAuthor(blockerId, comment.getAuthorId(), comment.isAdmin(),
+                adminAuthorizationService.isAdmin(comment.getAuthorId()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "운영팀 댓글 작성자는 차단할 수 없습니다.");
         }
         return toResponse(blockService.block(blockerId, comment.getAuthorId()));
     }

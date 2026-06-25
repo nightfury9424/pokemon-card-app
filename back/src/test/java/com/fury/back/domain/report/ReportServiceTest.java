@@ -35,7 +35,7 @@ class ReportServiceTest {
         when(blockRepository.findByBlockerIdAndBlockedId("reporter", "author1")).thenReturn(Optional.empty());
         when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
 
-        service.create("reporter", "BOARD_POST", "p1", "INSULT", null, "author1");
+        service.create("reporter", "BOARD_POST", "p1", "INSULT", null, "author1", true);
 
         ArgumentCaptor<Report> cap = ArgumentCaptor.forClass(Report.class);
         verify(reportRepository).saveAndFlush(cap.capture());
@@ -58,7 +58,7 @@ class ReportServiceTest {
 
     @Test void boardSnapshotNull_rejects_noSave_noBlock() {
         when(reportSnapshotService.build("BOARD_POST", "gone")).thenReturn(null);
-        assertThatThrownBy(() -> service.create("reporter", "BOARD_POST", "gone", "INSULT", null, "author1"))
+        assertThatThrownBy(() -> service.create("reporter", "BOARD_POST", "gone", "INSULT", null, "author1", true))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
         verify(reportRepository, never()).saveAndFlush(any());
         verify(blockRepository, never()).saveAndFlush(any());
@@ -67,7 +67,7 @@ class ReportServiceTest {
     @Test void user_noSnapshot_saves_andBlocks() {
         when(blockRepository.findByBlockerIdAndBlockedId("reporter", "victim")).thenReturn(Optional.empty());
         when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
-        service.create("reporter", "USER", "victim", "INSULT", null, "victim");
+        service.create("reporter", "USER", "victim", "INSULT", null, "victim", true);
         verify(reportSnapshotService, never()).build(any(), any());
         verify(reportRepository).saveAndFlush(any());
         verify(blockRepository).saveAndFlush(any());
@@ -75,7 +75,7 @@ class ReportServiceTest {
 
     @Test void nullTargetUserId_noBlock() {
         when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
-        service.create("reporter", "BUY_ORDER", "bo1", "OTHER", null, null);
+        service.create("reporter", "BUY_ORDER", "bo1", "OTHER", null, null, true);
         verify(reportRepository).saveAndFlush(any());
         verify(blockRepository, never()).saveAndFlush(any());
     }
@@ -84,7 +84,7 @@ class ReportServiceTest {
         when(blockRepository.findByBlockerIdAndBlockedId("reporter", "victim"))
                 .thenReturn(Optional.of(mock(Block.class)));
         when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
-        service.create("reporter", "USER", "victim", "INSULT", null, "victim");
+        service.create("reporter", "USER", "victim", "INSULT", null, "victim", true);
         verify(blockRepository, never()).saveAndFlush(any());
     }
 
@@ -94,7 +94,7 @@ class ReportServiceTest {
         when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
         when(blockRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException(
                 "could not execute statement; violates unique constraint \"uq_blocks_blocker_blocked\""));
-        assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim"))
+        assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim", true))
                 .isInstanceOf(ResponseStatusException.class).hasMessageContaining("400");
     }
 
@@ -104,7 +104,7 @@ class ReportServiceTest {
         when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
         when(blockRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException(
                 "null value in column \"blocked_id\" violates not-null constraint"));
-        assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim"))
+        assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim", true))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -113,7 +113,7 @@ class ReportServiceTest {
         when(blockRepository.findByBlockerIdAndBlockedId("reporter", "victim")).thenReturn(Optional.empty());
         when(reportRepository.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
         when(blockRepository.saveAndFlush(any())).thenThrow(new RuntimeException("transient"));
-        assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim"))
+        assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim", true))
                 .isInstanceOf(RuntimeException.class).isNotInstanceOf(ResponseStatusException.class);
     }
 
@@ -121,7 +121,7 @@ class ReportServiceTest {
         // ★신고 저장 단계 DB 오류(JSONB/NOT NULL 등)는 중복으로 위장하지 않고 전파, block 단계 도달 안 함.
         when(reportRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException(
                 "could not serialize jsonb column"));
-        assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim"))
+        assertThatThrownBy(() -> service.create("reporter", "USER", "victim", "INSULT", null, "victim", true))
                 .isInstanceOf(DataIntegrityViolationException.class);
         verify(blockRepository, never()).saveAndFlush(any());
     }

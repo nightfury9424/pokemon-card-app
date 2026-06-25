@@ -1,5 +1,6 @@
 package com.fury.back.domain.report;
 
+import com.fury.back.auth.AdminAuthorizationService;
 import com.fury.back.auth.JwtUtil;
 import com.fury.back.domain.board.BoardComment;
 import com.fury.back.domain.board.BoardCommentRepository;
@@ -35,6 +36,7 @@ class ReportControllerTest {
     @Mock BoardPostRepository boardPostRepository;
     @Mock BoardCommentRepository boardCommentRepository;
     @Mock ReportService reportService;
+    @Mock AdminAuthorizationService adminAuthorizationService;
     @InjectMocks ReportController controller;
 
     private HttpServletRequest req(String userId) {
@@ -66,6 +68,19 @@ class ReportControllerTest {
         controller.create(req("reporter"), body("BOARD_POST", "p1", "INSULT"));
 
         verify(reportService).create("reporter", "BOARD_POST", "p1", "INSULT", null, "author1", true); // 작성자 해석 후 위임(일반글=autoBlock true)
+    }
+
+    @Test
+    void boardPost_adminAuthor_freeType_autoBlockFalse() {
+        // ★운영팀이 쓴 자유글 신고 → 타입은 free(비공식)지만 작성자가 운영팀 → autoBlock=false (nightfury 재차단 방지).
+        when(boardPostRepository.findById("pf")).thenReturn(Optional.of(post("pf", "adminAuthor")));
+        when(reportRepository.existsByReporterIdAndTargetUserId("reporter", "adminAuthor")).thenReturn(false);
+        when(adminAuthorizationService.isAdmin("adminAuthor")).thenReturn(true);
+        when(reportService.create(any(), any(), any(), any(), any(), any(), anyBoolean())).thenReturn("rid");
+
+        controller.create(req("reporter"), body("BOARD_POST", "pf", "INSULT"));
+
+        verify(reportService).create("reporter", "BOARD_POST", "pf", "INSULT", null, "adminAuthor", false);
     }
 
     @Test

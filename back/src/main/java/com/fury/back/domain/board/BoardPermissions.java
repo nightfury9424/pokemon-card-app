@@ -33,47 +33,58 @@ public final class BoardPermissions {
      * @param deleted soft-delete 여부.
      */
     public static PostFlags forPost(String viewerId, String authorId,
-                                    String type, String status, boolean deleted) {
+                                    String type, String status, boolean deleted, boolean authorIsAdmin) {
         boolean in = loggedIn(viewerId);
         boolean mine = in && viewerId.equals(authorId);          // ★순수 소유
         boolean official = BoardTaxonomy.isAdminType(type);
         boolean active = "ACTIVE".equals(status) && !deleted;
         boolean canEdit = mine && !official && active;           // 공식글=앱 수정/삭제 금지(관리자 웹 전용)
         boolean canReport = in && !mine;                         // ★1.0.4: 공식글 포함 비본인 글 신고 가능
-        boolean canBlock = in && !mine && !official;             // 공식(운영팀) 차단 불가, 그 외 비본인 차단
+        // ★canBlock 은 공통 판정 하나만(공식글 타입 OR 운영팀 작성자=자유글 포함 → 차단 금지). placeholder/override 없음.
+        boolean canBlock = canBlockPostAuthor(viewerId, authorId, type, authorIsAdmin);
         return new PostFlags(mine, canEdit, canEdit, canReport, canBlock);
     }
 
     /**
-     * @param parentCommentId 최상위면 null, 대댓글이면 부모(=최상위) commentId.
-     * @param deleted         삭제 placeholder 면 작성자 정보·모든 액션 차단.
-     * @param community       게시글이 community(자유 등)인지. 공식글엔 댓글이 없어야 하나 방어적으로 게이트.
+     * @param parentCommentId  최상위면 null, 대댓글이면 부모(=최상위) commentId.
+     * @param deleted          삭제 placeholder 면 작성자 정보·모든 액션 차단.
+     * @param parentTopDeleted 최상위 부모가 삭제(placeholder)된 경우 — 답글 금지(서버 createComment 도 거부).
+     * @param commentIsAdmin   댓글 작성자 운영팀 여부(저장값 is_admin).
+     * @param authorIsAdmin    댓글 작성자 운영팀 여부(allowlist). 둘 중 하나라도 true 면 차단 금지(공통 판정).
      */
     public static CommentFlags forComment(String viewerId, String authorId, String commentId,
-                                          String parentCommentId, boolean deleted, boolean community) {
-        return forComment(viewerId, authorId, commentId, parentCommentId, deleted, community, false);
-    }
-
-    /**
-     * @param parentTopDeleted 이 댓글이 달린 최상위 부모가 삭제(placeholder)된 경우 — 답글 금지
-     *                         (서버 createComment 도 삭제된 부모엔 거부 → UI 플래그와 일치).
-     */
-    public static CommentFlags forComment(String viewerId, String authorId, String commentId,
-                                          String parentCommentId, boolean deleted, boolean community,
-                                          boolean parentTopDeleted) {
+                                          String parentCommentId, boolean deleted,
+                                          boolean parentTopDeleted, boolean commentIsAdmin, boolean authorIsAdmin) {
         if (deleted) {
             return new CommentFlags(false, false, false, null, false, false);
         }
         boolean in = loggedIn(viewerId);
         boolean mine = in && viewerId.equals(authorId);
-        // 대댓글에도 답글 버튼 노출하되 대상은 항상 최상위 댓글(2단 이상 금지). 서버가 createComment 에서 재검증.
-        // ★최상위 부모가 삭제된 경우엔 답글 불가(서버도 거부) → canReply=false, target=null.
-        // ★1.0.4: 공식글(community=false)에도 댓글 답글·신고·차단 허용 → community 게이트 제거.
-        //   (공식 '게시글' 자체의 수정/삭제는 forPost 에서 계속 관리자 전용으로 유지)
+        // 대댓글도 답글 버튼 노출하되 대상은 항상 최상위 댓글(2단 이상 금지). 최상위 부모 삭제 시 답글 불가.
+        // ★1.0.4: 공식글에도 댓글 답글·신고·차단 허용(부모글 타입 무관). 차단 가능 여부는 ★댓글 작성자 운영팀 여부로만 판정.
         boolean canReply = in && !parentTopDeleted;
         String replyTarget = parentTopDeleted ? null : (parentCommentId != null ? parentCommentId : commentId);
         boolean canReport = in && !mine;            // ★운영자 댓글이어도 면제 없음
-        boolean canBlock = in && !mine;
+        // ★canBlock 은 공통 판정 하나만(운영팀 댓글이면 금지). placeholder/override 없음 — 이 메서드가 단일 source.
+        boolean canBlock = canBlockCommentAuthor(viewerId, authorId, commentIsAdmin, authorIsAdmin);
         return new CommentFlags(mine, mine, canReply, replyTarget, canReport, canBlock);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // ★★공통 차단 가능 판정 — 자동차단(신고)·수동차단(BlockController)·UI canBlock(DTO) 가 모두 이 로직 하나만 사용.
+    //   "운영팀(공식글 타입 또는 운영팀 작성자) 은 절대 차단 불가" 정책을 한 곳에서 보장.
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** 게시글 작성자 차단 가능 여부. 금지: 미로그인 / 본인 / 공식글 타입(notice·event·patch) / 운영팀 작성자(자유글 포함). */
+    public static boolean canBlockPostAuthor(String viewerId, String authorId, String type, boolean authorIsAdmin) {
+        return loggedIn(viewerId) && !viewerId.equals(authorId)
+                && !BoardTaxonomy.isAdminType(type) && !authorIsAdmin;
+    }
+
+    /** 댓글 작성자 차단 가능 여부. 금지: 미로그인 / 본인 / 운영팀이 쓴 댓글(부모글 타입 무관).
+     *  일반 사용자가 공식글에 쓴 댓글은 차단 가능. commentIsAdmin(저장값) 또는 authorIsAdmin(allowlist) 중 하나라도 운영팀이면 금지. */
+    public static boolean canBlockCommentAuthor(String viewerId, String authorId, boolean commentIsAdmin, boolean authorIsAdmin) {
+        return loggedIn(viewerId) && !viewerId.equals(authorId)
+                && !commentIsAdmin && !authorIsAdmin;
     }
 }

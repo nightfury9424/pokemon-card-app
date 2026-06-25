@@ -1,5 +1,6 @@
 package com.fury.back.domain.board;
 
+import com.fury.back.auth.AdminAuthorizationService;
 import com.fury.back.domain.block.Block;
 import com.fury.back.domain.block.BlockRepository;
 import com.fury.back.domain.board.dto.BoardCommentDto;
@@ -35,6 +36,7 @@ class BoardServiceTest {
     @Mock UserRepository userRepo;
     @Mock BoardPostLikeRepository likeRepo;
     @Mock BoardPostImageRepository postImageRepo;
+    @Mock AdminAuthorizationService adminAuth;
     @InjectMocks BoardService service;
 
     // 좋아요 bulk 조회 기본값(빈) — likedByMe/likeCount 미지정 테스트 NPE 방지. 개별 테스트서 재스텁.
@@ -220,8 +222,8 @@ class BoardServiceTest {
 
         BoardCommentDto adminTop = find(d.comments(), "adminTop");
         assertThat(adminTop.isAdmin()).isTrue();
-        assertThat(adminTop.canReport()).isTrue(); // ★운영 뱃지여도 신고 가능(면제 없음)
-        assertThat(adminTop.canBlock()).isTrue();
+        assertThat(adminTop.canReport()).isTrue();  // ★운영 뱃지여도 신고 가능(면제 없음)
+        assertThat(adminTop.canBlock()).isFalse();  // ★2026-06-26 정책: 운영팀 댓글은 차단 불가(신고만)
     }
 
     // ── 목록 vs 상세 플래그 일치(공통 헬퍼) ──

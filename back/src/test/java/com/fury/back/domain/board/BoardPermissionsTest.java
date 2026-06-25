@@ -6,24 +6,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 게시판 소유권·액션 플래그 매트릭스(순수 단위, 스프링/DB 무관).
- * 목록·상세 공통 헬퍼 BoardPermissions 의 결정적 검증.
+ * 목록·상세 공통 헬퍼 BoardPermissions 의 결정적 검증. canBlock 은 단일 판정(canBlock*Author) 하나만 사용.
  */
 class BoardPermissionsTest {
 
     // ── 게시글 ──
     @Test void post_anonymous_all_false() {
-        var f = BoardPermissions.forPost(null, "u1", "free", "ACTIVE", false);
+        var f = BoardPermissions.forPost(null, "u1", "free", "ACTIVE", false, false);
         assertThat(f.mine()).isFalse();
         assertThat(f.canEdit()).isFalse();
         assertThat(f.canDelete()).isFalse();
         assertThat(f.canReport()).isFalse();
         assertThat(f.canBlock()).isFalse();
         // blank viewer 도 비로그인 취급
-        assertThat(BoardPermissions.forPost("  ", "u1", "free", "ACTIVE", false).canReport()).isFalse();
+        assertThat(BoardPermissions.forPost("  ", "u1", "free", "ACTIVE", false, false).canReport()).isFalse();
     }
 
     @Test void post_owner_community_edit_delete_only() {
-        var f = BoardPermissions.forPost("u1", "u1", "free", "ACTIVE", false);
+        var f = BoardPermissions.forPost("u1", "u1", "free", "ACTIVE", false, false);
         assertThat(f.mine()).isTrue();
         assertThat(f.canEdit()).isTrue();
         assertThat(f.canDelete()).isTrue();
@@ -32,17 +32,17 @@ class BoardPermissionsTest {
     }
 
     @Test void post_other_community_report_block_only() {
-        var f = BoardPermissions.forPost("viewer", "u1", "free", "ACTIVE", false);
+        var f = BoardPermissions.forPost("viewer", "u1", "free", "ACTIVE", false, false);
         assertThat(f.mine()).isFalse();
         assertThat(f.canEdit()).isFalse();
         assertThat(f.canDelete()).isFalse();
         assertThat(f.canReport()).isTrue();
-        assertThat(f.canBlock()).isTrue();
+        assertThat(f.canBlock()).isTrue();   // ★일반 사용자 자유글 = 차단 가능(기존 동작 보존)
     }
 
     @Test void post_official_owner_mine_true_but_no_app_actions() {
         // ★공식글 작성자가 본인이어도 mine=true 이되 앱 수정/삭제/신고/차단 전부 불가
-        var f = BoardPermissions.forPost("admin", "admin", "notice", "ACTIVE", false);
+        var f = BoardPermissions.forPost("admin", "admin", "notice", "ACTIVE", false, true);
         assertThat(f.mine()).isTrue();
         assertThat(f.canEdit()).isFalse();
         assertThat(f.canDelete()).isFalse();
@@ -52,23 +52,27 @@ class BoardPermissionsTest {
 
     @Test void post_official_other_reportable_notBlockable() {
         // ★1.0.4: 공식글(운영팀)도 비본인이면 신고 가능. 단 수정/삭제·운영팀 차단은 불가.
-        var f = BoardPermissions.forPost("viewer", "admin", "event", "ACTIVE", false);
-        assertThat(f.mine()).isFalse();
-        assertThat(f.canEdit()).isFalse();
-        assertThat(f.canDelete()).isFalse();
+        var f = BoardPermissions.forPost("viewer", "admin", "event", "ACTIVE", false, true);
         assertThat(f.canReport()).isTrue();  // ★공식글 신고 가능
-        assertThat(f.canBlock()).isFalse();  // 운영팀 차단 불가
+        assertThat(f.canBlock()).isFalse();  // 운영팀 차단 불가(공식글 타입)
+    }
+
+    @Test void post_adminAuthor_freeType_notBlockable() {
+        // ★2026-06-26: 운영팀이 쓴 ★자유글(비공식 타입)이어도 작성자가 운영팀이면 차단 불가.
+        var f = BoardPermissions.forPost("viewer", "adminUser", "free", "ACTIVE", false, true /*authorIsAdmin*/);
+        assertThat(f.canReport()).isTrue();
+        assertThat(f.canBlock()).isFalse();  // ★자유글이어도 운영팀 작성자 → 차단 금지
     }
 
     @Test void post_owner_canEdit_requires_active() {
         // HIDDEN/삭제 글은 수정 불가(본인이어도)
-        assertThat(BoardPermissions.forPost("u1", "u1", "free", "HIDDEN", false).canEdit()).isFalse();
-        assertThat(BoardPermissions.forPost("u1", "u1", "free", "ACTIVE", true).canEdit()).isFalse();
+        assertThat(BoardPermissions.forPost("u1", "u1", "free", "HIDDEN", false, false).canEdit()).isFalse();
+        assertThat(BoardPermissions.forPost("u1", "u1", "free", "ACTIVE", true, false).canEdit()).isFalse();
     }
 
-    // ── 댓글/대댓글 ──
+    // ── 댓글/대댓글 ── (인자: viewerId, authorId, commentId, parentCommentId, deleted, parentTopDeleted, commentIsAdmin, authorIsAdmin)
     @Test void comment_anonymous_all_false() {
-        var f = BoardPermissions.forComment(null, "u1", "c1", null, false, true);
+        var f = BoardPermissions.forComment(null, "u1", "c1", null, false, false, false, false);
         assertThat(f.mine()).isFalse();
         assertThat(f.canDelete()).isFalse();
         assertThat(f.canReply()).isFalse();
@@ -77,7 +81,7 @@ class BoardPermissionsTest {
     }
 
     @Test void comment_owner_topLevel() {
-        var f = BoardPermissions.forComment("u1", "u1", "c1", null, false, true);
+        var f = BoardPermissions.forComment("u1", "u1", "c1", null, false, false, false, false);
         assertThat(f.mine()).isTrue();
         assertThat(f.canDelete()).isTrue();
         assertThat(f.canReply()).isTrue();
@@ -87,22 +91,22 @@ class BoardPermissionsTest {
     }
 
     @Test void comment_other_topLevel() {
-        var f = BoardPermissions.forComment("viewer", "u1", "c1", null, false, true);
+        var f = BoardPermissions.forComment("viewer", "u1", "c1", null, false, false, false, false);
         assertThat(f.mine()).isFalse();
         assertThat(f.canDelete()).isFalse();
         assertThat(f.canReply()).isTrue();
         assertThat(f.replyTargetCommentId()).isEqualTo("c1");
         assertThat(f.canReport()).isTrue();
-        assertThat(f.canBlock()).isTrue();
+        assertThat(f.canBlock()).isTrue();   // ★일반 사용자 타인 댓글 = 차단 가능(기존 동작 보존)
     }
 
     @Test void comment_reply_target_points_to_topLevel_parent() {
         // ★대댓글도 답글 가능, replyTarget 은 항상 최상위 부모(2단 이상 금지)
-        var mineReply = BoardPermissions.forComment("u1", "u1", "r1", "top1", false, true);
+        var mineReply = BoardPermissions.forComment("u1", "u1", "r1", "top1", false, false, false, false);
         assertThat(mineReply.canReply()).isTrue();
         assertThat(mineReply.replyTargetCommentId()).isEqualTo("top1");
         assertThat(mineReply.canDelete()).isTrue();
-        var otherReply = BoardPermissions.forComment("viewer", "u2", "r1", "top1", false, true);
+        var otherReply = BoardPermissions.forComment("viewer", "u2", "r1", "top1", false, false, false, false);
         assertThat(otherReply.canReply()).isTrue();
         assertThat(otherReply.replyTargetCommentId()).isEqualTo("top1");
         assertThat(otherReply.canReport()).isTrue();
@@ -110,7 +114,7 @@ class BoardPermissionsTest {
     }
 
     @Test void comment_deleted_placeholder_all_false() {
-        var f = BoardPermissions.forComment("viewer", "u1", "c1", null, true, true);
+        var f = BoardPermissions.forComment("viewer", "u1", "c1", null, true, false, false, false);
         assertThat(f.mine()).isFalse();
         assertThat(f.canDelete()).isFalse();
         assertThat(f.canReply()).isFalse();
@@ -119,25 +123,31 @@ class BoardPermissionsTest {
         assertThat(f.canBlock()).isFalse();
     }
 
-    @Test void comment_admin_badge_NOT_exempt_from_report() {
-        // ★운영자 뱃지 댓글이어도 (자유게시판·타인·미삭제) 신고/차단 가능 — isAdmin 미고려
-        var f = BoardPermissions.forComment("viewer", "adminUser", "c1", null, false, true);
+    @Test void comment_admin_reportable_but_NOT_blockable() {
+        // ★2026-06-26 정책: 운영팀(commentIsAdmin) 댓글은 신고는 가능하지만 차단 불가.
+        var f = BoardPermissions.forComment("viewer", "adminUser", "c1", null, false, false, true /*commentIsAdmin*/, false);
         assertThat(f.canReport()).isTrue();
-        assertThat(f.canBlock()).isTrue();
+        assertThat(f.canBlock()).isFalse();  // ★운영팀 댓글 차단 불가
+    }
+
+    @Test void comment_authorIsAdmin_allowlist_NOT_blockable() {
+        // ★저장값 isAdmin=false 여도 allowlist(authorIsAdmin) 운영팀이면 차단 불가.
+        var f = BoardPermissions.forComment("viewer", "adminUser", "c1", null, false, false, false, true /*authorIsAdmin*/);
+        assertThat(f.canBlock()).isFalse();
     }
 
     @Test void comment_under_deleted_top_no_reply() {
         // ★삭제된 최상위 댓글 아래 대댓글: 답글 불가 + target null(서버도 거부와 일치). 신고/차단은 유지.
-        var f = BoardPermissions.forComment("viewer", "u2", "r1", "deletedTop", false, true, true);
+        var f = BoardPermissions.forComment("viewer", "u2", "r1", "deletedTop", false, true /*parentTopDeleted*/, false, false);
         assertThat(f.canReply()).isFalse();
         assertThat(f.replyTargetCommentId()).isNull();
         assertThat(f.canReport()).isTrue();
         assertThat(f.canBlock()).isTrue();
     }
 
-    @Test void comment_official_has_reply_report_block() {
-        // ★1.0.4: 공식글 댓글도 답글·신고·차단 허용(community 게이트 제거)
-        var f = BoardPermissions.forComment("viewer", "u1", "c1", null, false, false);
+    @Test void comment_official_post_regularUser_has_reply_report_block() {
+        // ★공식글에 일반 사용자가 쓴 댓글도 답글·신고·차단 허용(부모글 타입 무관, 댓글 작성자 기준).
+        var f = BoardPermissions.forComment("viewer", "u1", "c1", null, false, false, false, false);
         assertThat(f.canReply()).isTrue();
         assertThat(f.canReport()).isTrue();
         assertThat(f.canBlock()).isTrue();

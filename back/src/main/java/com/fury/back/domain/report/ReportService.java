@@ -24,19 +24,9 @@ public class ReportService {
     private final ReportSnapshotService reportSnapshotService;
 
     /**
-     * ★★테스트 호환 전용 오버로드(기본 autoBlock=true). 운영 런타임 경로는 ReportController 가 7-arg(autoBlock
-     * 명시)만 호출한다 — 공식글/운영팀 자동차단 우회 방지를 위해 신규 운영 코드는 이 6-arg 를 호출하지 말 것.
-     * (main 전수 검색 2026-06-26: 6-arg 운영 호출 0건 확인.)
-     */
-    @Transactional
-    public String create(String reporterId, String targetType, String targetId,
-                         String reason, String detail, String targetUserId) {
-        return create(reporterId, targetType, targetId, reason, detail, targetUserId, true);
-    }
-
-    /**
-     * @param autoBlock 신고와 동시에 작성자 자동 차단 여부. ★공식글/운영팀 댓글 등 운영팀 대상은 false
-     *                  (컨트롤러가 판정) → 신고 row 만 생성하고 차단 row 는 절대 만들지 않음.
+     * 신고 생성 (+ 옵션 자동차단). ★6-arg 오버로드는 제거됨 — 모든 호출부가 autoBlock 을 명시해야 한다
+     * (기본 true 우회로 공식글/운영팀이 자동차단되는 사고 재발 방지).
+     * @param autoBlock 신고와 동시에 작성자 자동 차단 여부. ★운영팀 대상(컨트롤러가 판정)은 false → 신고 row 만, 차단 row 0.
      */
     @Transactional
     public String create(String reporterId, String targetType, String targetId,

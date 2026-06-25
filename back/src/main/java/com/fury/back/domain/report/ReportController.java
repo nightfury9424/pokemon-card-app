@@ -4,9 +4,10 @@ import com.fury.back.auth.JwtUtil;
 import com.fury.back.common.ReturnData;
 import com.fury.back.domain.board.BoardComment;
 import com.fury.back.domain.board.BoardCommentRepository;
+import com.fury.back.auth.AdminAuthorizationService;
+import com.fury.back.domain.board.BoardPermissions;
 import com.fury.back.domain.board.BoardPost;
 import com.fury.back.domain.board.BoardPostRepository;
-import com.fury.back.domain.board.BoardTaxonomy;
 import com.fury.back.domain.chat.ChatRoom;
 import com.fury.back.domain.chat.ChatRoomRepository;
 import com.fury.back.domain.trade.TradePost;
@@ -40,6 +41,7 @@ public class ReportController {
     private final BoardPostRepository boardPostRepository;
     private final BoardCommentRepository boardCommentRepository;
     private final ReportService reportService;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     @Operation(summary = "신고 등록", description = "거래/사용자/매수호가/채팅 신고")
     @PostMapping
@@ -78,8 +80,8 @@ public class ReportController {
 
         // 신고 대상 사용자 해석 (1회 제한 + 자동 차단 공용).
         String targetUserId = resolveBlockTarget(targetType, targetId, reporterId);
-        // ★자동차단 적용 여부 — 운영팀 대상(공식글/운영팀 댓글)은 자동차단 금지(신고만). 그 외(거래/사용자/채팅)는 기존대로.
-        boolean autoBlock = resolveAutoBlock(targetType, targetId);
+        // ★자동차단 적용 여부 — 운영팀 대상(공식글 타입 OR 운영팀 작성자, 자유글 포함)은 자동차단 금지(신고만). 그 외는 기존대로.
+        boolean autoBlock = resolveAutoBlock(targetType, targetId, reporterId);
 
         // 1회 제한 — 같은 사용자를 이미 신고했으면 차단 (차단 풀고 재신고 방지).
         if (targetUserId != null && !targetUserId.equals(reporterId)
@@ -132,14 +134,21 @@ public class ReportController {
         };
     }
 
-    /** 자동차단 적용 여부 — 운영팀 대상(공식글 type=notice/event/patch, 운영팀이 쓴 댓글)이면 false(신고만 생성, 차단 row 0).
-     *  그 외(거래/사용자/채팅, 일반 사용자 글·댓글)는 true. 대상 미존재면 false(어차피 신고 거부됨). */
-    private boolean resolveAutoBlock(String targetType, String targetId) {
+    /** 자동차단 적용 여부 — ★공통 판정(BoardPermissions.canBlock*Author) 하나만 사용. 운영팀(공식글 타입 OR
+     *  운영팀 작성자·자유글 포함, 운영팀 댓글)이면 false(신고만 생성, 차단 row 0). 그 외(거래/사용자/채팅, 일반 글·댓글)는 true.
+     *  대상 미존재면 false(어차피 신고 거부). */
+    private boolean resolveAutoBlock(String targetType, String targetId, String reporterId) {
         return switch (targetType) {
             case "BOARD_POST" -> boardPostRepository.findById(targetId)
-                    .map(p -> !BoardTaxonomy.isAdminType(p.getType())).orElse(false);
+                    .map(p -> BoardPermissions.canBlockPostAuthor(
+                            reporterId, p.getAuthorId(), p.getType(),
+                            adminAuthorizationService.isAdmin(p.getAuthorId())))
+                    .orElse(false);
             case "BOARD_COMMENT" -> boardCommentRepository.findById(targetId)
-                    .map(c -> !c.isAdmin()).orElse(false);
+                    .map(c -> BoardPermissions.canBlockCommentAuthor(
+                            reporterId, c.getAuthorId(), c.isAdmin(),
+                            adminAuthorizationService.isAdmin(c.getAuthorId())))
+                    .orElse(false);
             default -> true; // TRADE/USER/CHAT = 기존 자동차단 유지
         };
     }

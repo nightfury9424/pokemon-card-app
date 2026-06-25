@@ -71,7 +71,7 @@ class ReportPersistenceTest {
         when(blockRepository.findByBlockerIdAndBlockedId(any(), any())).thenReturn(Optional.empty());
         when(blockRepository.saveAndFlush(any())).thenThrow(new RuntimeException("block fail"));
         long before = reportRepository.count();
-        assertThatThrownBy(() -> reportService.create("u1", "USER", "victim", "INSULT", null, "victim"))
+        assertThatThrownBy(() -> reportService.create("u1", "USER", "victim", "INSULT", null, "victim", true))
                 .isInstanceOf(RuntimeException.class);
         assertThat(reportRepository.count()).isEqualTo(before); // 신고 미저장(롤백)
     }
