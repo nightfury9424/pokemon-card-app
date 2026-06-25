@@ -17,17 +17,19 @@ public interface CardRepository extends JpaRepository<Card, String> {
      */
     @Query(nativeQuery = true, value = """
             SELECT c.* FROM cards c
-            WHERE LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%'))
-               OR EXISTS (SELECT 1 FROM products p
-                          WHERE p.product_id = c.product_id
-                            AND LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)) LIKE LOWER(CONCAT('%', :name, '%')))
+            WHERE c.is_visible = true
+              AND (LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%'))
+                   OR EXISTS (SELECT 1 FROM products p
+                              WHERE p.product_id = c.product_id
+                                AND LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)) LIKE LOWER(CONCAT('%', :name, '%'))))
             """)
     List<Card> searchByCardNameOrProductName(@Param("name") String name);
 
     /** 카드명 OR 세트명(「」 고유명 우선) + 언어 제한. */
     @Query(nativeQuery = true, value = """
             SELECT c.* FROM cards c
-            WHERE c.language = :language
+            WHERE c.is_visible = true
+              AND c.language = :language
               AND (LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%'))
                    OR EXISTS (SELECT 1 FROM products p
                               WHERE p.product_id = c.product_id
