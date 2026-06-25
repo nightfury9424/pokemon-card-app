@@ -91,6 +91,25 @@ class BoardWriteServiceTest {
         assertThat(cap.getValue().isAdmin()).isFalse();
     }
 
+    @Test void createAdminComment_freeType_rejected_noSave() {
+        // ★운영팀 댓글은 공식글(notice/event/patch)만 — 자유글에 Admin endpoint 작성 시 서버가 403(버튼 숨김만으로 끝내지 않음).
+        when(adminAuth.isAdmin("admin1")).thenReturn(true);
+        when(postRepo.findById("f")).thenReturn(Optional.of(post("f", "free", "community", "u1", "ACTIVE", null)));
+        assertThatThrownBy(() -> service.createAdminComment("admin1", "f", new CreateCommentRequest("운영팀 댓글", null)))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
+        verify(commentRepo, never()).save(any());
+    }
+
+    @Test void createAdminComment_banned_rejected_noSave() {
+        // ★운영팀 댓글도 콘텐츠 정책 동일 적용 — 금칙어 위반 시 거부(admin=true 표시·차단불가와는 별개, 면제 아님).
+        when(adminAuth.isAdmin("admin1")).thenReturn(true);
+        when(postRepo.findById("n")).thenReturn(Optional.of(post("n", "notice", "official", "admin1", "ACTIVE", null)));
+        doThrow(new ContentPolicyViolationException("x")).when(contentPolicy).check(any());
+        assertThatThrownBy(() -> service.createAdminComment("admin1", "n", new CreateCommentRequest("비속어", null)))
+                .isInstanceOf(ContentPolicyViolationException.class);
+        verify(commentRepo, never()).save(any());
+    }
+
     // ── createPost ──
     @Test void createPost_userType_derives_section_and_author() {
         when(postRepo.save(any())).thenAnswer(i -> i.getArgument(0));

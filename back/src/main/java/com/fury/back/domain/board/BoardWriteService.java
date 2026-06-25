@@ -183,9 +183,13 @@ public class BoardWriteService {
         if (!BoardTaxonomy.isBoardVisibleType(post.getType())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "댓글을 작성할 수 없는 게시글입니다.");
         }
+        // ★운영팀(Admin 웹) 댓글·대댓글은 공식 게시글(notice/event/patch)에만. 일반글(free 등)은 Admin endpoint 로 작성 금지(서버 강제).
+        if (asAdmin && !BoardTaxonomy.isAdminType(post.getType())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "운영팀 댓글은 공식 게시글에만 작성할 수 있습니다.");
+        }
 
         String content = clean(req.content(), COMMENT_MAX, "댓글");
-        if (!asAdmin) rejectBanned(content); // 운영팀 댓글은 금칙어 게이트 제외(신뢰 주체)
+        rejectBanned(content); // ★운영팀 댓글도 동일하게 콘텐츠 정책 적용(admin=true 표시·차단불가와는 별개 — 면제 아님)
 
         String parentId = req.parentCommentId();
         if (parentId != null) {
