@@ -77,5 +77,6 @@ docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db -c \
 - CP1.5 라이브 스모크(SMOKETEST 통제데이터): 공식글 신고 block0 / dedup per-target / 자유글 autoblock / OTHER 400·성공 / 운영팀 댓글 200·is_admin=t·자유글 403 — 전부 PASS, 잔존 0.
 
 ## 현재 진행 상태 (2026-06-26)
-**완료(운영 반영됨)**: DB migration COMMIT · Backend 이미지 `946045c4...` 운영 기동 · Backend healthy · CP1.5 운영 라이브 스모크 통과.
-**미실행(금지)**: Admin dist 교체 · nightfury 기존 block row 삭제 · IPA/TestFlight · App Store 제출.
+**완료(운영 반영됨)**: DB migration COMMIT · Backend `946045c4` 기동·healthy · CP1.5 라이브 스모크 · **Admin dist 신규(9zQVtCbW) 교체** · CP2 서버 스모크 · **#4 신고처리 라이브** · **#11 nightfury 오차단 삭제(blocks=0·재발0)** · **#13 운영팀 댓글 라이브(is_admin=true 2건)** · SMOKETEST 전량 cleanup(잔존0).
+**새 IPA(빌드 완료, 업로드 대기)**: `front.ipa` 46.6MB · 버전 1.0.4 · build **202606260712** · arm64-only · SHA-256 `bcb103f589e60ce407b2ec9bc9aa1b4fbfbdb833f2b26bf0db636402ce54f2db`.
+**미실행(금지)**: TestFlight 업로드(사용자 Transporter) · App Store 제출.
