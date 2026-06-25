@@ -163,4 +163,32 @@ void main() {
       findsOneWidget,
     );
   });
+
+  // ★기타(OTHER) 사유 직접입력 필수 — 빈칸이면 제출 비활성, 입력하면 활성.
+  testWidgets('기타 사유: 빈 detail → 제출 비활성 / 입력 시 활성', (t) async {
+    await _openSheet(t);
+    await t.tap(find.text('기타'));
+    await t.pumpAndSettle();
+    final detail = find.byKey(const Key('report_detail_field')); // 시트 상세입력(고유 키)
+    expect(t.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '신고 접수')).onPressed,
+        isNull); // 빈칸 → 비활성
+    await t.enterText(detail, '직접 사유');
+    await t.pump();
+    expect(t.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '신고 접수')).onPressed,
+        isNotNull); // 입력 → 활성
+  });
+
+  // ★기타에 입력 후 다른 사유로 바꾸면 직접사유가 잔류·오전송되지 않게 clear.
+  testWidgets('기타 입력 후 다른 사유로 변경 → 직접사유 잔류 제거', (t) async {
+    await _openSheet(t);
+    await t.tap(find.text('기타'));
+    await t.pumpAndSettle();
+    final detail = find.byKey(const Key('report_detail_field'));
+    await t.enterText(detail, '직접 사유 입력');
+    await t.pump();
+    expect(t.widget<TextField>(detail).controller!.text, '직접 사유 입력');
+    await t.tap(find.text('스팸 / 광고')); // 다른 사유 선택
+    await t.pumpAndSettle();
+    expect(t.widget<TextField>(detail).controller!.text, isEmpty); // ★잔류 detail 제거(오전송 방지)
+  });
 }

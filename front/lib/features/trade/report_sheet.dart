@@ -84,6 +84,7 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
 
   Future<void> _submit() async {
     if (_reasonCode == null || _submitting) return;
+    if (_reasonCode == 'OTHER' && _detail.text.trim().isEmpty) return; // 기타=직접 사유 필수
     setState(() => _submitting = true);
     try {
       final res = await ApiClient.post('/api/reports', {
@@ -91,7 +92,8 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
           'targetType': widget.targetType,
           'targetId': widget.targetId,
           'reason': _reasonCode,
-          'detail': _detail.text.trim(),
+          // 빈칸이면 null(OTHER 외 불필요 detail 미전송 — 사유 변경 시 clear 와 함께 잔류 custom reason 차단).
+          'detail': _detail.text.trim().isEmpty ? null : _detail.text.trim(),
         },
       });
       if (!mounted) return;
@@ -111,6 +113,9 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isOther = _reasonCode == 'OTHER';
+    // ★기타 선택 시 직접 사유 필수 — trim 후 빈칸이면 제출 불가(placeholder도 '필수'로 전환).
+    final bool detailMissing = isOther && _detail.text.trim().isEmpty;
     return PopScope(
       canPop: !_submitting, // 제출 중 시스템 뒤로가기 차단(배경탭·드래그는 showModalBottomSheet 에서 항상 차단)
       child: SafeArea(
@@ -189,7 +194,10 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: GestureDetector(
-                  onTap: () => setState(() => _reasonCode = r['code']),
+                  onTap: () => setState(() {
+                    if (_reasonCode != r['code']) _detail.clear(); // 사유 변경 시 이전 입력(특히 OTHER 직접사유) 잔류·오전송 방지
+                    _reasonCode = r['code'];
+                  }),
                   behavior: HitTestBehavior.opaque,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -229,12 +237,14 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
             }),
             const SizedBox(height: 8),
             TextField(
+              key: const Key('report_detail_field'),
               controller: _detail,
+              onChanged: (_) => setState(() {}), // 기타 사유 입력 시 제출 버튼 활성/비활성 실시간 반영
               maxLines: 3,
               maxLength: 500,
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
               decoration: InputDecoration(
-                hintText: '상세 내용을 입력해 주세요 (선택)',
+                hintText: isOther ? '신고 사유를 입력해 주세요 (필수)' : '상세 내용을 입력해 주세요 (선택)',
                 hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
                 filled: true,
                 fillColor: AppColors.surface,
@@ -255,7 +265,7 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
-                onPressed: (_reasonCode == null || _submitting) ? null : _submit,
+                onPressed: (_reasonCode == null || _submitting || detailMissing) ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.red,
                   disabledBackgroundColor: AppColors.surface,
