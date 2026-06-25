@@ -164,6 +164,7 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
         final r = await widget.repository.fetchList(
           section: _section,
           type: _type,
+          q: _query.isEmpty ? null : _query, // ★검색 중 상세 복귀 시 검색 결과 보존(기존 _silentReload 가 q 누락 → 전체목록 복원 버그)
           page: p,
           size: _pageSize,
         );
@@ -242,6 +243,7 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
 
   // 상세 진입. 상세에서 수정·삭제(비-null 결과) 발생 시 목록 갱신.
   Future<void> _openDetail(BoardPost post) async {
+    FocusScope.of(context).unfocus(); // ★상세 진입 전 키보드 닫기 — 검색 모드·검색어·결과는 유지, 복귀 시 자동 재오픈 안 함.
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => BoardDetailScreen(
@@ -273,6 +275,8 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
             ? TextField(
                 controller: _searchCtrl,
                 autofocus: true,
+                maxLines: 1, // ★항상 한 줄
+                textAlignVertical: TextAlignVertical.center, // ★입력·힌트·X 버튼 수직 중앙(2줄처럼 보이는 현상 제거)
                 textInputAction: TextInputAction.search,
                 maxLength: _maxQueryLen,
                 buildCounter: (_, {required int currentLength, required bool isFocused, int? maxLength}) => null,

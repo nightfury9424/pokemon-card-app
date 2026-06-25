@@ -49,6 +49,35 @@ class _Repo extends BoardRepository {
 BoardComment _c(int i) =>
     BoardComment(id: 'c$i', author: 'u', body: 'x', createdAt: DateTime(2026, 1, 1));
 
+/// 검색어(q) 전달을 기록 — silentReload(복귀) 시 검색어 보존 검증용.
+class _QRepo extends BoardRepository {
+  String? lastQ;
+  @override
+  Future<BoardListResult> fetchList({
+    String? section,
+    String? type,
+    String? q,
+    bool pinnedOnly = false,
+    int page = 0,
+    int size = 20,
+  }) async {
+    lastQ = q;
+    final posts = page > 0
+        ? <BoardPost>[]
+        : [
+            BoardPost(
+                id: '1',
+                type: BoardType.free,
+                title: '리자몽 글',
+                body: '본문',
+                author: 'u',
+                createdAt: DateTime(2026, 1, 1)),
+          ];
+    return BoardListResult(
+        posts: posts, page: page, size: size, totalPages: 1, totalElements: posts.length);
+  }
+}
+
 void main() {
   for (final w in <double>[375, 430]) {
     testWidgets('목록 오버플로 0 — ${w.toInt()}px (7 pill 탭·긴 제목/닉네임)', (t) async {
@@ -80,5 +109,31 @@ void main() {
     final viewX = t.getCenter(find.byIcon(Icons.visibility_outlined).first).dx;
     expect(likeX, lessThan(commentX), reason: '좋아요가 댓글보다 왼쪽');
     expect(commentX, lessThan(viewX), reason: '댓글이 조회보다 왼쪽');
+  });
+
+  testWidgets('#7 검색창: 1줄(maxLines 1)·X버튼·320px overflow 0 + 복귀(silentReload) 시 검색어 보존', (t) async {
+    t.view.devicePixelRatio = 1.0;
+    t.view.physicalSize = const Size(320, 640);
+    addTearDown(() => t.view.resetPhysicalSize());
+    final repo = _QRepo();
+    await t.pumpWidget(MaterialApp(home: BoardScreen(repository: repo)));
+    await t.pumpAndSettle();
+    // 검색 모드 진입 → 검색어 입력
+    await t.tap(find.byIcon(Icons.search));
+    await t.pumpAndSettle();
+    await t.enterText(find.byType(TextField), '리자몽');
+    await t.pump(const Duration(milliseconds: 400)); // debounce
+    await t.pumpAndSettle();
+    // ★1줄 + 수직중앙 + X 버튼(overflow 나면 pumpWidget 단계에서 자동 실패)
+    final tf = t.widget<TextField>(find.byType(TextField));
+    expect(tf.maxLines, 1);
+    expect(tf.textAlignVertical, TextAlignVertical.center);
+    expect(find.byIcon(Icons.clear), findsOneWidget);
+    expect(repo.lastQ, '리자몽'); // 검색어 적용됨
+    // ★상세 복귀(앱 resume → silentReload) 시 검색어 보존
+    repo.lastQ = null;
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await t.pumpAndSettle();
+    expect(repo.lastQ, '리자몽', reason: '복귀(silentReload)에도 검색어 유지(전체목록 복원 방지)');
   });
 }
