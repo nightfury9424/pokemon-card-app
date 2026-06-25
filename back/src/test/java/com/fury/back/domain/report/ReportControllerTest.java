@@ -124,6 +124,42 @@ class ReportControllerTest {
     }
 
     @Test
+    void boardComment_differentTarget_sameAuthor_delegates() {
+        // ★#10: 같은 작성자의 다른 댓글은 각각 신고 가능(per-target).
+        when(boardCommentRepository.findById("c2")).thenReturn(
+                Optional.of(BoardComment.builder().commentId("c2").authorId("author2").content("b").build()));
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId("reporter", "BOARD_COMMENT", "c2")).thenReturn(false);
+        when(reportService.create(any(), any(), any(), any(), any(), any(), anyBoolean())).thenReturn("rid");
+        controller.create(req("reporter"), body("BOARD_COMMENT", "c2", "SPAM"));
+        verify(reportService).create("reporter", "BOARD_COMMENT", "c2", "SPAM", null, "author2", true);
+    }
+
+    @Test
+    void boardComment_duplicate_sameTarget_rejected_noDelegate() {
+        // ★#10: 동일 댓글 재신고는 400(per-target).
+        when(boardCommentRepository.findById("c1")).thenReturn(
+                Optional.of(BoardComment.builder().commentId("c1").authorId("author2").content("b").build()));
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId("reporter", "BOARD_COMMENT", "c1")).thenReturn(true);
+        controller.create(req("reporter"), body("BOARD_COMMENT", "c1", "SPAM"));
+        verify(reportService, never()).create(any(), any(), any(), any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void boardPost_and_comment_sameTargetId_independent() {
+        // ★#10: BOARD_POST 와 BOARD_COMMENT 의 targetId 가 같아도 targetType 이 달라 독립 dedup → 둘 다 위임.
+        when(boardPostRepository.findById("x1")).thenReturn(Optional.of(post("x1", "author1")));
+        when(boardCommentRepository.findById("x1")).thenReturn(
+                Optional.of(BoardComment.builder().commentId("x1").authorId("author2").content("b").build()));
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId("reporter", "BOARD_POST", "x1")).thenReturn(false);
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId("reporter", "BOARD_COMMENT", "x1")).thenReturn(false);
+        when(reportService.create(any(), any(), any(), any(), any(), any(), anyBoolean())).thenReturn("rid");
+        controller.create(req("reporter"), body("BOARD_POST", "x1", "INSULT"));
+        controller.create(req("reporter"), body("BOARD_COMMENT", "x1", "SPAM"));
+        verify(reportService).create("reporter", "BOARD_POST", "x1", "INSULT", null, "author1", true);
+        verify(reportService).create("reporter", "BOARD_COMMENT", "x1", "SPAM", null, "author2", true);
+    }
+
+    @Test
     void invalidType_rejected_noDelegate() {
         controller.create(req("reporter"), body("WHATEVER", "x", "INSULT"));
         verify(reportService, never()).create(any(), any(), any(), any(), any(), any(), anyBoolean());
