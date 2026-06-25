@@ -584,15 +584,15 @@ class PostRow extends StatelessWidget {
                   runSpacing: 4,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    _meta(Icons.visibility_outlined, post.viewCount),
+                    // ★순서 좋아요→댓글→조회로 통일 + 0 포함 항상 표시(조건부 숨김 제거). 좋아요 토글은 상세에서.
+                    //   내가 누른 글=파란 채운 하트, 안 누름/0=빈 하트.
+                    _meta(
+                      post.likedByMe ? Icons.favorite : Icons.favorite_border,
+                      post.likeCount,
+                      color: post.likedByMe ? AppColors.blue : null,
+                    ),
                     _meta(Icons.chat_bubble_outline_rounded, post.commentCount),
-                    // ★좋아요 표시(토글은 상세) — 공식글 포함 모든 노출글. 내가 누른 글=파란 채운 하트.
-                    if (post.likeCount > 0)
-                      _meta(
-                        post.likedByMe ? Icons.favorite : Icons.favorite_border,
-                        post.likeCount,
-                        color: post.likedByMe ? AppColors.blue : null,
-                      ),
+                    _meta(Icons.visibility_outlined, post.viewCount),
                   ],
                 ),
               ],

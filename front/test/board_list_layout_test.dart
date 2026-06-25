@@ -63,4 +63,22 @@ void main() {
       }
     });
   }
+
+  testWidgets('#6 카운터: likeCount 0 도 좋아요 표시 + 순서 좋아요→댓글→조회 (공지/비공식 동일·검색결과 동일 빌더)', (t) async {
+    t.view.devicePixelRatio = 1.0;
+    t.view.physicalSize = const Size(430, 900);
+    addTearDown(() => t.view.resetPhysicalSize());
+    await t.pumpWidget(MaterialApp(home: BoardScreen(repository: _Repo())));
+    await t.pumpAndSettle();
+    // ★조건부 숨김 제거 — likeCount 0(두 글 다 0)이어도 좋아요(빈 하트) 표시. 댓글·조회도 항상.
+    expect(find.byIcon(Icons.favorite_border), findsWidgets);
+    expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsWidgets);
+    expect(find.byIcon(Icons.visibility_outlined), findsWidgets);
+    // ★순서: 첫 글 기준 좋아요 → 댓글 → 조회 (x 좌표 좌→우)
+    final likeX = t.getCenter(find.byIcon(Icons.favorite_border).first).dx;
+    final commentX = t.getCenter(find.byIcon(Icons.chat_bubble_outline_rounded).first).dx;
+    final viewX = t.getCenter(find.byIcon(Icons.visibility_outlined).first).dx;
+    expect(likeX, lessThan(commentX), reason: '좋아요가 댓글보다 왼쪽');
+    expect(commentX, lessThan(viewX), reason: '댓글이 조회보다 왼쪽');
+  });
 }
