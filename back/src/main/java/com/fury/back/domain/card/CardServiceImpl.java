@@ -58,6 +58,8 @@ public class CardServiceImpl implements CardService {
     private final TradePostRepository tradePostRepository;
     private final BuyOrderRepository buyOrderRepository;
     private final CardInterestRepository cardInterestRepository;
+    // 카드 마스터 이미지 S3 업로드용 — prod는 S3(cards/v1/{lang}/{id}.png)에서만 서빙(로컬은 dev전용).
+    private final com.fury.back.storage.ImageStorageService imageStorage;
 
     private static final Duration MARKET_COUNT_CACHE_TTL = Duration.ofMinutes(5);
     private final Map<String, CountCacheEntry> marketCountCache = new ConcurrentHashMap<>();
@@ -128,6 +130,72 @@ public class CardServiceImpl implements CardService {
                 "priceFetch", priceFetch);
     }
 
+    /**
+     * 관리자 폼 카드 추가(INSERT 만). official_card_code / super / sub 보존 + is_visible=true 명시.
+     * ★isVisible 은 Boolean 인데 @Builder.Default 가 없어 미지정 시 null INSERT → 비가시 회귀.
+     * 시세/이미지 보강은 호출측(AdminController)이 커밋 후 enrichCardAfterAdd 로 분리(틱 교훈: 보강 실패가
+     * 카드 추가 자체를 롤백하지 않도록).
+     */
+    @Override
+    @Transactional
+    public Map<String, Object> addCardFromAdmin(AdminAddCardRequest req) {
+        if (req == null) throw new IllegalArgumentException("요청 본문은 필수입니다.");
+        if (blankToNull(req.name()) == null)       throw new IllegalArgumentException("name은 필수입니다.");
+        if (blankToNull(req.productId()) == null)  throw new IllegalArgumentException("productId는 필수입니다.");
+        if (blankToNull(req.rarityCode()) == null) throw new IllegalArgumentException("rarityCode는 필수입니다.");
+
+        String language = "KO".equals(req.type()) ? "KO" : "EN".equals(req.type()) ? "EN" : "JP";
+        String officialCode = blankToNull(req.officialCardCode());
+        String cardId = generateCardId();
+
+        Card card = Card.builder()
+                .cardId(cardId)
+                .productId(req.productId())
+                .officialCardCode(officialCode != null ? officialCode : "")
+                .name(req.name())
+                .collectionNumber(blankToNull(req.collectionNumber()))
+                .rarityCode(blankToNull(req.rarityCode()))
+                .language(language)
+                .superType(blankToNull(req.superType()) != null ? req.superType() : "POKEMON")
+                .subType(blankToNull(req.subType()))
+                .enScrydexRef(blankToNull(req.enScrydexRef()))
+                .jpScrydexRef(blankToNull(req.jpScrydexRef()))
+                .isVisible(true)
+                .isPromoExclusive(false)
+                .build();
+        Card saved = cardRepository.save(card);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("cardId", saved.getCardId());
+        out.put("name", saved.getName());
+        out.put("type", req.type());
+        out.put("officialCardCode", saved.getOfficialCardCode());
+        out.put("isVisible", saved.getIsVisible());
+        return out;
+    }
+
+    /**
+     * 추가 직후 보강 — scrydex 이미지 다운로드 + KO 예상가 즉시 계산/저장.
+     * 카드가 이미 커밋된 뒤 호출됨. ★NOT_SUPPORTED — 클래스레벨 @Transactional(readOnly=true)를 명시적으로 정지시켜
+     * 트랜잭션 밖에서 돌린다. (이게 없으면 triggerPriceFetchForCard(@Transactional REQUIRED)가 readOnly 트랜잭션에
+     * join → Hibernate flush 안 됨 → save() 가 메모리에만 남고 실제 INSERT 0건이 되는 버그). 이제 triggerPriceFetchForCard
+     * 가 자기 자신의 쓰기 가능 트랜잭션을 새로 연다. HTTP(scrydex)+이미지 다운로드도 트랜잭션 밖 → DB 커넥션 점유 방지.
+     */
+    @Override
+    @org.springframework.transaction.annotation.Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    public Map<String, Object> enrichCardAfterAdd(String cardId, String enScrydexRef, String jpScrydexRef) {
+        String enRef = blankToNull(enScrydexRef);
+        String jpRef = blankToNull(jpScrydexRef);
+        Map<String, Object> priceFetch = globalPriceService.triggerPriceFetchForCard(cardId);
+        List<String> images = downloadImagesAfterCommit(cardId, jpRef, enRef);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("cardId", cardId);
+        out.put("images", images);
+        out.put("priceFetch", priceFetch);
+        return out;
+    }
+
     // @Transactional 없음 — 파일 I/O + DB update를 트랜잭션 밖에서 처리
     private List<String> downloadImagesAfterCommit(String cardId, String jpRef, String enRef) {
         List<String> saved = new ArrayList<>();
@@ -164,6 +232,13 @@ public class CardServiceImpl implements CardService {
             Files.createDirectories(dir);
             Path imgPath = dir.resolve(cardId + "_" + lang + ".png");
             Files.write(imgPath, res.body());
+            // ★prod는 카드 이미지를 S3에서만 서빙(useLocalCardImages=false). 로컬다운만으론 화면에 안 보임 →
+            // CardCdnUrls 키 구조(cards/v1/{lang}/{cardId}.png)로 S3 업로드. 실패해도 로컬은 저장됐으니 격리.
+            try {
+                imageStorage.putRaw("cards/v1/" + lang + "/" + cardId + ".png", res.body(), "image/png");
+            } catch (Exception e) {
+                log.warn("[Card] S3 업로드 실패(로컬만 저장됨): cardId={}, lang={}, err={}", cardId, lang, e.getMessage());
+            }
             return Optional.of(imgPath.toString());
         } catch (Exception e) {
             log.warn("이미지 다운로드 실패: cardId={}, ref={}, err={}", cardId, ref, e.getMessage());
@@ -239,8 +314,8 @@ public class CardServiceImpl implements CardService {
                 koBasis = "RAW";
             }
         } else if (koEst != null) {
-            // KO_ESTIMATED DB 저장값 우선 (배치 결과 재사용)
-            ko = koEst.getPrice();
+            // KO_ESTIMATED DB 저장값 우선 (배치 결과 재사용). 셀 표시 = chart_price(±3% 생동감), 없으면 price.
+            ko = koEst.getDisplayPrice();
         } else {
             // live fallback — 레어도별 계수 + 환율로 SCRYDEX_JP/EN에서 KO 계산
             MarketCoefficientDto coeff = coefficientCache.getOrNull();
@@ -292,7 +367,7 @@ public class CardServiceImpl implements CardService {
         if (name == null || name.isBlank()) {
             return ReturnData.badRequest("name은 필수입니다.");
         }
-        List<CardSearchDto> result = cardRepository.findByNameContainingIgnoreCase(name)
+        List<CardSearchDto> result = cardRepository.searchByCardNameOrProductName(name)
                 .stream()
                 .map(CardSearchDto::from)
                 .toList();
@@ -308,7 +383,7 @@ public class CardServiceImpl implements CardService {
             return searchCards(name);
         }
         List<CardSearchDto> result = cardRepository
-                .findByNameContainingIgnoreCaseAndLanguage(name, language.toUpperCase())
+                .searchByCardNameOrProductNameAndLanguage(name, language.toUpperCase())
                 .stream()
                 .map(CardSearchDto::from)
                 .toList();
@@ -652,10 +727,10 @@ public class CardServiceImpl implements CardService {
                                     ko = null;
                                 }
                             } else {
-                                // KO_ESTIMATED DB 저장값 우선 — 없으면 live 계산 fallback
+                                // KO_ESTIMATED DB 저장값 우선 — 없으면 live 계산 fallback. 셀=chart_price(생동감).
                                 PriceSnapshot koEst = koEstMap.get(cid);
                                 if (koEst != null) {
-                                    ko = koEst.getPrice();
+                                    ko = koEst.getDisplayPrice();
                                 } else {
                                     PriceSnapshot src = globalPriceService.selectScrydexSnapshotForKo(
                                             cid, rarity, jpSnap, enSnap, usdToKrw, jpyToKrw, null);

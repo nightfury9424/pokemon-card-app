@@ -9,28 +9,31 @@ import java.util.List;
 public interface CardRepository extends JpaRepository<Card, String> {
     List<Card> findByProductId(String productId);
 
-    /** ★카드명 OR 세트(상품)명 부분일치 — '어비스아이'(세트명) 검색 시 그 세트 카드 전부 조회. 기존 카드명 검색은 OR 추가라 보존. */
+    /**
+     * ★카드명 OR 세트(상품)명 부분일치. 세트명은 「」 안 고유명 우선(없으면 전체명)으로 매칭 —
+     * '확장팩/소드/MEGA' 같은 공통 boilerplate 폭발(2494장 등)을 막는다.
+     * '어비스아이'→그 세트, '어비스'→어비스아이+로스트어비스. 카드명 부분일치는 OR 추가라 기존 그대로 보존.
+     * (정렬은 기존 파생 메서드와 동일하게 미지정 — 검색 결과 순서 변경 없음.)
+     */
     @Query(nativeQuery = true, value = """
             SELECT c.* FROM cards c
             WHERE LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%'))
                OR EXISTS (SELECT 1 FROM products p
                           WHERE p.product_id = c.product_id
-                            AND LOWER(p.name) LIKE LOWER(CONCAT('%', :name, '%')))
-            ORDER BY c.name ASC
+                            AND LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)) LIKE LOWER(CONCAT('%', :name, '%')))
             """)
-    List<Card> findByNameContainingIgnoreCase(@Param("name") String name);
+    List<Card> searchByCardNameOrProductName(@Param("name") String name);
 
-    /** 카드명 OR 세트명 + 언어 제한. (세트명 매칭도 동일 언어로 한정) */
+    /** 카드명 OR 세트명(「」 고유명 우선) + 언어 제한. */
     @Query(nativeQuery = true, value = """
             SELECT c.* FROM cards c
             WHERE c.language = :language
               AND (LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%'))
                    OR EXISTS (SELECT 1 FROM products p
                               WHERE p.product_id = c.product_id
-                                AND LOWER(p.name) LIKE LOWER(CONCAT('%', :name, '%'))))
-            ORDER BY c.name ASC
+                                AND LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)) LIKE LOWER(CONCAT('%', :name, '%'))))
             """)
-    List<Card> findByNameContainingIgnoreCaseAndLanguage(@Param("name") String name, @Param("language") String language);
+    List<Card> searchByCardNameOrProductNameAndLanguage(@Param("name") String name, @Param("language") String language);
 
     List<Card> findByLanguage(String language);
 
