@@ -342,18 +342,22 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
     }
   }
 
+  // AppBar 뒤로 버튼 핸들러 — 변경 발생 시 목록 갱신 신호('changed') 전달, 변경 진행 중이면 차단.
+  void _handleBack() {
+    if (_hasPendingMutation) return; // 변경 진행 중 — 완료 후 가능
+    Navigator.of(context).pop(_changed ? 'changed' : null);
+  }
+
   @override
   Widget build(BuildContext context) {
     final titleType = (_post ?? widget.summary)?.type;
     return PopScope(
-      canPop: false,
+      // 2026-06-26: iOS edge-swipe / 시스템 뒤로 기본 허용(canPop=true) → 스와이프 뒤로가기 복구.
+      //   단 상태변경(좋아요·댓글 작성/삭제·게시글 삭제·차단) 진행 중에만 차단(요청 유실 방지).
+      //   스와이프 닫힘은 결과 null — 목록 갱신은 복귀 시 board_screen 의 _silentReload 가 무조건 수행.
+      canPop: !_hasPendingMutation,
       onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        // ★상태 변경 요청(좋아요·댓글 작성/삭제·게시글 삭제) 진행 중엔 닫지 않음 — 닫으면 dispose 로
-        //   성공 결과(_changed/목록 동기화)가 유실됨. AppBar 뒤로·iOS swipe-back 모두 PopScope(canPop:false)
-        //   경로라 함께 막힘. 완료/실패 후 재시도 가능.
-        if (_hasPendingMutation) return;
-        Navigator.of(context).pop(_changed ? 'changed' : null); // 좋아요/댓글 변경 → 목록 갱신
+        // didPop=false = 진행 중 변경으로 차단됨. 완료 후 재시도 가능(별도 처리 불필요).
       },
       child: Scaffold(
       backgroundColor: AppColors.bg,
@@ -363,6 +367,8 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
         elevation: 0,
         scrolledUnderElevation: 0,
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        // 뒤로 버튼: 변경 결과('changed')를 목록에 전달 + 진행 중 가드. (iOS 스와이프는 canPop 경로=네이티브 null)
+        leading: BackButton(onPressed: _handleBack),
         title: Text(titleType?.label ?? '게시글',
             style: const TextStyle(
                 color: AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 16)),
@@ -411,6 +417,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
     //   (게시글 자체 수정·삭제만 관리자 전용 — 그건 서버 canEdit/canDelete 로 게이트)
     final content = ListView(
       controller: _scrollCtrl,
+      physics: const AlwaysScrollableScrollPhysics(), // 짧은 글에서도 당겨서 새로고침 가능
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       children: [
         _header(post),
@@ -434,7 +441,17 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
       ],
     );
 
-    return Column(children: [Expanded(child: content), _commentBar()]);
+    return Column(children: [
+      // 상세 당겨서 새로고침 — _reload(무플래시: 본문·이미지·좋아요·댓글·대댓글·상태 재조회, 기존 API 재사용).
+      Expanded(
+        child: RefreshIndicator(
+          onRefresh: _reload,
+          color: AppColors.blue,
+          child: content,
+        ),
+      ),
+      _commentBar(),
+    ]);
   }
 
   Widget _header(BoardPost post) {

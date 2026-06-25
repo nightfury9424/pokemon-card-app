@@ -117,7 +117,7 @@ class DexViewState extends State<DexView> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 36),
                 child: Text(
-                  '추천 시리즈 ${d.products.length}개 표시 · 전체 ${d.totalProducts}개',
+                  '최신 발매 시리즈 ${d.products.length}개 표시 · 전체 ${d.totalProducts}개',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
                 ),
@@ -143,7 +143,7 @@ class _Header extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text('추천 시리즈',
+              const Text('최신 발매 시리즈',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 17,

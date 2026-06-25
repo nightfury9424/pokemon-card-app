@@ -2708,7 +2708,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          '$koLabel  ·  대표가 ${_formatPrice(koMid)}',
+                          // 2026-06-26: 비프로모 'KO 예상 가치'는 '한국판 예상가' 칩과 의미중복 → 제거(가로공간 확보).
+                          //   프로모(koLabel='JP 시세' 등)는 칩과 중복 아니므로 유지.
+                          koLabel == 'KO 예상 가치'
+                              ? '대표가 ${_formatPrice(koMid)}'
+                              : '$koLabel  ·  대표가 ${_formatPrice(koMid)}',
                           style: const TextStyle(color: Colors.white38, fontSize: 11),
                           overflow: TextOverflow.ellipsis,
                         ),
