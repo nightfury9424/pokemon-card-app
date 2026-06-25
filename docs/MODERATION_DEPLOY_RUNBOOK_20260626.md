@@ -76,5 +76,6 @@ docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db -c \
 - migration COMMIT은 즉시(2-row 테이블), 정상 교체 시 Backend Started ~13s. 단 1차 실패로 **구 Backend+신규 index 노출 ~2분** 발생 — 그 구간 5xx **0**(구 앱이 app-level dedup으로 먼저 차단). 2차에서 `back` 서비스명으로 정상 교체(실행 .Image=946045c4 확인).
 - CP1.5 라이브 스모크(SMOKETEST 통제데이터): 공식글 신고 block0 / dedup per-target / 자유글 autoblock / OTHER 400·성공 / 운영팀 댓글 200·is_admin=t·자유글 403 — 전부 PASS, 잔존 0.
 
-## 미실행(금지) — 네 승인 전
-DB COMMIT · 신규 이미지 latest 전환·기동 · Admin dist 교체 · nightfury 삭제 · IPA 생성 · TestFlight · App Store 제출
+## 현재 진행 상태 (2026-06-26)
+**완료(운영 반영됨)**: DB migration COMMIT · Backend 이미지 `946045c4...` 운영 기동 · Backend healthy · CP1.5 운영 라이브 스모크 통과.
+**미실행(금지)**: Admin dist 교체 · nightfury 기존 block row 삭제 · IPA/TestFlight · App Store 제출.
