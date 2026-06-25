@@ -19,20 +19,24 @@ docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db \
   < /opt/pokefolio/releases/moderation-20260626/back/sql/reports_dedup_migration.sql
 docker exec pokefolio-postgres psql -U pokefolio -d pokemon_card_db -c \
   "SELECT indexname FROM pg_indexes WHERE tablename='reports' AND indexname LIKE 'uq_%'"  # 2개 확인
-# 4) 신규 Backend 이미지 기동
-docker tag pokefolio-back:board-moderation-20260626 pokefolio-back:latest
+# 4) 신규 Backend 이미지 기동 — ★full SHA 명시(latest 의존 최소화)
+docker tag sha256:946045c416dea2620b44ec3954ed3e15794e284f679d5c8899341bf5e1656ba0 pokefolio-back:latest
 cd /opt/pokefolio/app && docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps pokefolio-back
+docker inspect --format='{{.Image}}' pokefolio-back   # ★946045c4... 인지 반드시 확인
 docker logs --tail 30 pokefolio-back | grep "Started BackApplication"   # health
-# 5) API 스모크: 공식글 신고→report 1·block 0 / 일반글 신고→자동차단 / 검색 어비스아이 39 / 신고처리 200
-# 6) Admin dist 교체
+# 5) Backend API 스모크: 공식글 신고→report 1·block 0 / 일반글 신고→자동차단 / 검색 어비스아이 39 / 신고처리 200
+# 6) Admin dist 교체 (기존 dist 백업 후 신규 dist 전체 교체)
 cd /opt/pokefolio/app/admin && cp -r dist dist.bak_pre_moderation_$(date +%Y%m%d_%H%M)
-#    (로컬 /tmp/admin_dist_new.tar.gz scp → prod → rm -rf dist/* && tar xzf … -C dist)
+#    (로컬 /tmp/admin_dist_final.tar.gz[SHA 1c3d7941] scp → prod → rm -rf dist/* && tar xzf … -C dist)
 # 7) Admin 스모크: 공지 미리보기·운영팀 댓글 작성·신고 첨부이미지 표시
-# 8) 점검 모드 OFF
-# 9) 전체 운영 스모크(이미지·문의·Card·Price·Auth 정상)
-# 10) nightfury 잘못된 차단 row 1건만 삭제 (#11)
+# 8) ★nightfury 잘못된 차단 row 정확히 1건 삭제 (#11) — 점검 OFF 전에
 docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db -c \
   "DELETE FROM blocks WHERE block_id='ae9500e5b6e340c69b864cd334cff887'"
+# 9) 삭제·재발 확인: nightfury blocked row 0 (공식글 재신고해도 자동차단 안 됨)
+docker exec pokefolio-postgres psql -U pokefolio -d pokemon_card_db -c \
+  "SELECT count(*) FROM blocks WHERE blocked_id='USR_F4B33078DB2B4672BEB0'"   # 0 이어야
+# 10) 점검 모드 OFF
+# 11) 사용자 관점 전체 스모크(이미지·문의·Card·Price·Auth 정상) → 통과 후에만 IPA
 ```
 
 ## Rollback
@@ -56,7 +60,7 @@ docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db -c \
 ## 배포 전 최종 검증 (4/4 통과, 2026-06-26)
 1. **최종 staging 소스 전체 테스트** — staging(prod base+내10) + 내 테스트 9파일 로컬 조립, `cleanTest test` = **252 / 0 fail / 0 error / 0 skip**(29클래스, #14 6/0·#15 8/0).
 2. **base==prod 증명(JAR)** — `7ee334d7` vs staging `946045c4` BOOT-INF/classes 차이 = **내 10 클래스만**(+BoardService$ImageSummary inner), 그 외 0 / BOOT-INF/lib **0 diff(236 jar)**. → boardimg-pathscoped-20260625 = `7ee334d7`의 정확한 소스 + staging = base+내10 확정.
-3. **admin baseline==live** — admin/ git 변경 = **Notices+Reports 2파일뿐**(Reports=live, package/lock/config 무변경). baseline JS≠live는 **번들러 환경 비결정성**(공통 prefix 3088B 후 전반분기·크기차 685B 0.08%·CSS 정확일치) = 소스변경 아님. 소스 delta vs live = **내 Notices뿐**.
+3. **admin 최종 dist vs live — 결정적 증명(한글 문자열 집합)**: 내 최종 dist(`9zQVtCbW`) vs live(`N8GFmNfy`) 한글 문자열 비교 = **live 에만 0개(제거 없음 — 상단고정 메시지·Reports 첨부이미지 전부 보존)** + **final 에만 24개 = 전부 내 Notices 추가**(앱 미리보기·운영팀 댓글/답글 입력 등). admin/ git 변경 = Notices+Reports 2파일뿐(Reports=live, package/lock/config 무변경). → **배포 delta = 내 Notices 추가뿐, 제거 0** 확정. (live JS≠baseline 해시차 원인 = live Notices의 uncommitted-but-live 상단고정 문자열, 내 working엔 이미 포함)
 4. **백업·마이그·롤백 사이클(임시 DB, ON_ERROR_STOP=1)** — schema/data 복원 OK → migration(uq 2개) OK → rollback(원본 정확복원) OK. nightfury 정확히 1건.
 
 ### 기록 SHA / 식별자
