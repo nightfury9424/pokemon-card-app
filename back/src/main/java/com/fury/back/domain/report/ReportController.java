@@ -83,13 +83,21 @@ public class ReportController {
         // ★자동차단 적용 여부 — 운영팀 대상(공식글 타입 OR 운영팀 작성자, 자유글 포함)은 자동차단 금지(신고만). 그 외는 기존대로.
         boolean autoBlock = resolveAutoBlock(targetType, targetId, reporterId);
 
-        // 1회 제한 — 같은 사용자를 이미 신고했으면 차단 (차단 풀고 재신고 방지).
-        if (targetUserId != null && !targetUserId.equals(reporterId)
-                && reportRepository.existsByReporterIdAndTargetUserId(reporterId, targetUserId)) {
-            return ReturnData.badRequest("이미 신고한 사용자입니다.");
-        }
-        // 대상 유저 해석 불가(BUY_ORDER 등) 시 기존 PENDING 중복 가드 유지.
-        if (targetUserId == null) {
+        // ★중복 신고 가드 — 게시판은 글/댓글 단위(reporter+type+id), 그 외는 사용자 단위(기존 정책 보존). DB partial unique 와 일치.
+        boolean isBoard = "BOARD_POST".equals(targetType) || "BOARD_COMMENT".equals(targetType);
+        if (isBoard) {
+            // 게시판: 같은 작성자의 다른 글·댓글은 각각 신고 가능, 같은 글/댓글 재신고만 차단.
+            if (reportRepository.existsByReporterIdAndTargetTypeAndTargetId(reporterId, targetType, targetId)) {
+                return ReturnData.badRequest("BOARD_COMMENT".equals(targetType)
+                        ? "이미 신고한 댓글입니다." : "이미 신고한 게시글입니다.");
+            }
+        } else if (targetUserId != null && !targetUserId.equals(reporterId)) {
+            // USER/TRADE/CHAT: 같은 사용자 1회 제한(차단 풀고 재신고 방지) — 기존 정책 그대로.
+            if (reportRepository.existsByReporterIdAndTargetUserId(reporterId, targetUserId)) {
+                return ReturnData.badRequest("이미 신고한 사용자입니다.");
+            }
+        } else {
+            // 대상 유저 해석 불가(BUY_ORDER 등): 기존 PENDING per-target 가드 유지.
             long existing = reportRepository.countByReporterIdAndTargetTypeAndTargetIdAndStatus(
                     reporterId, targetType, targetId, "PENDING");
             if (existing > 0) {

@@ -15,8 +15,11 @@ public interface ReportRepository extends JpaRepository<Report, String> {
     long countByReporterIdAndTargetTypeAndTargetIdAndStatus(
             String reporterId, String targetType, String targetId, String status);
 
-    /** 같은 사용자를 같은 신고자가 이미 신고했는지 (1회 제한 — 차단 풀고 재신고 방지). */
+    /** 같은 사용자를 같은 신고자가 이미 신고했는지 (1회 제한 — 차단 풀고 재신고 방지). USER/TRADE/CHAT 전용. */
     boolean existsByReporterIdAndTargetUserId(String reporterId, String targetUserId);
+
+    /** ★게시판 신고 중복 = 글/댓글 단위(reporter+type+id). 같은 작성자의 서로 다른 글·댓글은 각각 신고 가능. */
+    boolean existsByReporterIdAndTargetTypeAndTargetId(String reporterId, String targetType, String targetId);
 
     /**
      * 2026-05-29 admin Stage 0 (Codex G) — 신고 list pageable + status/targetType/시간 filter.

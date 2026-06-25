@@ -78,8 +78,9 @@ public class ReportService {
 
     // 알려진 dedup 제약(자동차단 unique·향후 reports 신고 unique) 위반만 "중복 신고"(400) 로, 그 외 DB 오류는 그대로(5xx).
     private static final java.util.Set<String> DEDUP_CONSTRAINTS = java.util.Set.of(
-            "uq_blocks_blocker_blocked",    // 자동차단 unique(blocker_id, blocked_id) 경쟁
-            "uq_reports_reporter_target");  // (RC 적용 시) 같은 신고자·대상 중복 신고
+            "uq_blocks_blocker_blocked",          // 자동차단 unique(blocker_id, blocked_id) 경쟁
+            "uq_reports_reporter_target",         // 비게시판: 같은 신고자·대상 사용자 중복(per-user)
+            "uq_reports_reporter_board_target");  // ★게시판: 같은 신고자·글/댓글 중복(per-target)
 
     private static RuntimeException dedupOrRethrow(DataIntegrityViolationException e) {
         if (isDedupConstraintViolation(e)) {
