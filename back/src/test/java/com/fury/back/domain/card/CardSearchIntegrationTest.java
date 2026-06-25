@@ -38,6 +38,7 @@ class CardSearchIntegrationTest {
         return Card.builder()
                 .cardId(id).productId(productId).name(name).language(lang)
                 .superType("Pokemon").isPromoExclusive(false).isVisible(visible)
+                .rarityCode("AR") // market(rarity 필터) 테스트용 — 전부 고레어
                 .createdAt(T).updatedAt(T).build();
     }
 
@@ -93,5 +94,44 @@ class CardSearchIntegrationTest {
 
     @Test void emptyName_rejected() {
         assertThat(cardService.searchCards("").getData()).isNull(); // 빈 검색어 거부(기존 정책 유지)
+    }
+
+    // ── #5 보완: /cards/market (getMarketCards) 세트명 검색 (거래/시세 검색이 쓰는 경로) ──
+    private static final java.util.List<String> RAR = java.util.List.of("AR", "SR");
+
+    @Test void market_setName_returnsSetCards_koVisibleHighRarity() {
+        var r = cardRepository.findByRarityOrderByLatestPriceDesc(RAR, "어비스아이", 50, 0);
+        assertThat(r).extracting(Card::getCardId).containsExactlyInAnyOrder("a1", "a2"); // KO·AR·visible (EN a3·숨김 a4 제외)
+    }
+
+    @Test void market_abyss_bothSets() {
+        assertThat(cardRepository.findByRarityOrderByLatestPriceDesc(RAR, "어비스", 50, 0))
+                .extracting(Card::getCardId).contains("a1", "a2", "l1");
+    }
+
+    @Test void market_cardName_darkrai_preserved() {
+        assertThat(cardRepository.findByRarityOrderByLatestPriceDesc(RAR, "다크라이", 50, 0))
+                .extracting(Card::getCardId).containsExactly("o1");
+    }
+
+    @Test void market_count_matchesData_totalPagesIntegrity() {
+        assertThat(cardRepository.countByRarityAndName(RAR, "어비스아이")).isEqualTo(2);
+        assertThat(cardRepository.countByRarityAndName(RAR, "어비스")).isEqualTo(3);
+    }
+
+    @Test void market_browse_nameEmpty_unaffected() {
+        var r = cardRepository.findByRarityOrderByLatestPriceDesc(RAR, "", 50, 0);
+        assertThat(r).extracting(Card::getCardId).containsExactlyInAnyOrder("a1", "a2", "l1", "o1"); // KO·AR·visible 전부
+        assertThat(cardRepository.countByRarityAndName(RAR, "")).isEqualTo(4);
+    }
+
+    @Test void market_allSortBy_setNameWorks() {
+        for (var rows : java.util.List.of(
+                cardRepository.findByRarityOrderByLatestPriceAsc(RAR, "어비스아이", 50, 0),
+                cardRepository.findByRarityOrderByRarityDesc(RAR, "어비스아이", 50, 0),
+                cardRepository.findByRarityOrderByLatestDateDesc(RAR, "어비스아이", 50, 0),
+                cardRepository.findByRarityOrderByNameAsc(RAR, "어비스아이", 50, 0))) {
+            assertThat(rows).extracting(Card::getCardId).containsExactlyInAnyOrder("a1", "a2");
+        }
     }
 }
