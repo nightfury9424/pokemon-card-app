@@ -329,22 +329,31 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
             children: [
-              TextField(
-                controller: _title,
-                maxLength: _titleMax,
-                textInputAction: TextInputAction.next,
-                style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
-                decoration: const InputDecoration(
-                  hintText: '제목을 입력하세요',
-                  hintStyle: TextStyle(color: AppColors.textMuted),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 6),
-                  counterText: '', // 기본 카운터 숨김
-                ),
+              // 제목은 한 줄 — 카운터를 같은 줄 오른쪽에 인라인 배치(별도 줄 차지 제거, compact).
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _title,
+                      maxLength: _titleMax,
+                      textInputAction: TextInputAction.next,
+                      style: const TextStyle(
+                          color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
+                      decoration: const InputDecoration(
+                        hintText: '제목을 입력하세요',
+                        hintStyle: TextStyle(color: AppColors.textMuted),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 6),
+                        counterText: '', // 기본 카운터 숨김
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('${_title.text.characters.length}/$_titleMax',
+                      style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                ],
               ),
-              _counter(_title.text.characters.length, _titleMax),
               const SizedBox(height: 6),
               const Divider(height: 1, color: AppColors.dividerSoft),
               const SizedBox(height: 6),
