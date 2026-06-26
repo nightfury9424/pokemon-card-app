@@ -53,6 +53,12 @@ class CardSearchIntegrationTest {
         cardRepository.save(card("a4", "ABYSS", "숨김커먼", "KO", false)); // is_visible=false
         cardRepository.save(card("l1", "LOST", "뮤츠", "KO", true));
         cardRepository.save(card("o1", "OTHER", "메가다크라이", "KO", true)); // 카드명에 다크라이
+        // 정규화/별칭 검증용: 인페르노(공백/오타) + 151(공백)
+        productRepository.save(product("INFERNO", "MEGA 확장팩 「인페르노X」"));
+        productRepository.save(product("P151", "강화 확장팩 「포켓몬 카드 151」 프로모 카드 팩"));
+        cardRepository.save(card("i1", "INFERNO", "라우드본", "KO", true));
+        cardRepository.save(card("i2", "INFERNO", "윈디", "KO", true));
+        cardRepository.save(card("p1", "P151", "뮤", "KO", true));
         em.flush();
         em.clear();
     }
@@ -121,8 +127,8 @@ class CardSearchIntegrationTest {
 
     @Test void market_browse_nameEmpty_unaffected() {
         var r = cardRepository.findByRarityOrderByLatestPriceDesc(RAR, "", 50, 0);
-        assertThat(r).extracting(Card::getCardId).containsExactlyInAnyOrder("a1", "a2", "l1", "o1"); // KO·AR·visible 전부
-        assertThat(cardRepository.countByRarityAndName(RAR, "")).isEqualTo(4);
+        assertThat(r).extracting(Card::getCardId).containsExactlyInAnyOrder("a1", "a2", "l1", "o1", "i1", "i2", "p1"); // KO·AR·visible 전부
+        assertThat(cardRepository.countByRarityAndName(RAR, "")).isEqualTo(7);
     }
 
     @Test void market_allSortBy_setNameWorks() {
@@ -133,5 +139,44 @@ class CardSearchIntegrationTest {
                 cardRepository.findByRarityOrderByNameAsc(RAR, "어비스아이", 50, 0))) {
             assertThat(rows).extracting(Card::getCardId).containsExactlyInAnyOrder("a1", "a2");
         }
+    }
+
+    // ── #5 정규화(canonicalize): 공백·구분자 무시 + 흔한 오타 별칭(전역 fuzzy 아님) ──
+    @Test void canonicalize_delimitersAndAlias() {
+        assertThat(CardSearchTerms.canonicalize("어비스 아이")).isEqualTo("어비스아이");
+        assertThat(CardSearchTerms.canonicalize("인페르노 X")).isEqualTo("인페르노x");
+        assertThat(CardSearchTerms.canonicalize("인페리노 X")).isEqualTo("인페르노x"); // 별칭
+        assertThat(CardSearchTerms.canonicalize("포켓몬 카드 151")).isEqualTo("포켓몬카드151");
+        assertThat(CardSearchTerms.canonicalize("다크라이")).isEqualTo("다크라이");
+        assertThat(CardSearchTerms.canonicalize("  ")).isEmpty();
+        assertThat(CardSearchTerms.canonicalize(null)).isEmpty();
+    }
+
+    @Test void search_spaceVariants_sameAsExact() {
+        assertThat(cardService.searchCards("어비스 아이").getData()).extracting("name")
+                .containsExactlyInAnyOrder("피카츄", "리자몽", "Pikachu"); // == 어비스아이
+        assertThat(cardService.searchCards("포켓몬카드151").getData()).extracting("name").containsExactly("뮤");
+        assertThat(cardService.searchCards("151").getData()).extracting("name").containsExactly("뮤");
+        assertThat(cardService.searchCards("로스트 어비스").getData()).extracting("name").contains("뮤츠");
+    }
+
+    @Test void search_inferno_spaceAndTypoAlias() {
+        for (String term : java.util.List.of("인페르노", "인페르노 X", "인페르노X", "인페리노", "인페리노 X")) {
+            assertThat(cardService.searchCards(term).getData()).extracting("name")
+                    .as("검색어=%s", term).containsExactlyInAnyOrder("라우드본", "윈디");
+        }
+    }
+
+    @Test void market_spaceAndAlias_viaService() {
+        // /cards/market 도 동일 canonicalize — 인페리노 오타·인페르노 X 공백 모두 i1,i2(고레어 2)
+        for (String term : java.util.List.of("인페리노", "인페르노 X")) {
+            var r = cardService.getMarketCards(RAR, term, 0, 50, "price", "desc");
+            assertThat(((Number) r.get("totalElements")).intValue()).as("market=%s", term).isEqualTo(2);
+        }
+    }
+
+    @Test void cardName_normalizedToo() {
+        // 카드명도 정규화: '메가 다크라이' 공백 입력도 '메가다크라이' 카드명에 매칭
+        assertThat(cardService.searchCards("메가 다크라이").getData()).extracting("name").contains("메가다크라이");
     }
 }
