@@ -84,5 +84,5 @@ docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db -c \
 **#5 와일드카드 방어 배포 (2026-06-26 ~10:34, Backend-only)**: `%`/`%%` 검색이 전량(search 3582·market 2845) 반환하던 것 차단 → canonicalize DELIMITERS 에 `% \` 추가(`_`는 기존 제거). 신규 `board-wild-20260626`(running `ae01fe2f`) = board-norm + **CardSearchTerms.class 1개만**(lib 0). 라이브: `%`→0·`리%자_몽`→리자몽 56·151/인페리노/어비스 아이 유지·5xx 0. 롤백 `rollback-pre-wild-20260626`=board-norm(ff33ef0b).
 - ★별칭 구조(정확 표현): `CardSearchTerms` 의 alias Map 은 **중앙화된 코드 별칭 맵으로 최소 적용**(임시 if 아님, "하드코딩 없음"도 아님) — 향후 `product_search_aliases` 테이블/`products.search_aliases` 등 DB/config 기반 관리로 이전 가능. 전역 fuzzy/편집거리 확장은 미적용(오탐 방지).
 - ★성능 기록: 일반 검색 24~34ms·`ex` 126ms·EXPLAIN=Seq Scan 17ms(buffers 전부 hit). 현 카드 ~3,900 규모 충분. **카탈로그 증가 시 개선여지 = normalized column(저장) + pg_trgm GIN index**(이번엔 미적용).
-**Front 잔여**: 검색창 placeholder `카드명 / 세트 / 등급으로 검색` → `카드명 또는 세트명으로 검색`(등급 검색 기능 없음) → 새 IPA 필요.
+**Front 수정 완료 + 새 IPA(최종본)**: trade_search placeholder `카드명 / 세트 / 등급으로 검색` → `카드명 또는 세트명으로 검색`(커밋 25782fd2·문자열만·전수 그 한 곳). flutter test 226/0. **새 IPA = `front.ipa` 46.6MB·버전 1.0.4·build `202606261035`·arm64-only·SHA-256 `224e5bba03c711af8b94e92a1dcf2b885fe577d207ee6516c57628cd88bade2e`** — 이게 최종본(202606260712 폐기).
 **미실행(금지)**: TestFlight 업로드(사용자 Transporter) · App Store 제출.
