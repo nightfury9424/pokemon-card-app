@@ -271,6 +271,14 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
         elevation: 0,
         scrolledUnderElevation: 0,
         titleSpacing: 20,
+        // 검색 모드: 좌측 ← 가 검색 종료(_exitSearch). 우측 닫기 X 제거 → 검색창 X 중복 해소.
+        leading: _searchMode
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                onPressed: _exitSearch,
+                tooltip: '검색 닫기',
+              )
+            : null,
         title: _searchMode
             ? TextField(
                 controller: _searchCtrl,
@@ -317,14 +325,16 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
                   fontSize: 20,
                 ),
               ),
-        actions: [
-          IconButton(
-            icon: Icon(_searchMode ? Icons.close : Icons.search,
-                color: AppColors.textPrimary, size: 22),
-            onPressed: _searchMode ? _exitSearch : _startSearch,
-            tooltip: _searchMode ? '검색 닫기' : '제목 검색',
-          ),
-        ],
+        // 검색 모드에선 닫기 X 미노출(좌측 ← 가 종료) — 검색창의 입력 clear X 와 중복 방지.
+        actions: _searchMode
+            ? const []
+            : [
+                IconButton(
+                  icon: const Icon(Icons.search, color: AppColors.textPrimary, size: 22),
+                  onPressed: _startSearch,
+                  tooltip: '제목 검색',
+                ),
+              ],
       ),
       // 전체 + 사용자 카테고리(자유/거래후기/사기주의)만 글쓰기 FAB. 공식(공지/이벤트/패치)=관리자 웹 전용.
       floatingActionButton: _filter.canWrite

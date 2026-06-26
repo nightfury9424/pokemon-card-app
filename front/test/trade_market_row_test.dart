@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:front/core/theme/app_colors.dart';
-import 'package:front/features/trade/trade_list_screen.dart';
+import 'package:front/features/trade/trade_list_screen.dart'; // MarketSevenDayNote
+import 'package:front/features/trade/widgets/market_row_price_meta.dart'; // MarketRowPriceMeta
 
 /// 거래 탭 시장 리스트 "가격·변동" 라인 회귀 검증 (2단계 레이아웃).
 /// 정책: ①넓으면 가격+변동값 한 줄 ②좁으면 가격 1줄 + 변동액·퍼센트를 **한 묶음**으로 2줄.

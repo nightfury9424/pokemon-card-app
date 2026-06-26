@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/utils/price_label.dart';
 import '../../core/widgets/card_image.dart';
+import 'widgets/market_row_price_meta.dart';
 
 /// 거래 탭 검색 — 풀스크린 모달.
 /// 거래 탭의 검색 아이콘에서 push. 화면 전환 애니메이션이 iOS 키보드 cold-start lag을 가려줌.
@@ -605,7 +606,18 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
       prevPrice: prevPriceApprox,
       prefix: '',
     );
-    final String pctLabel = display?.label.trim() ?? '';
+    // 변동액/퍼센트는 구조화된 diff/percent에서 직접 생성(거래 목록과 동일). null=등락 숨김.
+    String? changeAmount;
+    String? changePct;
+    if (display != null) {
+      final diff = display.diff;
+      final sign = diff > 0 ? '+' : (diff < 0 ? '-' : '');
+      changeAmount = '$sign${AppColors.formatPrice(diff.abs())}';
+      final pctVal = display.percent;
+      if (pctVal != null) {
+        changePct = '($sign${pctVal.abs().toStringAsFixed(1)}%)';
+      }
+    }
     final Color pctColor = display == null
         ? AppColors.textMuted
         : switch (display.color) {
@@ -678,48 +690,15 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    // ★고정 구조(모든 행 동일): 첫 줄=가격+한국판 예상가(공간 부족 시 라벨만 ellipsis),
-                    //   둘째 줄=변동값(항상 별도 줄). 임의 줄바꿈(Wrap) 없음 → 행 높이/순서 일관, 하트 겹침 0.
-                    Row(
-                      children: [
-                        Text(
-                          price != null ? AppColors.formatPrice(price) : '시세 없음',
-                          style: TextStyle(
-                            color: price != null
-                                ? AppColors.textSecondary
-                                : AppColors.textMuted,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (priceLabelText.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              priceLabelText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                    // ★거래 목록과 동일한 공통 위젯 — '한국판 예상가' 기본 라벨 숨김, 가격+변동 한 묶음,
+                    //   좁은 폭/큰 글자배율 overflow-safe, 하트 겹침 0. 두 화면 디자인 단일화.
+                    MarketRowPriceMeta(
+                      price: price,
+                      priceLabelText: priceLabelText,
+                      changeAmount: changeAmount,
+                      changePct: changePct,
+                      changeColor: pctColor,
                     ),
-                    if (pctLabel.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        pctLabel,
-                        style: TextStyle(
-                          color: pctColor,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
                     const SizedBox(height: 3),
                     Text.rich(
                       TextSpan(
