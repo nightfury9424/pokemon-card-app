@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
@@ -74,10 +76,39 @@ class _ReportSheetBody extends StatefulWidget {
 class _ReportSheetBodyState extends State<_ReportSheetBody> {
   String? _reasonCode;
   final _detail = TextEditingController();
+  final _detailFocus = FocusNode();
+  final _scroll = ScrollController();
+  Timer? _scrollTimer;
   bool _submitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    // 입력창 포커스(키보드 오픈) 시에만 하단(입력 영역+글자수+신고 버튼)이 키보드 위에 보이도록 스크롤.
+    // 사유 카드 선택만으로는 포커스가 안 잡혀 불필요한 점프가 없다.
+    _detailFocus.addListener(_scrollToInputOnFocus);
+  }
+
+  void _scrollToInputOnFocus() {
+    if (!_detailFocus.hasFocus) return;
+    // 키보드 애니메이션 + viewInsets 반영(레이아웃 리플로우) 후 실제 콘텐츠 끝까지 스크롤(고정 padding 아님).
+    // dispose 시 취소되는 Timer — 위젯이 닫혀도 pending 타이머가 남지 않게.
+    _scrollTimer?.cancel();
+    _scrollTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted || !_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
   void dispose() {
+    _scrollTimer?.cancel();
+    _detailFocus.dispose();
+    _scroll.dispose();
     _detail.dispose();
     super.dispose();
   }
@@ -120,6 +151,7 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
       canPop: !_submitting, // 제출 중 시스템 뒤로가기 차단(배경탭·드래그는 showModalBottomSheet 에서 항상 차단)
       child: SafeArea(
         child: SingleChildScrollView(
+        controller: _scroll,
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -239,6 +271,7 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
             TextField(
               key: const Key('report_detail_field'),
               controller: _detail,
+              focusNode: _detailFocus,
               onChanged: (_) => setState(() {}), // 기타 사유 입력 시 제출 버튼 활성/비활성 실시간 반영
               maxLines: 3,
               maxLength: 500,
