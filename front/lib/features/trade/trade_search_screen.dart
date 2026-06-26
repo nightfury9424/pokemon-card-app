@@ -291,7 +291,7 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
                               fontSize: 14,
                             ),
                             decoration: const InputDecoration(
-                              hintText: '카드명 / 세트 / 등급으로 검색',
+                              hintText: '카드명 또는 세트명으로 검색',
                               hintStyle: TextStyle(
                                 color: AppColors.textMuted,
                                 fontSize: 14,
