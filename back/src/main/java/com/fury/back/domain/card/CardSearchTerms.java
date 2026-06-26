@@ -18,8 +18,13 @@ public final class CardSearchTerms {
 
     private CardSearchTerms() {}
 
-    /** Repository 의 regexp_replace 제거 집합과 반드시 동일해야 함. */
-    private static final String DELIMITERS = "[\\s_·「」-]";
+    /**
+     * 제거 집합 = Repository 컬럼 정규화({@code '[[:space:]_·「」-]'}) + LIKE 안전용 {@code % \}.
+     * 카드/세트명엔 {@code % \ _} 가 없어 컬럼 정규화엔 불필요 — 검색어에서만 제거해
+     * {@code LIKE '%' || :name || '%'} 패턴에 와일드카드/이스케이프 주입(`%`→전량 매칭)을 막는다
+     * ({@code _} 는 이미 구분자로 제거됨). 따라서 정규화된 검색어는 LIKE 특수문자를 갖지 않는다.
+     */
+    private static final String DELIMITERS = "[\\s_·「」%\\\\-]";
 
     /** 정규화된 검색어 기준 별칭(흔한 오타만). 후속: DB(product_search_aliases) 로 이관. */
     private static final Map<String, String> ALIASES = Map.of(

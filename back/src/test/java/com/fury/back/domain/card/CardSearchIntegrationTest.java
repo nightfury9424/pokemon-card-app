@@ -179,4 +179,21 @@ class CardSearchIntegrationTest {
         // 카드명도 정규화: '메가 다크라이' 공백 입력도 '메가다크라이' 카드명에 매칭
         assertThat(cardService.searchCards("메가 다크라이").getData()).extracting("name").contains("메가다크라이");
     }
+
+    // ── #5 LIKE 와일드카드 방어: %, _, \ 는 canonicalize 단계에서 제거 ──
+    @Test void canonicalize_stripsLikeWildcards() {
+        assertThat(CardSearchTerms.canonicalize("%")).isEmpty();
+        assertThat(CardSearchTerms.canonicalize("%%")).isEmpty();
+        assertThat(CardSearchTerms.canonicalize("_")).isEmpty();
+        assertThat(CardSearchTerms.canonicalize("\\")).isEmpty();
+        assertThat(CardSearchTerms.canonicalize("리%자_몽")).isEqualTo("리자몽"); // 와일드카드만 제거
+    }
+
+    @Test void search_wildcard_noMassMatch() {
+        assertThat(cardService.searchCards("%").getData()).isEmpty(); // % → 빈 검색어 → 전량 반환 금지
+        // market: % → browse(기본 동작)와 동일 — 와일드카드로 전량 매칭되지 않음
+        var pct = cardService.getMarketCards(RAR, "%", 0, 50, "price", "desc");
+        var browse = cardService.getMarketCards(RAR, "", 0, 50, "price", "desc");
+        assertThat(pct.get("totalElements")).isEqualTo(browse.get("totalElements"));
+    }
 }
