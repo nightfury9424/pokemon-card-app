@@ -79,4 +79,5 @@ docker exec -i pokefolio-postgres psql -U pokefolio -d pokemon_card_db -c \
 ## 현재 진행 상태 (2026-06-26)
 **완료(운영 반영됨)**: DB migration COMMIT · Backend `946045c4` 기동·healthy · CP1.5 라이브 스모크 · **Admin dist 신규(9zQVtCbW) 교체** · CP2 서버 스모크 · **#4 신고처리 라이브** · **#11 nightfury 오차단 삭제(blocks=0·재발0)** · **#13 운영팀 댓글 라이브(is_admin=true 2건)** · SMOKETEST 전량 cleanup(잔존0).
 **새 IPA(빌드 완료, 업로드 대기)**: `front.ipa` 46.6MB · 버전 1.0.4 · build **202606260712** · arm64-only · SHA-256 `bcb103f589e60ce407b2ec9bc9aa1b4fbfbdb833f2b26bf0db636402ce54f2db`.
+**#5 보완 배포 (2026-06-26 ~09:14, Backend-only)**: `/cards/market`(거래/시세 검색=trade_search 본결과) 세트명 매칭 누락 → 추가. 신규 이미지 `board-market-20260626`(manifest `7ec9712d`) = 946045c4 + **CardRepository.class 1개만**(JAR BOOT-INF/classes diff 1·lib 0 diff/236). getMarketCards 8 데이터쿼리 + countByRarityAndName, **promo(/market/promos) 범위밖 원복**(세트명 매칭 총 11=/search 2·/market 8·count 1). 임시컨테이너+라이브 검증: market 어비스아이 **39**·search 39·다크라이 19·browse **3414 불변**·promo 42·5xx 0. 롤백태그 `pokefolio-back:rollback-pre-market-20260626`=946045c4. **DB/Admin/Front 미접촉, IPA(202606260712) 재빌드 안 함**(Front 무변경).
 **미실행(금지)**: TestFlight 업로드(사용자 Transporter) · App Store 제출.
