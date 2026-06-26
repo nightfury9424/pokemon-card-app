@@ -678,12 +678,9 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    // 가격·예상가라벨·변동 — 고정 Row 대신 Wrap. 좁은 폭/큰 글자배율에서
-                    // 변동값이 다음 줄로 흘러 오른쪽 하트와 겹치지 않게 한다(거래 시세 행과 동일 동작).
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 6,
-                      runSpacing: 2,
+                    // ★고정 구조(모든 행 동일): 첫 줄=가격+한국판 예상가(공간 부족 시 라벨만 ellipsis),
+                    //   둘째 줄=변동값(항상 별도 줄). 임의 줄바꿈(Wrap) 없음 → 행 높이/순서 일관, 하트 겹침 0.
+                    Row(
                       children: [
                         Text(
                           price != null ? AppColors.formatPrice(price) : '시세 없음',
@@ -695,26 +692,34 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        if (priceLabelText.isNotEmpty)
-                          Text(
-                            priceLabelText,
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                        if (priceLabelText.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              priceLabelText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                        if (pctLabel.isNotEmpty)
-                          Text(
-                            pctLabel,
-                            style: TextStyle(
-                              color: pctColor,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                        ],
                       ],
                     ),
+                    if (pctLabel.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        pctLabel,
+                        style: TextStyle(
+                          color: pctColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 3),
                     Text.rich(
                       TextSpan(
