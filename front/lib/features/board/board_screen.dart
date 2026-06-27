@@ -342,7 +342,7 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
               backgroundColor: AppColors.blue,
               onPressed: _openCompose,
               elevation: 2,
-              icon: const Icon(Icons.add_rounded, size: 20, color: Colors.white),
+              icon: const Icon(Icons.edit_rounded, size: 19, color: Colors.white),
               label: const Text('글쓰기',
                   style: TextStyle(
                       color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
