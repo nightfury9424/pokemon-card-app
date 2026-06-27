@@ -6,6 +6,7 @@ import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/user_avatar.dart';
 import '../../core/widgets/app_info_toast.dart';
 import '../board/board_screen.dart';
+import 'my_activity_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -104,9 +105,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 10),
                         _buildTradeGrid(),
                         const SizedBox(height: 24),
-                        _buildSectionLabel('서비스'),
+                        _buildSectionLabel('커뮤니티'),
                         const SizedBox(height: 10),
-                        _buildServiceGrid(),
+                        _buildCommunityGrid(),
+                        const SizedBox(height: 24),
+                        _buildSectionLabel('준비 중'),
+                        const SizedBox(height: 10),
+                        _buildComingSoonGrid(),
                         const SizedBox(height: 24),
                         _buildSectionLabel('고객 지원'),
                         const SizedBox(height: 10),
@@ -270,8 +275,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // 서비스 = 3-col 그리드. 게시판(활성) + 오리파/경매(준비중 회색).
-  Widget _buildServiceGrid() {
+  // 커뮤니티 = 게시판 + 내 활동(2-col). 둘 다 커뮤니티 성격 → 같은 섹션.
+  Widget _buildCommunityGrid() {
     return _gridRow([
       _HubTile(
         icon: Icons.forum_rounded,
@@ -281,6 +286,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         onTap: () => Navigator.of(context, rootNavigator: true).push(
             MaterialPageRoute(builder: (_) => const BoardScreen())),
       ),
+      _HubTile(
+        icon: Icons.history_rounded,
+        iconColor: AppColors.blue,
+        label: '내 활동',
+        onTap: () => Navigator.of(context, rootNavigator: true).push(
+            MaterialPageRoute(builder: (_) => const MyActivityScreen())),
+      ),
+    ]);
+  }
+
+  // 준비 중 = 오리파/경매 자리(2-col, 회색 ? + 준비중 뱃지). 기능명 미노출.
+  Widget _buildComingSoonGrid() {
+    return _gridRow([
       _HubTile(
         icon: Icons.question_mark_rounded,
         iconColor: AppColors.textMuted,

@@ -55,6 +55,7 @@ BoardPost _official() => BoardPost(
       viewCount: 0,
     );
 
+
 Future<void> _pump(WidgetTester t, BoardRepository repo, BoardPost? summary) async {
   await t.pumpWidget(MaterialApp(
       home: BoardDetailScreen(postId: 'x', repository: repo, summary: summary)));
@@ -96,7 +97,7 @@ void main() {
     await _pump(tester, _FakeDetail(post: _free()), _free());
     expect(tester.takeException(), isNull);
     expect(find.text('자유 본문'), findsOneWidget);
-    expect(find.text('2'), findsOneWidget); // 댓글 수(engagement row, listCommentCount=2)
+    expect(find.text('댓글 2'), findsOneWidget); // 댓글 수(engagement row)
     expect(find.text('첫 댓글'), findsOneWidget);
     expect(find.text('답글'), findsOneWidget); // 1단 대댓글
     expect(find.text('댓글을 입력하세요'), findsOneWidget); // 자유는 입력바 노출
@@ -108,7 +109,7 @@ void main() {
     expect(find.text('공지 본문'), findsOneWidget);
     expect(find.text('댓글을 입력하세요'), findsOneWidget); // ★공식글도 입력바 노출
     expect(find.text('아직 댓글이 없어요'), findsOneWidget); // 댓글 섹션 노출
-    expect(find.textContaining('조회'), findsNothing); // viewCount 0 → 숨김
+    expect(find.textContaining('조회'), findsOneWidget); // ★조회수 항상 표시(0 포함)
   });
 
   testWidgets('404 — 삭제/숨김/미존재 안내', (tester) async {
@@ -122,6 +123,32 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.textContaining('불러오지 못'), findsOneWidget);
     expect(find.text('다시 시도'), findsOneWidget);
+  });
+
+  testWidgets('딥링크 — 존재하는 댓글이면 스크롤 분기 실행(안내 없음·예외 없음)', (tester) async {
+    final p = _free();
+    await tester.pumpWidget(MaterialApp(
+        home: BoardDetailScreen(
+            postId: 'x', repository: _FakeDetail(post: p), summary: p, focusCommentId: 'r1')));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('답글'), findsOneWidget); // 대상 대댓글 렌더
+    expect(find.text('삭제되었거나 찾을 수 없는 댓글이에요.'), findsNothing); // 존재 → 안내 SnackBar 없음
+  });
+
+  // NOTE: 화면 밖 댓글로의 실제 jumpTo 위젯테스트는 이 Flutter 버전 테스트 하니스의 알려진 제약
+  // (프로그램적 스크롤이 semantics 갱신 단계와 경합 → '_RenderObjectSemantics' assertion)으로 불가.
+  // 실기기/시뮬레이터에서는 정상 동작(표준 getOffsetToReveal+jumpTo). 위 2개로 분기 로직을 결정적으로 검증함.
+
+  testWidgets('딥링크 — 삭제/없는 댓글이면 안내 SnackBar + 게시글 상세 유지', (tester) async {
+    final p = _free();
+    await tester.pumpWidget(MaterialApp(
+        home: BoardDetailScreen(
+            postId: 'x', repository: _FakeDetail(post: p), summary: p, focusCommentId: 'zzz')));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('삭제되었거나 찾을 수 없는 댓글이에요.'), findsOneWidget); // 안내
+    expect(find.text('자유 본문'), findsOneWidget); // 게시글 상세는 유지
   });
 
   testWidgets('빈 author 크래시 가드 — 이니셜 ? 렌더', (tester) async {

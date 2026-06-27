@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:front/features/board/board_detail_screen.dart';
 import 'package:front/features/board/data/board_repository.dart';
@@ -99,9 +100,9 @@ void main() {
   group('상세 낙관적 토글', () {
     testWidgets('초기 상태 = likedByMe/likeCount 반영', (t) async {
       await _pump(t, _LikeRepo(_free(liked: true, count: 5)));
-      expect(find.byIcon(Icons.favorite), findsOneWidget); // 채운 하트
-      expect(find.byIcon(Icons.favorite_border), findsNothing);
-      expect(find.text('5'), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.heart_fill), findsOneWidget); // 채운 하트
+      expect(find.byIcon(CupertinoIcons.heart), findsNothing);
+      expect(find.text('좋아요 5'), findsOneWidget);
     });
 
     testWidgets('좋아요 → 즉시 채움 +1 → 서버값으로 보정', (t) async {
@@ -109,14 +110,14 @@ void main() {
           likeResult: const BoardLikeResult(likedByMe: true, likeCount: 9), // 서버는 9
           delay: const Duration(milliseconds: 30));
       await _pump(t, r);
-      await t.tap(find.byIcon(Icons.favorite_border));
+      await t.tap(find.byIcon(CupertinoIcons.heart));
       await t.pump(); // 낙관적 프레임(서버 응답 전)
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
-      expect(find.text('5'), findsOneWidget); // 4+1 낙관적
+      expect(find.byIcon(CupertinoIcons.heart_fill), findsOneWidget);
+      expect(find.text('좋아요 5'), findsOneWidget); // 4+1 낙관적
       await t.pumpAndSettle(); // 서버 응답
       expect(r.likeCalls, 1);
-      expect(find.text('9'), findsOneWidget); // 서버값 보정
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.text('좋아요 9'), findsOneWidget); // 서버값 보정
+      expect(find.byIcon(CupertinoIcons.heart_fill), findsOneWidget);
     });
 
     testWidgets('취소 → 즉시 비움 -1 → 서버값 보정', (t) async {
@@ -124,13 +125,13 @@ void main() {
           unlikeResult: const BoardLikeResult(likedByMe: false, likeCount: 4),
           delay: const Duration(milliseconds: 30));
       await _pump(t, r);
-      await t.tap(find.byIcon(Icons.favorite));
+      await t.tap(find.byIcon(CupertinoIcons.heart_fill));
       await t.pump();
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-      expect(find.text('4'), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.heart), findsOneWidget);
+      expect(find.text('좋아요 4'), findsOneWidget);
       await t.pumpAndSettle();
       expect(r.unlikeCalls, 1);
-      expect(find.text('4'), findsOneWidget);
+      expect(find.text('좋아요 4'), findsOneWidget);
     });
 
     testWidgets('좋아요 실패 → 이전 상태/카운트 정확 롤백·화면 유지', (t) async {
@@ -138,13 +139,13 @@ void main() {
           likeThrows: const BoardApiException('서버오류', statusCode: 500),
           delay: const Duration(milliseconds: 30));
       await _pump(t, r);
-      await t.tap(find.byIcon(Icons.favorite_border));
+      await t.tap(find.byIcon(CupertinoIcons.heart));
       await t.pump();
-      expect(find.text('4'), findsOneWidget); // 낙관적 3+1
+      expect(find.text('좋아요 4'), findsOneWidget); // 낙관적 3+1
       await t.pumpAndSettle(); // 실패 → 롤백
       expect(r.likeCalls, 1);
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget); // 빈 하트 복귀
-      expect(find.text('3'), findsOneWidget); // 카운트 복귀
+      expect(find.byIcon(CupertinoIcons.heart), findsOneWidget); // 빈 하트 복귀
+      expect(find.text('좋아요 3'), findsOneWidget); // 카운트 복귀
       expect(find.byType(BoardDetailScreen), findsOneWidget);
     });
 
@@ -153,10 +154,10 @@ void main() {
           unlikeThrows: const BoardApiException('미존재', statusCode: 404),
           delay: const Duration(milliseconds: 30));
       await _pump(t, r);
-      await t.tap(find.byIcon(Icons.favorite));
+      await t.tap(find.byIcon(CupertinoIcons.heart_fill));
       await t.pumpAndSettle();
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
-      expect(find.text('8'), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.heart_fill), findsOneWidget);
+      expect(find.text('좋아요 8'), findsOneWidget);
     });
 
     testWidgets('좋아요 401 → 롤백·busy 해제·인라인 토스트 없음(전역 lifecycle 소유)', (t) async {
@@ -164,13 +165,13 @@ void main() {
           likeThrows: const BoardApiException('로그인이 필요해요.', statusCode: 401),
           delay: const Duration(milliseconds: 30));
       await _pump(t, r);
-      await t.tap(find.byIcon(Icons.favorite_border));
+      await t.tap(find.byIcon(CupertinoIcons.heart));
       await t.pumpAndSettle();
       expect(r.likeCalls, 1);
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget); // 롤백
-      expect(find.text('3'), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.heart), findsOneWidget); // 롤백
+      expect(find.text('좋아요 3'), findsOneWidget);
       expect(find.text('로그인이 필요해요.'), findsNothing); // 화면 인라인 토스트 없음(전역이 로그아웃 처리)
-      await t.tap(find.byIcon(Icons.favorite_border)); // busy 해제 → 재시도 가능
+      await t.tap(find.byIcon(CupertinoIcons.heart)); // busy 해제 → 재시도 가능
       await t.pumpAndSettle();
       expect(r.likeCalls, 2);
     });
@@ -179,7 +180,7 @@ void main() {
       final r = _LikeRepo(_free(liked: true, count: 0),
           unlikeResult: const BoardLikeResult(likedByMe: false, likeCount: 0));
       await _pump(t, r);
-      await t.tap(find.byIcon(Icons.favorite));
+      await t.tap(find.byIcon(CupertinoIcons.heart_fill));
       await t.pump();
       expect(find.text('-1'), findsNothing); // 음수 표시 없음
       await t.pumpAndSettle();
@@ -189,8 +190,8 @@ void main() {
       final r = _LikeRepo(_free(liked: false, count: 0),
           delay: const Duration(milliseconds: 60));
       await _pump(t, r);
-      await t.tap(find.byIcon(Icons.favorite_border));
-      await t.tap(find.byIcon(Icons.favorite_border)); // 같은 프레임 연타(미rebuild)
+      await t.tap(find.byIcon(CupertinoIcons.heart));
+      await t.tap(find.byIcon(CupertinoIcons.heart)); // 같은 프레임 연타(미rebuild)
       await t.pumpAndSettle();
       expect(r.likeCalls, 1);
     });
@@ -202,8 +203,8 @@ void main() {
           id: 'p1', type: BoardType.notice, title: '공지', body: '본문', author: '운영',
           createdAt: DateTime(2026, 6, 24, 10));
       await _pump(t, _LikeRepo(notice));
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget); // ★공식글도 하트 노출(빈 하트)
-      expect(find.byIcon(Icons.favorite), findsNothing); // 아직 안 누름
+      expect(find.byIcon(CupertinoIcons.heart), findsOneWidget); // ★공식글도 하트 노출(빈 하트)
+      expect(find.byIcon(CupertinoIcons.heart_fill), findsNothing); // 아직 안 누름
     });
 
     testWidgets('자유 외 커뮤니티(거래후기) → 하트 미노출', (t) async {
@@ -211,8 +212,8 @@ void main() {
           id: 'p1', type: BoardType.tradeReview, title: '후기', body: '본문', author: 'u',
           createdAt: DateTime(2026, 6, 24, 10), likeCount: 3, likedByMe: true);
       await _pump(t, _LikeRepo(tr));
-      expect(find.byIcon(Icons.favorite), findsNothing);
-      expect(find.byIcon(Icons.favorite_border), findsNothing);
+      expect(find.byIcon(CupertinoIcons.heart_fill), findsNothing);
+      expect(find.byIcon(CupertinoIcons.heart), findsNothing);
     });
   });
 
@@ -235,7 +236,7 @@ void main() {
       ));
       await t.tap(find.text('open'));
       await t.pumpAndSettle();
-      await t.tap(find.byIcon(Icons.favorite_border)); // 좋아요
+      await t.tap(find.byIcon(CupertinoIcons.heart)); // 좋아요
       await t.pumpAndSettle();
       await t.tap(find.byType(BackButton)); // AppBar 뒤로
       await t.pumpAndSettle();
@@ -293,7 +294,7 @@ void main() {
       Object? popResult = 'SENTINEL';
       await open(t, r, (v) => popResult = v);
 
-      await t.tap(find.byIcon(Icons.favorite_border)); // 지연 요청 시작
+      await t.tap(find.byIcon(CupertinoIcons.heart)); // 지연 요청 시작
       await t.pump();
       await t.tap(find.byType(BackButton)); // 요청 중 뒤로 시도
       await t.pump();
@@ -314,7 +315,7 @@ void main() {
       Object? popResult = 'SENTINEL';
       await open(t, r, (v) => popResult = v);
 
-      await t.tap(find.byIcon(Icons.favorite_border));
+      await t.tap(find.byIcon(CupertinoIcons.heart));
       await t.pump();
       await t.tap(find.byType(BackButton)); // 요청 중 차단
       await t.pump();
@@ -323,8 +324,8 @@ void main() {
 
       await t.pumpAndSettle(); // 실패 → 롤백
       expect(r.likeCalls, 1);
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget); // 롤백
-      expect(find.text('2'), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.heart), findsOneWidget); // 롤백
+      expect(find.text('좋아요 2'), findsOneWidget);
       await t.tap(find.byType(BackButton)); // 실패 후 뒤로 정상
       await t.pumpAndSettle();
       expect(popResult, isNull); // 서버 변경 없음

@@ -126,6 +126,18 @@ class BoardRepository {
     return BoardListResult.parse(res, fallbackPage: page, fallbackSize: size);
   }
 
+  /// 내가 쓴 글(인증 필수). 노출 글 최신 작성순. 삭제/숨김 제외는 서버 책임.
+  Future<BoardListResult> fetchMyPosts({int page = 0, int size = 20}) async {
+    final res = await ApiClient.get('/api/board/me/posts', params: {'page': page, 'size': size});
+    return BoardListResult.parse(res, fallbackPage: page, fallbackSize: size);
+  }
+
+  /// 내가 (대)댓글 단 글(인증 필수). 최신 댓글 활동순·중복 제거. 삭제/숨김 글·차단 제외는 서버 책임.
+  Future<BoardListResult> fetchMyCommentedPosts({int page = 0, int size = 20}) async {
+    final res = await ApiClient.get('/api/board/me/commented-posts', params: {'page': page, 'size': size});
+    return BoardListResult.parse(res, fallbackPage: page, fallbackSize: size);
+  }
+
   /// 상세(댓글 1단 트리 포함). 미존재/삭제/숨김(404) → null. 그 외는 예외 전파.
   Future<BoardPost?> fetchDetail(String postId) async {
     try {
@@ -135,6 +147,16 @@ class BoardRepository {
       if (e.response?.statusCode == 404) return null;
       rethrow;
     }
+  }
+
+  /// 상세 진입 1회 조회 기록 — 서버가 계정별 게시글당 최초 1회만 +1(멱등). 최신 viewCount 반환(실패/네트워크 오류=null=무시).
+  Future<int?> recordView(String postId) async {
+    try {
+      final res = await ApiClient.post('/api/board/posts/$postId/view', const {});
+      final data = res['data'];
+      if (data is Map && data['viewCount'] is num) return (data['viewCount'] as num).toInt();
+    } catch (_) {/* 조회 기록 실패는 상세 보기에 영향 없음 — 조용히 무시 */}
+    return null;
   }
 
   // ── 쓰기(자유글 작성·수정·삭제) ──

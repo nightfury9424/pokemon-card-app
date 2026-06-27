@@ -142,11 +142,16 @@ void main() {
         const Size(320, 720), 0, 1.6);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+    // ★작성자 메타는 본문 아래(읽기 흐름)로 이동 → 긴 공지 본문에선 스크롤해야 lazy ListView가 빌드.
+    await tester.scrollUntilVisible(find.text(post.author), 150,
+        scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     final aN = tester.getTopLeft(find.text(post.author).first);
     final mN = tester.getTopLeft(find.textContaining(metaPart).first);
     expect(mN.dy > aN.dy + 6, isTrue,
         reason: '좁고 큰 글자: 메타가 둘째 줄로 전환(적응형, ellipsis 잘림 아님)');
-    expect(mN.dx < aN.dx, isTrue, reason: '둘째 줄 메타는 런 시작(좌측) 정렬');
+    expect((mN.dx - aN.dx).abs() < 2, isTrue,
+        reason: '둘째 줄 메타도 좌측 run 시작(아바타 제거 → 작성자와 동일 x)');
   });
 
   // ── 최악 조건(극단값): 15자 한글 닉네임 + 운영 배지 + 큰 숫자 ──

@@ -99,16 +99,13 @@ void main() {
     addTearDown(() => t.view.resetPhysicalSize());
     await t.pumpWidget(MaterialApp(home: BoardScreen(repository: _Repo())));
     await t.pumpAndSettle();
-    // ★조건부 숨김 제거 — likeCount 0(두 글 다 0)이어도 좋아요(빈 하트) 표시. 댓글·조회도 항상.
-    expect(find.byIcon(Icons.favorite_border), findsWidgets);
-    expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsWidgets);
-    expect(find.byIcon(Icons.visibility_outlined), findsWidgets);
-    // ★순서: 첫 글 기준 좋아요 → 댓글 → 조회 (x 좌표 좌→우)
-    final likeX = t.getCenter(find.byIcon(Icons.favorite_border).first).dx;
-    final commentX = t.getCenter(find.byIcon(Icons.chat_bubble_outline_rounded).first).dx;
-    final viewX = t.getCenter(find.byIcon(Icons.visibility_outlined).first).dx;
-    expect(likeX, lessThan(commentX), reason: '좋아요가 댓글보다 왼쪽');
-    expect(commentX, lessThan(viewX), reason: '댓글이 조회보다 왼쪽');
+    // ★텍스트형 메타(아이콘 제거) — likeCount 0 포함 항상 '좋아요 N · 댓글 N · 조회 N' 한 줄.
+    expect(find.textContaining('좋아요'), findsWidgets);
+    expect(find.textContaining('조회'), findsWidgets);
+    // 순서: 한 문자열 안에서 좋아요 → 댓글 → 조회
+    final meta = t.widget<Text>(find.textContaining('좋아요').first).data!;
+    expect(meta.indexOf('좋아요'), lessThan(meta.indexOf('댓글')), reason: '좋아요가 댓글보다 앞');
+    expect(meta.indexOf('댓글'), lessThan(meta.indexOf('조회')), reason: '댓글이 조회보다 앞');
   });
 
   testWidgets('#7 검색창: 1줄(maxLines 1)·X버튼·320px overflow 0 + 복귀(silentReload) 시 검색어 보존', (t) async {

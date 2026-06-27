@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
+import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/auth_image.dart';
@@ -27,11 +29,15 @@ class BoardDetailScreen extends StatefulWidget {
   /// 목록에서 넘어올 때 로딩 중 AppBar 제목 등 표시용(최종 데이터는 fetchDetail).
   final BoardPost? summary;
 
+  /// 알림 딥링크(?comment=)로 진입 시 스크롤할 댓글/대댓글 id. 없으면 게시글 상단.
+  final String? focusCommentId;
+
   const BoardDetailScreen({
     super.key,
     required this.postId,
     this.repository = const BoardRepository(),
     this.summary,
+    this.focusCommentId,
   });
 
   @override
@@ -58,6 +64,9 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
   bool _changed = false;  // 좋아요/댓글 변경 → 목록 갱신 신호(back pop result)
   String? _deletingCommentId; // 댓글/대댓글 삭제 진행 중(이탈·중복 차단)
   bool _postDeleting = false; // 게시글 삭제 진행 중
+  int? _viewCountOverride; // 조회 기록 응답(서버)으로 조회수 표시 보정
+  final Map<String, GlobalKey> _commentKeys = {}; // 댓글 id → 위젯 키(딥링크 스크롤)
+  bool _scrolledToComment = false; // focusCommentId 스크롤 1회만
   bool _blocking = false; // 사용자 차단 요청 진행 중(이탈·중복 차단)
 
   // 상태 변경 요청 진행 중 여부 — 진행 중엔 화면 이탈 금지(닫히면 dispose 로 성공 결과·목록 동기화 유실).
@@ -91,6 +100,41 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
     super.dispose();
   }
 
+  // 상세 실제 진입 시 1회 조회 기록 — 응답 viewCount 로 표시 보정. resume/새로고침/댓글 재조회에서는 호출 안 함.
+  Future<void> _recordView() async {
+    final c = await widget.repository.recordView(widget.postId);
+    if (c != null && mounted) setState(() => _viewCountOverride = c);
+  }
+
+  // 알림 딥링크(focusCommentId) 진입 시 해당 댓글/대댓글로 스크롤. 트리에 없으면(삭제/제거) 안내만, 게시글 상세는 유지.
+  void _maybeScrollToComment() {
+    final target = widget.focusCommentId;
+    if (target == null || target.isEmpty || _scrolledToComment) return;
+    _scrolledToComment = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _commentKeys[target]?.currentContext;
+      if (ctx == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('삭제되었거나 찾을 수 없는 댓글이에요.')));
+        return;
+      }
+      // 레이아웃이 완전히 정착한 다음 프레임에 스크롤(semantics 갱신과 layout-dirty 경합 방지).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final ro = _commentKeys[target]?.currentContext?.findRenderObject();
+        final viewport = ro != null ? RenderAbstractViewport.maybeOf(ro) : null;
+        if (ro != null && viewport != null && _scrollCtrl.hasClients) {
+          // getOffsetToReveal = ensureVisible 의 위치계산만(showOnScreen/semantics 우회) → jumpTo 로 즉시 이동.
+          final reveal = viewport.getOffsetToReveal(ro, 0.1).offset;
+          final pos = _scrollCtrl.position;
+          final to = reveal.clamp(pos.minScrollExtent, pos.maxScrollExtent);
+          if ((to - pos.pixels).abs() > 1.0) _scrollCtrl.jumpTo(to); // 이미 보이면 점프 생략
+        }
+      });
+    });
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -110,6 +154,8 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
           _likeCount = p.likeCount;
         }
       });
+      if (p != null) _recordView(); // ★실제 상세 진입 1회만 조회 기록(resume/새로고침/댓글 재조회 제외)
+      if (p != null) _maybeScrollToComment(); // 알림 딥링크 시 해당 댓글 위치로
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -420,16 +466,18 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
       physics: const AlwaysScrollableScrollPhysics(), // 짧은 글에서도 당겨서 새로고침 가능
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       children: [
-        _header(post),
-        const SizedBox(height: 18),
+        _header(post), // 카테고리 칩 + 제목
+        const SizedBox(height: 10), // ★제목↔본문 가까이(읽기 흐름: 제목→본문 먼저)
         Text(post.body,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 14.5, height: 1.6)),
         _imageGallery(post), // 첨부 이미지(있으면) — 공지·자유 공통, 본문 아래
-        const SizedBox(height: 18),
-        _engagementRow(post), // ♥ 좋아요 토글 · 댓글 수 (공식글 포함)
+        const SizedBox(height: 14),
+        _authorMeta(post), // ★작성자·시간·조회 = 본문 아래 작은 메타로 이동(아바타 제거)
         const SizedBox(height: 16),
+        _engagementRow(post), // ♥ 좋아요 토글 · 댓글 수 (공식글 포함)
+        const SizedBox(height: 14),
         const Divider(height: 1, color: AppColors.divider),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         ...post.comments.map(_commentTile),
         if (post.comments.isEmpty)
           const Padding(
@@ -456,7 +504,6 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
 
   Widget _header(BoardPost post) {
     // 작성자 이니셜 — 빈 author(서버 라벨 누락)에도 .characters.first 가 throw 하지 않도록 가드.
-    final initial = post.author.isEmpty ? '?' : post.author.characters.first;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -468,8 +515,10 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
               borderRadius: BorderRadius.circular(7),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(post.type.icon, size: 13, color: post.type.color),
-              const SizedBox(width: 5),
+              if (post.type.isAdmin) ...[
+                Icon(post.type.icon, size: 12.5, color: post.type.color),
+                const SizedBox(width: 5),
+              ],
               Text(post.type.label,
                   style: TextStyle(
                       color: post.type.color, fontSize: 11.5, fontWeight: FontWeight.w700)),
@@ -480,43 +529,36 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
             _pinBadge(),
           ],
         ]),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Text(post.title,
             style: const TextStyle(
                 color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w800, height: 1.3)),
-        const SizedBox(height: 12),
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 6,
-          children: [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              CircleAvatar(
-                radius: 13,
-                backgroundColor: AppColors.surfaceElevated,
-                child: Text(initial,
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(post.author,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-              ),
-              if (post.isAdmin) ...[const SizedBox(width: 6), _adminBadge()],
-            ]),
-            // 조회수는 0이면 숨김(증가 기능 전이라 '조회 0' 반복 노출 방지).
-            Text(
-              post.viewCount > 0
-                  ? '${boardRelativeTime(post.createdAt)} · 조회 ${post.viewCount}'
-                  : boardRelativeTime(post.createdAt),
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5),
-            ),
-          ],
+      ],
+    );
+  }
+
+  // ★작성자 메타 — 본문 아래 작은 한 줄(아바타 없음). 조회수 포함(액션 아님, 상세 진입 1회 +1).
+  Widget _authorMeta(BoardPost post) {
+    // Wrap = 좁은 화면/큰 글자에서 메타가 둘째 줄로 흡수(overflow 0). 작성자는 maxWidth+ellipsis.
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      runSpacing: 2,
+      children: [
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220),
+            child: Text(post.author,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12.5, fontWeight: FontWeight.w600)),
+          ),
+          if (post.isAdmin) ...[const SizedBox(width: 6), _adminBadge()],
+        ]),
+        Text(
+          '· ${boardRelativeTime(post.createdAt)} · 조회 ${_viewCountOverride ?? post.viewCount}',
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5),
         ),
       ],
     );
@@ -525,6 +567,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
   // 1단 대댓글 읽기 표시. Q&A 채택 UI 는 1.0.4 미노출(데이터는 파싱 유지).
   Widget _commentTile(BoardComment c, {bool isReply = false}) {
     return Padding(
+      key: _commentKeys.putIfAbsent(c.id, () => GlobalKey()),
       padding: EdgeInsets.fromLTRB(isReply ? 28 : 0, 10, 0, 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -613,26 +656,22 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
             constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             alignment: Alignment.centerLeft,
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(_liked ? Icons.favorite : Icons.favorite_border,
-                  size: 20, color: _liked ? AppColors.blue : AppColors.textMuted),
+              Icon(_liked ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                  size: 18, color: _liked ? AppColors.blue : AppColors.textSecondary),
               const SizedBox(width: 5),
-              Text('$_likeCount',
+              Text('좋아요 $_likeCount',
                   style: TextStyle(
                       color: _liked ? AppColors.blue : AppColors.textSecondary,
-                      fontSize: 13.5,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600)),
             ]),
           ),
         ),
         const SizedBox(width: 16),
       ],
-      Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.chat_bubble_outline_rounded, size: 17, color: AppColors.textMuted),
-        const SizedBox(width: 5),
-        Text('${post.commentCount}',
-            style: const TextStyle(
-                color: AppColors.textSecondary, fontSize: 13.5, fontWeight: FontWeight.w600)),
-      ]),
+      Text('댓글 ${post.commentCount}',
+          style: const TextStyle(
+              color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
     ]);
   }
 
@@ -880,7 +919,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
           children: [
             _replyChip(),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -916,18 +955,18 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
                     behavior: HitTestBehavior.opaque,
                     onTap: canSend ? _sendComment : null,
                     child: Container(
-                      width: 44,
-                      height: 44,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
                         color: canSend ? AppColors.blue : AppColors.surfaceElevated,
                         shape: BoxShape.circle,
                       ),
                       child: _sending
                           ? const Padding(
-                              padding: EdgeInsets.all(13),
+                              padding: EdgeInsets.all(11),
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : Icon(Icons.arrow_upward_rounded,
-                              color: canSend ? Colors.white : AppColors.textMuted, size: 20),
+                          : Icon(Icons.send_rounded,
+                              color: canSend ? Colors.white : AppColors.textMuted, size: 18),
                     ),
                   ),
                 ],

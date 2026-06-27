@@ -14,6 +14,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
+import '../../core/utils/price_label.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/app_segmented_toggle.dart';
 import '../../core/widgets/app_info_toast.dart';
@@ -980,6 +981,8 @@ class _ScannerScreenState extends State<ScannerScreen>
       prefix: '',
     );
     final String pctLabel = display?.label.trim() ?? '0.0%';
+    // ★KO 가격은 대부분 예상가치 — '시세' 오해 방지 라벨(price_confidence 정책, card_detail과 동일 유틸).
+    final String priceLabel = PriceLabel.resolve(labelType: card['koPriceLabelType'] as String?, price: price);
     final Color pctColor = display == null
         ? AppColors.textMuted
         : switch (display.color) {
@@ -1121,6 +1124,18 @@ class _ScannerScreenState extends State<ScannerScreen>
                             ),
                           ],
                           const SizedBox(height: 10),
+                          // ★가격이 예상가치임을 명시(290원만 보이면 시세로 오해). KO=대부분 한국판 예상가.
+                          if (price != null) ...[
+                            Text(
+                              priceLabel,
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                          ],
                           // 가격 + 변동률
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.baseline,

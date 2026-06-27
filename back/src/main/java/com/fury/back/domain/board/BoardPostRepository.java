@@ -9,6 +9,11 @@ import org.springframework.data.repository.query.Param;
 
 public interface BoardPostRepository extends JpaRepository<BoardPost, String> {
 
+    /** 조회수 +1 — BoardViewService 가 신규 조회 INSERT(ON CONFLICT) 성공 시에만 호출. */
+    @Modifying
+    @Query("UPDATE BoardPost p SET p.viewCount = p.viewCount + 1 WHERE p.postId = :postId")
+    int incrementViewCount(@Param("postId") String postId);
+
     /**
      * 활성 피드. 노출 = deleted_at IS NULL AND status='ACTIVE'.
      * section/type 는 옵셔널(null=미필터). viewerId 있으면 차단(Block) author 제외.

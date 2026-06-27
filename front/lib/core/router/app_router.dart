@@ -13,6 +13,7 @@ import '../constants/feature_flags.dart';
 import '../theme/app_colors.dart';
 import '../../features/shell/main_shell.dart';
 import '../../features/home/home_screen.dart';
+import '../../features/board/board_detail_screen.dart';
 import '../../features/scanner/scanner_screen.dart';
 import '../../features/card/card_detail_screen.dart';
 import '../../features/card/product_cards_screen.dart';
@@ -132,6 +133,14 @@ final appRouter = GoRouter(
       path: '/dex/:productId',
       builder: (_, state) => DexDetailScreen(
         productId: state.pathParameters['productId']!,
+      ),
+    ),
+    GoRoute(
+      // 게시판 알림 딥링크 — postId 로 상세 진입(repository 기본값 사용, 삭제/숨김=상세 404 안내).
+      path: '/board/:postId',
+      builder: (_, state) => BoardDetailScreen(
+        postId: state.pathParameters['postId']!,
+        focusCommentId: state.uri.queryParameters['comment'],
       ),
     ),
     GoRoute(

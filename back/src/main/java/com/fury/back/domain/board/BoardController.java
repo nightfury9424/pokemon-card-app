@@ -30,6 +30,7 @@ public class BoardController {
     private final BoardWriteService boardWriteService;
     private final JwtUtil jwtUtil;
     private final BoardLikeService boardLikeService;
+    private final BoardViewService boardViewService;
 
     @Operation(summary = "게시글 목록", description = "section/type 필터 + 페이지. 핀 우선 정렬.")
     @GetMapping("/posts")
@@ -85,6 +86,13 @@ public class BoardController {
             @PathVariable String postId, @RequestBody CreateCommentRequest req, HttpServletRequest request) {
         String userId = optionalUserId(request);
         return ReturnData.success(Map.of("commentId", boardWriteService.createComment(userId, postId, req)));
+    }
+
+    @Operation(summary = "조회수 기록", description = "상세 진입 시 1회 호출. 계정별 게시글당 최초 1회만 +1(멱등). 비로그인/작성자 본인/숨김·삭제글 미집계.")
+    @PostMapping("/posts/{postId}/view")
+    public ReturnData<com.fury.back.domain.board.dto.BoardViewResponse> recordView(
+            @PathVariable String postId, HttpServletRequest request) {
+        return ReturnData.success(boardViewService.recordView(optionalUserId(request), postId));
     }
 
     @Operation(summary = "본인 댓글 삭제")

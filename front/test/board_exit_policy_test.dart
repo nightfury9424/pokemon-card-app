@@ -95,7 +95,7 @@ void main() {
 
     await t.enterText(find.byType(TextField), '댓글');
     await t.pump();
-    await t.tap(find.byIcon(Icons.arrow_upward_rounded)); // 전송(지연)
+    await t.tap(find.byIcon(Icons.send_rounded)); // 전송(지연)
     await t.pump();
     await t.tap(find.byType(BackButton)); // 요청 중 뒤로
     await t.pump();

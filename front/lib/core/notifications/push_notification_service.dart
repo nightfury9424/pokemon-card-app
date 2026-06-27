@@ -135,6 +135,12 @@ class PushNotificationService {
         final tradeId = data['tradeId'];
         if (tradeId != null && '$tradeId'.isNotEmpty) return '/trades/$tradeId';
         break;
+      case 'BOARD_POST_LIKE': // 게시판 알림 → 게시글 상세(삭제/숨김이면 상세가 404 안내, 크래시·무한로딩 없음)
+      case 'BOARD_POST_COMMENT':
+      case 'BOARD_COMMENT_REPLY':
+        final link = data['linkUrl'];
+        if (link != null && '$link'.startsWith('/board/')) return '$link';
+        break;
     }
     return null;
   }

@@ -341,18 +341,11 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
           ? FloatingActionButton.extended(
               backgroundColor: AppColors.blue,
               onPressed: _openCompose,
-              icon: const Icon(
-                Icons.edit_outlined,
-                size: 18,
-                color: Colors.white,
-              ),
-              label: const Text(
-                '글쓰기',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              elevation: 2,
+              icon: const Icon(Icons.add_rounded, size: 20, color: Colors.white),
+              label: const Text('글쓰기',
+                  style: TextStyle(
+                      color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
             )
           : null,
       body: Column(
@@ -542,7 +535,7 @@ class PostRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AppColors.textPrimary,
-                fontSize: 15,
+                fontSize: 15.5,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -558,58 +551,37 @@ class PostRow extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 9),
-            // 적응형 메타 — 넓으면 한 줄(양끝정렬), 좁거나 큰 글자면 메타가 둘째 줄로 전환.
-            // 핵심정보(작성자·시간·조회·댓글·좋아요)를 ellipsis 로 숨기지 않음(Wrap 이 줄바꿈으로 처리).
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 6,
+            // 작성자·시간 한 줄 → 아래 보조 메타(좋아요·댓글·조회)를 텍스트형(토스식, 아이콘 제거).
+            Row(
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 닉네임만 통제불가 단일필드라 최후수단 ellipsis(point6). 시간은 안 숨김.
-                    Flexible(
-                      child: Text(
-                        post.author,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                Flexible(
+                  child: Text(
+                    post.author,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const _Dot(),
-                    Text(
-                      boardRelativeTime(post.createdAt),
-                      style: const TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 11.5,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-                // 메타는 폭이 모자라면 자기들끼리도 줄바꿈(숫자 안 숨김).
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    // ★순서 좋아요→댓글→조회로 통일 + 0 포함 항상 표시(조건부 숨김 제거). 좋아요 토글은 상세에서.
-                    //   내가 누른 글=파란 채운 하트, 안 누름/0=빈 하트.
-                    _meta(
-                      post.likedByMe ? Icons.favorite : Icons.favorite_border,
-                      post.likeCount,
-                      color: post.likedByMe ? AppColors.blue : null,
-                    ),
-                    _meta(Icons.chat_bubble_outline_rounded, post.commentCount),
-                    _meta(Icons.visibility_outlined, post.viewCount),
-                  ],
+                const _Dot(),
+                Text(
+                  boardRelativeTime(post.createdAt),
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5),
                 ),
               ],
+            ),
+            const SizedBox(height: 3),
+            Text(
+              '좋아요 ${post.likeCount} · 댓글 ${post.commentCount} · 조회 ${post.viewCount}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.textSecondary.withValues(alpha: 0.7),
+                fontSize: 12,
+              ),
             ),
           ],
                 ),
@@ -682,8 +654,10 @@ class PostRow extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(type.icon, size: 12, color: type.color),
-          const SizedBox(width: 4),
+          if (type.isAdmin) ...[
+            Icon(type.icon, size: 11.5, color: type.color),
+            const SizedBox(width: 4),
+          ],
           Text(
             type.label,
             style: TextStyle(
@@ -694,18 +668,6 @@ class PostRow extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _meta(IconData icon, int n, {Color? color}) {
-    final c = color ?? AppColors.textMuted;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 13, color: c),
-        const SizedBox(width: 3),
-        Text('$n', style: TextStyle(color: c, fontSize: 11.5)),
-      ],
     );
   }
 
