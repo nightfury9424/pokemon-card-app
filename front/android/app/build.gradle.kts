@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.front"
+    namespace = "com.fury.pokemoncardapp"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,8 +20,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.front"
+        // iOS Bundle ID / Firebase(pokefolio-2e680) 와 동일하게 맞춤. 출시 후 변경 금지.
+        applicationId = "com.fury.pokemoncardapp"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

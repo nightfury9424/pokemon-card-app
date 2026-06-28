@@ -1,4 +1,4 @@
-package com.example.front
+package com.fury.pokemoncardapp
 
 import io.flutter.embedding.android.FlutterActivity
 
