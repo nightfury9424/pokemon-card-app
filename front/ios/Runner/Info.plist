@@ -2,6 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- iOS 26 Impeller 렌더 버그(글리프 doubling + 카메라 external texture 검은화면) 회피 — Skia 폴백. 2026-06-30 (1.0.5) -->
+	<key>FLTEnableImpeller</key>
+	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
