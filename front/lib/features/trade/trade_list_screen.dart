@@ -8,6 +8,7 @@ import '../../core/utils/price_label.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import 'trade_search_screen.dart';
+import 'widgets/market_row_price_meta.dart';
 
 class TradeListScreen extends StatefulWidget {
   final String? filterCardId;
@@ -350,12 +351,8 @@ class _TradeListScreenState extends State<TradeListScreen> {
           ],
         ),
           ),
-          if (_sortTab >= 2)
-            const Padding(
-              padding: EdgeInsets.only(top: 8, left: 2),
-              child: Text('최근 7일 가격 변동 기준',
-                  style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
-            ),
+          // 최근 7일 변동 안내 — 변동 정렬 탭(힛카드·급상승·급하락)에서만 노출. 시세/호가 탭 제외.
+          MarketSevenDayNote(sortTab: _sortTab),
         ],
       ),
     );
@@ -647,7 +644,6 @@ class _TradeListScreenState extends State<TradeListScreen> {
       prevPrice: prevPriceApprox,
       prefix: '',
     );
-    final String pctLabel = display?.label.trim() ?? '';
     final Color pctColor = display == null
         ? AppColors.textMuted
         : switch (display.color) {
@@ -656,6 +652,19 @@ class _TradeListScreenState extends State<TradeListScreen> {
             PriceChangeColor.negative => AppColors.blue,
             PriceChangeColor.neutral => AppColors.textMuted,
           };
+    // 변동액/퍼센트는 표시문자열 파싱이 아니라 구조화된 diff/percent에서 직접 만든다.
+    // 금액 포맷은 PriceDisplayPolicy 와 동일한 10원 반올림(AppColors.formatPrice). null=등락 숨김.
+    String? changeAmount;
+    String? changePct;
+    if (display != null) {
+      final diff = display.diff;
+      final sign = diff > 0 ? '+' : (diff < 0 ? '-' : '');
+      changeAmount = '$sign${AppColors.formatPrice(diff.abs())}';
+      final pctVal = display.percent;
+      if (pctVal != null) {
+        changePct = '($sign${pctVal.abs().toStringAsFixed(1)}%)';
+      }
+    }
 
     return InkWell(
       onTap: () async {
@@ -726,38 +735,15 @@ class _TradeListScreenState extends State<TradeListScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          price != null ? AppColors.formatPrice(price) : '시세 없음',
-                          style: TextStyle(
-                            color: price != null
-                                ? AppColors.textSecondary
-                                : AppColors.textMuted,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        // 가격 옆 inline 라벨 — 국내 예상가 / 해외 참고가 / 시세 준비중.
-                        Text(
-                          priceLabelText,
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          pctLabel,
-                          style: TextStyle(
-                            color: pctColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
+                    // 가격·발매판라벨·변동액·퍼센트 — 고정 Row 대신 Wrap(MarketRowPriceMeta)
+                    // 으로 흘려 좁은 폭/큰 글자배율에서 변동 정보가 다음 줄로 내려가고
+                    // 오른쪽 하트와 겹치지 않게 한다(핵심 숫자 ellipsis 금지).
+                    MarketRowPriceMeta(
+                      price: price,
+                      priceLabelText: priceLabelText,
+                      changeAmount: changeAmount,
+                      changePct: changePct,
+                      changeColor: pctColor,
                     ),
                     const SizedBox(height: 3),
                     // 거래 시그널 — 색 정책: 매도=blue(호가창 ASK 컨벤션), 매수=red(BID), 관심=neutral.
@@ -789,6 +775,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
                 );
               }),
             ),
+            const SizedBox(width: 8), // 변동값 영역과 하트 최소 간격 고정(겹침/붙음 방지)
             // 하트 — 카드 단위 찜 토글
             GestureDetector(
               onTap: () => _toggleLike(cardId),
@@ -1161,6 +1148,23 @@ class _TradeListScreenState extends State<TradeListScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 최근 7일 변동 안내 — 변동 정렬 탭(_sortTab >= 2: 힛카드/급상승/급하락)에서만 표시.
+/// 시세(0)·호가(1) 탭에는 표시하지 않는다. 공개 위젯이라 위젯 테스트로 직접 검증 가능.
+class MarketSevenDayNote extends StatelessWidget {
+  final int sortTab;
+  const MarketSevenDayNote({super.key, required this.sortTab});
+
+  @override
+  Widget build(BuildContext context) {
+    if (sortTab < 2) return const SizedBox.shrink();
+    return const Padding(
+      padding: EdgeInsets.only(top: 8, left: 2),
+      child: Text('최근 7일 가격 변동 기준',
+          style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
     );
   }
 }

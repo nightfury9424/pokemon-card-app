@@ -24,6 +24,17 @@ back/.idea/
 # Flutter build
 front/build/
 front/android/build/
+front/ios/build/
+
+# 사고/로그 산출물 (운영 외, 레포 추적 금지)
+front/<stdin>
+python/mirror_failures_*.csv
+
+# box 이미지 매핑 — 코드만 추적, 스크랩/생성 산출물·바이너리는 제외 (재생성 가능)
+python/box_image_mapping/boxes/
+python/box_image_mapping/raw_official.json
+python/box_image_mapping/match_candidates.json
+python/box_image_mapping/review_offline.html
 
 # Scanner data (card images, large binary)
 scanner/data/

@@ -367,7 +367,11 @@ public class CardServiceImpl implements CardService {
         if (name == null || name.isBlank()) {
             return ReturnData.badRequest("name은 필수입니다.");
         }
-        List<CardSearchDto> result = cardRepository.findByNameContainingIgnoreCase(name)
+        String q = CardSearchTerms.canonicalize(name);
+        if (q.isEmpty()) {
+            return ReturnData.success(List.of());
+        }
+        List<CardSearchDto> result = cardRepository.searchByCardNameOrProductName(q)
                 .stream()
                 .map(CardSearchDto::from)
                 .toList();
@@ -382,8 +386,12 @@ public class CardServiceImpl implements CardService {
         if (language == null || language.isBlank()) {
             return searchCards(name);
         }
+        String q = CardSearchTerms.canonicalize(name);
+        if (q.isEmpty()) {
+            return ReturnData.success(List.of());
+        }
         List<CardSearchDto> result = cardRepository
-                .findByNameContainingIgnoreCaseAndLanguage(name, language.toUpperCase())
+                .searchByCardNameOrProductNameAndLanguage(q, language.toUpperCase())
                 .stream()
                 .map(CardSearchDto::from)
                 .toList();
@@ -422,6 +430,7 @@ public class CardServiceImpl implements CardService {
     public Map<String, Object> getCardsByRarityOrderByPrice(List<String> rarityCodes, String name, int size, int offset) {
         size = Math.max(1, Math.min(size, 100));   // DoS 가드 — 전체 덤프 차단
         offset = Math.max(0, offset);
+        name = CardSearchTerms.canonicalize(name);  // 검색어 정규화(공백·구분자·별칭) — 컬럼 정규화와 동일 기준
         List<Card> cards = cardRepository.findByRarityOrderByLatestPriceDesc(rarityCodes, name, size, offset);
         long total = getCachedMarketCount(rarityCodes, name);
         return buildNativeResult(cards, total, size, offset / size);
@@ -434,6 +443,7 @@ public class CardServiceImpl implements CardService {
         page = Math.max(0, page);
         int offset = page * size;
         boolean asc = !"desc".equalsIgnoreCase(sortDir);
+        name = CardSearchTerms.canonicalize(name);  // 검색어 정규화(공백·구분자·별칭) — 데이터 8경로 + count 동일 기준
         long total = getCachedMarketCount(rarityCodes, name);
 
         List<Card> cards = switch (sortBy) {
@@ -612,7 +622,7 @@ public class CardServiceImpl implements CardService {
     }
 
     private long getCachedMarketCount(List<String> rarityCodes, String name) {
-        String normalizedName = name == null ? "" : name.trim();
+        String normalizedName = CardSearchTerms.canonicalize(name);  // count 도 데이터 쿼리와 동일 정규화(멱등)
         String cacheKey = normalizedName + "|" + rarityCodes.stream().sorted().collect(Collectors.joining(","));
         long now = System.nanoTime();
         CountCacheEntry cached = marketCountCache.get(cacheKey);

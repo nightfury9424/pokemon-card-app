@@ -16,6 +16,9 @@ class ApiErrorInfo {
   final bool isAuthError;   // 401 → 로그인 만료
   final bool isServerError; // 5xx
   final bool isNetworkError;
+  // ★silent 요청(extra.silentErrors) → 전역 '토스트 표시'만 억제. 인증·계정 lifecycle 은
+  //   정책(ApiErrorPolicy)이 suppressToast 와 무관하게 항상 수행한다.
+  final bool suppressToast;
   ApiErrorInfo({
     this.statusCode,
     required this.message,
@@ -23,7 +26,18 @@ class ApiErrorInfo {
     this.isAuthError = false,
     this.isServerError = false,
     this.isNetworkError = false,
+    this.suppressToast = false,
   });
+
+  ApiErrorInfo copyWith({bool? suppressToast}) => ApiErrorInfo(
+        statusCode: statusCode,
+        message: message,
+        code: code,
+        isAuthError: isAuthError,
+        isServerError: isServerError,
+        isNetworkError: isNetworkError,
+        suppressToast: suppressToast ?? this.suppressToast,
+      );
 }
 
 class ApiClient {
@@ -47,14 +61,16 @@ class ApiClient {
         handler.next(options);
       },
       onError: (DioException err, handler) {
-        final info = _classify(err);
+        final silentExtra = err.requestOptions.extra['silentErrors'] == true;
+        final info = _classify(err).copyWith(suppressToast: silentExtra);
         final path = err.requestOptions.uri.path;
         // 항상 로그 — release에서도 진단 가능 (debugPrint는 release에서 일부 무시)
         debugPrint('[ApiClient] ${err.requestOptions.method} $path → ${info.statusCode} ${info.message}');
-        // 이미지 proxy(/api/images/secure/**) fail은 SnackBar 표시 X (AuthImage가 자체 errorBuilder 처리).
-        // 2026-05-29 admin Stage 0: silentErrors extra 플래그 (probe whoami 등 fire-and-forget) 도 SnackBar X.
-        final silentExtra = err.requestOptions.extra['silentErrors'] == true;
-        if (!path.startsWith('/api/images/secure') && !silentExtra) {
+        // ★이미지 proxy(/api/images/secure/**) 만 전역 핸들러 완전 미호출 (AuthImage 자체 errorBuilder).
+        //   그 외엔 silent 여도 항상 핸들러 호출 — silent 은 suppressToast 로 '토스트 표시'만 억제하고
+        //   인증·계정 lifecycle(토큰 폐기·로그아웃·정지 게이트)은 ApiErrorPolicy 가 항상 수행한다.
+        //   (이전: silent 면 _onError 통째 스킵 → 만료 토큰으로 silent 쓰기 시 자동 로그아웃 미발동 버그)
+        if (!path.startsWith('/api/images/secure')) {
           _onError?.call(info);
         }
         handler.next(err);
@@ -105,8 +121,10 @@ class ApiClient {
     }
   }
 
-  static Future<Map<String, dynamic>> post(String path, Map<String, dynamic> data) async {
-    final res = await _dio.post(path, data: data);
+  static Future<Map<String, dynamic>> post(String path, Map<String, dynamic> data,
+      {bool silent = false}) async {
+    final res = await _dio.post(path, data: data,
+        options: silent ? Options(extra: {'silentErrors': true}) : null);
     return res.data;
   }
 
@@ -128,20 +146,26 @@ class ApiClient {
     return res.data ?? const [];
   }
 
-  static Future<Map<String, dynamic>> put(String path, Map<String, dynamic> data) async {
-    final res = await _dio.put(path, data: data);
+  static Future<Map<String, dynamic>> put(String path, Map<String, dynamic> data,
+      {bool silent = false}) async {
+    final res = await _dio.put(path, data: data,
+        options: silent ? Options(extra: {'silentErrors': true}) : null);
     return res.data;
   }
 
-  static Future<Map<String, dynamic>> patch(String path, {Map<String, dynamic>? params, Map<String, dynamic>? data}) async {
-    final res = await _dio.patch(path, queryParameters: params, data: data);
+  static Future<Map<String, dynamic>> patch(String path,
+      {Map<String, dynamic>? params, Map<String, dynamic>? data, bool silent = false}) async {
+    final res = await _dio.patch(path, queryParameters: params, data: data,
+        options: silent ? Options(extra: {'silentErrors': true}) : null);
     return res.data;
   }
 
   /// 2026-05-29 admin Stage 0 — delete body 지원 (HTTP DELETE with optional JSON payload).
   /// 기존 호출처는 path 만 넘기던 단일 시그니처 → data optional 추가 (backward compat).
-  static Future<Map<String, dynamic>> delete(String path, {Map<String, dynamic>? data}) async {
-    final res = await _dio.delete(path, data: data);
+  static Future<Map<String, dynamic>> delete(String path,
+      {Map<String, dynamic>? data, bool silent = false}) async {
+    final res = await _dio.delete(path, data: data,
+        options: silent ? Options(extra: {'silentErrors': true}) : null);
     return res.data;
   }
 

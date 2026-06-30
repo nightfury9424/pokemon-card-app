@@ -1,0 +1,1096 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
+import 'package:flutter/rendering.dart' show RenderAbstractViewport;
+import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_info_toast.dart';
+import '../../core/widgets/auth_image.dart';
+import '../../core/widgets/app_confirm_dialog.dart';
+import 'models/board_post.dart';
+import 'data/board_repository.dart';
+import 'board_compose_screen.dart';
+import '../trade/report_sheet.dart';
+
+/// 게시판 신고 사유 — 백엔드 VALID_REASONS 중 게시판에 적합한 값만(ABUSIVE_PRICE=시세교란 제외).
+const List<Map<String, String>> boardReportReasons = [
+  {'code': 'INSULT', 'label': '욕설 / 비방', 'desc': '부적절한 언행'},
+  {'code': 'SPAM', 'label': '스팸 / 광고', 'desc': '도배, 광고성 글'},
+  {'code': 'FRAUD', 'label': '사기 / 허위', 'desc': '사기 의심, 허위 정보'},
+  {'code': 'FAKE', 'label': '조작 / 사칭', 'desc': '위조·사칭 콘텐츠'},
+  {'code': 'OTHER', 'label': '기타', 'desc': '직접 사유 입력'},
+];
+
+/// 게시글 상세 — postId 로 상세 API 재조회(목록 summary 재사용 X).
+/// 공지(official: notice/event/patch) = 본문만 읽기(댓글·반응 UI 없음).
+/// 자유(free) = 본문 + 댓글·1단 대댓글 읽기(작성/좋아요 동작은 다음 슬라이스).
+class BoardDetailScreen extends StatefulWidget {
+  final String postId;
+  final BoardRepository repository;
+
+  /// 목록에서 넘어올 때 로딩 중 AppBar 제목 등 표시용(최종 데이터는 fetchDetail).
+  final BoardPost? summary;
+
+  /// 알림 딥링크(?comment=)로 진입 시 스크롤할 댓글/대댓글 id. 없으면 게시글 상단.
+  final String? focusCommentId;
+
+  const BoardDetailScreen({
+    super.key,
+    required this.postId,
+    this.repository = const BoardRepository(),
+    this.summary,
+    this.focusCommentId,
+  });
+
+  @override
+  State<BoardDetailScreen> createState() => _BoardDetailScreenState();
+}
+
+class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindingObserver {
+  BoardPost? _post;
+  bool _loading = true;
+  bool _notFound = false;
+  Object? _error;
+
+  // 댓글/대댓글 입력
+  final TextEditingController _commentCtrl = TextEditingController();
+  final FocusNode _commentFocus = FocusNode();
+  final ScrollController _scrollCtrl = ScrollController();
+  BoardComment? _replyTo; // 답글 대상(컨텍스트 칩). null = 일반 댓글
+  bool _sending = false;
+
+  // 좋아요(낙관적 업데이트) — _post 와 분리해 즉시 토글 + 서버 보정/실패 롤백.
+  bool _liked = false;
+  int _likeCount = 0;
+  bool _likeBusy = false; // 진행 중 같은 글 재탭 차단
+  bool _changed = false;  // 좋아요/댓글 변경 → 목록 갱신 신호(back pop result)
+  String? _deletingCommentId; // 댓글/대댓글 삭제 진행 중(이탈·중복 차단)
+  bool _postDeleting = false; // 게시글 삭제 진행 중
+  int? _viewCountOverride; // 조회 기록 응답(서버)으로 조회수 표시 보정
+  final Map<String, GlobalKey> _commentKeys = {}; // 댓글 id → 위젯 키(딥링크 스크롤)
+  bool _scrolledToComment = false; // focusCommentId 스크롤 1회만
+  bool _blocking = false; // 사용자 차단 요청 진행 중(이탈·중복 차단)
+
+  // 상태 변경 요청 진행 중 여부 — 진행 중엔 화면 이탈 금지(닫히면 dispose 로 성공 결과·목록 동기화 유실).
+  bool get _hasPendingMutation =>
+      _likeBusy || _sending || _deletingCommentId != null || _postDeleting || _blocking;
+
+  @override
+  void initState() {
+    super.initState();
+    _commentCtrl.addListener(_onCommentChange);
+    WidgetsBinding.instance.addObserver(this);
+    _load();
+  }
+
+  // 앱 resume 시 무플래시 재조회 — 관리자 고정/해제 등 백그라운드 중 변경(핀 상태 포함)을 최신화.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) _reload();
+  }
+
+  void _onCommentChange() {
+    if (mounted) setState(() {}); // 전송 버튼 활성/비활성 갱신
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _commentCtrl.dispose();
+    _commentFocus.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  // 상세 실제 진입 시 1회 조회 기록 — 응답 viewCount 로 표시 보정. resume/새로고침/댓글 재조회에서는 호출 안 함.
+  Future<void> _recordView() async {
+    final c = await widget.repository.recordView(widget.postId);
+    if (c != null && mounted) setState(() => _viewCountOverride = c);
+  }
+
+  // 알림 딥링크(focusCommentId) 진입 시 해당 댓글/대댓글로 스크롤. 트리에 없으면(삭제/제거) 안내만, 게시글 상세는 유지.
+  void _maybeScrollToComment() {
+    final target = widget.focusCommentId;
+    if (target == null || target.isEmpty || _scrolledToComment) return;
+    _scrolledToComment = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _commentKeys[target]?.currentContext;
+      if (ctx == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('삭제되었거나 찾을 수 없는 댓글이에요.')));
+        return;
+      }
+      // 레이아웃이 완전히 정착한 다음 프레임에 스크롤(semantics 갱신과 layout-dirty 경합 방지).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final ro = _commentKeys[target]?.currentContext?.findRenderObject();
+        final viewport = ro != null ? RenderAbstractViewport.maybeOf(ro) : null;
+        if (ro != null && viewport != null && _scrollCtrl.hasClients) {
+          // getOffsetToReveal = ensureVisible 의 위치계산만(showOnScreen/semantics 우회) → jumpTo 로 즉시 이동.
+          final reveal = viewport.getOffsetToReveal(ro, 0.1).offset;
+          final pos = _scrollCtrl.position;
+          final to = reveal.clamp(pos.minScrollExtent, pos.maxScrollExtent);
+          if ((to - pos.pixels).abs() > 1.0) _scrollCtrl.jumpTo(to); // 이미 보이면 점프 생략
+        }
+      });
+    });
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _notFound = false;
+      _error = null;
+    });
+    try {
+      final p = await widget.repository.fetchDetail(widget.postId);
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        if (p == null) {
+          _notFound = true; // 404 = 삭제/숨김/미존재
+        } else {
+          _post = p;
+          _liked = p.likedByMe; // 서버 기준 초기화
+          _likeCount = p.likeCount;
+        }
+      });
+      if (p != null) _recordView(); // ★실제 상세 진입 1회만 조회 기록(resume/새로고침/댓글 재조회 제외)
+      if (p != null) _maybeScrollToComment(); // 알림 딥링크 시 해당 댓글 위치로
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e;
+      });
+    }
+  }
+
+  // 댓글 작성·삭제 후 무플래시 재조회(로딩 스피너 전환 없이 _post 갱신 → 목록·댓글 수 갱신).
+  Future<void> _reload() async {
+    try {
+      final p = await widget.repository.fetchDetail(widget.postId);
+      if (!mounted || p == null) return;
+      setState(() {
+        _post = p;
+        if (!_likeBusy) { // 좋아요 요청 진행 중이면 낙관적 상태 보존
+          _liked = p.likedByMe;
+          _likeCount = p.likeCount;
+        }
+      });
+    } catch (_) {
+      // 재조회 실패는 기존 화면 유지(조용히 무시).
+    }
+  }
+
+  // 댓글 신고/차단 후 재조회 — 그 작성자가 게시글 작성자이기도 하면 차단으로 상세가 404가 됨.
+  // 이 경우 오류 화면에 남기지 않고 pop('changed')로 목록 재조회. 아니면 thread 만 무플래시 갱신.
+  Future<void> _reloadOrPopIfGone() async {
+    try {
+      final p = await widget.repository.fetchDetail(widget.postId);
+      if (!mounted) return;
+      if (p == null) {
+        Navigator.of(context).pop('changed'); // 게시글 작성자=차단 대상 → 상세 불가 → 목록으로
+        return;
+      }
+      setState(() {
+        _post = p;
+        if (!_likeBusy) {
+          _liked = p.likedByMe;
+          _likeCount = p.likeCount;
+        }
+      });
+    } catch (_) {
+      // 재조회 실패는 기존 화면 유지(조용히 무시).
+    }
+  }
+
+  // ⋯ 액션 — 본인=수정/삭제 / 비본인=신고하기(+커뮤니티 사용자 차단) / 공식글=신고하기만. 위에서 내려오는 팝업 X.
+  List<Widget>? _appBarActions() {
+    final p = _post;
+    if (p == null || !(p.canEdit || p.canDelete || p.canReport || p.canBlock)) {
+      return null;
+    }
+    return [
+      IconButton(
+        icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
+        onPressed: () => _showActionSheet(p),
+      ),
+    ];
+  }
+
+  // ★당근식 하단 액션 시트 — 아래에서 올라옴. 액션 카드 + 닫기 카드(분리). 다크 surface·radius.
+  Future<void> _showActionSheet(BoardPost p) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final items = <Widget>[];
+        void add(String value, IconData icon, String label, Color color) {
+          if (items.isNotEmpty) items.add(_sheetDivider());
+          items.add(_sheetItem(ctx, value, icon, label, color));
+        }
+        if (p.canEdit) add('edit', Icons.edit_outlined, '수정', AppColors.textPrimary);
+        if (p.canDelete) add('delete', Icons.delete_outline, '삭제', AppColors.red);
+        if (p.canReport) add('report', Icons.report_outlined, '신고하기', AppColors.red);
+        if (p.canBlock) add('block', Icons.block, '사용자 차단', AppColors.textPrimary);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                      color: AppColors.divider, borderRadius: BorderRadius.circular(2)),
+                ),
+                Container(
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                      color: AppColors.surfaceCard, borderRadius: BorderRadius.circular(14)),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: items),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                      color: AppColors.surfaceCard, borderRadius: BorderRadius.circular(14)),
+                  child: _sheetItem(ctx, null, null, '닫기', AppColors.textPrimary, center: true),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted || action == null) return;
+    if (action == 'edit') _edit(p);
+    if (action == 'delete') _delete(p);
+    if (action == 'report') _reportPost(p);
+    if (action == 'block') _blockPostAuthor(p);
+  }
+
+  Widget _sheetItem(BuildContext ctx, String? value, IconData? icon, String label, Color color,
+      {bool center = false}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => Navigator.of(ctx).pop(value),
+        child: SizedBox(
+          height: 54,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Row(
+              mainAxisAlignment: center ? MainAxisAlignment.center : MainAxisAlignment.start,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 20, color: color),
+                  const SizedBox(width: 14),
+                ],
+                Text(label,
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 15.5,
+                        fontWeight: center ? FontWeight.w700 : FontWeight.w500)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sheetDivider() => const Divider(height: 1, thickness: 1, color: AppColors.divider);
+
+  // 게시글 신고 — 공용 ReportSheet 재사용(BOARD_POST). autoBlock=차단 가능 글만(=커뮤니티 비본인).
+  // ★공식글(운영팀, canBlock=false)은 작성자 차단 없이 신고만 → 글 유지·토스트. 차단형은 글이 사라지므로 pop('changed').
+  Future<void> _reportPost(BoardPost p) async {
+    final autoBlock = p.canBlock;
+    final reported = await ReportSheet.show(context,
+        targetType: 'BOARD_POST',
+        targetId: p.id,
+        targetNoun: '게시글',
+        autoBlock: autoBlock,
+        reasons: boardReportReasons);
+    if (!mounted || !reported) return;
+    if (autoBlock) {
+      Navigator.of(context).pop('changed'); // 작성자 차단으로 글 사라짐 → 목록 재조회
+    } else {
+      AppInfoToast.show(context, '신고가 접수되었어요.'); // 공식글 신고: 글 유지
+    }
+  }
+
+  // 신고 없이 작성자 차단 — 확인 후 board-post 차단 API(서버가 작성자 해석). 성공 시 콘텐츠 사라짐 → pop('changed').
+  Future<void> _blockPostAuthor(BoardPost p) async {
+    if (_hasPendingMutation) return;
+    if (!await _confirmBlock() || !mounted) return;
+    setState(() => _blocking = true);
+    try {
+      await widget.repository.blockPostAuthor(p.id);
+      if (!mounted) return;
+      Navigator.of(context).pop('changed'); // imperative pop = PopScope 우회
+    } on BoardApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _blocking = false);
+      if (e.statusCode != 401) AppInfoToast.show(context, e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _blocking = false);
+      AppInfoToast.show(context, '차단하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
+  }
+
+  // 차단 확인 다이얼로그(게시글·댓글 공용). 차단=true.
+  Future<bool> _confirmBlock() async {
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '사용자를 차단할까요?',
+      message: '이 사용자를 차단하면 해당 사용자의 게시글과 댓글이 표시되지 않습니다.\n차단 목록에서 언제든 해제할 수 있습니다.',
+      cancelLabel: '취소',
+      confirmLabel: '차단',
+      destructive: true,
+    );
+    return ok == true;
+  }
+
+  Future<void> _edit(BoardPost p) async {
+    final updated = await Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
+        builder: (_) => BoardComposeScreen(repository: widget.repository, editing: p)));
+    if (updated != null && mounted) _load(); // 수정 성공 → 상세 갱신
+  }
+
+  Future<void> _delete(BoardPost p) async {
+    if (_hasPendingMutation) return; // 다른 변경 진행 중 — 중복 다이얼로그/요청 방지
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '글을 삭제할까요?',
+      message: '삭제한 글은 복구할 수 없어요.',
+      cancelLabel: '취소',
+      confirmLabel: '삭제',
+      destructive: true,
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _postDeleting = true);
+    try {
+      await widget.repository.deletePost(p.id);
+      if (!mounted) return;
+      Navigator.of(context).pop('deleted'); // force pop(성공) — PopScope 우회. 목록 새로고침 신호
+    } on BoardApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _postDeleting = false);
+      if (e.statusCode != 401) AppInfoToast.show(context, e.message); // 401=전역 lifecycle(로그아웃)
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _postDeleting = false);
+      AppInfoToast.show(context, '삭제하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
+  }
+
+  // AppBar 뒤로 버튼 핸들러 — 변경 발생 시 목록 갱신 신호('changed') 전달, 변경 진행 중이면 차단.
+  void _handleBack() {
+    if (_hasPendingMutation) return; // 변경 진행 중 — 완료 후 가능
+    Navigator.of(context).pop(_changed ? 'changed' : null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final titleType = (_post ?? widget.summary)?.type;
+    return PopScope(
+      // 2026-06-26: iOS edge-swipe / 시스템 뒤로 기본 허용(canPop=true) → 스와이프 뒤로가기 복구.
+      //   단 상태변경(좋아요·댓글 작성/삭제·게시글 삭제·차단) 진행 중에만 차단(요청 유실 방지).
+      //   스와이프 닫힘은 결과 null — 목록 갱신은 복귀 시 board_screen 의 _silentReload 가 무조건 수행.
+      canPop: !_hasPendingMutation,
+      onPopInvokedWithResult: (didPop, result) {
+        // didPop=false = 진행 중 변경으로 차단됨. 완료 후 재시도 가능(별도 처리 불필요).
+      },
+      child: Scaffold(
+      backgroundColor: AppColors.bg,
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(
+        backgroundColor: AppColors.bg,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        // 뒤로 버튼: 변경 결과('changed')를 목록에 전달 + 진행 중 가드. (iOS 스와이프는 canPop 경로=네이티브 null)
+        leading: BackButton(onPressed: _handleBack),
+        title: Text(titleType?.label ?? '게시글',
+            style: const TextStyle(
+                color: AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 16)),
+        actions: _appBarActions(),
+      ),
+      body: _buildBody(),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2.4));
+    }
+    if (_notFound) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text('삭제되었거나 존재하지 않는 글이에요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+        ),
+      );
+    }
+    if (_error != null || _post == null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('글을 불러오지 못했어요.',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: _load,
+              child: const Text('다시 시도',
+                  style: TextStyle(color: AppColors.blue, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final post = _post!;
+
+    // ★1.0.4: 공식글(공지/이벤트/패치)도 자유글과 동일하게 좋아요·댓글·대댓글·입력바 노출.
+    //   (게시글 자체 수정·삭제만 관리자 전용 — 그건 서버 canEdit/canDelete 로 게이트)
+    final content = ListView(
+      controller: _scrollCtrl,
+      physics: const AlwaysScrollableScrollPhysics(), // 짧은 글에서도 당겨서 새로고침 가능
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+      children: [
+        _header(post), // 카테고리 칩 + 제목
+        const SizedBox(height: 10), // ★제목↔본문 가까이(읽기 흐름: 제목→본문 먼저)
+        Text(post.body,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14.5, height: 1.6)),
+        _imageGallery(post), // 첨부 이미지(있으면) — 공지·자유 공통, 본문 아래
+        const SizedBox(height: 14),
+        _authorMeta(post), // ★작성자·시간·조회 = 본문 아래 작은 메타로 이동(아바타 제거)
+        const SizedBox(height: 16),
+        _engagementRow(post), // ♥ 좋아요 토글 · 댓글 수 (공식글 포함)
+        const SizedBox(height: 14),
+        const Divider(height: 1, color: AppColors.divider),
+        const SizedBox(height: 14),
+        ...post.comments.map(_commentTile),
+        if (post.comments.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+                child: Text('아직 댓글이 없어요',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 13))),
+          ),
+      ],
+    );
+
+    return Column(children: [
+      // 상세 당겨서 새로고침 — _reload(무플래시: 본문·이미지·좋아요·댓글·대댓글·상태 재조회, 기존 API 재사용).
+      Expanded(
+        child: RefreshIndicator(
+          onRefresh: _reload,
+          color: AppColors.blue,
+          child: content,
+        ),
+      ),
+      _commentBar(),
+    ]);
+  }
+
+  Widget _header(BoardPost post) {
+    // 작성자 이니셜 — 빈 author(서버 라벨 누락)에도 .characters.first 가 throw 하지 않도록 가드.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: post.type.color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (post.type.isAdmin) ...[
+                Icon(post.type.icon, size: 12.5, color: post.type.color),
+                const SizedBox(width: 5),
+              ],
+              Text(post.type.label,
+                  style: TextStyle(
+                      color: post.type.color, fontSize: 11.5, fontWeight: FontWeight.w700)),
+            ]),
+          ),
+          if (post.isPinned) ...[
+            const SizedBox(width: 7),
+            _pinBadge(),
+          ],
+        ]),
+        const SizedBox(height: 10),
+        Text(post.title,
+            style: const TextStyle(
+                color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w800, height: 1.3)),
+      ],
+    );
+  }
+
+  // ★작성자 메타 — 본문 아래 작은 한 줄(아바타 없음). 조회수 포함(액션 아님, 상세 진입 1회 +1).
+  Widget _authorMeta(BoardPost post) {
+    // Wrap = 좁은 화면/큰 글자에서 메타가 둘째 줄로 흡수(overflow 0). 작성자는 maxWidth+ellipsis.
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      runSpacing: 2,
+      children: [
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220),
+            child: Text(post.author,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12.5, fontWeight: FontWeight.w600)),
+          ),
+          if (post.isAdmin) ...[const SizedBox(width: 6), _adminBadge()],
+        ]),
+        Text(
+          '· ${boardRelativeTime(post.createdAt)} · 조회 ${_viewCountOverride ?? post.viewCount}',
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5),
+        ),
+      ],
+    );
+  }
+
+  // 1단 대댓글 읽기 표시. Q&A 채택 UI 는 1.0.4 미노출(데이터는 파싱 유지).
+  Widget _commentTile(BoardComment c, {bool isReply = false}) {
+    return Padding(
+      key: _commentKeys.putIfAbsent(c.id, () => GlobalKey()),
+      padding: EdgeInsets.fromLTRB(isReply ? 28 : 0, 10, 0, 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceCard,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  if (isReply)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 4),
+                      child: Icon(Icons.subdirectory_arrow_right,
+                          size: 13, color: AppColors.textMuted),
+                    ),
+                  Flexible(
+                    child: Text(c.author,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                  if (c.isAdmin) ...[const SizedBox(width: 5), _adminBadge()],
+                  const SizedBox(width: 8),
+                  Text(boardRelativeTime(c.createdAt),
+                      style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
+                ]),
+                const SizedBox(height: 6),
+                Text(c.body,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 13, height: 1.4)),
+                _commentActions(c),
+              ],
+            ),
+          ),
+          ...c.replies.map((r) => _commentTile(r, isReply: true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _adminBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: AppColors.blue.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: const Text('운영',
+          style: TextStyle(color: AppColors.blueLight, fontSize: 9.5, fontWeight: FontWeight.w800)),
+    );
+  }
+
+  // ★고정 표시 — 노란 압정 대신 절제된 파란 '고정' 배지(앱 배지 체계 재사용).
+  Widget _pinBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.blue.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.push_pin, size: 10, color: AppColors.blueLight),
+        SizedBox(width: 3),
+        Text('고정',
+            style: TextStyle(color: AppColors.blueLight, fontSize: 9.5, fontWeight: FontWeight.w800)),
+      ]),
+    );
+  }
+
+  // 본문 아래 인게이지먼트: 좋아요(토글) + 댓글 수. ★1.0.4 공식글 포함 모든 노출글에 노출. 활성 좋아요=파란색.
+  Widget _engagementRow(BoardPost post) {
+    return Row(children: [
+      if (post.type.isBoardVisible) ...[
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _likeBusy ? null : _toggleLike,
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            alignment: Alignment.centerLeft,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(_liked ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                  size: 18, color: _liked ? AppColors.blue : AppColors.textSecondary),
+              const SizedBox(width: 5),
+              Text('좋아요 $_likeCount',
+                  style: TextStyle(
+                      color: _liked ? AppColors.blue : AppColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ),
+        const SizedBox(width: 16),
+      ],
+      Text('댓글 ${post.commentCount}',
+          style: const TextStyle(
+              color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+    ]);
+  }
+
+  // 낙관적 좋아요 토글: 즉시 반영 → 서버 응답으로 보정 / 실패 시 정확 롤백. 진행 중 재탭 차단.
+  Future<void> _toggleLike() async {
+    if (_likeBusy) return;
+    final wasLiked = _liked;
+    final wasCount = _likeCount;
+    setState(() {
+      _likeBusy = true;
+      _liked = !wasLiked;
+      _likeCount = wasLiked ? (wasCount > 0 ? wasCount - 1 : 0) : wasCount + 1; // 0 미만 금지
+    });
+    try {
+      final res = wasLiked
+          ? await widget.repository.unlikePost(widget.postId)
+          : await widget.repository.likePost(widget.postId);
+      if (!mounted) return;
+      setState(() {
+        _liked = res.likedByMe; // 서버 최종값 보정
+        _likeCount = res.likeCount;
+        _likeBusy = false;
+        _changed = true; // 목록 반영
+      });
+    } on BoardApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _liked = wasLiked; // 정확 롤백
+        _likeCount = wasCount;
+        _likeBusy = false;
+      });
+      if (e.statusCode != 401) AppInfoToast.show(context, _likeError(e)); // 401=전역 lifecycle
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _liked = wasLiked;
+        _likeCount = wasCount;
+        _likeBusy = false;
+      });
+      AppInfoToast.show(context, '잠시 후 다시 시도해 주세요.');
+    }
+  }
+
+  String _likeError(BoardApiException e) {
+    switch (e.statusCode) {
+      case 401:
+        return '로그인이 필요해요.';
+      case 403:
+        return '이 글은 좋아요할 수 없어요.';
+      case 404:
+        return '삭제되었거나 존재하지 않는 글이에요.';
+      default:
+        return e.message;
+    }
+  }
+
+  static const _commentMax = 2000; // 서버 COMMENT_MAX 와 동일
+
+  // 댓글/대댓글 액션(답글·삭제·신고). 플래그(canReply+target / canDelete / canReport)로 노출 제어.
+  // 삭제 placeholder·본인·공식 작성 댓글은 서버 플래그 false → 해당 버튼 자동 미노출.
+  Widget _commentActions(BoardComment c) {
+    final canReply = c.canReply && c.replyTargetCommentId != null;
+    final items = <Widget>[
+      if (canReply) _commentAction('답글', () => _startReply(c)),
+      if (c.canDelete) _commentAction('삭제', () => _deleteComment(c), color: AppColors.red),
+      if (c.canReport) _commentAction('신고', () => _reportComment(c)),
+      if (c.canBlock) _commentAction('차단', () => _blockCommentAuthor(c)),
+    ];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const SizedBox(width: 14),
+          items[i],
+        ],
+      ]),
+    );
+  }
+
+  // 댓글/대댓글 신고 — 공용 ReportSheet(BOARD_COMMENT, autoBlock). 성공 시 작성자 차단 → 해당 작성자 댓글이
+  // 서버 필터로 thread 에서 사라짐. 상세는 유지하고 thread 만 무플래시 재조회.
+  Future<void> _reportComment(BoardComment c) async {
+    final reported = await ReportSheet.show(context,
+        targetType: 'BOARD_COMMENT',
+        targetId: c.id,
+        targetNoun: '댓글',
+        autoBlock: true,
+        reasons: boardReportReasons);
+    if (!mounted || !reported) return;
+    _changed = true; // 목록 댓글 수 갱신 신호
+    await _reloadOrPopIfGone(); // 작성자=게시글 작성자면 차단으로 상세 404 → pop('changed')
+  }
+
+  // 댓글 작성자 차단(신고 없이) — 확인 후 board-comment 차단 API. 성공 시 작성자 댓글이 서버 필터로 thread 에서
+  // 사라짐. 상세는 유지하고 thread 만 무플래시 재조회.
+  Future<void> _blockCommentAuthor(BoardComment c) async {
+    if (_hasPendingMutation) return;
+    if (!await _confirmBlock() || !mounted) return;
+    setState(() => _blocking = true);
+    try {
+      await widget.repository.blockCommentAuthor(c.id);
+      if (!mounted) return;
+      setState(() => _blocking = false);
+      _changed = true;
+      await _reloadOrPopIfGone(); // 작성자=게시글 작성자면 차단으로 상세 404 → pop('changed')
+    } on BoardApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _blocking = false);
+      if (e.statusCode != 401) AppInfoToast.show(context, e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _blocking = false);
+      AppInfoToast.show(context, '차단하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
+  }
+
+  Widget _commentAction(String label, VoidCallback onTap, {Color? color}) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Text(label,
+            style: TextStyle(
+                color: color ?? AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+
+  void _startReply(BoardComment c) {
+    setState(() => _replyTo = c);
+    _commentFocus.requestFocus();
+  }
+
+  void _cancelReply() => setState(() => _replyTo = null);
+
+  Future<void> _sendComment() async {
+    final text = _commentCtrl.text.trim();
+    if (text.isEmpty || _sending) return; // 빈/공백·연타 가드
+    setState(() => _sending = true);
+    final parentId = _replyTo?.replyTargetCommentId; // 답글이면 최상위 댓글 id(서버 재검증)
+    try {
+      await widget.repository
+          .createComment(widget.postId, content: text, parentCommentId: parentId);
+      if (!mounted) return;
+      _commentCtrl.clear();
+      _commentFocus.unfocus(); // 성공 시 키보드 닫음(작성 결과 노출) — 일관 동작
+      setState(() {
+        _replyTo = null;
+        _sending = false;
+        _changed = true; // 목록 댓글 수 갱신 신호
+      });
+      await _reload(); // 댓글 목록·수 갱신
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollCtrl.hasClients) {
+          _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+        }
+      });
+    } on BoardApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false); // ★입력·답글모드·포커스 유지
+      if (e.statusCode == 401) return; // 401=전역 lifecycle(로그아웃)이 처리
+      AppInfoToast.show(
+          context,
+          e.code == 'CONTENT_POLICY_VIOLATION'
+              ? '부적절한 표현이 포함되어 있어 등록할 수 없습니다.'
+              : e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      AppInfoToast.show(context, '댓글을 등록하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
+  }
+
+  Future<void> _deleteComment(BoardComment c) async {
+    if (_hasPendingMutation) return; // 다른 변경 진행 중 — 중복 다이얼로그/요청 방지
+    final ok = await AppConfirmDialog.show(
+      context,
+      title: '댓글을 삭제할까요?',
+      message: '삭제한 댓글은 복구할 수 없어요.',
+      cancelLabel: '취소',
+      confirmLabel: '삭제',
+      destructive: true,
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _deletingCommentId = c.id);
+    try {
+      await widget.repository.deleteComment(c.id);
+      if (!mounted) return;
+      _changed = true; // 목록 댓글 수 갱신 신호(reload 전 기록 — 이탈해도 유실 안 됨)
+      await _reload(); // 댓글 목록·수 갱신(최상위 삭제+답글 → placeholder, 대댓글 삭제 → 해당만 제거)
+    } on BoardApiException catch (e) {
+      if (!mounted) return;
+      if (e.statusCode != 401) AppInfoToast.show(context, e.message); // 401=전역 lifecycle
+    } catch (_) {
+      if (!mounted) return;
+      AppInfoToast.show(context, '댓글을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      if (mounted) setState(() => _deletingCommentId = null);
+    }
+  }
+
+  Widget _replyChip() {
+    final c = _replyTo;
+    if (c == null) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
+      color: AppColors.surfaceCard,
+      child: Row(children: [
+        const Icon(Icons.subdirectory_arrow_right, size: 14, color: AppColors.textMuted),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text('${c.author}님에게 답글 작성 중',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        ),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _cancelReply,
+          child: const Padding(
+            padding: EdgeInsets.all(4),
+            child: Icon(Icons.close, size: 16, color: AppColors.textMuted),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _commentBar() {
+    final canSend = _commentCtrl.text.trim().isNotEmpty && !_sending;
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.dividerSoft)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _replyChip(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceCard,
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: TextField(
+                        controller: _commentCtrl,
+                        focusNode: _commentFocus,
+                        minLines: 1,
+                        maxLines: 5,
+                        maxLength: _commentMax,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: _replyTo != null ? '답글을 입력하세요' : '댓글을 입력하세요',
+                          hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                          border: InputBorder.none,
+                          counterText: '',
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: canSend ? _sendComment : null,
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: canSend ? AppColors.blue : AppColors.surfaceElevated,
+                        shape: BoxShape.circle,
+                      ),
+                      child: _sending
+                          ? const Padding(
+                              padding: EdgeInsets.all(11),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Icon(Icons.send_rounded,
+                              color: canSend ? Colors.white : AppColors.textMuted, size: 18),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 첨부 이미지 갤러리 — 본문 아래 full-width 세로 스택(4:3 cover). 탭 → 전체화면 스와이프·확대.
+  Widget _imageGallery(BoardPost post) {
+    if (post.images.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        children: [
+          for (int i = 0; i < post.images.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => _openGallery(post, i),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: double.infinity,
+                  height: 380, // 높이 상한(고정). contain 이라 세로형 카드도 잘리지 않고 레터박스로 표시.
+                  color: AppColors.surfaceCard, // 이미지 주변 빈 공간 배경
+                  child: AuthImage(
+                    url: post.images[i].url,
+                    fit: BoxFit.contain, // ★원본 비율 유지 — 카드 세로사진 위아래 잘림 방지
+                    errorBuilder: (_, _, _) => const Center(
+                        child: Icon(Icons.image_outlined,
+                            color: AppColors.textMuted, size: 28)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _openGallery(BoardPost post, int index) {
+    Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => _BoardGalleryViewer(images: post.images, initialIndex: index),
+    ));
+  }
+}
+
+/// 전체화면 이미지 뷰어 — 스와이프(PageView) + 핀치 확대(InteractiveViewer) + 닫기/페이지 표시.
+class _BoardGalleryViewer extends StatefulWidget {
+  final List<BoardPostImage> images;
+  final int initialIndex;
+  const _BoardGalleryViewer({required this.images, required this.initialIndex});
+
+  @override
+  State<_BoardGalleryViewer> createState() => _BoardGalleryViewerState();
+}
+
+class _BoardGalleryViewerState extends State<_BoardGalleryViewer> {
+  late final PageController _pc = PageController(initialPage: widget.initialIndex);
+  late int _current = widget.initialIndex;
+
+  @override
+  void dispose() {
+    _pc.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: _pc,
+            itemCount: widget.images.length,
+            onPageChanged: (i) => setState(() => _current = i),
+            itemBuilder: (_, i) => InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              child: Center(
+                child: AuthImage(
+                  url: widget.images[i].url,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => const Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white54,
+                      size: 48),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    if (widget.images.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 14),
+                        child: Text('${_current + 1} / ${widget.images.length}',
+                            style: const TextStyle(color: Colors.white, fontSize: 14)),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

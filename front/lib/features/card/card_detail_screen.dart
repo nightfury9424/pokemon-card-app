@@ -948,7 +948,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 tabs: const [
                   Tab(text: '시세'),
                   Tab(text: '거래'),
-                  Tab(text: '내 자산'),
+                  Tab(text: '내 카드'),
                 ],
                 labelColor: Colors.white,
                 unselectedLabelColor: AppColors.textSecondary,
@@ -1224,7 +1224,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       );
                       if (result == true && mounted) {
                         await _refreshAfterOrderMutation();
-                        _showSuccessBanner('자산이 등록되었습니다');
+                        _showSuccessBanner('내 카드에 등록되었습니다');
                       }
                     },
                   ),
@@ -2026,20 +2026,20 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     String cardStatus = 'RAW';
     String? gradingCompany;
     String? gradeValue;
-    // 예상가 자동입력 — 선택 발매판(_selectedMarket)의 대표가(KRW)를 100원 단위로 prefill.
-    // KO=koMid / JP=SCRYDEX_JP / EN=SCRYDEX_EN (전부 KRW, BE representativeKrw). 추정가도 채움(사용자 요청, 편집 가능).
-    final koLabel = _priceSummary?['ko']?['koPriceLabelType'] as String?;
-    final repKrw = (_priceSummary?['representativeKrw']
-            ?[_selectedMarket.toLowerCase()] as num?)?.toInt();
-    // KO OVERSEAS_REF(표시가=해외 PSA 역산값)는 RAW 매수호가에 부적합(과대) → prefill 스킵, 직접 입력 유도.
-    final skipPrefill = _selectedMarket == 'KO' && koLabel == 'OVERSEAS_REF';
-    final initialPrice =
-        (!skipPrefill && repKrw != null && repKrw > 0) ? _roundTo100(repKrw) : null;
-    // 컨트롤러 dispose 는 sheet dismiss animation 중 TextField rebuild 와 충돌 (TextEditingController used after disposed).
-    // 정석은 별도 StatefulWidget 으로 분리해 State.dispose 활용 — 다음 polish 에서 처리. 지금은 dispose 생략 (1회성 시트라 누수 무시).
+    // 발매판 선택 — 기본값 = 현재 호가 탭(_selectedMarket). 존재 발매판 중에서 선택.
+    String buyLang = _selectedMarket;
+    final buyMarkets = _availableMarkets();
+    // 예상가 자동입력 — 선택 발매판의 대표가(KRW) prefill. KO OVERSEAS_REF(해외 PSA 역산)는 RAW 호가 부적합 → 스킵.
+    int? prefillFor(String m) {
+      final koLabel = _priceSummary?['ko']?['koPriceLabelType'] as String?;
+      final rep = (_priceSummary?['representativeKrw']?[m.toLowerCase()] as num?)?.toInt();
+      final skip = m == 'KO' && koLabel == 'OVERSEAS_REF';
+      return (!skip && rep != null && rep > 0) ? _roundTo100(rep) : null;
+    }
+    final ip0 = prefillFor(buyLang);
+    // 컨트롤러 dispose 는 sheet dismiss animation 중 TextField rebuild 와 충돌. 1회성 시트라 누수 무시.
     final priceCtrl = TextEditingController(
-      // 입력 표시는 콤마 포맷 — 자릿수 가독성 위해. 파싱 시 콤마 제거.
-      text: initialPrice != null ? _formatThousands(initialPrice) : '',
+      text: ip0 != null ? _formatThousands(ip0) : '',
     );
     final memoCtrl = TextEditingController();
     String? submitError; // 등록 실패 시 sheet 내부 inline 표시.
@@ -2077,13 +2077,47 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   const SizedBox(height: 14),
                   const TradeSafetyNotice(),
                   const SizedBox(height: 20),
+                  // 발매판 선택 (존재 발매판 2개 이상일 때만 — 어떤 판 구하는지 선택)
+                  if (buyMarkets.length > 1) ...[
+                    const Text('발매판', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: buyMarkets.map((m) {
+                        final sel = buyLang == m;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: GestureDetector(
+                            onTap: () => setSheet(() {
+                              buyLang = m;
+                              final p = prefillFor(m);
+                              priceCtrl.text =
+                                  (cardStatus == 'GRADED' || p == null) ? '' : _formatThousands(p);
+                            }),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: sel ? AppColors.blue : Colors.white12,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(m,
+                                  style: TextStyle(
+                                      color: sel ? Colors.white : Colors.white54,
+                                      fontSize: 13,
+                                      fontWeight: sel ? FontWeight.bold : FontWeight.normal)),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   // 상태 선택
                   const Text('카드 상태', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       _statusChip('RAW (등급 무관)', 'RAW', cardStatus, () {
-                        setSheet(() { cardStatus = 'RAW'; gradingCompany = null; gradeValue = null; priceCtrl.text = initialPrice != null ? _formatThousands(initialPrice) : ''; });
+                        setSheet(() { cardStatus = 'RAW'; gradingCompany = null; gradeValue = null; final p = prefillFor(buyLang); priceCtrl.text = p != null ? _formatThousands(p) : ''; });
                       }),
                       const SizedBox(width: 8),
                       _statusChip('등급 카드', 'GRADED', cardStatus, () {
@@ -2146,8 +2180,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     onChanged: (_) => setSheet(() {}),
                     style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
                     decoration: InputDecoration(
-                      hintText: (repKrw != null && repKrw > 0)
-                          ? '예: ${_formatThousands(repKrw)}'
+                      hintText: (prefillFor(buyLang) != null)
+                          ? '예: ${_formatThousands(prefillFor(buyLang)!)}'
                           : '매수 희망 가격을 입력하세요',
                       hintStyle: const TextStyle(color: Colors.white24),
                       suffixText: '원',
@@ -2241,7 +2275,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                                   final res = await ApiClient.post('/api/buy-orders', {
                                     'data': {
                                       'cardId': widget.cardId,
-                                      'language': _selectedMarket,
+                                      'language': buyLang,
                                       'bidPrice': priceVal,
                                       'qty': 1,
                                       'cardStatus': cardStatus,
@@ -2674,7 +2708,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          '$koLabel  ·  대표가 ${_formatPrice(koMid)}',
+                          // 2026-06-26: 비프로모 'KO 예상 가치'는 '한국판 예상가' 칩과 의미중복 → 제거(가로공간 확보).
+                          //   프로모(koLabel='JP 시세' 등)는 칩과 중복 아니므로 유지.
+                          koLabel == 'KO 예상 가치'
+                              ? '대표가 ${_formatPrice(koMid)}'
+                              : '$koLabel  ·  대표가 ${_formatPrice(koMid)}',
                           style: const TextStyle(color: Colors.white38, fontSize: 11),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -3712,8 +3750,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     }
     final confirmed = await AppConfirmDialog.show(
       context,
-      title: '자산 삭제',
-      message: '이 카드를 자산에서 삭제하시겠습니까?',
+      title: '카드 삭제',
+      message: '이 카드를 내 카드에서 삭제하시겠습니까?',
       confirmLabel: '삭제',
       destructive: true,
     );
@@ -4031,7 +4069,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           );
         }
       });
-      _showSuccessBanner('판매하려면 먼저 자산 등록이 필요해요');
+      _showSuccessBanner('판매하려면 먼저 내 카드에 등록이 필요해요');
       return;
     }
     final activeTradeId = asset['activeTradeId'] as String?;
@@ -4138,6 +4176,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         'rarity': rarity,
         'imageUrl': imageUrl,
         'assetId': assetId,
+        'language': asset['language'],
         'cardStatus': asset['cardStatus'],
         'estimatedGrade': asset['estimatedGrade'],
         'gradingCompany': asset['gradingCompany'],
@@ -5163,7 +5202,7 @@ class _CardDetailCoachBubble extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            _bullet('내 자산', '내가 보유한 이 카드의 수익률·등급 정보'),
+            _bullet('내 카드', '내가 보유한 이 카드의 수익률·등급 정보'),
             const SizedBox(height: 8),
             _bullet('시세', 'KO/JP/EN 시세 차트와 가격 비교'),
             const SizedBox(height: 8),

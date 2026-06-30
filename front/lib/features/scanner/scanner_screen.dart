@@ -425,7 +425,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                     (res['message'] is String &&
                             (res['message'] as String).trim().isNotEmpty)
                         ? res['message'] as String
-                        : '자산 추가에 실패했어요.');
+                        : '내 카드 추가에 실패했어요.');
                 return;
               }
               Navigator.pop(ctx);
@@ -434,7 +434,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               await _loadOwnedCards();
               if (!mounted) return;
               AssetNotifier.instance.notifyChanged();
-              AppSuccessToast.show(context, '자산에 추가됐습니다');
+              AppSuccessToast.show(context, '내 카드에 추가됐습니다');
               // Phase B: 토스트 표시 동안 (1.3초 + margin 0.3초) 스캔 일시 중지.
               _scanPausedUntil = DateTime.now().add(const Duration(milliseconds: 1600));
               // 방금 등록한 cardId 60초 cooldown — 즉시 재인식 차단.
@@ -981,6 +981,8 @@ class _ScannerScreenState extends State<ScannerScreen>
       prefix: '',
     );
     final String pctLabel = display?.label.trim() ?? '0.0%';
+    // ★KO 가격은 대부분 예상가치 — '시세' 오해 방지 라벨(price_confidence 정책, card_detail과 동일 유틸).
+    final String priceLabel = PriceLabel.resolve(labelType: card['koPriceLabelType'] as String?, price: price);
     final Color pctColor = display == null
         ? AppColors.textMuted
         : switch (display.color) {
@@ -1122,32 +1124,18 @@ class _ScannerScreenState extends State<ScannerScreen>
                             ),
                           ],
                           const SizedBox(height: 10),
-                          // 한국판 예상가 라벨 — 가격이 시세가 아니라 예상가치임을 가격 앞에 명시 (2026-06-15)
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 7,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white10,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: Text(
-                                PriceLabel.resolve(
-                                  labelType: card['koPriceLabelType'] as String?,
-                                  price: price,
-                                ),
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                          // ★가격이 예상가치임을 명시(290원만 보이면 시세로 오해). KO=대부분 한국판 예상가.
+                          if (price != null) ...[
+                            Text(
+                              priceLabel,
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 5),
+                            const SizedBox(height: 3),
+                          ],
                           // 가격 + 변동률
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -1236,7 +1224,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                                     : _ActionBtn(
                                         label: isLowConfidence
                                             ? '확인 후 등록'
-                                            : '자산 등록',
+                                            : '카드 등록',
                                         // C-2: 앱 표준 AppColors.blue (#1B64DA) 통일.
                                         color: AppColors.blue,
                                         onTap: () => isLowConfidence

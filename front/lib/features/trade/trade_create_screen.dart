@@ -32,6 +32,7 @@ class TradeCreateScreen extends StatefulWidget {
   final String? rarity;
   final String? imageUrl;
   final String? assetId;
+  final String? language;  // 발매판 KO/JP/EN (자산 언어 — 표시용, BE는 assetId로 추론)
   final String? cardStatus;
   final double? estimatedGrade;
   final String? gradingCompany;
@@ -49,6 +50,7 @@ class TradeCreateScreen extends StatefulWidget {
     this.rarity,
     this.imageUrl,
     this.assetId,
+    this.language,
     this.cardStatus,
     this.estimatedGrade,
     this.gradingCompany,
@@ -176,7 +178,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
       debugPrint('[TradeCreate] _loadAssetImages error: $e\n$st');
       if (mounted) {
         setState(() {
-          _assetImageError = '자산 사진을 불러오지 못했어요. 직접 사진을 추가해주세요.';
+          _assetImageError = '카드 사진을 불러오지 못했어요. 직접 사진을 추가해주세요.';
         });
       }
     } finally {
@@ -534,6 +536,30 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+                        // 발매판 — 판매하는 카드의 발매판(자산 언어) 명시.
+                        if (widget.language != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceElevated,
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(color: AppColors.divider, width: 0.5),
+                              ),
+                              child: Text(
+                                widget.language == 'JP'
+                                    ? '일본판'
+                                    : widget.language == 'EN'
+                                        ? '영문판'
+                                        : '한국판',
+                                style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -597,7 +623,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    '자산 사진을 불러오는 중...',
+                    '카드 사진을 불러오는 중...',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
                   ),
                 ],

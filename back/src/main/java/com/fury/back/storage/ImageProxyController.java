@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
  *
  * GET /api/images/secure/{key}
  *   - JWT 인증 필요 (SecurityConfig에서 user toggle로 강제)
- *   - key prefix allow-list 검증 (uploads/{trade,asset,grading,scan}/ 만 허용)
+ *   - key prefix allow-list 검증 (uploads/{trade,asset,grading,scan,board,profile}/ 만 허용)
  *   - path traversal `..` 차단
  *   - ImageStorageService(Local 또는 S3) load → stream 반환
  *
@@ -48,6 +48,7 @@ public class ImageProxyController {
             "uploads/asset/",
             "uploads/grading/",
             "uploads/scan/",
+            "uploads/board/",    // 게시판 첨부 — 게시글은 인증 사용자에게 공개라 누구나 조회(관리자 신고화면 포함)
             "uploads/profile/",  // B2-10: 프로필 사진 — 아바타라 인증된 사용자면 누구나 조회 (participant 게이트 X)
             "uploads/inquiry/"   // 문의 첨부 사진 — admin/작성자 조회(인증 필요, key=UUID 비추측). 모든 카테고리 공통.
     );

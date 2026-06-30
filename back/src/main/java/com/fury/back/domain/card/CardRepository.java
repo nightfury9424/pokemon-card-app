@@ -9,9 +9,33 @@ import java.util.List;
 public interface CardRepository extends JpaRepository<Card, String> {
     List<Card> findByProductId(String productId);
 
-    List<Card> findByNameContainingIgnoreCase(String name);
+    /**
+     * ★카드명 OR 세트(상품)명 부분일치. 세트명은 「」 안 고유명 우선(없으면 전체명)으로 매칭 —
+     * '확장팩/소드/MEGA' 같은 공통 boilerplate 폭발(2494장 등)을 막는다.
+     * '어비스아이'→그 세트, '어비스'→어비스아이+로스트어비스. 카드명 부분일치는 OR 추가라 기존 그대로 보존.
+     * (정렬은 기존 파생 메서드와 동일하게 미지정 — 검색 결과 순서 변경 없음.)
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT c.* FROM cards c
+            WHERE c.is_visible = true
+              AND (regexp_replace(LOWER(c.name), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'
+                   OR EXISTS (SELECT 1 FROM products p
+                              WHERE p.product_id = c.product_id
+                                AND regexp_replace(LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'))
+            """)
+    List<Card> searchByCardNameOrProductName(@Param("name") String name);
 
-    List<Card> findByNameContainingIgnoreCaseAndLanguage(String name, String language);
+    /** 카드명 OR 세트명(「」 고유명 우선) + 언어 제한. */
+    @Query(nativeQuery = true, value = """
+            SELECT c.* FROM cards c
+            WHERE c.is_visible = true
+              AND c.language = :language
+              AND (regexp_replace(LOWER(c.name), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'
+                   OR EXISTS (SELECT 1 FROM products p
+                              WHERE p.product_id = c.product_id
+                                AND regexp_replace(LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'))
+            """)
+    List<Card> searchByCardNameOrProductNameAndLanguage(@Param("name") String name, @Param("language") String language);
 
     List<Card> findByLanguage(String language);
 
@@ -65,7 +89,9 @@ public interface CardRepository extends JpaRepository<Card, String> {
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
             AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
-            AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
+            AND (:name = '' OR regexp_replace(LOWER(c.name), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'
+                 OR EXISTS (SELECT 1 FROM products p WHERE p.product_id = c.product_id
+                            AND regexp_replace(LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'))
             ORDER BY
                 CASE WHEN c.is_promo_exclusive THEN COALESCE(jp.jp_price, en.en_price)
                      ELSE ko.ko_price
@@ -103,7 +129,9 @@ public interface CardRepository extends JpaRepository<Card, String> {
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
             AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
-            AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
+            AND (:name = '' OR regexp_replace(LOWER(c.name), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'
+                 OR EXISTS (SELECT 1 FROM products p WHERE p.product_id = c.product_id
+                            AND regexp_replace(LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'))
             ORDER BY
                 CASE WHEN c.is_promo_exclusive THEN COALESCE(jp.jp_price, en.en_price)
                      ELSE ko.ko_price
@@ -123,7 +151,9 @@ public interface CardRepository extends JpaRepository<Card, String> {
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
             AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
-            AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
+            AND (:name = '' OR regexp_replace(LOWER(c.name), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'
+                 OR EXISTS (SELECT 1 FROM products p WHERE p.product_id = c.product_id
+                            AND regexp_replace(LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'))
             -- 한국 포카 시장 시세 기준 (front AppRarity와 동기화) — 고레어만.
             -- 2026-05-12 사용자 확정 순서. ACE/H/R 등은 PokeFolio 미취급.
             ORDER BY CASE c.rarity_code
@@ -151,7 +181,9 @@ public interface CardRepository extends JpaRepository<Card, String> {
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
             AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
-            AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
+            AND (:name = '' OR regexp_replace(LOWER(c.name), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'
+                 OR EXISTS (SELECT 1 FROM products p WHERE p.product_id = c.product_id
+                            AND regexp_replace(LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'))
             -- 한국 포카 시장 시세 기준 (front AppRarity와 동기화). DESC는 일반→정점 방향.
             -- 2026-05-12 사용자 확정 순서. ACE/H/R 등은 PokeFolio 미취급.
             ORDER BY CASE c.rarity_code
@@ -184,7 +216,9 @@ public interface CardRepository extends JpaRepository<Card, String> {
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
             AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
-            AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
+            AND (:name = '' OR regexp_replace(LOWER(c.name), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'
+                 OR EXISTS (SELECT 1 FROM products p WHERE p.product_id = c.product_id
+                            AND regexp_replace(LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'))
             ORDER BY ps.traded_at DESC NULLS LAST, c.name ASC
             LIMIT :size OFFSET :offset
             """)
@@ -206,7 +240,9 @@ public interface CardRepository extends JpaRepository<Card, String> {
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
             AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
-            AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
+            AND (:name = '' OR regexp_replace(LOWER(c.name), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'
+                 OR EXISTS (SELECT 1 FROM products p WHERE p.product_id = c.product_id
+                            AND regexp_replace(LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'))
             ORDER BY ps.traded_at ASC NULLS LAST, c.name ASC
             LIMIT :size OFFSET :offset
             """)
@@ -223,7 +259,9 @@ public interface CardRepository extends JpaRepository<Card, String> {
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
             AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
-            AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
+            AND (:name = '' OR regexp_replace(LOWER(c.name), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'
+                 OR EXISTS (SELECT 1 FROM products p WHERE p.product_id = c.product_id
+                            AND regexp_replace(LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'))
             ORDER BY c.name ASC, c.official_card_code ASC
             LIMIT :size OFFSET :offset
             """)
@@ -240,7 +278,9 @@ public interface CardRepository extends JpaRepository<Card, String> {
             WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
             AND c.is_visible = true
             AND c.rarity_code IN (:rarityCodes)
-            AND (:name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
+            AND (:name = '' OR regexp_replace(LOWER(c.name), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'
+                 OR EXISTS (SELECT 1 FROM products p WHERE p.product_id = c.product_id
+                            AND regexp_replace(LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'))
             ORDER BY c.name DESC, c.official_card_code DESC
             LIMIT :size OFFSET :offset
             """)
@@ -252,11 +292,13 @@ public interface CardRepository extends JpaRepository<Card, String> {
 
     @Query(nativeQuery = true, value = """
             SELECT COUNT(*)
-            FROM cards
-            WHERE (language = 'KO' OR is_promo_exclusive = TRUE)
-            AND is_visible = true
-            AND rarity_code IN (:rarityCodes)
-            AND (:name = '' OR LOWER(name) LIKE LOWER(CONCAT('%', :name, '%')))
+            FROM cards c
+            WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
+            AND c.is_visible = true
+            AND c.rarity_code IN (:rarityCodes)
+            AND (:name = '' OR regexp_replace(LOWER(c.name), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'
+                 OR EXISTS (SELECT 1 FROM products p WHERE p.product_id = c.product_id
+                            AND regexp_replace(LOWER(COALESCE(substring(p.name from '「(.*)」'), p.name)), '[[:space:]_·「」-]', '', 'g') LIKE '%' || :name || '%'))
             """)
     long countByRarityAndName(
             @Param("rarityCodes") List<String> rarityCodes,

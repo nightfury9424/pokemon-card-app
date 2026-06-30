@@ -128,7 +128,7 @@ class GradingScreen extends StatelessWidget {
               SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  '그레이딩은 내 자산에 등록된 카드에 대해 진행돼요.\n아래에서 자산을 선택하거나 새 카드를 등록해 주세요.',
+                  '그레이딩은 등록된 내 카드에 대해 진행돼요.\n아래에서 선택하거나 새 카드를 등록해 주세요.',
                   style: TextStyle(color: AppColors.textPrimary, fontSize: 12, height: 1.5),
                 ),
               ),
@@ -138,7 +138,7 @@ class GradingScreen extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: () => context.push('/grading/select-asset'),
             icon: const Icon(Icons.style_rounded, color: Colors.white),
-            label: const Text('내 자산에서 선택', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+            label: const Text('내 카드에서 선택', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.blue,
               minimumSize: const Size(double.infinity, 52),

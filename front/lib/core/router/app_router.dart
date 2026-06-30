@@ -13,6 +13,7 @@ import '../constants/feature_flags.dart';
 import '../theme/app_colors.dart';
 import '../../features/shell/main_shell.dart';
 import '../../features/home/home_screen.dart';
+import '../../features/board/board_detail_screen.dart';
 import '../../features/scanner/scanner_screen.dart';
 import '../../features/card/card_detail_screen.dart';
 import '../../features/card/product_cards_screen.dart';
@@ -26,6 +27,7 @@ import '../../features/profile/edit_nickname_screen.dart';
 import '../../features/profile/blocked_users_screen.dart';
 import '../../features/profile/report_history_screen.dart';
 import '../../features/profile/inquiry_history_screen.dart';
+import '../../features/profile/settings_screen.dart';
 import '../../features/chat/chat_screen.dart';
 import '../../features/chat/chat_room_screen.dart';
 import '../../features/legal/terms_of_service_screen.dart';
@@ -106,6 +108,7 @@ final appRouter = GoRouter(
     GoRoute(path: '/profile/blocked-users', builder: (_, _) => const BlockedUsersScreen()),
     GoRoute(path: '/profile/reports', builder: (_, _) => const ReportHistoryScreen()),
     GoRoute(path: '/profile/inquiries', builder: (_, _) => const InquiryHistoryScreen()),
+    GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
     GoRoute(path: '/legal/terms', builder: (_, _) => const TermsOfServiceScreen()),
     GoRoute(path: '/legal/privacy', builder: (_, _) => const PrivacyPolicyScreen()),
     GoRoute(path: '/support', builder: (_, _) => const CustomerSupportScreen()),
@@ -130,6 +133,14 @@ final appRouter = GoRouter(
       path: '/dex/:productId',
       builder: (_, state) => DexDetailScreen(
         productId: state.pathParameters['productId']!,
+      ),
+    ),
+    GoRoute(
+      // 게시판 알림 딥링크 — postId 로 상세 진입(repository 기본값 사용, 삭제/숨김=상세 404 안내).
+      path: '/board/:postId',
+      builder: (_, state) => BoardDetailScreen(
+        postId: state.pathParameters['postId']!,
+        focusCommentId: state.uri.queryParameters['comment'],
       ),
     ),
     GoRoute(
@@ -227,6 +238,7 @@ final appRouter = GoRouter(
                 rarity: extra['rarity'] as String?,
                 imageUrl: extra['imageUrl'] as String?,
                 assetId: extra['assetId'] as String?,
+                language: extra['language'] as String?,
                 cardStatus: extra['cardStatus'] as String?,
                 estimatedGrade: extra['estimatedGrade'] is num
                     ? (extra['estimatedGrade'] as num).toDouble()

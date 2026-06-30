@@ -1,41 +1,88 @@
-"""당근 매물 list 크롤링 v2 — Playwright + sold + 60일 cutoff.
+"""당근 매물 list 크롤링 v2 — Playwright + sold + 90일 cutoff + seed JSON load.
 
-행당동 PoC. 동작 검증되면 서울 전체 동 list로 확장.
+CLI:
+  --source {priority,seoul,all}      seed 데이터 source (default: priority)
+  --phase {1차,2차,3차,all}          priority일 때 phase (default: 1차)
+  --no-resume                        progress 파일 무시하고 처음부터
 
-추출:
-- a[data-gtm="search_article"] 매물 element
-- sold 판별 (자손 span 텍스트 '판매완료')
-- 60일 이내 (시간 텍스트 → 일수)
-- href / img / title / price / time
-- 60일 넘는 게 보이면 break
+흐름:
+- 두 JSON 에서 (dong_name, pid) seed list 생성 (pid dedupe)
+- BFS 확장 OFF (이미 모든 region pid 보유)
+- 각 region 크롤 → price_review_queue insert → progress 파일 update
+- 중단 후 재실행 시 progress 파일의 완료 pid skip
 
 저장:
-- price_review_queue
-- source='DAANGN', source_id=detail URL hash
-- image_path = 외부 webp URL 그대로 (다운로드 생략 — 검수 화면에서 직접 표시)
+- price_review_queue, source='DAANGN', source_id=detail URL hash
+- 판매완료/거래완료 매물만 (sold filter), 박스/팩/일판/굿즈 제외 (SKIP_PATTERNS)
+- image_path = 외부 webp URL 그대로
 """
 from __future__ import annotations
+import argparse
+import json
 import re
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from playwright.sync_api import sync_playwright
 import psycopg2
 
-SEED_REGIONS = [
-    # 2026-05-19 — PoC 성공 후 시드 확장. 사용자 명시 6개 동.
-    ("행당동", 6143),
-    ("역삼동", 6035),
-    ("논현동", 6031),
-    ("대치동", 6032),
-    ("여의도동", 6216),
-    ("상암동", 237),
-]
-MAX_REGIONS = 80
+# Seed JSON paths (사용자 명시).
+SEED_SEOUL_JSON = "/Users/fury/Downloads/서울특별시.json"
+SEED_PRIORITY_JSON = "/Users/fury/Downloads/daangn_priority_regions_all.json"
+
+# Progress 파일 — 완료된 region pid set 저장. 재실행 시 skip.
+PROGRESS_FILE = Path("/tmp/crawl_daangn_progress.json")
+
 SEARCH = "포켓몬카드"
 DB = {"dbname": "pokemon_card_db", "user": "nightfury"}
 CUTOFF_DAYS = 90  # 사용자 정책 — 최근 3개월
 MAX_SCROLLS = 200
 LOG = "/tmp/crawl_daangn_v2.log"
+
+# 이미 JSON에 모든 region pid 모았으므로 BFS 자동 확장 OFF.
+DISABLE_BFS = True
+
+
+def load_seeds(source: str, phase: str) -> list[tuple[str, int]]:
+    """JSON 에서 (dong_name, pid) seed list 생성. source 별 분기 + pid dedupe."""
+    seeds: list[tuple[str, int]] = []
+    if source in ("priority", "all"):
+        with open(SEED_PRIORITY_JSON) as f:
+            data = json.load(f)
+        for ph, targets in data["priority_groups"].items():
+            if phase != "all" and ph != phase:
+                continue
+            for _target, dongs in targets.items():
+                for d in dongs:
+                    seeds.append((d["dong_name"], d["pid"]))
+    if source in ("seoul", "all"):
+        with open(SEED_SEOUL_JSON) as f:
+            data = json.load(f)
+        for _sigungu, dongs in data["sigungu"].items():
+            for d in dongs:
+                seeds.append((d["dong_name"], d["pid"]))
+    # pid dedupe — 첫 (dong_name) 우선
+    seen_pids: set[int] = set()
+    deduped: list[tuple[str, int]] = []
+    for name, pid in seeds:
+        if pid in seen_pids:
+            continue
+        seen_pids.add(pid)
+        deduped.append((name, pid))
+    return deduped
+
+
+def load_progress() -> set[int]:
+    if not PROGRESS_FILE.exists():
+        return set()
+    try:
+        return set(json.loads(PROGRESS_FILE.read_text()))
+    except Exception:
+        return set()
+
+
+def save_progress(completed_pids: set[int]) -> None:
+    PROGRESS_FILE.write_text(json.dumps(sorted(completed_pids)))
 
 
 def parse_days_ago(t: str | None) -> int | None:
@@ -175,7 +222,9 @@ EXTRACT_JS = """
             if (imgSrc && (imgSrc.startsWith('data:') || imgSrc.length < 30)) imgSrc = null;
         }
         const spans = Array.from(a.querySelectorAll('span'));
-        const sold = !!spans.find(s => s.textContent.trim() === '판매완료');
+        // 당근 DOM 에 따라 "판매완료" 또는 "거래완료" 두 가지 텍스트 출현 — 둘 다 sold 처리.
+        const soldTexts = new Set(['판매완료', '거래완료']);
+        const sold = !!spans.find(s => soldTexts.has(s.textContent.trim()));
         // 가격 — 텍스트가 "N,NNN원" 단독 패턴 span
         const priceSpan = spans.find(s => /^[0-9,]+원$/.test(s.textContent.trim()));
         const price = priceSpan
@@ -291,13 +340,30 @@ def extract_region_links(page):
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--source", choices=["priority", "seoul", "all"], default="priority")
+    ap.add_argument("--phase", choices=["1차", "2차", "3차", "all"], default="1차",
+                    help="priority source 일 때만 의미. all 이면 모든 phase.")
+    ap.add_argument("--no-resume", action="store_true",
+                    help="progress 파일 무시하고 처음부터 재실행.")
+    args = ap.parse_args()
+
     t0 = time.time()
-    log = open(LOG, "w")
-    print("=== DAANGN v2 BFS crawl ===", flush=True)
+    log = open(LOG, "a")
+    print(f"=== DAANGN v2 crawl source={args.source} phase={args.phase} BFS={'OFF' if DISABLE_BFS else 'ON'} ===", flush=True)
+
+    seeds = load_seeds(args.source, args.phase)
+    print(f"loaded {len(seeds)} seed regions", flush=True)
+
+    completed = set() if args.no_resume else load_progress()
+    if completed:
+        print(f"resume: {len(completed)} pid already completed, skipping", flush=True)
+
     visited: set = set()
-    queue: list = list(SEED_REGIONS)
+    queue: list = list(seeds)
     region_count = 0
-    total_saved = {"ins": 0, "skip_dup": 0, "no_hash": 0, "no_sold_or_time": 0, "old": 0}
+    max_regions = len(seeds) + 100  # BFS 확장 buffer (DISABLE_BFS=True 면 사실상 len(seeds))
+    total_saved = {"ins": 0, "skip_dup": 0, "no_hash": 0, "no_sold_or_time": 0, "old": 0, "box_skip": 0}
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
@@ -307,10 +373,10 @@ def main():
             user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         )
         page = ctx.new_page()
-        while queue and region_count < MAX_REGIONS:
+        while queue and region_count < max_regions:
             name, rid = queue.pop(0)
             key = (name, rid)
-            if key in visited:
+            if key in visited or rid in completed:
                 continue
             visited.add(key)
             region_count += 1
@@ -319,25 +385,29 @@ def main():
                 stats = save_items(items)
                 for k, v in stats.items():
                     total_saved[k] = total_saved.get(k, 0) + v
-                line = f"[{region_count}/{MAX_REGIONS}] {name}-{rid} crawled={len(items)} saved={stats}"
+                line = f"[{region_count}/{len(seeds)}] {name}-{rid} crawled={len(items)} saved={stats}"
                 print(line, flush=True)
                 log.write(line + "\n"); log.flush()
-                # BFS 확장
-                new_regions = extract_region_links(page)
-                added = 0
-                for nm, nrid in new_regions:
-                    nkey = (nm, nrid)
-                    if nkey not in visited and (nm, nrid) not in [(a, b) for a, b in queue]:
-                        queue.append(nkey)
-                        added += 1
-                if added:
-                    print(f"   +{added} regions in queue (total queue: {len(queue)})", flush=True)
+                # progress 파일 update — 중단 후 재시작 시 이 pid skip
+                completed.add(rid)
+                save_progress(completed)
+                # BFS 확장 (DISABLE_BFS=True 면 skip)
+                if not DISABLE_BFS:
+                    new_regions = extract_region_links(page)
+                    added = 0
+                    for nm, nrid in new_regions:
+                        nkey = (nm, nrid)
+                        if nkey not in visited and (nm, nrid) not in [(a, b) for a, b in queue]:
+                            queue.append(nkey)
+                            added += 1
+                    if added:
+                        print(f"   +{added} regions in queue (total queue: {len(queue)})", flush=True)
             except Exception as e:
                 print(f"  ERR region {name}-{rid}: {e}", flush=True)
                 log.write(f"  ERR {name}-{rid}: {e}\n")
 
         browser.close()
-    print(f"DONE in {time.time()-t0:.0f}s: regions={region_count} totals={total_saved}", flush=True)
+    print(f"DONE in {time.time()-t0:.0f}s: regions={region_count}/{len(seeds)} totals={total_saved}", flush=True)
     log.close()
 
 

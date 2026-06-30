@@ -10,6 +10,7 @@ import '../../core/notifiers/asset_notifier.dart';
 import '../../core/notifiers/home_session_cache.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/rarity.dart';
+import '../board/home_notice_banner.dart';
 import '../../core/utils/price_label.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/animated_counter.dart';
@@ -28,6 +29,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   /// 연속 reload race 방지용 시퀀스 토큰. 매 _loadAll 시작 시 +1, 응답 시 현재 토큰과 비교.
   int _loadSeq = 0;
+  // 홈 공지배너 — pull-to-refresh 시 공지도 동반 재조회(관리자 변경 반영). 탭 재진입은 IndexedStack 유지라 중복 호출 없음.
+  final GlobalKey<HomeNoticeBannerState> _noticeBannerKey =
+      GlobalKey<HomeNoticeBannerState>();
   List<Map<String, dynamic>> _myAssets = [];
   Map<String, dynamic>? _portfolio;
   List<Map<String, dynamic>> _topCards = [];
@@ -38,20 +42,20 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _pendingSettlements = [];
   late final PageController _carouselController;
   late final PageController _marketCarouselController;
+
   /// 캐러셀 자동 회전 타이머 (items >= 2일 때 3초 간격).
   Timer? _autoAdvanceTimer;
   static const int _kCarouselStart = 500000;
   static const int _kCarouselVirtual = 1000000;
   int _carouselPage = _kCarouselStart;
   int _marketCarouselPage = _kCarouselStart;
-  int _carouselTab = 0;    // 0 = 내 카드, 1 = 시장 랭킹
-  int _marketSubTab = 0;   // 0 = 시세 높은순, 1 = 관심 많은
+  int _carouselTab = 0; // 0 = 내 카드, 1 = 시장 랭킹
+  int _marketSubTab = 0; // 0 = 시세 높은순, 1 = 관심 많은
 
   bool _loading = true;
   // 첫 진입 시 보이는 캐러셀 이미지가 캐시될 때까지 홈을 가렸다가 한 번에 노출(팝인 방지).
   bool _revealed = false;
   String? _userId;
-
 
   // 레어도 hierarchy는 AppRarity로 통일 (한국 포카 시세 기준)
   // REFACTOR_2026-05-12.md 4차 디자인 시스템.
@@ -77,8 +81,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     // viewportFraction 줄여서 양옆 카드가 더 가까이 (현재카드↔다음카드 사이 여백 ↓)
-    _carouselController = PageController(viewportFraction: 0.6, initialPage: _kCarouselStart);
-    _marketCarouselController = PageController(viewportFraction: 0.6, initialPage: _kCarouselStart);
+    _carouselController = PageController(
+      viewportFraction: 0.6,
+      initialPage: _kCarouselStart,
+    );
+    _marketCarouselController = PageController(
+      viewportFraction: 0.6,
+      initialPage: _kCarouselStart,
+    );
     AssetNotifier.instance.addListener(_onExternalChange);
     // 탭 전환으로 State 가 재생성돼도(ShellRoute) 세션 캐시가 있으면 스플래시/회색박스 없이
     // 즉시 캐시 렌더 + silent refresh. 캐시 없으면(앱 첫 실행) 기존 첫 진입 로딩.
@@ -114,7 +124,9 @@ class _HomeScreenState extends State<HomeScreen> {
       final items = isMyCards ? _myCardCarouselItems() : _marketCarouselItems();
       if (items.length < 2) return;
 
-      final controller = isMyCards ? _carouselController : _marketCarouselController;
+      final controller = isMyCards
+          ? _carouselController
+          : _marketCarouselController;
       if (!controller.hasClients) return;
       // 사용자가 드래그/관성 스크롤 중이면 skip
       final pos = controller.position;
@@ -137,7 +149,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openCardItem(Map<String, dynamic> item) async {
     final cardId = item['cardId'] as String? ?? '';
     if (cardId.isEmpty) return;
-    final extra = item['asset'] != null ? {'myAsset': item['asset']} : item['card'];
+    final extra = item['asset'] != null
+        ? {'myAsset': item['asset']}
+        : item['card'];
     final changed = await context.push<bool>('/card/$cardId', extra: extra);
     if (changed == true && mounted) _loadData();
   }
@@ -147,9 +161,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void _seedFromCache() {
     _topCards = List<Map<String, dynamic>>.from(HomeSessionCache.topCards);
     _hotCards = List<Map<String, dynamic>>.from(HomeSessionCache.hotCards);
-    _topGainerCards =
-        List<Map<String, dynamic>>.from(HomeSessionCache.topGainerCards);
-    _recentTrades = List<Map<String, dynamic>>.from(HomeSessionCache.recentTrades);
+    _topGainerCards = List<Map<String, dynamic>>.from(
+      HomeSessionCache.topGainerCards,
+    );
+    _recentTrades = List<Map<String, dynamic>>.from(
+      HomeSessionCache.recentTrades,
+    );
     _myAssets = List<Map<String, dynamic>>.from(HomeSessionCache.myAssets);
     _portfolio = HomeSessionCache.portfolio;
     _userId = HomeSessionCache.userId;
@@ -171,7 +188,9 @@ class _HomeScreenState extends State<HomeScreen> {
         final me = meRes['data'] as Map<String, dynamic>?;
         // 정지 계정 — 첫 진입에서 즉시 게이트(라우터가 /suspended). 홈이 보이기 전에 잡음.
         if (me?['suspended'] == true) {
-          AuthState.instance.markSuspended(reason: me?['suspensionReason'] as String?);
+          AuthState.instance.markSuspended(
+            reason: me?['suspensionReason'] as String?,
+          );
         }
         return me?['userId'] as String?;
       } catch (_) {
@@ -340,8 +359,10 @@ class _HomeScreenState extends State<HomeScreen> {
     // 전체 스플래시를 걷고 노출. 데이터 미도착/실패면 스플래시 유지 + 자동 재시도(네트워크 회복 시 노출).
     if (!_revealed) {
       if (_hasCarouselData) {
-        await _precacheCarousels()
-            .timeout(const Duration(milliseconds: 1200), onTimeout: () {});
+        await _precacheCarousels().timeout(
+          const Duration(milliseconds: 1200),
+          onTimeout: () {},
+        );
         if (mounted) setState(() => _revealed = true);
       } else if (mounted) {
         // 데이터 없음 → 노출 보류(스플래시 유지) + 2초 후 재시도.
@@ -361,13 +382,16 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadPendingSettlements() async {
     try {
       final res = await ApiClient.get('/api/chat/rooms');
-      final rooms = (res['data'] as List?)
+      final rooms =
+          (res['data'] as List?)
               ?.whereType<Map>()
               .map((r) => Map<String, dynamic>.from(r))
               .toList() ??
           const [];
-      final completed =
-          rooms.where((r) => r['tradeStatus'] == 'COMPLETED').take(12).toList();
+      final completed = rooms
+          .where((r) => r['tradeStatus'] == 'COMPLETED')
+          .take(12)
+          .toList();
       final pending = <Map<String, dynamic>>[];
       for (final room in completed) {
         final sale = room['saleListingId'] as String?;
@@ -407,7 +431,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _precacheCarousels() async {
     if (!mounted) return;
     final cards = <Map<String, dynamic>>[
-      ..._myAssets.take(2).map((a) => (a['card'] as Map<String, dynamic>?) ?? const {}),
+      ..._myAssets
+          .take(2)
+          .map((a) => (a['card'] as Map<String, dynamic>?) ?? const {}),
       ..._topGainerCards.take(2),
       ..._topCards.take(3),
       ..._hotCards.take(2),
@@ -449,13 +475,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return (_portfolio?['totalMarketValue'] as num?)?.toInt() ?? 0;
   }
 
-  double get _totalPurchaseValue => _myAssets.fold<double>(
-    0,
-    (s, a) {
-      final qty = (a['quantity'] as num?)?.toInt() ?? 1;
-      return s + (((a['purchasePrice'] as num?)?.toDouble() ?? 0) * qty);
-    },
-  );
+  double get _totalPurchaseValue => _myAssets.fold<double>(0, (s, a) {
+    final qty = (a['quantity'] as num?)?.toInt() ?? 1;
+    return s + (((a['purchasePrice'] as num?)?.toDouble() ?? 0) * qty);
+  });
 
   double get _portfolioMarketValue => _totalValue.toDouble();
 
@@ -479,27 +502,36 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text.rich(
-            TextSpan(children: [
-              TextSpan(
+            TextSpan(
+              children: [
+                TextSpan(
                   text: 'Poke',
                   style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900)),
-              TextSpan(
+                    color: AppColors.textPrimary,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                TextSpan(
                   text: 'Folio',
                   style: TextStyle(
-                      color: AppColors.blue,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900)),
-            ]),
+                    color: AppColors.blue,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
           ),
           SizedBox(height: 18),
           SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(
-                  strokeWidth: 2.2, color: AppColors.blue)),
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.2,
+              color: AppColors.blue,
+            ),
+          ),
         ],
       ),
     );
@@ -508,7 +540,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHomeContent() {
     return RefreshIndicator(
       key: const ValueKey('home-content'),
-      onRefresh: _loadAll,
+      onRefresh: () async {
+        // 홈 데이터 + 공지 재조회를 병렬로 모두 완료까지 대기(공지 오류는 _fetch 가 자체 흡수 → 새로고침 비차단).
+        await Future.wait([
+          _loadAll(),
+          _noticeBannerKey.currentState?.refresh() ?? Future<void>.value(),
+        ]);
+      },
       color: AppColors.blue,
       backgroundColor: AppColors.surface,
       child: CustomScrollView(
@@ -520,16 +558,25 @@ class _HomeScreenState extends State<HomeScreen> {
           //   key 로 위치 무관하게 캐러셀/히어로 State 보존.
           if (_pendingSettlements.isNotEmpty)
             SliverToBoxAdapter(
-                key: const ValueKey('home-settlement'),
-                child: _buildSettlementBanner()),
+              key: const ValueKey('home-settlement'),
+              child: _buildSettlementBanner(),
+            ),
+          // 0) 공지·이벤트 배너 (post-launch 게시판) — 카드 위 얇은 가로 띠
+          SliverToBoxAdapter(
+            key: const ValueKey('home-notice-banner'),
+            child: HomeNoticeBanner(key: _noticeBannerKey),
+          ),
           // 1) 카드 랭킹 캐러셀
           SliverToBoxAdapter(
-              key: const ValueKey('home-carousel'), child: _buildCarousel()),
+            key: const ValueKey('home-carousel'),
+            child: _buildCarousel(),
+          ),
           // 2) 내 자산 hero (자산 백그라운드 로드 완료 시 등장)
           if (_userId != null)
             SliverToBoxAdapter(
-                key: const ValueKey('home-hero'),
-                child: _buildHeroSection()),
+              key: const ValueKey('home-hero'),
+              child: _buildHeroSection(),
+            ),
           const SliverToBoxAdapter(child: SizedBox(height: 48)),
         ],
       ),
@@ -578,7 +625,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
   // ignore: unused_element
   Widget _buildAssetSummary() {
     return Padding(
@@ -611,7 +657,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      '내 자산',
+                      '내 카드',
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
@@ -709,11 +755,18 @@ class _HomeScreenState extends State<HomeScreen> {
         : (diff < 0 ? AppColors.blue : AppColors.textMuted);
 
     final heroCard = _topRarityAsset?['card'] as Map<String, dynamic>?;
-    final heroImageUrl = heroCard != null ? resolveCardImageUrl(heroCard) : null;
+    final heroImageUrl = heroCard != null
+        ? resolveCardImageUrl(heroCard)
+        : null;
 
     // 4차-Round4-2: 풀 리디자인 — 글래스 layer + ShaderMask gradient text + 정교한 multi-layer
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        0,
+      ),
       child: Pressable(
         onTap: () => context.push('/assets'),
         pressedScale: 0.98,
@@ -810,7 +863,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '내 자산',
+                            '내 카드',
                             style: AppText.label.copyWith(
                               color: Colors.white.withValues(alpha: 0.92),
                               fontSize: 14,
@@ -821,7 +874,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Row(
                             children: [
                               Text(
-                                '자산 보기',
+                                '카드 보기',
                                 style: AppText.caption.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w800,
@@ -923,7 +976,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _myCardCarouselItems() {
     if (_myAssets.isEmpty) {
       return _topGainerCards.take(10).map((card) {
-        final price = (card['koEstimatedPrice'] as num?)?.toInt() ??
+        final price =
+            (card['koEstimatedPrice'] as num?)?.toInt() ??
             (card['latestPrice'] as num?)?.toInt();
         final pct = (card['gainPct'] as num?)?.toDouble();
         return {
@@ -941,7 +995,8 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     return sorted.take(10).map((asset) {
       final card = asset['card'] as Map<String, dynamic>? ?? {};
-      final cardId = (asset['cardId'] as String?) ?? (card['cardId'] as String?) ?? '';
+      final cardId =
+          (asset['cardId'] as String?) ?? (card['cardId'] as String?) ?? '';
       // #13: 내 카드는 변동률 줄을 항상 표시(렌더에서 처리). 등록 시점(구매가) 대비.
       // 구매가가 없거나 저가(<5천원) 카드여도 '0원 (0.0%)' neutral 로 노출 — 줄 누락 방지.
       final marketPrice = _assetDisplayPrice(asset);
@@ -961,12 +1016,13 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _marketCarouselItems() {
     // 시장 랭킹 2 서브탭 (힛카드/인기). 수익률 제거(오늘의 TOP=급상승과 중복).
     final source = switch (_marketSubTab) {
-      0 => _topCards,        // 힛카드(금액)
-      1 => _hotCards,        // 인기
+      0 => _topCards, // 힛카드(금액)
+      1 => _hotCards, // 인기
       _ => _topCards,
     };
     return source.map((card) {
-      final price = (card['koEstimatedPrice'] as num?)?.toInt() ??
+      final price =
+          (card['koEstimatedPrice'] as num?)?.toInt() ??
           (card['latestPrice'] as num?)?.toInt();
       final cardId = card['cardId'] as String? ?? '';
       final pct = (card['gainPct'] as num?)?.toDouble();
@@ -983,13 +1039,13 @@ class _HomeScreenState extends State<HomeScreen> {
   /// 캐러셀 데이터 로딩 중 placeholder (전체 스피너 대신 섹션 skeleton).
   Widget _carouselSkeleton(double height) {
     Widget bar(double w, double h) => Container(
-          width: w,
-          height: h,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        );
+      width: w,
+      height: h,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
     return SizedBox(
       height: height + 16,
       child: Center(
@@ -1037,30 +1093,38 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.notifications_active_rounded,
-                size: 15, color: AppColors.blueLight),
+            const Icon(
+              Icons.notifications_active_rounded,
+              size: 15,
+              color: AppColors.blueLight,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                n == 1
-                    ? '완료한 거래의 실거래가를 입력해 주세요'
-                    : '완료한 거래 $n건의 실거래가를 입력해 주세요',
+                n == 1 ? '완료한 거래의 실거래가를 입력해 주세요' : '완료한 거래 $n건의 실거래가를 입력해 주세요',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600),
+                  color: AppColors.textPrimary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             const SizedBox(width: 8),
-            const Text('입력하기',
-                style: TextStyle(
-                    color: AppColors.blueLight,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800)),
-            const Icon(Icons.chevron_right_rounded,
-                size: 16, color: AppColors.blueLight),
+            const Text(
+              '입력하기',
+              style: TextStyle(
+                color: AppColors.blueLight,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 16,
+              color: AppColors.blueLight,
+            ),
           ],
         ),
       ),
@@ -1069,11 +1133,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCarousel() {
     // 카드 좀 더 크게 (0.40 → 0.46, max 460)
-    final height = (MediaQuery.of(context).size.height * 0.46).clamp(380.0, 460.0);
-    final isMyCards = _carouselTab == 0;
-    final items = isMyCards ? _myCardCarouselItems() : _marketCarouselItems();
-    final controller = isMyCards ? _carouselController : _marketCarouselController;
-    final currentPage = isMyCards ? _carouselPage : _marketCarouselPage;
+    final height = (MediaQuery.of(context).size.height * 0.46).clamp(
+      380.0,
+      460.0,
+    );
 
     return Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -1088,13 +1151,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 _CarouselTab(
                   label: _myAssets.isNotEmpty ? '내 카드' : '오늘의 TOP',
                   selected: _carouselTab == 0,
-                  onTap: () => setState(() { _carouselTab = 0; }),
+                  onTap: () => setState(() => _carouselTab = 0),
                 ),
                 const SizedBox(width: 8),
                 _CarouselTab(
                   label: '시장 랭킹',
                   selected: _carouselTab == 1,
-                  onTap: () => setState(() { _carouselTab = 1; }),
+                  onTap: () => setState(() => _carouselTab = 1),
                 ),
                 if (_carouselTab == 1) ...[
                   const Spacer(),
@@ -1110,7 +1173,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       };
                       final len = newItems.isEmpty ? 1 : newItems.length;
                       final aligned = _kCarouselStart - (_kCarouselStart % len);
-                      setState(() { _marketSubTab = i; _marketCarouselPage = aligned; });
+                      setState(() {
+                        _marketSubTab = i;
+                        _marketCarouselPage = aligned;
+                      });
                       if (_marketCarouselController.hasClients) {
                         _marketCarouselController.jumpToPage(aligned);
                       }
@@ -1121,90 +1187,152 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          // 카드셀 1장=단일 카드(아래 분기), 0장=빈상태. 2장 이상은 모두 virtual 무한 PageView(itemCount=_kCarouselVirtual)
-          //   → 컨트롤러 initialPage(_kCarouselStart=50만)가 항상 유효 범위라 page-out-of-range/clamp 폭주 없음.
-          //   (이전: 2장만 finite itemCount=2 라 50만 page 와 충돌 → 매 프레임 jumpToPage+setState 리빌드 스톰 = 극심한 느림.)
-          if (items.isEmpty)
-            (_loading
-                ? _carouselSkeleton(height)
-                : SizedBox(
-                    height: height,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('데이터를 불러오지 못했어요',
-                              style: TextStyle(
-                                  color: AppColors.textMuted,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 6),
-                          TextButton(
-                            onPressed: () => _loadAll(),
-                            child: const Text('새로고침',
-                                style: TextStyle(
-                                    color: AppColors.blue,
-                                    fontWeight: FontWeight.w700)),
-                          ),
-                        ],
+          // ★탭별 PageView 분리 + IndexedStack: 같은 PageView 에 controller 를 갈아끼우지 않는다
+          //   (전환 첫 프레임 controller 재부착 스냅 제거). 두 탭 모두 트리에 유지되어 각자 페이지 보존.
+          //   탭별 PageStorageKey, 카드 key=cardId. viewportFraction·카드 크기·확대 비율은 불변.
+          IndexedStack(
+            index: _carouselTab,
+            children: [
+              _carouselBody(
+                storageKey: const PageStorageKey('carousel-my'),
+                controller: _carouselController,
+                items: _myCardCarouselItems(),
+                currentPage: _carouselPage,
+                isMyCards: true,
+                height: height,
+              ),
+              _carouselBody(
+                storageKey: const PageStorageKey('carousel-market'),
+                controller: _marketCarouselController,
+                items: _marketCarouselItems(),
+                currentPage: _marketCarouselPage,
+                isMyCards: false,
+                height: height,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 탭별 캐러셀 본문(빈/1장/다중 + dots). 전용 controller 사용, 카드 key=cardId.
+  // virtual 무한 PageView·viewportFraction·확대(scale) 비율은 기존 그대로(변경 금지).
+  Widget _carouselBody({
+    required PageStorageKey storageKey,
+    required PageController controller,
+    required List<Map<String, dynamic>> items,
+    required int currentPage,
+    required bool isMyCards,
+    required double height,
+  }) {
+    if (items.isEmpty) {
+      return KeyedSubtree(
+        key: storageKey,
+        child: _loading
+            ? _carouselSkeleton(height)
+            : SizedBox(
+                height: height,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        '데이터를 불러오지 못했어요',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                  ))
-          else if (items.length == 1)
-            // 1장: 캐러셀 없이 가운데 단일 카드. peek/repeat 방지.
-            SizedBox(
-              height: height + 16,
-              child: Center(
-                child: FractionallySizedBox(
-                  widthFactor: 0.6,
-                  child: _CarouselCard(
-                    item: items[0],
-                    distFromCenter: 0,
-                    isLeftOfCenter: false,
-                    onTap: () => _openCardItem(items[0]),
+                      const SizedBox(height: 6),
+                      TextButton(
+                        onPressed: () => _loadAll(),
+                        child: const Text(
+                          '새로고침',
+                          style: TextStyle(
+                            color: AppColors.blue,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            )
-          else ...[
-            SizedBox(
-              height: height + 16,
-              child: PageView.builder(
-                clipBehavior: Clip.none,
-                controller: controller,
-                // 2장 이상 모두 virtual 무한 캐러셀(양옆 peek). realIndex = index % items.length.
-                itemCount: _kCarouselVirtual,
-                onPageChanged: (page) => setState(() {
-                  if (isMyCards) { _carouselPage = page; }
-                  else { _marketCarouselPage = page; }
-                }),
-                itemBuilder: (context, index) {
-                  final realIndex = index % items.length;
-                  return AnimatedBuilder(
-                    animation: controller,
-                    builder: (context, child) {
-                      double page = currentPage.toDouble();
-                      if (controller.hasClients && controller.position.haveDimensions) {
-                        page = controller.page ?? page;
-                      }
-                      final dist = (page - index).abs().clamp(0.0, 1.0);
-                      return _CarouselCard(
-                        item: items[realIndex],
-                        distFromCenter: dist,
-                        isLeftOfCenter: page > index,
-                        onTap: () => _openCardItem(items[realIndex]),
-                      );
-                    },
-                  );
-                },
+      );
+    }
+    if (items.length == 1) {
+      final cardId = items[0]['cardId'] as String? ?? '0';
+      return KeyedSubtree(
+        key: storageKey,
+        child: SizedBox(
+          height: height + 16,
+          child: Center(
+            child: FractionallySizedBox(
+              widthFactor: 0.6,
+              child: _CarouselCard(
+                key: ValueKey('card-$cardId'),
+                item: items[0],
+                distFromCenter: 0,
+                isLeftOfCenter: false,
+                onTap: () => _openCardItem(items[0]),
               ),
             ),
-            const SizedBox(height: 12),
-            _CarouselDots(
-              count: items.length,
-              currentIndex: currentPage % items.length,
+          ),
+        ),
+      );
+    }
+    return KeyedSubtree(
+      key: storageKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: height + 16,
+            child: PageView.builder(
+              key: PageStorageKey('pv-${storageKey.value}'),
+              clipBehavior: Clip.none,
+              controller: controller,
+              // 2장 이상 모두 virtual 무한 캐러셀(양옆 peek). realIndex = index % items.length.
+              itemCount: _kCarouselVirtual,
+              onPageChanged: (page) => setState(() {
+                if (isMyCards) {
+                  _carouselPage = page;
+                } else {
+                  _marketCarouselPage = page;
+                }
+              }),
+              itemBuilder: (context, index) {
+                final realIndex = index % items.length;
+                final cardId =
+                    items[realIndex]['cardId'] as String? ?? '$realIndex';
+                return AnimatedBuilder(
+                  animation: controller,
+                  builder: (context, child) {
+                    double page = currentPage.toDouble();
+                    if (controller.hasClients &&
+                        controller.position.haveDimensions) {
+                      page = controller.page ?? page;
+                    }
+                    final dist = (page - index).abs().clamp(0.0, 1.0);
+                    return _CarouselCard(
+                      key: ValueKey('card-$cardId-$index'),
+                      item: items[realIndex],
+                      distFromCenter: dist,
+                      isLeftOfCenter: page > index,
+                      onTap: () => _openCardItem(items[realIndex]),
+                    );
+                  },
+                );
+              },
             ),
-          ],
+          ),
+          const SizedBox(height: 12),
+          _CarouselDots(
+            count: items.length,
+            currentIndex: currentPage % items.length,
+          ),
         ],
       ),
     );
@@ -1426,7 +1554,11 @@ class _NotificationBellState extends State<_NotificationBell> {
         children: [
           const Padding(
             padding: EdgeInsets.all(8),
-            child: Icon(Icons.notifications_none_rounded, color: Colors.white, size: 22),
+            child: Icon(
+              Icons.notifications_none_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
           ),
           if (_unreadCount > 0)
             Positioned(
@@ -1520,12 +1652,26 @@ class _NotificationSheetState extends State<_NotificationSheet> {
             padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
             child: Row(
               children: [
-                const Text('알림', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                const Text(
+                  '알림',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 const Spacer(),
                 if (_items.any((i) => i['isRead'] == false))
                   TextButton(
                     onPressed: _markAllRead,
-                    child: const Text('모두 읽음', style: TextStyle(color: AppColors.blue, fontSize: 13, fontWeight: FontWeight.w700)),
+                    child: const Text(
+                      '모두 읽음',
+                      style: TextStyle(
+                        color: AppColors.blue,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 IconButton(
                   icon: const Icon(Icons.close_rounded, color: Colors.white54),
@@ -1537,105 +1683,132 @@ class _NotificationSheetState extends State<_NotificationSheet> {
           const Divider(height: 1, color: AppColors.divider),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator(color: AppColors.blue, strokeWidth: 2))
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.blue,
+                      strokeWidth: 2,
+                    ),
+                  )
                 : _items.isEmpty
-                    ? const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Text('아직 알림이 없습니다',
-                              style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Text(
+                        '아직 알림이 없습니다',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 14,
                         ),
-                      )
-                    : ListView.separated(
-                        controller: controller,
-                        itemCount: _items.length,
-                        separatorBuilder: (_, __) =>
-                            const Divider(height: 1, color: AppColors.dividerSoft),
-                        itemBuilder: (ctx, i) {
-                          final n = _items[i];
-                          final isRead = n['isRead'] == true;
-                          final type = n['type'] as String? ?? '';
-                          final icon = type == 'TRADE_ON_MY_BUY_ORDER'
-                              ? Icons.local_offer_rounded
-                              : Icons.shopping_cart_outlined;
-                          final accent = type == 'TRADE_ON_MY_BUY_ORDER'
-                              ? AppColors.blue
-                              : AppColors.green;
-                          return InkWell(
-                            onTap: () async {
-                              final cardId = (n['linkCardId'] as String?) ?? '';
-                              await ApiClient.post(
-                                  '/api/notifications/${n['notificationId']}/read', {});
-                              if (cardId.isNotEmpty && context.mounted) {
-                                Navigator.pop(context);
-                                context.push('/card/$cardId');
-                              } else {
-                                _load();
-                              }
-                            },
-                            child: Container(
-                              color: isRead
-                                  ? Colors.transparent
-                                  : AppColors.blue.withValues(alpha: 0.04),
-                              padding: const EdgeInsets.all(16),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    width: 36, height: 36,
-                                    decoration: BoxDecoration(
-                                      color: accent.withValues(alpha: 0.14),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Icon(icon, color: accent, size: 18),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          n['title'] as String? ?? '',
-                                          style: TextStyle(
-                                            color: isRead ? AppColors.textSecondary : Colors.white,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        if ((n['body'] as String? ?? '').isNotEmpty) ...[
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            n['body'] as String,
-                                            style: TextStyle(
-                                              color: isRead ? AppColors.textMuted : AppColors.textSecondary,
-                                              fontSize: 12,
-                                              height: 1.4,
-                                            ),
-                                          ),
-                                        ],
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          _relativeTime(n['createdAt'] as String? ?? ''),
-                                          style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  if (!isRead)
-                                    Container(
-                                      width: 8, height: 8,
-                                      margin: const EdgeInsets.only(top: 6, left: 6),
-                                      decoration: const BoxDecoration(
-                                        color: AppColors.blue,
-                                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    controller: controller,
+                    itemCount: _items.length,
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 1, color: AppColors.dividerSoft),
+                    itemBuilder: (ctx, i) {
+                      final n = _items[i];
+                      final isRead = n['isRead'] == true;
+                      final type = n['type'] as String? ?? '';
+                      final icon = type == 'TRADE_ON_MY_BUY_ORDER'
+                          ? Icons.local_offer_rounded
+                          : Icons.shopping_cart_outlined;
+                      final accent = type == 'TRADE_ON_MY_BUY_ORDER'
+                          ? AppColors.blue
+                          : AppColors.green;
+                      return InkWell(
+                        onTap: () async {
+                          final cardId = (n['linkCardId'] as String?) ?? '';
+                          await ApiClient.post(
+                            '/api/notifications/${n['notificationId']}/read',
+                            {},
+                          );
+                          if (cardId.isNotEmpty && context.mounted) {
+                            Navigator.pop(context);
+                            context.push('/card/$cardId');
+                          } else {
+                            _load();
+                          }
+                        },
+                        child: Container(
+                          color: isRead
+                              ? Colors.transparent
+                              : AppColors.blue.withValues(alpha: 0.04),
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: accent.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(icon, color: accent, size: 18),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      n['title'] as String? ?? '',
+                                      style: TextStyle(
+                                        color: isRead
+                                            ? AppColors.textSecondary
+                                            : Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                ],
+                                    if ((n['body'] as String? ?? '')
+                                        .isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        n['body'] as String,
+                                        style: TextStyle(
+                                          color: isRead
+                                              ? AppColors.textMuted
+                                              : AppColors.textSecondary,
+                                          fontSize: 12,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _relativeTime(
+                                        n['createdAt'] as String? ?? '',
+                                      ),
+                                      style: const TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
+                              if (!isRead)
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  margin: const EdgeInsets.only(
+                                    top: 6,
+                                    left: 6,
+                                  ),
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.blue,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -1664,7 +1837,11 @@ class _CarouselTab extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _CarouselTab({required this.label, required this.selected, required this.onTap});
+  const _CarouselTab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1694,7 +1871,11 @@ class _MiniSegment extends StatelessWidget {
   final List<String> labels;
   final int selected;
   final ValueChanged<int> onChanged;
-  const _MiniSegment({required this.labels, required this.selected, required this.onChanged});
+  const _MiniSegment({
+    required this.labels,
+    required this.selected,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1740,6 +1921,7 @@ class _CarouselCard extends StatefulWidget {
   final bool isLeftOfCenter;
 
   const _CarouselCard({
+    super.key,
     required this.item,
     required this.onTap,
     required this.distFromCenter,
@@ -1776,7 +1958,9 @@ class _CarouselCardState extends State<_CarouselCard>
     // 발매판 라벨 = 보유 asset.language (내 카드만). 시장랭킹/비자산은 기존 KO 라벨 유지(가격소스도 KO).
     final isMyCard = widget.item['isMyCard'] == true;
     final assetLang =
-        ((widget.item['asset'] as Map<String, dynamic>?)?['language'] as String?)?.toUpperCase();
+        ((widget.item['asset'] as Map<String, dynamic>?)?['language']
+                as String?)
+            ?.toUpperCase();
     final name = card['name'] as String? ?? cardId;
     final rarity = card['rarityCode'] as String? ?? '';
     final price = widget.item['price'] as int?;
@@ -1790,9 +1974,10 @@ class _CarouselCardState extends State<_CarouselCard>
     return AnimatedBuilder(
       animation: _floatController,
       builder: (context, child) {
-        final floatingY = Tween<double>(begin: 0, end: -amplitude).transform(
-          Curves.easeInOut.transform(_floatController.value),
-        );
+        final floatingY = Tween<double>(
+          begin: 0,
+          end: -amplitude,
+        ).transform(Curves.easeInOut.transform(_floatController.value));
         final transform = Matrix4.identity()
           ..setEntry(3, 2, 0.001)
           ..translateByDouble(0.0, floatingY, 0.0, 1.0)
@@ -1886,10 +2071,14 @@ class _CarouselCardState extends State<_CarouselCard>
                     ),
                   ),
                 ),
-                if (isMyCard || (card['language'] as String? ?? 'KO') == 'KO') ...[
+                if (isMyCard ||
+                    (card['language'] as String? ?? 'KO') == 'KO') ...[
                   const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceElevated,
                       borderRadius: BorderRadius.circular(6),
@@ -1899,11 +2088,11 @@ class _CarouselCardState extends State<_CarouselCard>
                       (isMyCard && assetLang == 'JP')
                           ? '일본판 시세'
                           : (isMyCard && assetLang == 'EN')
-                              ? '영문판 시세'
-                              : PriceLabel.resolve(
-                                  labelType: card['koPriceLabelType'] as String?,
-                                  price: price,
-                                ),
+                          ? '영문판 시세'
+                          : PriceLabel.resolve(
+                              labelType: card['koPriceLabelType'] as String?,
+                              price: price,
+                            ),
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 10,
@@ -1938,67 +2127,74 @@ class _CarouselCardState extends State<_CarouselCard>
             // 저가(<5천원) 정책 hide 무시. 등록가 없거나 0% 면 '0원 (0.0%)' neutral 톤.
             if (widget.item['isMyCard'] == true) ...[
               const SizedBox(height: 4),
-              Builder(builder: (_) {
-                final price = (widget.item['price'] as num?)?.toInt();
-                final purchase = (widget.item['purchasePrice'] as num?)?.toInt();
-                final label = widget.item['changeLabel'] as String? ?? '등록 시점 대비';
-                int diff = 0;
-                double pct = 0;
-                if (price != null && purchase != null && purchase > 0) {
-                  diff = price - purchase;
-                  pct = diff * 100.0 / purchase;
-                }
-                final sign = diff > 0 ? '+' : (diff < 0 ? '-' : '');
-                final diffStr = '$sign${AppColors.formatPrice(diff.abs())}';
-                final pctStr = '$sign${pct.abs().toStringAsFixed(1)}%';
-                // 색 정책(feedback_color_policy): 양=빨강, 음=파랑, 0/데이터없음=neutral.
-                final color = diff > 0
-                    ? AppColors.red
-                    : (diff < 0 ? AppColors.blue : AppColors.textMuted);
-                return Text(
-                  '$label $diffStr ($pctStr)',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                );
-              }),
+              Builder(
+                builder: (_) {
+                  final price = (widget.item['price'] as num?)?.toInt();
+                  final purchase = (widget.item['purchasePrice'] as num?)
+                      ?.toInt();
+                  final label =
+                      widget.item['changeLabel'] as String? ?? '등록 시점 대비';
+                  int diff = 0;
+                  double pct = 0;
+                  if (price != null && purchase != null && purchase > 0) {
+                    diff = price - purchase;
+                    pct = diff * 100.0 / purchase;
+                  }
+                  final sign = diff > 0 ? '+' : (diff < 0 ? '-' : '');
+                  final diffStr = '$sign${AppColors.formatPrice(diff.abs())}';
+                  final pctStr = '$sign${pct.abs().toStringAsFixed(1)}%';
+                  // 색 정책(feedback_color_policy): 양=빨강, 음=파랑, 0/데이터없음=neutral.
+                  final color = diff > 0
+                      ? AppColors.red
+                      : (diff < 0 ? AppColors.blue : AppColors.textMuted);
+                  return Text(
+                    '$label $diffStr ($pctStr)',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  );
+                },
+              ),
             ] else if (widget.item['changePct'] != null) ...[
               const SizedBox(height: 4),
-              Builder(builder: (_) {
-                final pct = (widget.item['changePct'] as num).toDouble();
-                final label = widget.item['changeLabel'] as String? ?? '전일 대비';
-                final price = (widget.item['price'] as num?)?.toInt();
-                int? prevPriceApprox;
-                if (price != null && pct > -100) {
-                  prevPriceApprox = (price / (1 + pct / 100)).round();
-                }
-                final display = PriceDisplayPolicy.buildChangeDisplay(
-                  lastPrice: price,
-                  prevPrice: prevPriceApprox,
-                  prefix: label,
-                );
-                if (display == null) return const SizedBox.shrink();
-                final color = switch (display.color) {
-                  // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
-                  PriceChangeColor.positive => AppColors.red,
-                  PriceChangeColor.negative => AppColors.blue,
-                  PriceChangeColor.neutral => AppColors.textMuted,
-                };
-                return Text(
-                  display.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                );
-              }),
+              Builder(
+                builder: (_) {
+                  final pct = (widget.item['changePct'] as num).toDouble();
+                  final label =
+                      widget.item['changeLabel'] as String? ?? '전일 대비';
+                  final price = (widget.item['price'] as num?)?.toInt();
+                  int? prevPriceApprox;
+                  if (price != null && pct > -100) {
+                    prevPriceApprox = (price / (1 + pct / 100)).round();
+                  }
+                  final display = PriceDisplayPolicy.buildChangeDisplay(
+                    lastPrice: price,
+                    prevPrice: prevPriceApprox,
+                    prefix: label,
+                  );
+                  if (display == null) return const SizedBox.shrink();
+                  final color = switch (display.color) {
+                    // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
+                    PriceChangeColor.positive => AppColors.red,
+                    PriceChangeColor.negative => AppColors.blue,
+                    PriceChangeColor.neutral => AppColors.textMuted,
+                  };
+                  return Text(
+                    display.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  );
+                },
+              ),
             ],
           ],
         ),
