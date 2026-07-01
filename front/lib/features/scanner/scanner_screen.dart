@@ -448,15 +448,14 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   // auto ↔ capture 전환. auto로 가면 스트림 시작, capture로 가면 스트림 정지.
-  Future<void> _toggleScanMode() async {
-    if (_togglingMode) return; // 연타 재진입 차단(stream start/stop 직렬화).
+  Future<void> _setScanMode(String mode) async {
+    if (_togglingMode || mode == _scanMode) return; // 재진입/동일모드 차단.
     _togglingMode = true;
     try {
-      final next = _scanMode == 'auto' ? 'capture' : 'auto';
-      if (mounted) setState(() => _scanMode = next);
+      if (mounted) setState(() => _scanMode = mode);
       final cam = _camera;
       if (cam == null || !cam.value.isInitialized || _leaving) return;
-      if (next == 'capture') {
+      if (mode == 'capture') {
         if (cam.value.isStreamingImages) {
           await cam.stopImageStream();
         }
@@ -964,12 +963,13 @@ class _ScannerScreenState extends State<ScannerScreen>
               ),
             ),
 
-            // 스캔 모드 토글 — 상단 우측(양 모드).
+            // 현재 스캔 모드 상태 표시(상단 중앙, 글자).
             if (!_resultShowing && _cameraReady && !_leaving)
               Positioned(
-                top: MediaQuery.of(context).padding.top + 8,
-                right: 12,
-                child: _buildModeToggle(),
+                top: MediaQuery.of(context).padding.top + 12,
+                left: 0,
+                right: 0,
+                child: Center(child: _buildModeStatus()),
               ),
 
             if (kDebugMode && _debugText.isNotEmpty && !_resultShowing)
@@ -1085,28 +1085,35 @@ class _ScannerScreenState extends State<ScannerScreen>
                 ),
               ),
 
-            // 아이폰 카메라식 하단 컨트롤 — 셔터(중앙, 촬영 모드만) + 최근 등록 앨범
-            // 셔터(촬영 모드 전용) + 최근등록 썸네일(좌하단, 양 모드). 모드 토글은 상단 우측.
+            // 아이폰 카메라식 하단 — 모드 선택 스트립([자동][촬영]) + 셔터(촬영 모드만) + 썸네일(좌하단).
             if (!_resultShowing && _cameraReady && !_leaving)
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: MediaQuery.of(context).padding.bottom + 28,
-                child: SizedBox(
-                  height: 76,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // 셔터는 촬영(capture) 모드에서만 노출. 자동 모드는 연속 스캔.
-                      if (_scanMode == 'capture')
-                        _ShutterButton(busy: _isProcessing, onTap: _onShutter),
-                      if (_lastRegistered != null)
-                        Positioned(
-                          left: 28,
-                          child: _buildLastRegisteredThumb(),
-                        ),
-                    ],
-                  ),
+                bottom: MediaQuery.of(context).padding.bottom + 20,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildModeBar(),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      height: 76,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // 셔터는 촬영(capture) 모드에서만. 자동 모드는 연속 스캔.
+                          if (_scanMode == 'capture')
+                            _ShutterButton(
+                                busy: _isProcessing, onTap: _onShutter),
+                          if (_lastRegistered != null)
+                            Positioned(
+                              left: 28,
+                              child: _buildLastRegisteredThumb(),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -1120,40 +1127,61 @@ class _ScannerScreenState extends State<ScannerScreen>
     );
   }
 
-  // 좌하단 앨범 썸네일 — 이번 세션 최근 등록 카드. 탭 시 그 카드의 자산 상세로 이동.
-  // 우하단 스캔 모드 토글 — 자동(연속 스캔) ↔ 촬영(셔터 1회). 양 모드에서 항상 노출.
-  Widget _buildModeToggle() {
+  // 상단 현재 모드 표시(글자) — 자동/촬영 상태 인디케이터.
+  Widget _buildModeStatus() {
     final isAuto = _scanMode == 'auto';
-    return GestureDetector(
-      onTap: _toggleScanMode,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: 54,
-        height: 54,
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white24, width: 1),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isAuto ? Icons.autorenew_rounded : Icons.photo_camera_rounded,
-              color: Colors.white,
-              size: 20,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(isAuto ? Icons.autorenew_rounded : Icons.photo_camera_rounded,
+              color: Colors.white, size: 15),
+          const SizedBox(width: 6),
+          Text(
+            isAuto ? '자동 스캔' : '촬영 스캔',
+            style: const TextStyle(
+                color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 하단 모드 선택 스트립(아이폰 카메라 하단바식) — [자동][촬영]. 현재 하이라이트, 탭 전환.
+  Widget _buildModeBar() {
+    Widget item(String mode, String label) {
+      final sel = _scanMode == mode;
+      return GestureDetector(
+        onTap: () => _setScanMode(mode),
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: sel ? const Color(0xFFFFD60A) : Colors.white70,
+              fontSize: 14,
+              fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
             ),
-            const SizedBox(height: 2),
-            Text(
-              isAuto ? '자동' : '촬영',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
+          ),
         ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [item('auto', '자동'), item('capture', '촬영')],
       ),
     );
   }
