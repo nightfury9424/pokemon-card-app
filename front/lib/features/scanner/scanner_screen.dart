@@ -1,3 +1,4 @@
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -62,6 +63,19 @@ class _ScannerScreenState extends State<ScannerScreen>
   // 이번 세션에서 가장 최근 등록한 카드 — 좌하단 앨범 썸네일(아이폰 카메라 스타일)용.
   // {cardId, assetId?, imageUrl?, card}. null이면 썸네일 숨김.
   Map<String, dynamic>? _lastRegistered;
+
+  // 스캔 모드: 'auto' = 실시간 연속 스캔(이미지 스트림), 'capture' = 셔터 1회 촬영.
+  // 기본값 auto(구 스캐너 동작). 하단 토글로 전환.
+  String _scanMode = 'auto';
+
+  // ── 자동 스캔(auto) 전용 상태 (구 스트림 경로 복원) ──
+  DateTime _lastScan = DateTime(0);
+  static const _scanInterval = Duration(milliseconds: 1000);
+  // 등록 후 토스트 1.3초 + 마진 = 1.6초 동안 _processFrame skip.
+  DateTime? _scanPausedUntil;
+  // 최근 등록한 cardId — 같은 카드 즉시 재인식 차단 (60초 cooldown).
+  final Map<String, DateTime> _recentlyRegistered = {};
+  static const _recentRegisterCooldown = Duration(seconds: 60);
 
   late AnimationController _glowCtrl;
   late Animation<double> _glowAnim;
@@ -148,6 +162,13 @@ class _ScannerScreenState extends State<ScannerScreen>
     if (cam == null) return;
     _disposingCamera = true;
     try {
+      // auto 모드 이미지 스트림이 켜져 있으면 dispose 전에 먼저 정지(스트림 콜백이
+      // 해제된 컨트롤러를 건드리는 race 방지).
+      if (cam.value.isStreamingImages) {
+        try {
+          await cam.stopImageStream();
+        } catch (_) {}
+      }
       await cam.dispose();
     } catch (_) {
     } finally {
@@ -212,6 +233,8 @@ class _ScannerScreenState extends State<ScannerScreen>
         back,
         ResolutionPreset.high,
         enableAudio: false,
+        // auto 모드 _convertToJpeg가 frame plane을 BGRA로 읽으므로 포맷 고정.
+        imageFormatGroup: ImageFormatGroup.bgra8888,
       );
       await controller.initialize();
 
@@ -224,6 +247,14 @@ class _ScannerScreenState extends State<ScannerScreen>
       _camera = controller;
       controller = null; // 소유권 이전 — finally에서 dispose 안 되게.
       setState(() => _cameraReady = true);
+      // auto 모드면 실시간 연속 스캔 스트림 시작(capture 모드는 셔터만 사용).
+      if (_scanMode == 'auto' &&
+          !_leaving &&
+          gen == _camGen &&
+          _camera != null &&
+          !_camera!.value.isStreamingImages) {
+        await _camera!.startImageStream(_onFrame);
+      }
     } catch (_) {
       // 초기화 실패 — 로컬 컨트롤러 정리, _camera엔 대입하지 않음.
       try {
@@ -237,6 +268,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   // 아이폰 카메라식 셔터 — 탭당 정확히 1회 촬영 → identify.
   // 연속 프레임 스트림 대신 사용자가 명시적으로 촬영할 때만 백엔드 호출.
   Future<void> _onShutter() async {
+    if (_scanMode != 'capture') return; // 셔터는 촬영 모드 전용.
     if (_isProcessing || _resultShowing || _leaving) return;
     final cam = _camera;
     if (cam == null || !cam.value.isInitialized) return;
@@ -270,6 +302,163 @@ class _ScannerScreenState extends State<ScannerScreen>
     } catch (_) {
       return raw;
     }
+  }
+
+  // ── 자동 스캔(auto) 경로 — 구 스트림 스캐너 복원 ──
+  // 카메라 이미지 스트림 콜백. throttle(_scanInterval) + 결과 시트/처리중/이탈 가드.
+  void _onFrame(CameraImage frame) {
+    if (_leaving || _resultShowing) return;
+    final now = DateTime.now();
+    final shouldScan =
+        !_isProcessing && now.difference(_lastScan) >= _scanInterval;
+    if (shouldScan) {
+      _lastScan = now;
+      _processFrame(frame);
+    }
+  }
+
+  // 프레임 1장을 identify 백엔드로 보내고 결과를 처리. 결과 시트가 열려있거나
+  // 등록 직후 cooldown(_scanPausedUntil) 동안은 skip. 매칭되면 스트림을 멈추고 시트 표시.
+  Future<void> _processFrame(CameraImage frame) async {
+    if (!mounted || _isProcessing || _leaving || _resultShowing) return;
+    // 등록 토스트 표시 동안 스캔 일시 중지.
+    if (_scanPausedUntil != null &&
+        DateTime.now().isBefore(_scanPausedUntil!)) {
+      return;
+    }
+    _isProcessing = true;
+
+    try {
+      final jpegBytes = await _convertToJpeg(frame);
+      if (jpegBytes == null || !mounted || _leaving) return;
+
+      final res = await ApiClient.postBytes(
+        ApiConstants.scannerIdentify,
+        fieldName: 'image',
+        bytes: jpegBytes,
+        filename: 'frame.jpg',
+        receiveTimeout: const Duration(seconds: 90),
+      );
+      if (!mounted || _leaving) return;
+
+      final data = res['data'] as Map<String, dynamic>?;
+      final status = data?['status'] as String? ?? '';
+      final card = data?['card'] as Map<String, dynamic>?;
+      final score = data?['score'];
+
+      // identify status 항상 저장. no_card/not_found 시 하단 안내문 갱신용.
+      if (mounted && _lastIdentifyStatus != status) {
+        setState(() => _lastIdentifyStatus = status);
+      }
+
+      if (status == 'no_card') return;
+
+      // debug text는 dev/profile build에서만. release에서 사용자 노출 X.
+      if (kDebugMode && mounted) {
+        setState(() => _debugText = 'status=$status score=$score');
+      }
+
+      if (card == null || status == 'not_found') return;
+
+      final rawCandidates = data?['candidates'] as List? ?? [];
+      final matchedCardId = card['cardId'] as String?;
+
+      // 방금 등록한 카드 즉시 재인식 차단 (60초 cooldown).
+      if (matchedCardId != null) {
+        final registeredAt = _recentlyRegistered[matchedCardId];
+        if (registeredAt != null) {
+          if (DateTime.now().difference(registeredAt) <
+              _recentRegisterCooldown) {
+            return;
+          }
+          _recentlyRegistered.remove(matchedCardId); // expire
+        }
+      }
+
+      final expected = widget.expectedCardId;
+      // expectedCardId 지정 시 matchedCardId가 null이거나 다르면 mismatch로 차단.
+      final mismatched = expected != null && matchedCardId != expected;
+
+      if (mounted && !_leaving) {
+        setState(() {
+          _foundCard = card;
+          _candidates = rawCandidates
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+          _resultShowing = true;
+          _mismatch = mismatched;
+          _resultStatus = status;
+          _debugText = '';
+        });
+        // 결과 시트 표시 → 스트림 정지(dismiss 시 재시작).
+        final cam = _camera;
+        if (cam != null && cam.value.isStreamingImages) {
+          try {
+            await cam.stopImageStream();
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      if (mounted) setState(() => _debugText = 'error: $e');
+    } finally {
+      _isProcessing = false;
+    }
+  }
+
+  // BGRA8888 카메라 프레임 → 세로 정립 JPEG. plane 바이트를 isolate에서 인코딩.
+  Future<List<int>?> _convertToJpeg(CameraImage frame) async {
+    try {
+      final bytes = frame.planes[0].bytes;
+      final rowStride = frame.planes[0].bytesPerRow;
+      final w = frame.width;
+      final h = frame.height;
+      final shouldRotateForPortrait =
+          MediaQuery.of(context).orientation == Orientation.portrait && w > h;
+      return await Isolate.run(() {
+        var image = img.Image.fromBytes(
+          width: w,
+          height: h,
+          bytes: bytes.buffer,
+          bytesOffset: bytes.offsetInBytes,
+          format: img.Format.uint8,
+          numChannels: 4,
+          rowStride: rowStride,
+          order: img.ChannelOrder.bgra,
+        );
+        if (shouldRotateForPortrait) {
+          image = img.copyRotate(image, angle: -90);
+        }
+        if (image.width > 1280) {
+          image = img.copyResize(image, width: 1280);
+        }
+        return img.encodeJpg(image, quality: 90);
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // auto ↔ capture 전환. auto로 가면 스트림 시작, capture로 가면 스트림 정지.
+  Future<void> _toggleScanMode() async {
+    final next = _scanMode == 'auto' ? 'capture' : 'auto';
+    setState(() => _scanMode = next);
+    final cam = _camera;
+    if (cam == null || !cam.value.isInitialized || _leaving) return;
+    try {
+      if (next == 'capture') {
+        if (cam.value.isStreamingImages) {
+          await cam.stopImageStream();
+        }
+      } else {
+        // auto — 결과 시트가 열려있지 않을 때만 즉시 재개(시트 dismiss 시 재개됨).
+        if (_cameraReady &&
+            !_resultShowing &&
+            !cam.value.isStreamingImages) {
+          _lastScan = DateTime(0);
+          await cam.startImageStream(_onFrame);
+        }
+      }
+    } catch (_) {}
   }
 
   // 촬영한 JPEG 바이트를 기존 identify 백엔드에 1회 전송하고 결과를 처리.
@@ -371,6 +560,18 @@ class _ScannerScreenState extends State<ScannerScreen>
       _resultStatus = '';
       _lastIdentifyStatus = '';
     });
+    _lastScan = DateTime(0);
+    // auto 모드면 결과 시트를 닫으며 실시간 스캔 스트림을 재개(capture는 셔터 대기).
+    final cam = _camera;
+    if (_scanMode == 'auto' &&
+        !_leaving &&
+        cam != null &&
+        cam.value.isInitialized &&
+        !cam.value.isStreamingImages) {
+      try {
+        await cam.startImageStream(_onFrame);
+      } catch (_) {}
+    }
   }
 
   // low_confidence(스캐너 신뢰도 0.62~0.75) 시에는 사용자에게 한 번 확인을 받고 등록.
@@ -488,6 +689,11 @@ class _ScannerScreenState extends State<ScannerScreen>
                   'card': card,
                 };
               });
+              // auto 모드: 등록 직후 즉시 재인식/재-pop 방지 — 토스트 동안 스캔 일시정지
+              // (1.6초) + 방금 등록한 cardId 60초 cooldown.
+              _scanPausedUntil =
+                  DateTime.now().add(const Duration(milliseconds: 1600));
+              _recentlyRegistered[cardId] = DateTime.now();
               // 새 자산이 추가됐으니 보유 요약 재로드 (개수 + 평가액 정확 반영)
               await _loadOwnedCards();
               if (!mounted) return;
@@ -856,7 +1062,8 @@ class _ScannerScreenState extends State<ScannerScreen>
                 ),
               ),
 
-            // 아이폰 카메라식 하단 컨트롤 — 셔터(중앙) + 최근 등록 앨범 썸네일(좌하단).
+            // 아이폰 카메라식 하단 컨트롤 — 셔터(중앙, 촬영 모드만) + 최근 등록 앨범
+            // 썸네일(좌하단, 양 모드) + 모드 토글(우하단, 양 모드).
             if (!_resultShowing && _cameraReady && !_leaving)
               Positioned(
                 left: 0,
@@ -867,12 +1074,18 @@ class _ScannerScreenState extends State<ScannerScreen>
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      _ShutterButton(busy: _isProcessing, onTap: _onShutter),
+                      // 셔터는 촬영(capture) 모드에서만 노출. 자동 모드는 연속 스캔.
+                      if (_scanMode == 'capture')
+                        _ShutterButton(busy: _isProcessing, onTap: _onShutter),
                       if (_lastRegistered != null)
                         Positioned(
                           left: 28,
                           child: _buildLastRegisteredThumb(),
                         ),
+                      Positioned(
+                        right: 28,
+                        child: _buildModeToggle(),
+                      ),
                     ],
                   ),
                 ),
@@ -889,6 +1102,43 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   // 좌하단 앨범 썸네일 — 이번 세션 최근 등록 카드. 탭 시 그 카드의 자산 상세로 이동.
+  // 우하단 스캔 모드 토글 — 자동(연속 스캔) ↔ 촬영(셔터 1회). 양 모드에서 항상 노출.
+  Widget _buildModeToggle() {
+    final isAuto = _scanMode == 'auto';
+    return GestureDetector(
+      onTap: _toggleScanMode,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 54,
+        height: 54,
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white24, width: 1),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isAuto ? Icons.autorenew_rounded : Icons.photo_camera_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              isAuto ? '자동' : '촬영',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildLastRegisteredThumb() {
     final reg = _lastRegistered!;
     final imageUrl = reg['imageUrl'] as String?;
