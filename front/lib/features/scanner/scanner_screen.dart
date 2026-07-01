@@ -36,6 +36,13 @@ class _ScannerScreenState extends State<ScannerScreen>
   bool _resultShowing = false;
   bool _wasModified = false;
 
+  // ── 카메라 생명주기 가드 (프리뷰 native texture 잔상·검정화면 race 방지) ──
+  bool _leaving = false; // pop/dispose 진입 — CameraPreview를 build tree에서 즉시 제거
+  bool _initializingCamera = false; // _initCamera 재진입 방지
+  bool _disposingCamera = false; // dispose 진행 중(재init 금지)
+  bool _popping = false; // _popWithResult 중복 진입 방지
+  int _camGen = 0; // init 세대 토큰 — 늦게 끝난 stale initialize 결과 무시
+
   Map<String, dynamic>? _foundCard;
   List<Map<String, dynamic>> _candidates = [];
   String _debugText = '';
@@ -61,10 +68,23 @@ class _ScannerScreenState extends State<ScannerScreen>
   // 카드 프레임 안에서 위 → 아래로 sweep하는 라인 (스캔이 살아있다는 시각 신호).
   late AnimationController _sweepCtrl;
 
-  void _popWithResult() {
+  // 스캐너 이탈 — ★CameraPreview(native Texture)를 트리에서 먼저 제거하고 컨트롤러 dispose를
+  // 완료한 뒤에 pop. 즉시 pop하면 pop 트랜지션 동안 마지막 프레임 texture가 홈 위로 남는 잔상 발생.
+  Future<void> _popWithResult() async {
+    if (_popping) return;
+    _popping = true;
     if (_wasModified) {
       AssetNotifier.instance.notifyChanged();
     }
+    // 1) preview를 build tree에서 제거(검정 배경) — 다음 build부터 CameraPreview 미렌더.
+    _leaving = true;
+    if (mounted) setState(() {});
+    // 2) 한 프레임 대기 — Texture가 실제로 트리에서 빠지도록.
+    await WidgetsBinding.instance.endOfFrame;
+    // 3) 컨트롤러 dispose 완료 대기(세션 해제 완료 후 pop).
+    await _disposeCamera();
+    if (!mounted) return;
+    // 4) 그 다음 pop.
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
       context.pop(_wasModified ? true : null);
@@ -95,17 +115,43 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   // 앱 백그라운드/복귀 — iOS는 백그라운드 시 카메라 세션을 해제. 프리뷰가 얼어붙고
-  // takePicture가 던져 "셔터 먹통"이 되므로, resume 시 컨트롤러를 재초기화한다.
+  // takePicture가 던져 "셔터 먹통"이 되므로, resume 시 컨트롤러를 안전하게 재초기화한다.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_leaving) return; // 화면 이탈 중이면 아무것도 하지 않음.
     if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused) {
-      final cam = _camera;
-      _camera = null;
-      if (mounted) setState(() => _cameraReady = false);
-      cam?.dispose();
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _disposeCamera(); // 안전 dispose(세대 토큰 증가로 in-flight init 무효화).
     } else if (state == AppLifecycleState.resumed) {
-      if (_camera == null) _initCamera();
+      _resumeCamera();
+    }
+  }
+
+  // 이전 dispose가 진행 중이면 완료를 기다린 뒤 재init — iOS AVCaptureSession 해제 완료 전
+  // 재초기화 시 검정 프리뷰가 나던 것 방지.
+  Future<void> _resumeCamera() async {
+    for (var i = 0; i < 40 && _disposingCamera; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    if (!mounted || _leaving) return;
+    if (_camera == null && !_initializingCamera) _initCamera();
+  }
+
+  // 컨트롤러 안전 해제 — 참조 즉시 끊고, 세대 토큰 증가로 진행 중이던 _initCamera 결과를 무효화.
+  Future<void> _disposeCamera() async {
+    if (_disposingCamera) return;
+    final cam = _camera;
+    _camera = null;
+    _camGen++; // in-flight initialize 결과 폐기.
+    if (mounted) setState(() => _cameraReady = false);
+    if (cam == null) return;
+    _disposingCamera = true;
+    try {
+      await cam.dispose();
+    } catch (_) {
+    } finally {
+      _disposingCamera = false;
     }
   }
 
@@ -143,32 +189,55 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   Future<void> _initCamera() async {
-    final status = await Permission.camera.request();
-    if (!status.isGranted || !mounted) return;
+    // 재진입/이탈/해제중 가드 — 중복 init로 컨트롤러가 2개 생겨 texture가 꼬이는 것 방지.
+    if (_initializingCamera || _disposingCamera || _leaving || _camera != null) {
+      return;
+    }
+    _initializingCamera = true;
+    final gen = ++_camGen; // 이 init의 세대. 도중 dispose/pop/재init 되면 gen이 어긋남.
+    CameraController? controller;
+    try {
+      final status = await Permission.camera.request();
+      if (!status.isGranted || !mounted || gen != _camGen || _leaving) return;
 
-    final cameras = await availableCameras();
-    if (cameras.isEmpty) return;
+      final cameras = await availableCameras();
+      if (cameras.isEmpty || !mounted || gen != _camGen || _leaving) return;
 
-    final back = cameras.firstWhere(
-      (c) => c.lensDirection == CameraLensDirection.back,
-      orElse: () => cameras.first,
-    );
+      final back = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
 
-    _camera = CameraController(
-      back,
-      ResolutionPreset.high,
-      enableAudio: false,
-    );
+      controller = CameraController(
+        back,
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+      await controller.initialize();
 
-    await _camera!.initialize();
-    if (!mounted) return;
-    setState(() => _cameraReady = true);
+      // initialize 도중 dispose/pop/재init(세대 변경)·unmount 되었으면 이 컨트롤러는 버린다
+      // (_camera에 절대 대입하지 않음 → 고아 texture/검정 방지).
+      if (!mounted || gen != _camGen || _leaving) {
+        await controller.dispose();
+        return;
+      }
+      _camera = controller;
+      controller = null; // 소유권 이전 — finally에서 dispose 안 되게.
+      setState(() => _cameraReady = true);
+    } catch (_) {
+      // 초기화 실패 — 로컬 컨트롤러 정리, _camera엔 대입하지 않음.
+      try {
+        await controller?.dispose();
+      } catch (_) {}
+    } finally {
+      _initializingCamera = false;
+    }
   }
 
   // 아이폰 카메라식 셔터 — 탭당 정확히 1회 촬영 → identify.
   // 연속 프레임 스트림 대신 사용자가 명시적으로 촬영할 때만 백엔드 호출.
   Future<void> _onShutter() async {
-    if (_isProcessing || _resultShowing) return;
+    if (_isProcessing || _resultShowing || _leaving) return;
     final cam = _camera;
     if (cam == null || !cam.value.isInitialized) return;
     setState(() => _isProcessing = true);
@@ -636,11 +705,15 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   @override
   void dispose() {
+    _leaving = true; // 혹시 남은 build/콜백이 CameraPreview·init을 못 타게.
+    _camGen++; // in-flight initialize 결과 폐기.
     WidgetsBinding.instance.removeObserver(this);
     _glowCtrl.dispose();
     _sweepCtrl.dispose();
-    // 프리뷰 전용 — 이미지 스트림을 시작하지 않으므로 stopImageStream 불필요. 컨트롤러만 해제.
-    _camera?.dispose();
+    // 프리뷰 전용 — 이미지 스트림 없음. 컨트롤러 참조 끊고 해제(setState 금지).
+    final cam = _camera;
+    _camera = null;
+    cam?.dispose();
     super.dispose();
   }
 
@@ -656,7 +729,7 @@ class _ScannerScreenState extends State<ScannerScreen>
         backgroundColor: Colors.black,
         body: Stack(
           children: [
-            if (_cameraReady && _camera != null)
+            if (_cameraReady && _camera != null && !_leaving)
               Positioned.fill(child: _buildCameraPreview()),
 
             if (!_resultShowing) Positioned.fill(child: _buildCardFrame()),
@@ -784,7 +857,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               ),
 
             // 아이폰 카메라식 하단 컨트롤 — 셔터(중앙) + 최근 등록 앨범 썸네일(좌하단).
-            if (!_resultShowing && _cameraReady)
+            if (!_resultShowing && _cameraReady && !_leaving)
               Positioned(
                 left: 0,
                 right: 0,
