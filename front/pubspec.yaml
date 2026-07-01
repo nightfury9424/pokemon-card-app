@@ -61,6 +61,12 @@ dependencies:
   # mailto 등 외부 URL launcher (고객지원 화면)
   url_launcher: ^6.3.0
 
+  # 강제 업데이트 게이트 — 설치 버전/빌드번호 조회(App Store 최신과 비교)
+  package_info_plus: ^8.0.0
+
+  # SOFT 업데이트 배너 "나중에" 1회 dismiss 상태 저장(latestBuild별 키)
+  shared_preferences: ^2.3.0
+
   # 고객지원 문의 — 카테고리별 폼 + 사진 첨부 후 네이티브 메일 composer 호출.
   # mailto 자체는 첨부 미지원이라 iOS MFMailComposeViewController / Android Intent 래퍼 필요.
   flutter_email_sender: ^6.0.3

@@ -6,6 +6,7 @@ import 'core/notifications/chat_socket_service.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'core/notifiers/home_session_cache.dart';
 import 'core/config/maintenance_gate.dart';
+import 'core/config/version_gate.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/token_storage.dart';
 import 'core/theme/app_colors.dart';
@@ -83,7 +84,8 @@ class PokemonCardApp extends StatelessWidget {
             behavior: HitTestBehavior.translucent,
             onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
             // 점검 게이트 — maintenance.json(백엔드 독립) 기반 전역 점검 화면.
-            child: MaintenanceGate(child: child!),
+            // 그 안쪽에 버전 게이트 중첩 — 우선순위 점검 > HARD > SOFT 업데이트.
+            child: MaintenanceGate(child: VersionGate(child: child!)),
           ),
         );
       },
