@@ -62,6 +62,7 @@ export default function Notices() {
   const [actionError, setActionError] = useState('')
   const [pinningId, setPinningId] = useState(null)
   const [modal, setModal] = useState(null) // { mode: 'create' | 'edit', row }
+  const [commentPost, setCommentPost] = useState(null) // 댓글 모달 대상 게시글
 
   useEffect(() => { load(page) }, [page])
 
@@ -178,6 +179,7 @@ export default function Notices() {
                   />
                 </td>
                 <td style={{ ...S.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <button style={S.btnSm} onClick={() => setCommentPost(r)}>댓글</button>{' '}
                   <button style={S.btnSm} onClick={() => setModal({ mode: 'edit', row: r })}>수정</button>{' '}
                   <button style={S.btnDanger} onClick={() => remove(r)}>삭제</button>
                 </td>
@@ -210,6 +212,90 @@ export default function Notices() {
           }}
         />
       )}
+
+      {commentPost && (
+        <CommentsModal post={commentPost} onClose={() => setCommentPost(null)} />
+      )}
+    </div>
+  )
+}
+
+// 공지 댓글 모달 — 게시글 상세(GET /board/posts/{id})의 comments(body 포함) 표시 + 운영팀 댓글 작성.
+function CommentsModal({ post, onClose }) {
+  const [comments, setComments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [text, setText] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => { loadComments() }, [])
+
+  async function loadComments() {
+    setLoading(true); setError(false)
+    try {
+      const r = await api.get('/board/posts/' + post.id)
+      setComments(r.data?.data?.comments ?? [])
+    } catch { setError(true) } finally { setLoading(false) }
+  }
+
+  async function submit() {
+    const body = text.trim()
+    if (!body || submitting) return
+    setSubmitting(true)
+    try {
+      await api.post('/admin/board/posts/' + post.id + '/comments', { content: body })
+      setText('')
+      await loadComments()
+    } catch (e) {
+      alert('댓글 등록 실패: ' + (e?.response?.data?.message || e.message))
+    } finally { setSubmitting(false) }
+  }
+
+  const fmtT = (iso) => {
+    try {
+      const d = new Date(iso)
+      const p = n => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+    } catch { return '' }
+  }
+
+  const renderComment = (c, depth = 0) => (
+    <div key={c.id} style={{ marginLeft: depth * 18, padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <span style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{c.author || '(알 수 없음)'}</span>
+        {c.isAdmin && <span style={{ fontSize: 11, color: '#4f46e5', fontWeight: 700 }}>운영팀</span>}
+        <span style={{ fontSize: 11, color: '#94a3b8' }}>{fmtT(c.createdAt)}</span>
+      </div>
+      <div style={{ fontSize: 13, color: '#334155', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+        {c.body != null && c.body !== '' ? c.body : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>(삭제되었거나 내용 없음)</span>}
+      </div>
+      {(c.replies ?? []).map(rep => renderComment(rep, depth + 1))}
+    </div>
+  )
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 560, maxWidth: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#1e293b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>댓글 — {post.title}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={20} /></button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 120 }}>
+          {loading ? <div style={{ color: '#94a3b8', fontSize: 13, padding: 20, textAlign: 'center' }}>불러오는 중…</div>
+            : error ? <div style={{ color: '#dc2626', fontSize: 13, padding: 20, textAlign: 'center' }}>불러오기 실패</div>
+            : comments.length === 0 ? <div style={{ color: '#94a3b8', fontSize: 13, padding: 20, textAlign: 'center' }}>아직 댓글이 없습니다</div>
+            : comments.map(c => renderComment(c))}
+        </div>
+        <div style={{ marginTop: 12, borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
+          <textarea value={text} onChange={e => setText(e.target.value)} placeholder="운영팀 댓글 입력 (Enter 등록 · Shift+Enter 줄바꿈)" rows={2}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
+            style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #cbd5e1', borderRadius: 8, padding: 10, fontSize: 13, resize: 'vertical' }} />
+          <div style={{ display: 'flex', alignItems: 'center', marginTop: 8 }}>
+            <div style={{ fontSize: 11, color: '#94a3b8', flex: 1 }}>운영팀으로 작성됩니다 — 앱 공지 상세에 운영팀 배지로 노출.</div>
+            <button onClick={submit} disabled={submitting || !text.trim()} style={{ ...S.primary, opacity: (submitting || !text.trim()) ? 0.5 : 1 }}>{submitting ? '등록 중…' : '등록'}</button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
