@@ -67,6 +67,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   // 스캔 모드: 'auto' = 실시간 연속 스캔(이미지 스트림), 'capture' = 셔터 1회 촬영.
   // 기본값 auto(구 스캐너 동작). 하단 토글로 전환.
   String _scanMode = 'auto';
+  bool _togglingMode = false; // 모드 전환 재진입 가드(연타 시 stream start/stop 꼬임 방지).
 
   // ── 자동 스캔(auto) 전용 상태 (구 스트림 경로 복원) ──
   DateTime _lastScan = DateTime(0);
@@ -254,6 +255,12 @@ class _ScannerScreenState extends State<ScannerScreen>
           _camera != null &&
           !_camera!.value.isStreamingImages) {
         await _camera!.startImageStream(_onFrame);
+        // await 사이 dispose/이탈/세대변경 시 방금 시작한 스트림 정지(고아 구독 방지).
+        if (!mounted || _leaving || gen != _camGen) {
+          try {
+            await _camera?.stopImageStream();
+          } catch (_) {}
+        }
       }
     } catch (_) {
       // 초기화 실패 — 로컬 컨트롤러 정리, _camera엔 대입하지 않음.
@@ -272,6 +279,8 @@ class _ScannerScreenState extends State<ScannerScreen>
     if (_isProcessing || _resultShowing || _leaving) return;
     final cam = _camera;
     if (cam == null || !cam.value.isInitialized) return;
+    // 자동모드 스트림이 아직 정지 안 됐으면 촬영 금지(takePicture-while-streaming 예외 방지).
+    if (cam.value.isStreamingImages) return;
     setState(() => _isProcessing = true);
     try {
       final file = await cam.takePicture();
@@ -307,7 +316,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   // ── 자동 스캔(auto) 경로 — 구 스트림 스캐너 복원 ──
   // 카메라 이미지 스트림 콜백. throttle(_scanInterval) + 결과 시트/처리중/이탈 가드.
   void _onFrame(CameraImage frame) {
-    if (_leaving || _resultShowing) return;
+    if (_leaving || _resultShowing || _scanMode != 'auto') return;
     final now = DateTime.now();
     final shouldScan =
         !_isProcessing && now.difference(_lastScan) >= _scanInterval;
@@ -440,11 +449,13 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   // auto ↔ capture 전환. auto로 가면 스트림 시작, capture로 가면 스트림 정지.
   Future<void> _toggleScanMode() async {
-    final next = _scanMode == 'auto' ? 'capture' : 'auto';
-    setState(() => _scanMode = next);
-    final cam = _camera;
-    if (cam == null || !cam.value.isInitialized || _leaving) return;
+    if (_togglingMode) return; // 연타 재진입 차단(stream start/stop 직렬화).
+    _togglingMode = true;
     try {
+      final next = _scanMode == 'auto' ? 'capture' : 'auto';
+      if (mounted) setState(() => _scanMode = next);
+      final cam = _camera;
+      if (cam == null || !cam.value.isInitialized || _leaving) return;
       if (next == 'capture') {
         if (cam.value.isStreamingImages) {
           await cam.stopImageStream();
@@ -458,7 +469,10 @@ class _ScannerScreenState extends State<ScannerScreen>
           await cam.startImageStream(_onFrame);
         }
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      _togglingMode = false;
+    }
   }
 
   // 촬영한 JPEG 바이트를 기존 identify 백엔드에 1회 전송하고 결과를 처리.
@@ -916,7 +930,8 @@ class _ScannerScreenState extends State<ScannerScreen>
     WidgetsBinding.instance.removeObserver(this);
     _glowCtrl.dispose();
     _sweepCtrl.dispose();
-    // 프리뷰 전용 — 이미지 스트림 없음. 컨트롤러 참조 끊고 해제(setState 금지).
+    // 정상 이탈은 _popWithResult→_disposeCamera가 스트림을 먼저 stop. 여기선 controller.dispose가
+    // auto 모드 스트림까지 정리(dispose는 sync라 await 불가). 참조 끊고 해제(setState 금지).
     final cam = _camera;
     _camera = null;
     cam?.dispose();
