@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../network/api_client.dart';
 
 /// 프사/업로드 이미지 세션 메모리 LRU 캐시 (2026-06-05).
@@ -30,11 +31,27 @@ class _AuthImageMemCache {
   static void evict(String url) => _mem.remove(url);
 }
 
-/// 로그아웃/계정전환 시 호출 — private 이미지(자산·채팅·프사) 메모리 캐시 전체 무효화.
-/// 같은 기기에 다른 사용자 로그인 시 이전 사용자 사진이 세션 메모리에 잔존하는 것 방지(방어적).
-/// (현재 AuthImage 는 메모리 전용 — 디스크 캐시 도입 시 여기서 디스크도 함께 비울 것.)
+/// 디스크 캐시 (2026-06-11) — 메모리 캐시는 앱 재시작 시 휘발 → 자산 이미지를 매번
+/// 프록시(S3 fetch, CloudFront 미캐시)로 재다운로드해 느림. flutter_cache_manager로 영속화.
+/// 키 = 프록시 URL(불변). 카드 이미지 캐시와 동일 패턴.
+class _AuthImageDiskCache {
+  _AuthImageDiskCache._();
+  static final CacheManager instance = CacheManager(
+    Config(
+      'pokefolioAuthImagesV1',
+      stalePeriod: const Duration(days: 30),
+      maxNrOfCacheObjects: 500,
+    ),
+  );
+}
+
+/// 로그아웃/계정전환 시 호출 — private 이미지(자산·채팅·프사) 메모리+디스크 캐시 전체 무효화.
+/// 같은 기기에 다른 사용자 로그인 시 이전 사용자 사진이 device 에 잔존하는 것 방지(보안).
 Future<void> clearAuthImageCache() async {
   _AuthImageMemCache._mem.clear();
+  try {
+    await _AuthImageDiskCache.instance.emptyCache();
+  } catch (_) {}
 }
 
 /// JWT Authorization header를 자동 부착해서 사용자 업로드 이미지(/api/images/secure/**)
@@ -96,11 +113,26 @@ class _AuthImageState extends State<AuthImage> {
 
   Future<Uint8List?> _load() async {
     try {
-      final bytes = await ApiClient.downloadBytes(widget.url);
-      if (bytes == null) return null;
-      final data = Uint8List.fromList(bytes);
+      // 1) 디스크 캐시 — 앱 재시작에도 유지(메모리 캐시는 휘발). 적중 시 네트워크 0.
+      final cached =
+          await _AuthImageDiskCache.instance.getFileFromCache(widget.url);
+      if (cached != null) {
+        final bytes = await cached.file.readAsBytes();
+        if (bytes.length >= 100) {
+          _AuthImageMemCache.put(widget.url, bytes);
+          return bytes;
+        }
+      }
+      // 2) 다운로드 → 메모리 + 디스크 캐시.
+      final raw = await ApiClient.downloadBytes(widget.url);
+      if (raw == null) return null;
+      final data = Uint8List.fromList(raw);
       // 정상 이미지(>=100B)만 캐시 — 에러 응답 본문 등 캐싱 방지.
-      if (data.length >= 100) _AuthImageMemCache.put(widget.url, data);
+      if (data.length >= 100) {
+        _AuthImageMemCache.put(widget.url, data);
+        await _AuthImageDiskCache.instance
+            .putFile(widget.url, data, maxAge: const Duration(days: 30));
+      }
       return data;
     } catch (_) {
       return null;

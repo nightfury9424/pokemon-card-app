@@ -58,6 +58,9 @@ dependencies:
   # 카드 이미지 캐싱 — S3 immutable 마스터 이미지 디스크 캐시
   cached_network_image: ^3.4.1
 
+  # AuthImage(private 자산/채팅 이미지) 디스크 캐시 — 재시작에도 유지, 로그아웃 시 emptyCache
+  flutter_cache_manager: ^3.4.1
+
   # mailto 등 외부 URL launcher (고객지원 화면)
   url_launcher: ^6.3.0
 
