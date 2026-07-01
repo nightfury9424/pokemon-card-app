@@ -1094,35 +1094,41 @@ class _ScannerScreenState extends State<ScannerScreen>
                 ),
               ),
 
-            // 아이폰 카메라식 하단 — 모드 선택 스트립([자동][촬영]) + 셔터(촬영 모드만) + 썸네일(좌하단).
+            // 아이폰 카메라식 검정 하단바 — 좌:썸네일 · 중앙:셔터(촬영모드) · 우:원형 모드 전환.
             if (!_resultShowing && _cameraReady && !_leaving)
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: MediaQuery.of(context).padding.bottom + 20,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildModeBar(),
-                    const SizedBox(height: 18),
-                    SizedBox(
-                      height: 76,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // 셔터는 촬영(capture) 모드에서만. 자동 모드는 연속 스캔.
-                          if (_scanMode == 'capture')
-                            _ShutterButton(
-                                busy: _isProcessing, onTap: _onShutter),
-                          if (_lastRegistered != null)
-                            Positioned(
-                              left: 28,
-                              child: _buildLastRegisteredThumb(),
-                            ),
-                        ],
-                      ),
+                bottom: 0,
+                child: Container(
+                  color: Colors.black,
+                  padding: EdgeInsets.only(
+                    top: 22,
+                    bottom: MediaQuery.of(context).padding.bottom + 18,
+                  ),
+                  child: SizedBox(
+                    height: 84,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // 중앙 셔터 — 촬영 모드만. 자동 모드는 연속 스캔(중앙 비움).
+                        if (_scanMode == 'capture')
+                          _ShutterButton(
+                              busy: _isProcessing, onTap: _onShutter),
+                        // 좌: 최근 등록 카드 썸네일.
+                        if (_lastRegistered != null)
+                          Positioned(
+                            left: 28,
+                            child: _buildLastRegisteredThumb(),
+                          ),
+                        // 우: 모드 전환(원형, 아이폰 플립 위치) — 자동↔촬영.
+                        Positioned(
+                          right: 28,
+                          child: _buildModeSwitchCircle(),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
 
@@ -1162,53 +1168,20 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   // 하단 모드 선택 스트립(아이폰 카메라 하단바식) — [자동][촬영]. 현재 하이라이트, 탭 전환.
-  Widget _buildModeBar() {
-    const accent = Color(0xFFFFD60A);
-    Widget item(String mode, String label) {
-      final sel = _scanMode == mode;
-      return GestureDetector(
-        onTap: () => _setScanMode(mode),
-        behavior: HitTestBehavior.opaque,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: sel ? accent : Colors.white70,
-                  fontSize: 15,
-                  fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
-                  letterSpacing: 0.5,
-                  shadows: const [
-                    Shadow(color: Colors.black54, blurRadius: 4),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 5),
-              // 아이폰 카메라식 — 활성 모드 아래 노란 점.
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: sel ? accent : Colors.transparent,
-                ),
-              ),
-            ],
-          ),
+  // 우하단 원형 모드 전환 버튼(아이폰 카메라 플립 위치) — 자동↔촬영. 현재 모드는 상단 글자 표시.
+  Widget _buildModeSwitchCircle() {
+    return GestureDetector(
+      onTap: () => _setScanMode(_scanMode == 'auto' ? 'capture' : 'auto'),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 60,
+        height: 60,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Color(0xFF2C2C2E),
         ),
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        item('auto', '자동'),
-        const SizedBox(width: 20),
-        item('capture', '촬영'),
-      ],
+        child: const Icon(Icons.sync_rounded, color: Colors.white, size: 28),
+      ),
     );
   }
 
