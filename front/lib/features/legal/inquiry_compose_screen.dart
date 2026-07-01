@@ -415,14 +415,25 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
     if (_photos.length >= _maxPhotos) return;
     try {
       final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: source,
-        imageQuality: 85,
-        maxWidth: 1600,
-      );
-      if (picked == null) return;
-      if (!mounted) return;
-      setState(() => _photos.add(picked));
+      if (source == ImageSource.gallery) {
+        // 갤러리는 한 번에 여러 장 선택 → 남은 슬롯만큼만 반영(초과분은 잘라냄).
+        final picked = await picker.pickMultiImage(
+          imageQuality: 85,
+          maxWidth: 1600,
+        );
+        if (picked.isEmpty || !mounted) return;
+        final remaining = _maxPhotos - _photos.length;
+        setState(() => _photos.addAll(picked.take(remaining)));
+      } else {
+        // 카메라는 한 장씩 촬영.
+        final picked = await picker.pickImage(
+          source: source,
+          imageQuality: 85,
+          maxWidth: 1600,
+        );
+        if (picked == null || !mounted) return;
+        setState(() => _photos.add(picked));
+      }
     } catch (_) {
       if (!mounted) return;
       AppErrorToast.show(context, '사진을 불러오지 못했어요.');
