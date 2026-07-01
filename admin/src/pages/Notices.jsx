@@ -227,6 +227,7 @@ function CommentsModal({ post, onClose }) {
   const [error, setError] = useState(false)
   const [text, setText] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [replyTo, setReplyTo] = useState(null) // { id(=parentCommentId), author } — 답글 대상
 
   useEffect(() => { loadComments() }, [])
 
@@ -243,8 +244,11 @@ function CommentsModal({ post, onClose }) {
     if (!body || submitting) return
     setSubmitting(true)
     try {
-      await api.post('/admin/board/posts/' + post.id + '/comments', { content: body })
+      const payload = { content: body }
+      if (replyTo?.id) payload.parentCommentId = replyTo.id // 대댓글(1단 답글)
+      await api.post('/admin/board/posts/' + post.id + '/comments', payload)
       setText('')
+      setReplyTo(null)
       await loadComments()
     } catch (e) {
       alert('댓글 등록 실패: ' + (e?.response?.data?.message || e.message))
@@ -269,6 +273,10 @@ function CommentsModal({ post, onClose }) {
       <div style={{ fontSize: 13, color: '#334155', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
         {c.body != null && c.body !== '' ? c.body : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>(삭제되었거나 내용 없음)</span>}
       </div>
+      {c.replyTargetCommentId && (
+        <button onClick={() => setReplyTo({ id: c.replyTargetCommentId, author: c.author })}
+          style={{ marginTop: 4, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#4f46e5', fontSize: 12, fontWeight: 600 }}>답글</button>
+      )}
       {(c.replies ?? []).map(rep => renderComment(rep, depth + 1))}
     </div>
   )
@@ -287,7 +295,13 @@ function CommentsModal({ post, onClose }) {
             : comments.map(c => renderComment(c))}
         </div>
         <div style={{ marginTop: 12, borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
-          <textarea value={text} onChange={e => setText(e.target.value)} placeholder="운영팀 댓글 입력 (Enter 등록 · Shift+Enter 줄바꿈)" rows={2}
+          {replyTo && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 12, color: '#475569' }}>
+              <span>↳ <b>{replyTo.author}</b> 님에게 답글</span>
+              <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 12 }}>취소</button>
+            </div>
+          )}
+          <textarea value={text} onChange={e => setText(e.target.value)} placeholder={replyTo ? '운영팀 답글 입력 (Enter 등록 · Shift+Enter 줄바꿈)' : '운영팀 댓글 입력 (Enter 등록 · Shift+Enter 줄바꿈)'} rows={2}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
             style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #cbd5e1', borderRadius: 8, padding: 10, fontSize: 13, resize: 'vertical' }} />
           <div style={{ display: 'flex', alignItems: 'center', marginTop: 8 }}>
