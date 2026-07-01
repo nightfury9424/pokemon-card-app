@@ -1,7 +1,9 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:image/image.dart' as img;
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../core/network/api_client.dart';
@@ -27,7 +29,7 @@ class ScannerScreen extends StatefulWidget {
 }
 
 class _ScannerScreenState extends State<ScannerScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   CameraController? _camera;
   bool _cameraReady = false;
   bool _isProcessing = false;
@@ -87,8 +89,24 @@ class _ScannerScreenState extends State<ScannerScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     )..repeat();
+    WidgetsBinding.instance.addObserver(this);
     _initCamera();
     _loadOwnedCards();
+  }
+
+  // 앱 백그라운드/복귀 — iOS는 백그라운드 시 카메라 세션을 해제. 프리뷰가 얼어붙고
+  // takePicture가 던져 "셔터 먹통"이 되므로, resume 시 컨트롤러를 재초기화한다.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      final cam = _camera;
+      _camera = null;
+      if (mounted) setState(() => _cameraReady = false);
+      cam?.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      if (_camera == null) _initCamera();
+    }
   }
 
   Future<void> _loadOwnedCards() async {
@@ -140,7 +158,6 @@ class _ScannerScreenState extends State<ScannerScreen>
       back,
       ResolutionPreset.high,
       enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.bgra8888,
     );
 
     await _camera!.initialize();
@@ -157,12 +174,32 @@ class _ScannerScreenState extends State<ScannerScreen>
     setState(() => _isProcessing = true);
     try {
       final file = await cam.takePicture();
-      final bytes = await file.readAsBytes();
+      final raw = await file.readAsBytes();
+      // ★orientation bake — takePicture는 회전을 EXIF로만 표기할 수 있고, 스캐너 백엔드
+      //   (cv2.imdecode)는 EXIF를 무시한다. 픽셀을 실제 세로 정립본으로 구워서 보내야
+      //   DINOv2 매칭 정확도가 유지됨(구 스트림 경로의 copyRotate 보정 대체).
+      final bytes = await _bakeUprightJpeg(raw);
       await _identifyJpegBytes(bytes);
     } catch (e) {
-      if (mounted) setState(() => _debugText = 'error: $e');
+      if (mounted) {
+        setState(() => _debugText = 'error: $e');
+        AppErrorToast.show(context, '촬영에 실패했어요. 다시 시도해 주세요.');
+      }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  // 촬영 JPEG의 EXIF orientation을 픽셀에 실제 적용(bake)해 세로 정립본으로 재인코딩.
+  // 디코드/인코드 실패 시 원본 그대로 반환(안전 폴백).
+  Future<Uint8List> _bakeUprightJpeg(Uint8List raw) async {
+    try {
+      final decoded = img.decodeJpg(raw);
+      if (decoded == null) return raw;
+      final baked = img.bakeOrientation(decoded);
+      return img.encodeJpg(baked, quality: 90);
+    } catch (_) {
+      return raw;
     }
   }
 
@@ -220,7 +257,11 @@ class _ScannerScreenState extends State<ScannerScreen>
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _debugText = 'error: $e');
+      // 식별 요청 실패/타임아웃(90s) — release에선 debug text가 안 보이므로 사용자 토스트로 안내.
+      if (mounted) {
+        setState(() => _debugText = 'error: $e');
+        AppErrorToast.show(context, '카드 인식에 실패했어요. 다시 촬영해 주세요.');
+      }
     }
   }
 
@@ -595,6 +636,7 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _glowCtrl.dispose();
     _sweepCtrl.dispose();
     // 프리뷰 전용 — 이미지 스트림을 시작하지 않으므로 stopImageStream 불필요. 컨트롤러만 해제.
@@ -809,6 +851,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   // 최근 등록 카드의 자산 상세로 이동 — 보유 카드 열기와 동일 목적지(/card/:cardId + myAsset).
   // assetId가 있으면 card_detail이 /api/assets/{id}로 풀 자산을 refetch, 없으면 cardId로 보유 조회.
   void _openLastRegistered() {
+    if (_isProcessing) return; // 촬영/식별 진행 중엔 이동 막음(진행 중 결과가 뒤 라우트에서 뜨는 혼란 방지).
     final reg = _lastRegistered;
     if (reg == null) return;
     final cardId = reg['cardId'] as String?;
