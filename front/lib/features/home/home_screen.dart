@@ -1624,6 +1624,33 @@ class _NotificationSheetState extends State<_NotificationSheet> {
     } catch (_) {}
   }
 
+  // 알림 → 이동 경로. 대상 없으면 null(이동 안 하고 표시만).
+  // 게시판=linkUrl(/board/{postId}) · 문의답변=linkUrl 또는 내 문의내역 · 거래=카드 상세.
+  String? _notificationRoute(Map<String, dynamic> n) {
+    final type = n['type'] as String? ?? '';
+    final cardId = (n['linkCardId'] as String?) ?? '';
+    final linkUrl = (n['linkUrl'] as String?) ?? '';
+    switch (type) {
+      case 'BOARD_POST_COMMENT':
+      case 'BOARD_COMMENT_REPLY':
+      case 'BOARD_POST_LIKE':
+        if (linkUrl.startsWith('/board/')) return linkUrl;
+        break;
+      case 'INQUIRY_ANSWERED':
+        // 답변 알림 → 내 문의 내역(linkUrl 있으면 우선). linkUrl 없어도 폴백 동작.
+        if (linkUrl.startsWith('/')) return linkUrl;
+        return '/profile/inquiries';
+      case 'TRADE_ON_MY_BUY_ORDER':
+      case 'BUY_ORDER_ON_MY_CARD':
+        if (cardId.isNotEmpty) return '/card/$cardId';
+        break;
+      default:
+        if (cardId.isNotEmpty) return '/card/$cardId';
+        if (linkUrl.startsWith('/')) return linkUrl;
+    }
+    return null;
+  }
+
   String _relativeTime(String iso) {
     try {
       final t = DateTime.parse(iso);
@@ -1711,24 +1738,44 @@ class _NotificationSheetState extends State<_NotificationSheet> {
                       final n = _items[i];
                       final isRead = n['isRead'] == true;
                       final type = n['type'] as String? ?? '';
-                      final icon = type == 'TRADE_ON_MY_BUY_ORDER'
-                          ? Icons.local_offer_rounded
-                          : Icons.shopping_cart_outlined;
-                      final accent = type == 'TRADE_ON_MY_BUY_ORDER'
-                          ? AppColors.blue
-                          : AppColors.green;
+                      final IconData icon;
+                      final Color accent;
+                      switch (type) {
+                        case 'BOARD_POST_COMMENT':
+                        case 'BOARD_COMMENT_REPLY':
+                          icon = Icons.mode_comment_outlined;
+                          accent = AppColors.blue;
+                          break;
+                        case 'BOARD_POST_LIKE':
+                          icon = Icons.favorite_rounded;
+                          accent = AppColors.red;
+                          break;
+                        case 'INQUIRY_ANSWERED':
+                          icon = Icons.mark_email_read_outlined;
+                          accent = AppColors.green;
+                          break;
+                        case 'TRADE_ON_MY_BUY_ORDER':
+                        case 'BUY_ORDER_ON_MY_CARD':
+                          icon = Icons.local_offer_rounded;
+                          accent = AppColors.blue;
+                          break;
+                        default:
+                          icon = Icons.notifications_rounded;
+                          accent = AppColors.green;
+                      }
                       return InkWell(
                         onTap: () async {
-                          final cardId = (n['linkCardId'] as String?) ?? '';
                           await ApiClient.post(
                             '/api/notifications/${n['notificationId']}/read',
                             {},
                           );
-                          if (cardId.isNotEmpty && context.mounted) {
-                            Navigator.pop(context);
-                            context.push('/card/$cardId');
+                          final target = _notificationRoute(n);
+                          if (!context.mounted) return;
+                          if (target != null) {
+                            Navigator.pop(context); // 이동 전 알림 시트 닫기
+                            context.push(target);
                           } else {
-                            _load();
+                            _load(); // 이동 대상 없으면 목록만 갱신(읽음 반영)
                           }
                         },
                         child: Container(
