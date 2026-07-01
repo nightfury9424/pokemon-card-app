@@ -302,12 +302,21 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   // 촬영 JPEG의 EXIF orientation을 픽셀에 실제 적용(bake)해 세로 정립본으로 재인코딩.
   // 디코드/인코드 실패 시 원본 그대로 반환(안전 폴백).
-  Future<Uint8List> _bakeUprightJpeg(Uint8List raw) async {
+  // ★Isolate에서 실행 — 고해상 촬영사진 decode/bake/encode를 메인스레드서 하면 UI가 몇 초 프리즈
+  //   ("인식 중" 멈춤 버그). 스캐너 백엔드가 어차피 1600으로 다운스케일하므로 큰 변 1600으로 줄여 인코딩.
+  Future<List<int>> _bakeUprightJpeg(Uint8List raw) async {
     try {
-      final decoded = img.decodeJpg(raw);
-      if (decoded == null) return raw;
-      final baked = img.bakeOrientation(decoded);
-      return img.encodeJpg(baked, quality: 90);
+      return await Isolate.run(() {
+        final decoded = img.decodeJpg(raw);
+        if (decoded == null) return raw;
+        var im = img.bakeOrientation(decoded);
+        if (im.width > 1600 || im.height > 1600) {
+          im = im.width >= im.height
+              ? img.copyResize(im, width: 1600)
+              : img.copyResize(im, height: 1600);
+        }
+        return img.encodeJpg(im, quality: 90);
+      });
     } catch (_) {
       return raw;
     }
@@ -1154,35 +1163,52 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   // 하단 모드 선택 스트립(아이폰 카메라 하단바식) — [자동][촬영]. 현재 하이라이트, 탭 전환.
   Widget _buildModeBar() {
+    const accent = Color(0xFFFFD60A);
     Widget item(String mode, String label) {
       final sel = _scanMode == mode;
       return GestureDetector(
         onTap: () => _setScanMode(mode),
         behavior: HitTestBehavior.opaque,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: sel ? const Color(0xFFFFD60A) : Colors.white70,
-              fontSize: 14,
-              fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
-            ),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: sel ? accent : Colors.white70,
+                  fontSize: 15,
+                  fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                  letterSpacing: 0.5,
+                  shadows: const [
+                    Shadow(color: Colors.black54, blurRadius: 4),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 5),
+              // 아이폰 카메라식 — 활성 모드 아래 노란 점.
+              Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: sel ? accent : Colors.transparent,
+                ),
+              ),
+            ],
           ),
         ),
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [item('auto', '자동'), item('capture', '촬영')],
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        item('auto', '자동'),
+        const SizedBox(width: 20),
+        item('capture', '촬영'),
+      ],
     );
   }
 
