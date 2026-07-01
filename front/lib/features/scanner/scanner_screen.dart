@@ -949,6 +949,14 @@ class _ScannerScreenState extends State<ScannerScreen>
               ),
             ),
 
+            // 스캔 모드 토글 — 상단 우측(양 모드).
+            if (!_resultShowing && _cameraReady && !_leaving)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 8,
+                right: 12,
+                child: _buildModeToggle(),
+              ),
+
             if (kDebugMode && _debugText.isNotEmpty && !_resultShowing)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 56,
@@ -1063,7 +1071,7 @@ class _ScannerScreenState extends State<ScannerScreen>
               ),
 
             // 아이폰 카메라식 하단 컨트롤 — 셔터(중앙, 촬영 모드만) + 최근 등록 앨범
-            // 썸네일(좌하단, 양 모드) + 모드 토글(우하단, 양 모드).
+            // 셔터(촬영 모드 전용) + 최근등록 썸네일(좌하단, 양 모드). 모드 토글은 상단 우측.
             if (!_resultShowing && _cameraReady && !_leaving)
               Positioned(
                 left: 0,
@@ -1082,10 +1090,6 @@ class _ScannerScreenState extends State<ScannerScreen>
                           left: 28,
                           child: _buildLastRegisteredThumb(),
                         ),
-                      Positioned(
-                        right: 28,
-                        child: _buildModeToggle(),
-                      ),
                     ],
                   ),
                 ),
