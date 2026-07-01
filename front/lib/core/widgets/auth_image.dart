@@ -30,6 +30,13 @@ class _AuthImageMemCache {
   static void evict(String url) => _mem.remove(url);
 }
 
+/// 로그아웃/계정전환 시 호출 — private 이미지(자산·채팅·프사) 메모리 캐시 전체 무효화.
+/// 같은 기기에 다른 사용자 로그인 시 이전 사용자 사진이 세션 메모리에 잔존하는 것 방지(방어적).
+/// (현재 AuthImage 는 메모리 전용 — 디스크 캐시 도입 시 여기서 디스크도 함께 비울 것.)
+Future<void> clearAuthImageCache() async {
+  _AuthImageMemCache._mem.clear();
+}
+
 /// JWT Authorization header를 자동 부착해서 사용자 업로드 이미지(/api/images/secure/**)
 /// 를 로드하는 Image 위젯.
 ///
