@@ -1,11 +1,8 @@
-import 'dart:async';
-import 'dart:isolate';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
 import '../../core/network/api_client.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
@@ -53,16 +50,9 @@ class _ScannerScreenState extends State<ScannerScreen>
   // cardId → 보유 자산 요약(개수 + 평가액 합). 결과 시트 "보유 N장 · X원" 표시용.
   final Map<String, _OwnedSummary> _ownedSummaries = {};
 
-  DateTime _lastScan = DateTime(0);
-  static const _scanInterval = Duration(milliseconds: 1000);
-
-  // 2026-05-20 Phase B: 토스트 표시 동안 스캔 차단 + 방금 등록 카드 즉시 재인식 차단.
-  // 등록 후 토스트 1.3초 + 마진 = 1.6초 동안 _processFrame skip.
-  DateTime? _scanPausedUntil;
-  // 최근 등록한 cardId — 같은 카드 즉시 재인식 차단 (60초 cooldown).
-  // {cardId: 등록 시각} — _processFrame에서 매칭 cardId가 60초 안이면 skip.
-  final Map<String, DateTime> _recentlyRegistered = {};
-  static const _recentRegisterCooldown = Duration(seconds: 60);
+  // 이번 세션에서 가장 최근 등록한 카드 — 좌하단 앨범 썸네일(아이폰 카메라 스타일)용.
+  // {cardId, assetId?, imageUrl?, card}. null이면 썸네일 숨김.
+  Map<String, dynamic>? _lastRegistered;
 
   late AnimationController _glowCtrl;
   late Animation<double> _glowAnim;
@@ -156,37 +146,36 @@ class _ScannerScreenState extends State<ScannerScreen>
     await _camera!.initialize();
     if (!mounted) return;
     setState(() => _cameraReady = true);
-    await _camera!.startImageStream(_onFrame);
   }
 
-  void _onFrame(CameraImage frame) {
-    if (_resultShowing) return;
-    final now = DateTime.now();
-    final shouldScan =
-        !_isProcessing && now.difference(_lastScan) >= _scanInterval;
-    if (shouldScan) {
-      _lastScan = now;
-      _processFrame(frame);
-    }
-  }
-
-  Future<void> _processFrame(CameraImage frame) async {
-    if (!mounted || _isProcessing) return;
-    // 토스트 표시 동안 스캔 일시 중지.
-    if (_scanPausedUntil != null && DateTime.now().isBefore(_scanPausedUntil!)) {
-      return;
-    }
-    _isProcessing = true;
-
+  // 아이폰 카메라식 셔터 — 탭당 정확히 1회 촬영 → identify.
+  // 연속 프레임 스트림 대신 사용자가 명시적으로 촬영할 때만 백엔드 호출.
+  Future<void> _onShutter() async {
+    if (_isProcessing || _resultShowing) return;
+    final cam = _camera;
+    if (cam == null || !cam.value.isInitialized) return;
+    setState(() => _isProcessing = true);
     try {
-      final jpegBytes = await _convertToJpeg(frame);
-      if (jpegBytes == null) return;
+      final file = await cam.takePicture();
+      final bytes = await file.readAsBytes();
+      await _identifyJpegBytes(bytes);
+    } catch (e) {
+      if (mounted) setState(() => _debugText = 'error: $e');
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
 
+  // 촬영한 JPEG 바이트를 기존 identify 백엔드에 1회 전송하고 결과를 처리.
+  // (구 _processFrame의 요청/결과 처리 로직을 셔터 흐름에서 재사용하도록 추출.)
+  Future<void> _identifyJpegBytes(List<int> bytes) async {
+    if (!mounted) return;
+    try {
       final res = await ApiClient.postBytes(
         ApiConstants.scannerIdentify,
         fieldName: 'image',
-        bytes: jpegBytes,
-        filename: 'frame.jpg',
+        bytes: bytes,
+        filename: 'capture.jpg',
         receiveTimeout: const Duration(seconds: 90),
       );
 
@@ -195,8 +184,7 @@ class _ScannerScreenState extends State<ScannerScreen>
       final card = data?['card'] as Map<String, dynamic>?;
       final score = data?['score'];
 
-      // identify status 항상 저장. detect false positive 가드용 (build에서 quad 표시 조건).
-      // setState로 트리거해야 hideQuad 분기가 즉시 반영됨.
+      // identify status 항상 저장. no_card/not_found 시 하단 안내문 갱신용.
       if (mounted && _lastIdentifyStatus != status) {
         setState(() => _lastIdentifyStatus = status);
       }
@@ -208,23 +196,11 @@ class _ScannerScreenState extends State<ScannerScreen>
         setState(() => _debugText = 'status=$status score=$score');
       }
 
+      // no-match/실패 — 결과 시트를 띄우지 않고 안내문만 갱신. 사용자는 셔터로 재촬영.
       if (card == null || status == 'not_found') return;
 
       final rawCandidates = data?['candidates'] as List? ?? [];
       final matchedCardId = card['cardId'] as String?;
-
-      // 2026-05-20 Phase B: 방금 등록한 카드 즉시 재인식 차단 (60초 cooldown).
-      // 사용자가 등록 직후 폰을 든 상태로 이미 그 카드를 잡고 있으면
-      // 자동으로 다시 결과 시트가 떠서 혼란. 등록 후 cooldown.
-      if (matchedCardId != null) {
-        final registeredAt = _recentlyRegistered[matchedCardId];
-        if (registeredAt != null) {
-          if (DateTime.now().difference(registeredAt) < _recentRegisterCooldown) {
-            return;
-          }
-          _recentlyRegistered.remove(matchedCardId);  // expire
-        }
-      }
 
       final expected = widget.expectedCardId;
       // expectedCardId가 지정되어 있으면, matchedCardId가 null이거나 다를 때 모두 mismatch로 차단.
@@ -242,44 +218,9 @@ class _ScannerScreenState extends State<ScannerScreen>
           _resultStatus = status;
           _debugText = '';
         });
-        await _camera!.stopImageStream();
       }
     } catch (e) {
       if (mounted) setState(() => _debugText = 'error: $e');
-    } finally {
-      _isProcessing = false;
-    }
-  }
-
-  Future<List<int>?> _convertToJpeg(CameraImage frame) async {
-    try {
-      final bytes = frame.planes[0].bytes;
-      final rowStride = frame.planes[0].bytesPerRow;
-      final w = frame.width;
-      final h = frame.height;
-      final shouldRotateForPortrait =
-          MediaQuery.of(context).orientation == Orientation.portrait && w > h;
-      return await Isolate.run(() {
-        var image = img.Image.fromBytes(
-          width: w,
-          height: h,
-          bytes: bytes.buffer,
-          bytesOffset: bytes.offsetInBytes,
-          format: img.Format.uint8,
-          numChannels: 4,
-          rowStride: rowStride,
-          order: img.ChannelOrder.bgra,
-        );
-        if (shouldRotateForPortrait) {
-          image = img.copyRotate(image, angle: -90);
-        }
-        if (image.width > 1280) {
-          image = img.copyResize(image, width: 1280);
-        }
-        return img.encodeJpg(image, quality: 90);
-      });
-    } catch (_) {
-      return null;
     }
   }
 
@@ -310,6 +251,8 @@ class _ScannerScreenState extends State<ScannerScreen>
     }
   }
 
+  // 결과 시트를 닫고 프리뷰로 복귀. 스트림이 없으므로 상태 리셋만 하면
+  // 다시 셔터를 눌러 재촬영할 수 있다. (기존 await 호출부 유지 위해 Future 시그니처 보존.)
   Future<void> _dismissResult() async {
     setState(() {
       _foundCard = null;
@@ -318,12 +261,6 @@ class _ScannerScreenState extends State<ScannerScreen>
       _resultStatus = '';
       _lastIdentifyStatus = '';
     });
-    _lastScan = DateTime(0);
-    if (_camera != null &&
-        _camera!.value.isInitialized &&
-        !_camera!.value.isStreamingImages) {
-      await _camera!.startImageStream(_onFrame);
-    }
   }
 
   // low_confidence(스캐너 신뢰도 0.62~0.75) 시에는 사용자에게 한 번 확인을 받고 등록.
@@ -429,16 +366,23 @@ class _ScannerScreenState extends State<ScannerScreen>
                 return;
               }
               Navigator.pop(ctx);
-              setState(() => _wasModified = true);
+              // 방금 생성된 자산 — 좌하단 앨범 썸네일 + 탭 시 자산 상세 진입용으로 보관.
+              final createdAsset = res['data'] as Map<String, dynamic>?;
+              setState(() {
+                _wasModified = true;
+                _lastRegistered = {
+                  'cardId': cardId,
+                  if (createdAsset?['assetId'] is String)
+                    'assetId': createdAsset!['assetId'] as String,
+                  'imageUrl': resolveCardImageUrl(card),
+                  'card': card,
+                };
+              });
               // 새 자산이 추가됐으니 보유 요약 재로드 (개수 + 평가액 정확 반영)
               await _loadOwnedCards();
               if (!mounted) return;
               AssetNotifier.instance.notifyChanged();
               AppSuccessToast.show(context, '내 카드에 추가됐습니다');
-              // Phase B: 토스트 표시 동안 (1.3초 + margin 0.3초) 스캔 일시 중지.
-              _scanPausedUntil = DateTime.now().add(const Duration(milliseconds: 1600));
-              // 방금 등록한 cardId 60초 cooldown — 즉시 재인식 차단.
-              _recentlyRegistered[cardId] = DateTime.now();
               _dismissResult();
 
               // Phase 6: 카드 상세에서 expectedCardId로 진입한 경우 등록 직후 자동 복귀.
@@ -653,9 +597,8 @@ class _ScannerScreenState extends State<ScannerScreen>
   void dispose() {
     _glowCtrl.dispose();
     _sweepCtrl.dispose();
-    _camera?.stopImageStream().then((_) => _camera?.dispose()).catchError((_) {
-      _camera?.dispose();
-    });
+    // 프리뷰 전용 — 이미지 스트림을 시작하지 않으므로 stopImageStream 불필요. 컨트롤러만 해제.
+    _camera?.dispose();
     super.dispose();
   }
 
@@ -798,6 +741,28 @@ class _ScannerScreenState extends State<ScannerScreen>
                 ),
               ),
 
+            // 아이폰 카메라식 하단 컨트롤 — 셔터(중앙) + 최근 등록 앨범 썸네일(좌하단).
+            if (!_resultShowing && _cameraReady)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: MediaQuery.of(context).padding.bottom + 28,
+                child: SizedBox(
+                  height: 76,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      _ShutterButton(busy: _isProcessing, onTap: _onShutter),
+                      if (_lastRegistered != null)
+                        Positioned(
+                          left: 28,
+                          child: _buildLastRegisteredThumb(),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
             if (_resultShowing && _foundCard != null && _mismatch)
               Positioned.fill(child: _buildMismatchOverlay()),
             if (_resultShowing && _foundCard != null && !_mismatch)
@@ -806,6 +771,56 @@ class _ScannerScreenState extends State<ScannerScreen>
         ),
       ),
     );
+  }
+
+  // 좌하단 앨범 썸네일 — 이번 세션 최근 등록 카드. 탭 시 그 카드의 자산 상세로 이동.
+  Widget _buildLastRegisteredThumb() {
+    final reg = _lastRegistered!;
+    final imageUrl = reg['imageUrl'] as String?;
+    return GestureDetector(
+      onTap: _openLastRegistered,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 54,
+        height: 54,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: CardImage(
+            imageUrl: imageUrl,
+            width: 54,
+            height: 54,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 최근 등록 카드의 자산 상세로 이동 — 보유 카드 열기와 동일 목적지(/card/:cardId + myAsset).
+  // assetId가 있으면 card_detail이 /api/assets/{id}로 풀 자산을 refetch, 없으면 cardId로 보유 조회.
+  void _openLastRegistered() {
+    final reg = _lastRegistered;
+    if (reg == null) return;
+    final cardId = reg['cardId'] as String?;
+    if (cardId == null || cardId.isEmpty) return;
+    final assetId = reg['assetId'] as String?;
+    final card = reg['card'];
+    final myAsset = <String, dynamic>{'cardId': cardId};
+    if (assetId != null) myAsset['assetId'] = assetId;
+    if (card is Map) myAsset['card'] = Map<String, dynamic>.from(card);
+    context.push('/card/$cardId', extra: {'myAsset': myAsset}).then((_) {
+      if (mounted) _loadOwnedCards();
+    });
   }
 
   Widget _buildCameraPreview() {
@@ -1594,6 +1609,49 @@ class _CardFramePainter extends CustomPainter {
 }
 
 // ─── 버튼 ────────────────────────────────────────────────────────────────────
+
+// 아이폰 카메라식 셔터 — 흰 원(외곽 링 + 내부 원). busy면 비활성 + 스피너.
+class _ShutterButton extends StatelessWidget {
+  final bool busy;
+  final Future<void> Function() onTap;
+  const _ShutterButton({required this.busy, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: busy ? null : () => onTap(),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 4),
+        ),
+        alignment: Alignment.center,
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: busy ? Colors.white54 : Colors.white,
+          ),
+          alignment: Alignment.center,
+          child: busy
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: Color(0xFF2563EB),
+                  ),
+                )
+              : null,
+        ),
+      ),
+    );
+  }
+}
 
 class _ActionBtn extends StatelessWidget {
   final String label;
