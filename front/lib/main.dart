@@ -11,6 +11,7 @@ import 'core/router/app_router.dart';
 import 'core/storage/token_storage.dart';
 import 'core/theme/app_colors.dart';
 import 'core/widgets/app_error_toast.dart';
+import 'core/widgets/auth_image.dart';
 
 // 라우터/토스트 context 진입용 전역 키.
 // 사용자 정책: Material SnackBar 금지 — AppSuccessToast / AppErrorToast 가운데 fade로 통일.
@@ -40,6 +41,9 @@ Future<void> main() async {
       // 토큰 만료 → 토큰 폐기 + 세션 캐시 초기화 + 로그아웃 전환(silent 여도 항상).
       TokenStorage.delete();
       HomeSessionCache.clear(); // 재로그인 시 이전 유저 자산/포트폴리오 홈 잔존 방지(logout 경로와 동일)
+      // ★401 silent 로그아웃도 명시 logout()과 동일하게 private 이미지 캐시 클리어(보안).
+      // 메모리는 즉시(동기) 비우고 디스크는 비동기 emptyCache — 콜백이 동기라 fire-and-forget.
+      clearAuthImageCache();
       AuthState.instance.markLoggedOut();
     }
   });
