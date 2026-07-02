@@ -191,6 +191,8 @@ class _ScannerScreenState extends State<ScannerScreen>
       );
       final list = res['data'] as List? ?? [];
       final summaries = <String, _OwnedSummary>{};
+      Map<String, dynamic>? newestAsset; // 좌하단 썸네일 seed용 = 가장 최근 등록 자산.
+      DateTime newestAt = DateTime.fromMillisecondsSinceEpoch(0);
       for (final a in list) {
         final cid = (a as Map)['cardId'] as String?;
         if (cid == null) continue;
@@ -202,12 +204,34 @@ class _ScannerScreenState extends State<ScannerScreen>
           count: (prev?.count ?? 0) + qty,
           totalValue: (prev?.totalValue ?? 0) + dp * qty,
         );
+        // createdAt 최댓값 = 가장 최근 등록.
+        final t = DateTime.tryParse((a['createdAt'] as String?) ?? '');
+        if (t != null && t.isAfter(newestAt)) {
+          newestAt = t;
+          newestAsset = Map<String, dynamic>.from(a);
+        }
+      }
+      // 스캔 첫 진입에도 좌하단 썸네일이 비지 않도록 최근 등록 자산으로 seed.
+      // 이번 세션에 등록한 값(_lastRegistered)이 이미 있으면 그게 최신이므로 보존.
+      Map<String, dynamic>? seed;
+      if (_lastRegistered == null && newestAsset != null) {
+        final cardInfo = newestAsset['card'];
+        seed = {
+          'cardId': newestAsset['cardId'],
+          if (newestAsset['assetId'] is String)
+            'assetId': newestAsset['assetId'] as String,
+          'imageUrl': cardInfo is Map
+              ? resolveCardImageUrl(Map<String, dynamic>.from(cardInfo))
+              : null,
+          if (cardInfo is Map) 'card': Map<String, dynamic>.from(cardInfo),
+        };
       }
       if (mounted) {
         setState(() {
           _ownedSummaries
             ..clear()
             ..addAll(summaries);
+          if (seed != null) _lastRegistered = seed;
         });
       }
     } catch (_) {}
