@@ -68,6 +68,9 @@ class _ScannerScreenState extends State<ScannerScreen>
   // 기본값 auto(구 스캐너 동작). 하단 토글로 전환.
   String _scanMode = 'auto';
   bool _togglingMode = false; // 모드 전환 재진입 가드(연타 시 stream start/stop 꼬임 방지).
+  // 모드 전환마다 ++. in-flight identify(자동/촬영)가 전환 후에도 결과를 띄우거나
+  // _isProcessing을 되돌려 다음 모드 작업을 방해하지 않도록 소유권을 끊는 토큰.
+  int _scanEpoch = 0;
 
   // ── 자동 스캔(auto) 전용 상태 (구 스트림 경로 복원) ──
   DateTime _lastScan = DateTime(0);
@@ -281,6 +284,7 @@ class _ScannerScreenState extends State<ScannerScreen>
     if (cam == null || !cam.value.isInitialized) return;
     // 자동모드 스트림이 아직 정지 안 됐으면 촬영 금지(takePicture-while-streaming 예외 방지).
     if (cam.value.isStreamingImages) return;
+    final epoch = _scanEpoch;
     setState(() => _isProcessing = true);
     try {
       final file = await cam.takePicture();
@@ -289,14 +293,15 @@ class _ScannerScreenState extends State<ScannerScreen>
       //   (cv2.imdecode)는 EXIF를 무시한다. 픽셀을 실제 세로 정립본으로 구워서 보내야
       //   DINOv2 매칭 정확도가 유지됨(구 스트림 경로의 copyRotate 보정 대체).
       final bytes = await _bakeUprightJpeg(raw);
-      await _identifyJpegBytes(bytes);
+      await _identifyJpegBytes(bytes, epoch);
     } catch (e) {
       if (mounted) {
         setState(() => _debugText = 'error: $e');
         AppErrorToast.show(context, '촬영에 실패했어요. 다시 시도해 주세요.');
       }
     } finally {
-      if (mounted) setState(() => _isProcessing = false);
+      // 전환이 없었을 때만 리셋(자동으로 넘어갔으면 자동스캔이 잡은 플래그 보존).
+      if (mounted && epoch == _scanEpoch) setState(() => _isProcessing = false);
     }
   }
 
@@ -345,10 +350,18 @@ class _ScannerScreenState extends State<ScannerScreen>
       return;
     }
     _isProcessing = true;
+    final epoch = _scanEpoch;
 
     try {
       final jpegBytes = await _convertToJpeg(frame);
-      if (jpegBytes == null || !mounted || _leaving) return;
+      // 전환/이탈 시 즉시 폐기(촬영모드로 넘어갔으면 자동 결과를 띄우지 않음).
+      if (jpegBytes == null ||
+          !mounted ||
+          _leaving ||
+          _scanMode != 'auto' ||
+          epoch != _scanEpoch) {
+        return;
+      }
 
       final res = await ApiClient.postBytes(
         ApiConstants.scannerIdentify,
@@ -357,7 +370,9 @@ class _ScannerScreenState extends State<ScannerScreen>
         filename: 'frame.jpg',
         receiveTimeout: const Duration(seconds: 90),
       );
-      if (!mounted || _leaving) return;
+      if (!mounted || _leaving || _scanMode != 'auto' || epoch != _scanEpoch) {
+        return;
+      }
 
       final data = res['data'] as Map<String, dynamic>?;
       final status = data?['status'] as String? ?? '';
@@ -419,7 +434,9 @@ class _ScannerScreenState extends State<ScannerScreen>
     } catch (e) {
       if (mounted) setState(() => _debugText = 'error: $e');
     } finally {
-      _isProcessing = false;
+      // 전환이 없었을 때(이 작업이 여전히 현재 소유자)만 리셋 — 전환 후 새 모드가
+      // 이미 잡은 _isProcessing을 stale identify가 되돌리지 못하게.
+      if (epoch == _scanEpoch) _isProcessing = false;
     }
   }
 
@@ -461,7 +478,16 @@ class _ScannerScreenState extends State<ScannerScreen>
     if (_togglingMode || mode == _scanMode) return; // 재진입/동일모드 차단.
     _togglingMode = true;
     try {
-      if (mounted) setState(() => _scanMode = mode);
+      // 전환 즉시 이전 모드의 in-flight 작업 소유권을 끊고(_scanEpoch++) 처리중 플래그를
+      // 리셋 → 셔터/자동스캔이 곧바로 다시 동작 가능(이전 identify가 끝나며 물고 있던
+      // "인식 중"이 새 모드에서 남지 않음).
+      _scanEpoch++;
+      if (mounted) {
+        setState(() {
+          _scanMode = mode;
+          _isProcessing = false;
+        });
+      }
       final cam = _camera;
       if (cam == null || !cam.value.isInitialized || _leaving) return;
       if (mode == 'capture') {
@@ -485,7 +511,7 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   // 촬영한 JPEG 바이트를 기존 identify 백엔드에 1회 전송하고 결과를 처리.
   // (구 _processFrame의 요청/결과 처리 로직을 셔터 흐름에서 재사용하도록 추출.)
-  Future<void> _identifyJpegBytes(List<int> bytes) async {
+  Future<void> _identifyJpegBytes(List<int> bytes, int epoch) async {
     if (!mounted) return;
     try {
       final res = await ApiClient.postBytes(
@@ -495,6 +521,10 @@ class _ScannerScreenState extends State<ScannerScreen>
         filename: 'capture.jpg',
         receiveTimeout: const Duration(seconds: 90),
       );
+      // 촬영 후 모드 전환/이탈 시 stale 결과 폐기.
+      if (!mounted || _leaving || _scanMode != 'capture' || epoch != _scanEpoch) {
+        return;
+      }
 
       final data = res['data'] as Map<String, dynamic>?;
       final status = data?['status'] as String? ?? '';
