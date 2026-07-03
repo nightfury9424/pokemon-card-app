@@ -1,0 +1,150 @@
+package com.fury.back.common.moderation;
+
+import jakarta.annotation.PostConstruct;
+import org.springframework.core.env.Environment;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Component;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Pattern;
+
+/**
+ * 공용 사용자 작성 콘텐츠 금칙어 검사(게시판 자유글·댓글·대댓글; 이후 승인 시 채팅·거래글).
+ *
+ * <p>정책(보수적 1차, ★오탐 방지 우선): 외부 목록 미확대, 기존 {@code banned/banned_words.txt} 기준.
+ * 검사 시에만 비교본 생성(원문 미변경·미저장). 탐지 단어·원문은 로그/응답에 남기지 않는다.
+ *
+ * <p>비교본:
+ * <ul>
+ *   <li>base = NFKC + lowercase + 제로폭 제거 + sentinel 사전제거 (★공백·괄호 유지 → 단어 경계 보존)
+ *   <li>punct = base 에서 점·구두점·일부 특수문자만 제거 (공백·괄호·sentinel 유지) → "시.발" 류 우회 탐지
+ *   <li>collapsed = punct 에서 과도(3+) 반복문자 축약 → "개새끼끼끼" 류 우회 탐지
+ * </ul>
+ * ★공백 우회("시 발")는 정상문("도시 발전") 오탐과 충돌 → 1차에선 미제거(오탐 우선). 초성/유사문자도 제외.
+ *
+ * <p>allowlist(정상어)는 검사 전 sentinel(U+E000 PUA)로 마스킹 — 공백으로 치우면 punct 단계에서 좌우가
+ * 결합돼 새 금칙어 오탐/우회가 생기므로, 어느 비교본에서도 제거되지 않는 경계 문자로 치환한다.
+ */
+@Component
+public class ContentPolicyService {
+
+    /** 사용자 표시 문구(고정). 탐지 단어 미노출. */
+    public static final String VIOLATION_MESSAGE = "부적절한 표현이 포함되어 있어 등록할 수 없습니다.";
+
+    /**
+     * 경계 마스킹 sentinel — Private Use Area(U+E000). 금칙어/정상텍스트에 등장하지 않고
+     * 어떤 비교본(base/punct/collapsed)에서도 제거되지 않는다. (NUL U+0000 은 셸·로그·도구를 깨뜨려 폐기.)
+     * 사용자 입력의 동일 문자는 {@link #normalizeBase}에서 사전 제거 — 주입으로 마스킹 우회/오탐 차단.
+     */
+    private static final char SENTINEL_CHAR = '\uE000';
+    private static final String SENTINEL = String.valueOf(SENTINEL_CHAR);
+
+    /** 빈 목록을 허용하는 lenient 프로파일 — ★정확 일치만(contains 금지: "prod-test" 등은 비-lenient). */
+    private static final Set<String> LENIENT_PROFILES = Set.of("local", "test", "citest", "boardtest");
+
+    private static final Pattern ZERO_WIDTH = Pattern.compile("[\\u200B-\\u200D\\uFEFF\\u2060\\u00AD]");
+    // 글자 사이에 끼우는 점·구두점·특수문자만(공백·괄호는 제외 — 정상 사용 빈번, cross-word 오탐 방지).
+    private static final Pattern PUNCT = Pattern.compile("[.,·∙•・’'\"\\-_*~^|/\\\\]+");
+    private static final Pattern REPEATS = Pattern.compile("(.)\\1{2,}");
+
+    private final Environment env;
+    private Set<String> banned = Set.of();
+    private Set<String> allow = Set.of();
+
+    public ContentPolicyService(Environment env) {
+        this.env = env;
+    }
+
+    @PostConstruct
+    void load() {
+        banned = loadLines("banned/banned_words.txt");
+        allow = loadLines("moderation/content_allowlist.txt"); // 없으면 빈 셋(추후 운영 큐레이션)
+        // ★fail-closed: lenient(local/test/citest/boardtest) 정확일치가 아닌 모든 프로파일(부재 포함)에서
+        //   금칙어 목록이 비면 무음 비활성화 대신 부팅 실패. (getActiveProfiles — comma-list 정확 대응.)
+        String[] active = env != null ? env.getActiveProfiles() : new String[0];
+        if (failClosedRequired(active, banned.isEmpty())) {
+            throw new IllegalStateException(
+                    "[ContentPolicy] 금칙어 목록(banned_words.txt) 로드 실패/빈 목록 — activeProfiles="
+                            + Arrays.toString(active) + " 에서 fail-closed (조용한 비활성화 금지).");
+        }
+    }
+
+    /**
+     * fail-closed(부팅 실패) 필요 여부. 금칙어 목록이 비어있고(=로드 실패/빈 파일),
+     * active profile 이 ①부재(운영 가정) 또는 ②lenient 집합에 정확 일치하지 않는 값을 하나라도 포함 → true.
+     * (단위 테스트 가능 — Environment 무관 순수 함수.)
+     */
+    static boolean failClosedRequired(String[] activeProfiles, boolean bannedEmpty) {
+        if (!bannedEmpty) return false;
+        if (activeProfiles == null || activeProfiles.length == 0) return true; // 부재 = 운영 = fail-closed
+        for (String p : activeProfiles) {
+            String norm = p == null ? "" : p.trim().toLowerCase(Locale.ROOT);
+            if (!LENIENT_PROFILES.contains(norm)) return true; // 하나라도 비-lenient면 fail-closed
+        }
+        return false; // 전부 lenient
+    }
+
+    /** 위반 시 ContentPolicyViolationException(advice 가 403 + CONTENT_POLICY_VIOLATION). null/빈문자 안전. */
+    public void check(String text) {
+        if (violates(text)) {
+            throw new ContentPolicyViolationException(VIOLATION_MESSAGE);
+        }
+    }
+
+    public boolean violates(String text) {
+        return matches(text, banned, allow);
+    }
+
+    // ── 순수 함수(네트워크/스프링 무관, 단위테스트 가능) ──
+
+    static boolean matches(String text, Set<String> banned, Set<String> allow) {
+        if (text == null || text.isEmpty() || banned == null || banned.isEmpty()) return false;
+        String base = normalizeBase(text);
+        if (allow != null) {
+            for (String a : allow) {
+                if (!a.isEmpty()) base = base.replace(a, SENTINEL); // 경계 보존 마스킹
+            }
+        }
+        String punct = PUNCT.matcher(base).replaceAll("");          // 점·특수만 제거(공백 유지)
+        String collapsed = REPEATS.matcher(punct).replaceAll("$1"); // 과도 반복 축약
+        for (String bad : banned) {
+            if (bad.isEmpty()) continue;
+            if (base.contains(bad) || punct.contains(bad) || collapsed.contains(bad)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** NFKC + lowercase + 제로폭 제거 + sentinel 사전제거. (공백·구두점은 base 에선 유지 — 경계 보존.) */
+    static String normalizeBase(String text) {
+        String n = Normalizer.normalize(text, Normalizer.Form.NFKC).toLowerCase(Locale.ROOT);
+        n = ZERO_WIDTH.matcher(n).replaceAll("");
+        return n.indexOf(SENTINEL_CHAR) >= 0 ? n.replace(SENTINEL, "") : n; // 사용자 주입 경계마커 제거
+    }
+
+    private Set<String> loadLines(String path) {
+        Set<String> out = new HashSet<>();
+        ClassPathResource res = new ClassPathResource(path);
+        if (!res.exists()) return out;
+        try (BufferedReader br = new BufferedReader(
+                new InputStreamReader(res.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String w = line.trim().toLowerCase(Locale.ROOT);
+                if (!w.isEmpty() && !w.startsWith("#")) out.add(w);
+            }
+        } catch (Exception e) {
+            // 로드 실패는 fail-closed 판정으로 부팅 단계에서 처리(비 lenient). 원문 미로깅.
+            return Set.of();
+        }
+        return out;
+    }
+}

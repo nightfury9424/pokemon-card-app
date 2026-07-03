@@ -2,6 +2,8 @@ package com.fury.back.domain.report;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -61,6 +63,11 @@ public class Report {
     /** SUSPEND_USER / DELETE_TRADE / DELETE_CHAT / DISMISS / NONE. */
     @Column(name = "resolution_action", length = 40)
     private String resolutionAction;
+
+    /** 신고 당시 게시판 원문 immutable snapshot(BOARD_POST/BOARD_COMMENT 만, 그 외 null). 생성 시 1회만 저장. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "reported_snapshot", columnDefinition = "jsonb")
+    private ReportedSnapshot reportedSnapshot;
 
     @PrePersist
     protected void onCreate() {

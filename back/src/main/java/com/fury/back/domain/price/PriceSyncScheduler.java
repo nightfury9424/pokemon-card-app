@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
+import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
@@ -19,9 +20,6 @@ public class PriceSyncScheduler {
     @Value("${app.python.system}")
     private String python3;
 
-    @Value("${app.python.venv-kream}")
-    private String venvKreamPython;
-
     @Value("${app.python.scripts-dir}")
     private String pythonScriptsDir;
 
@@ -35,6 +33,14 @@ public class PriceSyncScheduler {
     // 비상시 운영에서 true로 toggle 가능 (메서드 자체는 유지).
     @Value("${price.rarity-java-cron.enabled:false}")
     private boolean rarityJavaCronEnabled;
+
+    @Value("${price.sync.enabled:true}")
+    private boolean priceSyncEnabled;
+
+    @PostConstruct
+    public void logFreezeFlag() {
+        log.warn("[PriceSync][FREEZE] price.sync.enabled={}", priceSyncEnabled);
+    }
 
     /** scripts-dir 기준으로 python 스크립트 절대경로 조립. */
     private String script(String name) {
@@ -62,18 +68,9 @@ public class PriceSyncScheduler {
         log.info("[PriceSync] 프로모 eBay 가격 수집 완료");
     }
 
-    /**
-     * KREAM 메타몽 Pokemon Town 2025 프로모 체결가 수집.
-     * ★자동 cron 비활성 (2026-06-11) — KREAM 봇탐지가 prod 서버 IP를 막아 prod에선 수집 불가.
-     *   prod 컨테이너엔 venv_kream도 없어 매번 "No such file" 실패 → 운영 알림 스팸.
-     *   → 수집은 맥북 agent 수동(admin '메타몽 시세 가져오기' 버튼 → KreamFetchController.ingest)으로 이전.
-     *   메서드는 보존(수동 호출 여지)하되 @Scheduled 제거.
-     */
-    public void syncKreamDittoPromo() {
-        log.info("[PriceSync] KREAM 메타몽 프로모 시세 수집 시작");
-        runWithPython(venvKreamPython, script("kream_ditto.py"));
-        log.info("[PriceSync] KREAM 메타몽 프로모 시세 수집 완료");
-    }
+    // KREAM 메타몽 프로모 체결가: prod IP 봇차단 + venv 부재로 prod 수집 불가.
+    // 수집은 맥북 agent(admin '메타몽 시세 가져오기' → KreamFetchController.ingest) 단일 경로.
+    // 죽은 syncKreamDittoPromo() + venvKreamPython 필드 제거 (2026-06-15).
 
     /**
      * 매일 22:00: 네이버 카페 낙찰가 수집 (계수 재계산용)
@@ -160,6 +157,10 @@ public class PriceSyncScheduler {
      */
     @Scheduled(cron = "0 45 23 * * *")
     public void refreshKoEstimates() {
+        if (!priceSyncEnabled) {
+            log.warn("[PriceSync] refreshKoEstimates SKIPPED: price.sync.enabled=false (FREEZE 20260619)");
+            return;
+        }
         log.info("[PriceSync] ⑥ KO_ESTIMATED 최종 재계산 시작");
         try {
             globalPriceService.refreshKoEstimatesFromSnapshots();

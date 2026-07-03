@@ -66,6 +66,7 @@ public class NotificationController {
                 "title", n.getTitle(),
                 "body", n.getBody() != null ? n.getBody() : "",
                 "linkCardId", n.getLinkCardId() != null ? n.getLinkCardId() : "",
+                "linkUrl", n.getLinkUrl() != null ? n.getLinkUrl() : "",
                 "isRead", n.getIsRead(),
                 "createdAt", n.getCreatedAt().toString()
         );

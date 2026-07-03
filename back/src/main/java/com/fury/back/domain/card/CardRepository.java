@@ -312,7 +312,7 @@ public interface CardRepository extends JpaRepository<Card, String> {
     // getMarketCards 응답에 카드별 dailyGainPct 채우는 용도. (REFACTOR_2026-05-12.md 4차-Round3)
     @Query(nativeQuery = true, value = """
             WITH last_two AS (
-                SELECT card_id, traded_at, price,
+                SELECT card_id, traded_at, COALESCE(chart_price, price) AS price,
                   ROW_NUMBER() OVER (PARTITION BY card_id ORDER BY traded_at DESC) AS rn
                 FROM price_snapshots
                 WHERE source = 'KO_ESTIMATED' AND card_id IN (:cardIds)
@@ -342,20 +342,20 @@ public interface CardRepository extends JpaRepository<Card, String> {
                     (SELECT d FROM ko_dates ORDER BY d DESC OFFSET 1 LIMIT 1) AS prev_day
             ),
             today AS (
+                -- ★카드별 최신 KO (전역 최신일 의존 제거 — 장중 카드추가로 다른 카드 누락 방지)
                 SELECT DISTINCT ON (ps.card_id)
-                    ps.card_id, ps.price, ps.traded_at, ps.price_snapshot_id
-                FROM price_snapshots ps, date_pair
-                WHERE ps.source = 'KO_ESTIMATED'
-                  AND DATE(ps.traded_at) = date_pair.latest_day
+                    ps.card_id, COALESCE(ps.chart_price, ps.price) AS price, ps.traded_at, ps.price_snapshot_id
+                FROM price_snapshots ps
+                WHERE ps.source = 'KO_ESTIMATED' AND DATE(ps.traded_at) <= CURRENT_DATE
                 ORDER BY ps.card_id, ps.traded_at DESC
             ),
             yesterday AS (
-                SELECT DISTINCT ON (ps.card_id)
-                    ps.card_id, ps.price, ps.traded_at
-                FROM price_snapshots ps, date_pair
-                WHERE ps.source = 'KO_ESTIMATED'
-                  AND DATE(ps.traded_at) = date_pair.prev_day
-                ORDER BY ps.card_id, ps.traded_at DESC
+                SELECT card_id, price, traded_at FROM (
+                    SELECT ps.card_id, COALESCE(ps.chart_price, ps.price) AS price, ps.traded_at,
+                           ROW_NUMBER() OVER (PARTITION BY ps.card_id ORDER BY ps.traded_at DESC) AS rn
+                    FROM price_snapshots ps
+                    WHERE ps.source = 'KO_ESTIMATED' AND DATE(ps.traded_at) <= CURRENT_DATE
+                ) t WHERE t.rn = 2
             )
             SELECT
                 today.card_id,
@@ -373,8 +373,8 @@ public interface CardRepository extends JpaRepository<Card, String> {
             WHERE yesterday.price > 0
               AND (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
               AND c.is_visible = true
-              AND a.ranking_eligible = true
-              AND a.is_anomaly = false
+              -- 2026-06-18 A: chart_price(±3% wiggle) 기반 full 보드 — audit real-mover 게이트 해제(recent 보드와 일관).
+              --   wiggle는 ±3% bounded라 anomaly 위험 없음(0.1~30% bound가 가드). JOIN은 유지(프로모 제외).
               -- 보조 안전망 (audit 통과해도 추가 가드)
               AND today.price >= 5000
               AND yesterday.price >= 5000
@@ -401,20 +401,20 @@ public interface CardRepository extends JpaRepository<Card, String> {
                     (SELECT d FROM ko_dates ORDER BY d DESC OFFSET 1 LIMIT 1) AS prev_day
             ),
             today AS (
+                -- ★카드별 최신 KO (전역 최신일 의존 제거 — 장중 카드추가로 다른 카드 누락 방지)
                 SELECT DISTINCT ON (ps.card_id)
-                    ps.card_id, ps.price, ps.traded_at, ps.price_snapshot_id
-                FROM price_snapshots ps, date_pair
-                WHERE ps.source = 'KO_ESTIMATED'
-                  AND DATE(ps.traded_at) = date_pair.latest_day
+                    ps.card_id, COALESCE(ps.chart_price, ps.price) AS price, ps.traded_at, ps.price_snapshot_id
+                FROM price_snapshots ps
+                WHERE ps.source = 'KO_ESTIMATED' AND DATE(ps.traded_at) <= CURRENT_DATE
                 ORDER BY ps.card_id, ps.traded_at DESC
             ),
             yesterday AS (
-                SELECT DISTINCT ON (ps.card_id)
-                    ps.card_id, ps.price, ps.traded_at
-                FROM price_snapshots ps, date_pair
-                WHERE ps.source = 'KO_ESTIMATED'
-                  AND DATE(ps.traded_at) = date_pair.prev_day
-                ORDER BY ps.card_id, ps.traded_at DESC
+                SELECT card_id, price, traded_at FROM (
+                    SELECT ps.card_id, COALESCE(ps.chart_price, ps.price) AS price, ps.traded_at,
+                           ROW_NUMBER() OVER (PARTITION BY ps.card_id ORDER BY ps.traded_at DESC) AS rn
+                    FROM price_snapshots ps
+                    WHERE ps.source = 'KO_ESTIMATED' AND DATE(ps.traded_at) <= CURRENT_DATE
+                ) t WHERE t.rn = 2
             )
             SELECT
                 today.card_id,
@@ -432,8 +432,8 @@ public interface CardRepository extends JpaRepository<Card, String> {
             WHERE yesterday.price > 0
               AND (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
               AND c.is_visible = true
-              AND a.ranking_eligible = true
-              AND a.is_anomaly = false
+              -- 2026-06-18 A: chart_price(±3% wiggle) 기반 full 보드 — audit real-mover 게이트 해제(recent 보드와 일관).
+              --   wiggle는 ±3% bounded라 anomaly 위험 없음(0.1~30% bound가 가드). JOIN은 유지(프로모 제외).
               -- 보조 안전망 (audit 통과해도 추가 가드)
               AND today.price >= 5000
               AND yesterday.price >= 5000
@@ -445,8 +445,9 @@ public interface CardRepository extends JpaRepository<Card, String> {
     List<Object[]> findTopLosersByKoEstimatedPrice(@Param("size") int size);
 
     // 2026-06-03 급변동 재설계: KO 차트 투영과 동일 basis = JP(메인)/EN(브릿지) raw 시장 움직임.
-    //   ko_estimation_audit(coef보정/FX/anomaly 섞임) 대신 SCRYDEX raw % 변동(N일 window).
-    //   sanity band [3%, 40%] = raw outlier(0값/스파이크) 제외. 현재 KO 표시, prev = KO/(1+frac).
+    //   ★2026-06-17 환원: raw % 투영이 KO(EN기반/계수)와 불일치(뮤츠 JP+32% vs KO flat) → 차트와 어긋남.
+    //     frac = 실제 KO_ESTIMATED N일 변동(현재 vs N일전 ko)으로 변경 = 차트와 100% 일치. jc/jp/ec/ep CTE는 미사용(잔존).
+    //   sanity band [3%, 40%] = outlier 제외. 현재 KO 표시, prev = N일전 KO(=KO/(1+frac)).
     //   응답 7 col: cardId, currentPrice, moveDatePrice, prevPrice, changeAmount, changePct, moveDate
     @Query(nativeQuery = true, value = """
             WITH jc AS (SELECT DISTINCT ON (card_id) card_id, raw_price AS rp FROM price_snapshots
@@ -463,12 +464,15 @@ public interface CardRepository extends JpaRepository<Card, String> {
                         WHERE source = 'SCRYDEX_EN' AND card_status = 'RAW' AND raw_price > 0
                           AND traded_at <= CURRENT_DATE - CAST(:days AS integer)
                         ORDER BY card_id, traded_at DESC),
-                 ko AS (SELECT DISTINCT ON (card_id) card_id, price AS kp FROM price_snapshots
+                 ko AS (SELECT DISTINCT ON (card_id) card_id, COALESCE(chart_price, price) AS kp FROM price_snapshots
                         WHERE source = 'KO_ESTIMATED' ORDER BY card_id, traded_at DESC),
+                 kop AS (SELECT DISTINCT ON (card_id) card_id, COALESCE(chart_price, price) AS kp FROM price_snapshots
+                        WHERE source = 'KO_ESTIMATED' AND traded_at <= CURRENT_DATE - CAST(:days AS integer)
+                        ORDER BY card_id, traded_at DESC),
                  m AS (
                     SELECT c.card_id, ko.kp AS ck,
-                           COALESCE((jc.rp - jp.rp) / NULLIF(jp.rp, 0), (ec.rp - ep.rp) / NULLIF(ep.rp, 0)) AS frac
-                    FROM cards c JOIN ko ON ko.card_id = c.card_id
+                           (ko.kp - kop.kp)::numeric / NULLIF(kop.kp, 0) AS frac
+                    FROM cards c JOIN ko ON ko.card_id = c.card_id JOIN kop ON kop.card_id = c.card_id
                     LEFT JOIN jc ON jc.card_id = c.card_id LEFT JOIN jp ON jp.card_id = c.card_id
                     LEFT JOIN ec ON ec.card_id = c.card_id LEFT JOIN ep ON ep.card_id = c.card_id
                     WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
@@ -506,12 +510,15 @@ public interface CardRepository extends JpaRepository<Card, String> {
                         WHERE source = 'SCRYDEX_EN' AND card_status = 'RAW' AND raw_price > 0
                           AND traded_at <= CURRENT_DATE - CAST(:days AS integer)
                         ORDER BY card_id, traded_at DESC),
-                 ko AS (SELECT DISTINCT ON (card_id) card_id, price AS kp FROM price_snapshots
+                 ko AS (SELECT DISTINCT ON (card_id) card_id, COALESCE(chart_price, price) AS kp FROM price_snapshots
                         WHERE source = 'KO_ESTIMATED' ORDER BY card_id, traded_at DESC),
+                 kop AS (SELECT DISTINCT ON (card_id) card_id, COALESCE(chart_price, price) AS kp FROM price_snapshots
+                        WHERE source = 'KO_ESTIMATED' AND traded_at <= CURRENT_DATE - CAST(:days AS integer)
+                        ORDER BY card_id, traded_at DESC),
                  m AS (
                     SELECT c.card_id, ko.kp AS ck,
-                           COALESCE((jc.rp - jp.rp) / NULLIF(jp.rp, 0), (ec.rp - ep.rp) / NULLIF(ep.rp, 0)) AS frac
-                    FROM cards c JOIN ko ON ko.card_id = c.card_id
+                           (ko.kp - kop.kp)::numeric / NULLIF(kop.kp, 0) AS frac
+                    FROM cards c JOIN ko ON ko.card_id = c.card_id JOIN kop ON kop.card_id = c.card_id
                     LEFT JOIN jc ON jc.card_id = c.card_id LEFT JOIN jp ON jp.card_id = c.card_id
                     LEFT JOIN ec ON ec.card_id = c.card_id LEFT JOIN ep ON ep.card_id = c.card_id
                     WHERE (c.language = 'KO' OR c.is_promo_exclusive = TRUE)
@@ -555,18 +562,18 @@ public interface CardRepository extends JpaRepository<Card, String> {
                     (SELECT d FROM ko_dates ORDER BY d DESC OFFSET 1 LIMIT 1) AS prev_day
             ),
             today AS (
-                SELECT DISTINCT ON (ps.card_id) ps.card_id, ps.price
-                FROM price_snapshots ps, date_pair
-                WHERE ps.source = 'KO_ESTIMATED'
-                  AND DATE(ps.traded_at) = date_pair.latest_day
+                SELECT DISTINCT ON (ps.card_id) ps.card_id, COALESCE(ps.chart_price, ps.price) AS price
+                FROM price_snapshots ps
+                WHERE ps.source = 'KO_ESTIMATED' AND DATE(ps.traded_at) <= CURRENT_DATE
                 ORDER BY ps.card_id, ps.traded_at DESC
             ),
             yesterday AS (
-                SELECT DISTINCT ON (ps.card_id) ps.card_id, ps.price
-                FROM price_snapshots ps, date_pair
-                WHERE ps.source = 'KO_ESTIMATED'
-                  AND DATE(ps.traded_at) = date_pair.prev_day
-                ORDER BY ps.card_id, ps.traded_at DESC
+                SELECT card_id, price FROM (
+                    SELECT ps.card_id, COALESCE(ps.chart_price, ps.price) AS price,
+                           ROW_NUMBER() OVER (PARTITION BY ps.card_id ORDER BY ps.traded_at DESC) AS rn
+                    FROM price_snapshots ps
+                    WHERE ps.source = 'KO_ESTIMATED' AND DATE(ps.traded_at) <= CURRENT_DATE
+                ) t WHERE t.rn = 2
             )
             SELECT
                 c.card_id,
@@ -602,28 +609,22 @@ public interface CardRepository extends JpaRepository<Card, String> {
                     SELECT card_id FROM buy_orders WHERE status = 'OPEN'
                 ) o GROUP BY card_id
             ),
-            ko_dates AS (
-                SELECT DISTINCT DATE(traded_at) AS d
-                FROM price_snapshots
-                WHERE source = 'KO_ESTIMATED' AND DATE(traded_at) <= CURRENT_DATE
-                ORDER BY d DESC LIMIT 2
-            ),
-            date_pair AS (
-                SELECT
-                    (SELECT d FROM ko_dates ORDER BY d DESC LIMIT 1) AS latest_day,
-                    (SELECT d FROM ko_dates ORDER BY d DESC OFFSET 1 LIMIT 1) AS prev_day
-            ),
             today AS (
-                SELECT DISTINCT ON (ps.card_id) ps.card_id, ps.price
-                FROM price_snapshots ps, date_pair
-                WHERE ps.source = 'KO_ESTIMATED' AND DATE(ps.traded_at) = date_pair.latest_day
+                -- ★카드별 '최신' KO_ESTIMATED (전역 최신일 의존 제거). 일부 카드가 더 최신 날짜를
+                --   가져도(예: 장중 카드추가/refresh) 다른 카드들이 호가보드에서 빠지지 않게.
+                SELECT DISTINCT ON (ps.card_id) ps.card_id, COALESCE(ps.chart_price, ps.price) AS price
+                FROM price_snapshots ps
+                WHERE ps.source = 'KO_ESTIMATED' AND DATE(ps.traded_at) <= CURRENT_DATE
                 ORDER BY ps.card_id, ps.traded_at DESC
             ),
             yesterday AS (
-                SELECT DISTINCT ON (ps.card_id) ps.card_id, ps.price
-                FROM price_snapshots ps, date_pair
-                WHERE ps.source = 'KO_ESTIMATED' AND DATE(ps.traded_at) = date_pair.prev_day
-                ORDER BY ps.card_id, ps.traded_at DESC
+                -- 카드별 '그 전날'(=두 번째로 최신) KO_ESTIMATED — 전일대비 % 용.
+                SELECT card_id, price FROM (
+                    SELECT ps.card_id, COALESCE(ps.chart_price, ps.price) AS price,
+                           ROW_NUMBER() OVER (PARTITION BY ps.card_id ORDER BY ps.traded_at DESC) AS rn
+                    FROM price_snapshots ps
+                    WHERE ps.source = 'KO_ESTIMATED' AND DATE(ps.traded_at) <= CURRENT_DATE
+                ) t WHERE t.rn = 2
             )
             SELECT
                 c.card_id,

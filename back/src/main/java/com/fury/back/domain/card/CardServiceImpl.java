@@ -176,10 +176,14 @@ public class CardServiceImpl implements CardService {
 
     /**
      * 추가 직후 보강 — scrydex 이미지 다운로드 + KO 예상가 즉시 계산/저장.
-     * 카드가 이미 커밋된 뒤 호출됨. ★@Transactional 없음 — HTTP(scrydex)+이미지 다운로드를 트랜잭션 밖에서 돌려
-     * DB 커넥션 점유 방지(triggerPriceFetchForCard 가 자체 @Transactional). 실패해도 호출측 try-catch 로 카드 추가엔 영향 없음.
+     * 카드가 이미 커밋된 뒤 호출됨. ★NOT_SUPPORTED — 클래스레벨 @Transactional(readOnly=true)를 명시적으로 정지시켜
+     * 트랜잭션 밖에서 돌린다. (이게 없으면 triggerPriceFetchForCard(@Transactional REQUIRED)가 readOnly 트랜잭션에
+     * join → Hibernate flush 안 됨 → save() 가 메모리에만 남고 실제 INSERT 0건이 되는 버그). 이제 triggerPriceFetchForCard
+     * 가 자기 자신의 쓰기 가능 트랜잭션을 새로 연다. HTTP(scrydex)+이미지 다운로드도 트랜잭션 밖 → DB 커넥션 점유 방지.
      */
     @Override
+    @org.springframework.transaction.annotation.Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public Map<String, Object> enrichCardAfterAdd(String cardId, String enScrydexRef, String jpScrydexRef) {
         String enRef = blankToNull(enScrydexRef);
         String jpRef = blankToNull(jpScrydexRef);
@@ -283,6 +287,10 @@ public class CardServiceImpl implements CardService {
                 .collect(Collectors.toMap(PriceSnapshot::getSource, s -> s, (a, b) -> a));
         PriceSnapshot koEst = snapshotsBySource.get("KO_ESTIMATED");
         PriceSnapshot jpSnap = snapshotsBySource.get("SCRYDEX_JP");
+        if (jpSnap == null) {
+            // JP 시장 패밀리: scrydex 없는 일본 독점 프로모(후쿠오카 등)는 SNKRDUNK RAW가 JP 시세.
+            jpSnap = snapshotsBySource.get("SNKRDUNK");
+        }
         PriceSnapshot enSnap = snapshotsBySource.get("SCRYDEX_EN");
 
         Integer ko = null;
@@ -291,7 +299,7 @@ public class CardServiceImpl implements CardService {
         if (card.isPromoExclusive()) {
             PriceSnapshot jpPsa10 = null;
             if (jpSnap == null) {
-                jpPsa10 = priceSnapshotRepository.findLatestScrydexJpPsa10ByCardIds(ids)
+                jpPsa10 = priceSnapshotRepository.findLatestJpMarketPsa10ByCardIds(ids)
                         .stream().findFirst().orElse(null);
             }
             if (jpSnap != null) {
@@ -310,8 +318,8 @@ public class CardServiceImpl implements CardService {
                 koBasis = "RAW";
             }
         } else if (koEst != null) {
-            // KO_ESTIMATED DB 저장값 우선 (배치 결과 재사용)
-            ko = koEst.getPrice();
+            // KO_ESTIMATED DB 저장값 우선 (배치 결과 재사용). 셀 표시 = chart_price(±3% 생동감), 없으면 price.
+            ko = koEst.getDisplayPrice();
         } else {
             // live fallback — 레어도별 계수 + 환율로 SCRYDEX_JP/EN에서 KO 계산
             MarketCoefficientDto coeff = coefficientCache.getOrNull();
@@ -649,9 +657,11 @@ public class CardServiceImpl implements CardService {
         Map<String, PriceSnapshot> koEstMap = snapshotsBySource(latestMarketSnapshots, "KO_ESTIMATED");
         Map<String, PriceSnapshot> scrydexEnMap = snapshotsBySource(latestMarketSnapshots, "SCRYDEX_EN");
         Map<String, PriceSnapshot> scrydexJpMap = snapshotsBySource(latestMarketSnapshots, "SCRYDEX_JP");
+        // JP 시장 패밀리: scrydex 없는 일본 독점 프로모(후쿠오카 등)는 SNKRDUNK RAW를 JP 슬롯 폴백으로.
+        snapshotsBySource(latestMarketSnapshots, "SNKRDUNK").forEach(scrydexJpMap::putIfAbsent);
         // 프로모 카드 중 RAW JP가 없는 경우 PSA10 최신가로 보완
         Map<String, PriceSnapshot> scrydexJpPsa10Map = priceSnapshotRepository
-                .findLatestScrydexJpPsa10ByCardIds(cardIds)
+                .findLatestJpMarketPsa10ByCardIds(cardIds)
                 .stream()
                 .collect(Collectors.toMap(PriceSnapshot::getCardId, s -> s, (a, b) -> a));
 
@@ -723,10 +733,10 @@ public class CardServiceImpl implements CardService {
                                     ko = null;
                                 }
                             } else {
-                                // KO_ESTIMATED DB 저장값 우선 — 없으면 live 계산 fallback
+                                // KO_ESTIMATED DB 저장값 우선 — 없으면 live 계산 fallback. 셀=chart_price(생동감).
                                 PriceSnapshot koEst = koEstMap.get(cid);
                                 if (koEst != null) {
-                                    ko = koEst.getPrice();
+                                    ko = koEst.getDisplayPrice();
                                 } else {
                                     PriceSnapshot src = globalPriceService.selectScrydexSnapshotForKo(
                                             cid, rarity, jpSnap, enSnap, usdToKrw, jpyToKrw, null);
