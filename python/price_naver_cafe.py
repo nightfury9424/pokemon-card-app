@@ -247,15 +247,20 @@ def find_card_match(conn, keywords: list, rarity: Optional[str]) -> Optional[str
                 continue
             if rarity:
                 # 레어도 명시된 경우: 레어도 + 이름으로 엄격히 매칭
+                # is_promo_exclusive 제외(2026-07-03): 해외 독점 프로모(후쿠오카 피카츄 등)는
+                # 표시가 해외 참고가(OVERSEAS_REF)라 NAVER obs 미사용인데, 지역명 키워드가
+                # 박스/번들 매물과 오탐 매칭돼 낱장에 박스값이 쌓이는 오염만 남음 → 매칭 자체 제외.
                 cur.execute("""
                     SELECT card_id FROM cards
                     WHERE name ILIKE %s AND rarity_code = %s
+                      AND is_promo_exclusive = FALSE
                     LIMIT 10
                 """, (f'%{kw}%', rarity))
             else:
                 cur.execute("""
                     SELECT card_id, rarity_code FROM cards
                     WHERE name ILIKE %s
+                      AND is_promo_exclusive = FALSE
                     LIMIT 10
                 """, (f'%{kw}%',))
 

@@ -6,7 +6,8 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "notifications")
+@Table(name = "notifications", uniqueConstraints =
+        @UniqueConstraint(name = "uq_notifications_dedup", columnNames = "dedup_key"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -41,6 +42,10 @@ public class Notification {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    /** 게시판 알림 멱등 키(좋아요/댓글/대댓글 중복 방지). non-null 만 UNIQUE(기존 알림=null). */
+    @Column(name = "dedup_key", length = 180)
+    private String dedupKey;
 
     @PrePersist
     protected void onCreate() {

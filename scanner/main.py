@@ -86,16 +86,15 @@ app.add_middleware(
 DATA_DIR = Path(__file__).parent / "data"
 app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
 
-MAX_SIZE = 640             # 기본(detect_card·매핑 임베드 경로 — 기존 동작 보존)
-IDENTIFY_MAX_SIZE = 1600   # ★/identify 전용 상한: ≤1600 원본 그대로 warp(인덱스 일치, 탱탱겔 714 무축소→0.907), >1600만 축소(4K/8K 안전)
+MAX_SIZE = 640
 _detector = CardDetector()
 
 
-def resize_if_needed(img_bgr: np.ndarray, max_size: int = MAX_SIZE) -> np.ndarray:
+def resize_if_needed(img_bgr: np.ndarray) -> np.ndarray:
     h, w = img_bgr.shape[:2]
-    if max(h, w) <= max_size:
+    if max(h, w) <= MAX_SIZE:
         return img_bgr
-    scale = max_size / max(h, w)
+    scale = MAX_SIZE / max(h, w)
     return cv2.resize(img_bgr, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
 
 
@@ -139,10 +138,10 @@ def _process_image_scan(data: bytes) -> tuple[np.ndarray, np.ndarray] | tuple[No
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if img is None:
         raise ValueError("이미지 디코딩 실패")
-    img = resize_if_needed(img, IDENTIFY_MAX_SIZE)  # ★/identify 전용 1600 상한: ≤1600 무축소(원본 warp=인덱스 일치), >1600만 축소(거대이미지 안전)
-    warped, _ = _detector.find_and_warp_card(img)  # (인덱스 build_missing과 동일 전처리)
+    img = resize_if_needed(img)
+    warped, _ = _detector.find_and_warp_card(img)
     if warped is None:
-        warped = img  # 폴백: 입력 이미지 그대로 임베딩
+        warped = img  # 폴백: 전체 이미지로 임베딩
     return get_embedding(warped), warped
 
 

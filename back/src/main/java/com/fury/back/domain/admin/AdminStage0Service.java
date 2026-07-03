@@ -1,18 +1,9 @@
 package com.fury.back.domain.admin;
 
 import com.fury.back.auth.AdminAllowlistFilter;
-import com.fury.back.auth.AdminAuthorizationService;
-import com.fury.back.domain.board.BoardAdminService;
-import com.fury.back.domain.board.BoardComment;
-import com.fury.back.domain.board.BoardCommentRepository;
-import com.fury.back.domain.board.BoardPost;
-import com.fury.back.domain.board.BoardPostRepository;
-import com.fury.back.domain.board.BoardTaxonomy;
-import com.fury.back.domain.board.dto.PostModerationRequest;
 import com.fury.back.domain.chat.ChatService;
 import com.fury.back.domain.report.Report;
 import com.fury.back.domain.report.ReportRepository;
-import com.fury.back.domain.report.ReportedSnapshot;
 import com.fury.back.domain.trade.TradePost;
 import com.fury.back.domain.trade.TradePostRepository;
 import com.fury.back.domain.user.User;
@@ -27,10 +18,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -51,11 +40,6 @@ public class AdminStage0Service {
     private final UserWarningRepository userWarningRepository;
     private final com.fury.back.domain.inquiry.InquiryRepository inquiryRepository;
     private final AdminActionRepository adminActionRepository;
-    private final BoardPostRepository boardPostRepository;
-    private final com.fury.back.domain.board.BoardPostImageRepository boardPostImageRepository;
-    private final BoardCommentRepository boardCommentRepository;
-    private final BoardAdminService boardAdminService;
-    private final AdminAuthorizationService adminAuthorizationService;
 
     /** 활성 경고 누적이 이 수치 도달 시 자동 정지. (신고 처리 정책) */
     @org.springframework.beans.factory.annotation.Value("${app.moderation.warning-threshold:3}")
@@ -151,20 +135,6 @@ public class AdminStage0Service {
                 tradePostRepository.findAllById(tradeTargetIds).stream()
                         .collect(Collectors.toMap(TradePost::getTradeId, t -> t, (a, b) -> a));
 
-        // target BOARD_POST / BOARD_COMMENT batch (N+1 차단).
-        List<String> postTargetIds = reports.stream()
-                .filter(r -> "BOARD_POST".equals(r.getTargetType()))
-                .map(Report::getTargetId).distinct().toList();
-        Map<String, BoardPost> postTargetMap = postTargetIds.isEmpty() ? Map.of() :
-                boardPostRepository.findAllById(postTargetIds).stream()
-                        .collect(Collectors.toMap(BoardPost::getPostId, p -> p, (a, b) -> a));
-        List<String> commentTargetIds = reports.stream()
-                .filter(r -> "BOARD_COMMENT".equals(r.getTargetType()))
-                .map(Report::getTargetId).distinct().toList();
-        Map<String, BoardComment> commentTargetMap = commentTargetIds.isEmpty() ? Map.of() :
-                boardCommentRepository.findAllById(commentTargetIds).stream()
-                        .collect(Collectors.toMap(BoardComment::getCommentId, c -> c, (a, b) -> a));
-
         return reports.map(r -> {
             User reporter = reporterMap.get(r.getReporterId());
             String summary = switch (r.getTargetType()) {
@@ -175,14 +145,6 @@ public class AdminStage0Service {
                 case "TRADE" -> {
                     TradePost t = tradeTargetMap.get(r.getTargetId());
                     yield t != null ? t.getTitle() : null;
-                }
-                case "BOARD_POST" -> {
-                    BoardPost p = postTargetMap.get(r.getTargetId());
-                    yield p == null ? null : truncate(p.getTitle() + " — " + p.getContent(), 80);
-                }
-                case "BOARD_COMMENT" -> {
-                    BoardComment c = commentTargetMap.get(r.getTargetId());
-                    yield c == null ? null : truncate(c.getContent(), 80);
                 }
                 default -> null; // BUY_ORDER / CHAT — Stage 0 에서는 summary 생략
             };
@@ -219,199 +181,6 @@ public class AdminStage0Service {
         return inquiryRepository.countByStatusAndCategory("OPEN", "SUSPENSION_APPEAL");
     }
 
-    /** 관리자 목록 요약용 안전 축약 — null/공백/길이 방어(목록 전체 실패 방지). */
-    private static String truncate(String s, int max) {
-        if (s == null) return null;
-        String t = s.replaceAll("\\s+", " ").trim();
-        if (t.isEmpty()) return null;
-        return t.length() <= max ? t : t.substring(0, max) + "…";
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // GET /api/admin/reports/{id}/target-context — 게시판 신고 원문·문맥(파괴적 조치 전 확인용)
-    //   ★일반 BoardService 의 ACTIVE·미삭제 필터 재사용 안 함 — 숨김/삭제 콘텐츠도 관리자에게 반환.
-    // ─────────────────────────────────────────────────────────────────────
-    public AdminStage0Dto.TargetContext getTargetContext(String reportId, String adminUserId) {
-        requireAdminContext(adminUserId); // 필터(웹) + 서비스 이중 검증
-        Report report = reportRepository.findById(reportId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "REPORT_NOT_FOUND"));
-        return switch (report.getTargetType()) {
-            case "BOARD_POST" -> postContext(report);
-            case "BOARD_COMMENT" -> commentContext(report);
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "게시판 신고만 원문 조회를 지원합니다.");
-        };
-    }
-
-    private void requireAdminContext(String userId) {
-        if (adminAuthorizationService.isEnforced() && !adminAuthorizationService.isAdmin(userId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "관리자 권한이 필요합니다.");
-        }
-    }
-
-    private AdminStage0Dto.TargetContext postContext(Report report) {
-        BoardPost p = boardPostRepository.findById(report.getTargetId()).orElse(null);
-        if (p == null) return unavailable(report); // 물리 삭제/미존재
-        Set<String> ids = new HashSet<>();
-        ids.add(p.getAuthorId()); // ★null 허용(HashSet) — 공식글/레거시 authorId null 가능. Set.of(null) NPE 회피.
-        ReportedSnapshot snap = report.getReportedSnapshot();
-        String snapStatus = snapshotStatus(snap);
-        boolean snapOk = "AVAILABLE".equals(snapStatus);
-        return AdminStage0Dto.TargetContext.builder()
-                .reportId(report.getReportId()).targetType("BOARD_POST").targetId(report.getTargetId())
-                .available(true)
-                .post(postView(p, nicknameMap(ids)))
-                .snapshotStatus(snapStatus)
-                .snapshotAvailable(snapOk)
-                .changedSinceReport(snapOk && postChanged(snap, p))
-                .reportedSnapshot(snapOk ? sanitizeSnapshot(snap) : null)
-                .snapshotImageCount(snapOk ? snap.imageCount() : 0)
-                .snapshotImageUrls(snapOk ? proxyUrls(snap.imageKeys()) : java.util.List.of())
-                .currentImageUrls(currentImageUrls(p.getPostId()))
-                .build();
-    }
-
-    /** raw storage key → secure proxy URL(관리자 화면 노출용, raw 키 미노출). */
-    private java.util.List<String> proxyUrls(java.util.List<String> keys) {
-        if (keys == null) return java.util.List.of();
-        return keys.stream().map(com.fury.back.storage.StorageKeyUrls::toProxyUrl).toList();
-    }
-
-    private java.util.List<String> currentImageUrls(String postId) {
-        return boardPostImageRepository.findByPostIdOrderBySortOrderAsc(postId).stream()
-                .map(i -> com.fury.back.storage.StorageKeyUrls.toProxyUrl(i.getStorageKey())).toList();
-    }
-
-    /** 관리자 응답용 snapshot 사본 — ★raw imageKeys 제거(proxy URL 은 snapshotImageUrls 로 별도 전달). */
-    private ReportedSnapshot sanitizeSnapshot(ReportedSnapshot s) {
-        if (s == null) return null;
-        return new ReportedSnapshot(s.version(), s.targetType(), s.title(), s.content(), s.authorLabel(),
-                s.targetCreatedAt(), s.targetUpdatedAt(), s.imageCount(), null,
-                s.postTitle(), s.targetCommentId(), s.topCommentId(), s.comments());
-    }
-
-    private AdminStage0Dto.TargetContext commentContext(Report report) {
-        BoardComment c = boardCommentRepository.findById(report.getTargetId()).orElse(null);
-        if (c == null) return unavailable(report);
-        BoardPost p = boardPostRepository.findById(c.getPostId()).orElse(null);
-        // 대댓글 신고면 부모(최상위)를, 최상위 댓글 신고면 자기 자신을 thread 루트로.
-        String topId = c.getParentCommentId() != null ? c.getParentCommentId() : c.getCommentId();
-        // 1 query: 게시글 전체 댓글 조회 → 해당 최상위 thread(최상위 + 그 대댓글)만 응답(unrelated 제외).
-        List<BoardComment> thread = boardCommentRepository.findByPostIdOrderByCreatedAtAsc(c.getPostId()).stream()
-                .filter(x -> x.getCommentId().equals(topId) || topId.equals(x.getParentCommentId()))
-                .toList();
-        Set<String> authorIds = new HashSet<>();
-        thread.forEach(x -> authorIds.add(x.getAuthorId()));
-        if (p != null) authorIds.add(p.getAuthorId());
-        Map<String, String> nicks = nicknameMap(authorIds);
-        List<AdminStage0Dto.BoardCommentView> views = thread.stream()
-                .map(x -> commentView(x, nicks, report.getTargetId())).toList();
-        ReportedSnapshot snap = report.getReportedSnapshot();
-        String snapStatus = snapshotStatus(snap);
-        boolean snapOk = "AVAILABLE".equals(snapStatus);
-        return AdminStage0Dto.TargetContext.builder()
-                .reportId(report.getReportId()).targetType("BOARD_COMMENT").targetId(report.getTargetId())
-                .available(true)
-                .post(p == null ? null : postView(p, nicks)) // 게시글이 물리삭제돼도 댓글 thread 는 노출
-                .thread(AdminStage0Dto.BoardCommentThread.builder()
-                        .targetCommentId(report.getTargetId()).topCommentId(topId).comments(views).build())
-                .snapshotStatus(snapStatus)
-                .snapshotAvailable(snapOk)
-                .changedSinceReport(snapOk && commentChanged(snap, thread, p))
-                .reportedSnapshot(snapOk ? sanitizeSnapshot(snap) : null) // 댓글엔 이미지 없음(키도 null)
-                .build();
-    }
-
-    private AdminStage0Dto.TargetContext unavailable(Report report) {
-        ReportedSnapshot snap = report.getReportedSnapshot();
-        String snapStatus = snapshotStatus(snap);
-        boolean snapOk = "AVAILABLE".equals(snapStatus);
-        return AdminStage0Dto.TargetContext.builder()
-                .reportId(report.getReportId()).targetType(report.getTargetType())
-                .targetId(report.getTargetId()).available(false)
-                .snapshotStatus(snapStatus).snapshotAvailable(snapOk)
-                .changedSinceReport(false).reportedSnapshot(snapOk ? snap : null)
-                .build();
-    }
-
-    // 신고 당시 snapshot 상태 — null(=정상·기존신고)만 LEGACY, 미지원 버전·필수누락을 같은 null 로 합치지 않음.
-    private static String snapshotStatus(ReportedSnapshot snap) {
-        if (snap == null) return "LEGACY_NOT_CAPTURED";
-        if (snap.version() != ReportedSnapshot.CURRENT_VERSION) return "UNSUPPORTED_VERSION";
-        if (!snap.hasRequiredFields()) return "INVALID";
-        return "AVAILABLE";
-    }
-
-    // 신고 당시 snapshot vs 현재 내용 비교(snapshot 없으면 false=비교 불가).
-    private static boolean postChanged(ReportedSnapshot snap, BoardPost current) {
-        if (snap == null || current == null) return false;
-        return !java.util.Objects.equals(snap.title(), current.getTitle())
-                || !java.util.Objects.equals(snap.content(), current.getContent());
-    }
-
-    // 댓글 신고 변화 감지 = 부모 게시글 제목(snapshot 보존분) + thread 구성/본문.
-    private static boolean commentChanged(ReportedSnapshot snap, List<BoardComment> current, BoardPost currentPost) {
-        if (snap == null) return false;
-        if (currentPost != null && !java.util.Objects.equals(snap.postTitle(), currentPost.getTitle())) {
-            return true; // 부모 게시글 제목 신고 후 수정
-        }
-        return commentThreadChanged(snap, current);
-    }
-
-    private static boolean commentThreadChanged(ReportedSnapshot snap, List<BoardComment> current) {
-        if (snap == null) return false;
-        List<ReportedSnapshot.SnapshotComment> snapList =
-                snap.comments() == null ? List.of() : snap.comments();
-        if (snapList.size() != current.size()) return true; // 댓글 추가/삭제
-        Map<String, BoardComment> cur = current.stream()
-                .collect(Collectors.toMap(BoardComment::getCommentId, x -> x, (a, b) -> a));
-        for (ReportedSnapshot.SnapshotComment s : snapList) {
-            BoardComment c = cur.get(s.commentId());
-            if (c == null || !java.util.Objects.equals(s.content(), c.getContent())) return true;
-        }
-        return false;
-    }
-
-    private AdminStage0Dto.BoardPostView postView(BoardPost p, Map<String, String> nicks) {
-        return AdminStage0Dto.BoardPostView.builder()
-                .postId(p.getPostId()).type(p.getType()).title(p.getTitle()).content(p.getContent())
-                .authorLabel(authorLabel(p.getType(), p.getAuthorId(), nicks))
-                .status(p.getStatus()).hidden("HIDDEN".equals(p.getStatus())).deleted(p.getDeletedAt() != null)
-                .createdAt(p.getCreatedAt())
-                .build();
-    }
-
-    private AdminStage0Dto.BoardCommentView commentView(BoardComment c, Map<String, String> nicks, String targetId) {
-        return AdminStage0Dto.BoardCommentView.builder()
-                .commentId(c.getCommentId()).parentCommentId(c.getParentCommentId())
-                .authorLabel(userLabel(c.getAuthorId(), nicks))
-                .content(c.getContent()).deleted(c.getDeletedAt() != null)
-                .target(c.getCommentId().equals(targetId)) // 신고된 댓글 강조
-                .createdAt(c.getCreatedAt())
-                .build();
-    }
-
-    private String authorLabel(String type, String authorId, Map<String, String> nicks) {
-        if (BoardTaxonomy.isAdminType(type)) return "운영팀"; // 공식글 표시명(조회 없이)
-        if (authorId == null || authorId.isBlank()) return "(알 수 없음)"; // null 키 lookup(Map.of NPE) 회피
-        return nicks.getOrDefault(authorId, "(알 수 없음)");
-    }
-
-    private String userLabel(String authorId, Map<String, String> nicks) {
-        if (authorId == null || authorId.isBlank()) return "(알 수 없음)";
-        return nicks.getOrDefault(authorId, "(알 수 없음)");
-    }
-
-    private Map<String, String> nicknameMap(Set<String> userIds) {
-        // ★null/blank id 제거 — findAllById 에 null 전달 시 오쿼리/예외 방지(공식글·레거시·삭제 데이터 대비).
-        Set<String> clean = userIds.stream()
-                .filter(id -> id != null && !id.isBlank())
-                .collect(Collectors.toSet());
-        if (clean.isEmpty()) return Map.of();
-        Map<String, String> m = new HashMap<>();
-        userRepository.findAllById(clean).forEach(u -> m.put(u.getUserId(), u.getNickname())); // batch(N+1 차단)
-        return m;
-    }
-
     // ─────────────────────────────────────────────────────────────────────
     // PATCH /api/admin/reports/{id}/status
     // ─────────────────────────────────────────────────────────────────────
@@ -437,13 +206,6 @@ public class AdminStage0Service {
             warnUser(report.getTargetUserId(), adminUserId, "신고 처리: " + report.getReason(), reportId);
         } else if ("DELETE_TRADE".equals(act) && "TRADE".equals(report.getTargetType())) {
             adminDeleteTradePost(report.getTargetId(), adminUserId, "신고 처리: " + report.getReason());
-        } else if ("HIDE_BOARD_POST".equals(act) && "BOARD_POST".equals(report.getTargetType())) {
-            // 기존 BoardAdminService 재사용(중복 구현 X) — 같은 트랜잭션서 모더레이션 + 자체 감사로그.
-            boardAdminService.moderatePost(adminUserId, report.getTargetId(), new PostModerationRequest("HIDE"));
-        } else if ("DELETE_BOARD_POST".equals(act) && "BOARD_POST".equals(report.getTargetType())) {
-            boardAdminService.deletePost(adminUserId, report.getTargetId());
-        } else if ("DELETE_BOARD_COMMENT".equals(act) && "BOARD_COMMENT".equals(report.getTargetType())) {
-            boardAdminService.deleteComment(adminUserId, report.getTargetId());
         }
 
         // re-fetch row for response (admin list 와 동일 형태).

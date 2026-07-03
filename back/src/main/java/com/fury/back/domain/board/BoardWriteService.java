@@ -2,6 +2,8 @@ package com.fury.back.domain.board;
 
 import com.fury.back.auth.AdminAuthorizationService;
 import com.fury.back.common.IdGenerator;
+import com.fury.back.domain.board.event.BoardCommentCreatedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import com.fury.back.common.moderation.ContentPolicyService;
 import com.fury.back.domain.board.dto.CreateCommentRequest;
 import com.fury.back.domain.board.dto.CreatePostRequest;
@@ -35,6 +37,7 @@ public class BoardWriteService {
     private static final int MAX_IMAGES = 5;
 
     private final BoardPostRepository postRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final BoardCommentRepository commentRepository;
     private final ContentPolicyService contentPolicy;
     private final BoardImageUploadRepository imageUploadRepository;
@@ -192,6 +195,7 @@ public class BoardWriteService {
         rejectBanned(content); // ★운영팀 댓글도 동일하게 콘텐츠 정책 적용(admin=true 표시·차단불가와는 별개 — 면제 아님)
 
         String parentId = req.parentCommentId();
+        String parentAuthorId = null;
         if (parentId != null) {
             BoardComment parent = commentRepository.findById(parentId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "원 댓글을 찾을 수 없습니다."));
@@ -204,6 +208,7 @@ public class BoardWriteService {
             if (parent.isDeleted()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "삭제된 댓글에는 답글을 달 수 없습니다.");
             }
+            parentAuthorId = parent.getAuthorId();
         }
 
         BoardComment comment = BoardComment.builder()
@@ -215,7 +220,11 @@ public class BoardWriteService {
                 .admin(asAdmin)
                 .accepted(false)
                 .build();
-        return commentRepository.save(comment).getCommentId();
+        String savedId = commentRepository.save(comment).getCommentId();
+        // 댓글/대댓글 알림(AFTER_COMMIT) — DB commit 후 게시글 작성자/부모 댓글 작성자에게.
+        eventPublisher.publishEvent(new BoardCommentCreatedEvent(
+                postId, savedId, userId, post.getAuthorId(), parentId, parentAuthorId));
+        return savedId;
     }
 
     @Transactional

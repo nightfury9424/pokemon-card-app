@@ -1,10 +1,12 @@
 package com.fury.back.domain.notification;
 
 import com.fury.back.common.IdGenerator;
+import com.fury.back.domain.block.BlockRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -18,9 +20,64 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final FcmService fcmService;
+    private final BlockRepository blockRepository;
 
     @Value("${app.ops.admin-user-id:}")
     private String adminUserId;
+
+    // ── 게시판 알림(좋아요/댓글/대댓글) — AFTER_COMMIT 리스너에서 호출. self·차단·중복(dedup_key) 제외. ──
+    // ★REQUIRES_NEW = 본 작업(좋아요/댓글) commit 후 AFTER_COMMIT 리스너가 호출 → 별도 신규 트랜잭션으로
+    //   알림 row 를 독립 commit(REQUIRED 면 완료중 tx 에 참여해 유실됨). FCM 실패는 createBoardNotification 가 흡수.
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void notifyBoardPostLike(String postAuthorId, String actorId, String actorNick, String postId) {
+        createBoardNotification(postAuthorId, actorId, "BOARD_POST_LIKE",
+                "내 게시글 좋아요",
+                actorNick + "님이 회원님의 게시글을 좋아합니다.",
+                "/board/" + postId,
+                "BOARD_POST_LIKE:" + postId + ":" + actorId + ":" + postAuthorId);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void notifyBoardPostComment(String postAuthorId, String actorId, String actorNick,
+            String postId, String commentId) {
+        createBoardNotification(postAuthorId, actorId, "BOARD_POST_COMMENT",
+                "내 게시글에 댓글",
+                actorNick + "님이 회원님의 게시글에 댓글을 남겼습니다.",
+                "/board/" + postId + "?comment=" + commentId,
+                "BOARD_POST_COMMENT:" + commentId + ":" + postAuthorId);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void notifyBoardCommentReply(String parentAuthorId, String actorId, String actorNick,
+            String postId, String replyId) {
+        createBoardNotification(parentAuthorId, actorId, "BOARD_COMMENT_REPLY",
+                "내 댓글에 답글",
+                actorNick + "님이 회원님의 댓글에 답글을 남겼습니다.",
+                "/board/" + postId + "?comment=" + replyId,
+                "BOARD_COMMENT_REPLY:" + replyId + ":" + parentAuthorId);
+    }
+
+    private void createBoardNotification(String recipientId, String actorId, String type,
+            String title, String body, String linkUrl, String dedupKey) {
+        if (recipientId == null || recipientId.equals(actorId)) return; // 자기 행동 제외
+        // 차단 양방향 — 하나라도 있으면 알림 row·푸시 모두 생성 안 함
+        if (blockRepository.existsByBlockerIdAndBlockedId(recipientId, actorId)
+                || blockRepository.existsByBlockerIdAndBlockedId(actorId, recipientId)) return;
+        int inserted = notificationRepository.insertIgnoreDedup(
+                IdGenerator.generate(), recipientId, type, title, body, linkUrl, dedupKey);
+        if (inserted == 1) { // 신규 알림일 때만 푸시(중복 dedup → no-op)
+            try {
+                fcmService.sendToUser(recipientId, title, body,
+                        Map.of("type", type, "linkUrl", linkUrl == null ? "" : linkUrl));
+            } catch (Exception e) {
+                // ★FCM 발송 실패(FirebaseMessagingException 외 RuntimeException 포함)는 인앱 알림 row·본 작업을
+                //   롤백시키지 않는다. notification row 는 이미 INSERT 되어 commit 되고, 푸시만 유실하며 로그만 남긴다.
+                log.warn("[BOARD_NOTI] FCM 발송 실패 recipient={} type={} (알림 row·본 작업 유지, 푸시만 유실)",
+                        recipientId, type, e);
+            }
+        }
+    }
 
     public List<Notification> getRecent(String userId) {
         return notificationRepository.findTop50ByUserIdOrderByCreatedAtDesc(userId);

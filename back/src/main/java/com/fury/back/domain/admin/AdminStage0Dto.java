@@ -3,10 +3,7 @@ package com.fury.back.domain.admin;
 import lombok.Builder;
 import lombok.Getter;
 
-import com.fury.back.domain.report.ReportedSnapshot;
-
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * 2026-05-29 admin Stage 0 응답 DTO 모음.
@@ -104,61 +101,6 @@ public class AdminStage0Dto {
         private String memo;
         private String previousState;
         private String newState;
-        private LocalDateTime createdAt;
-    }
-
-    // ── 게시판 신고 원문·문맥 (GET /reports/{id}/target-context) — 파괴적 조치 전 관리자 확인용 ──
-    @Getter
-    @Builder
-    public static class TargetContext {
-        private String reportId;
-        private String targetType;          // BOARD_POST / BOARD_COMMENT
-        private String targetId;
-        private boolean available;          // 현재 콘텐츠 존재 여부(false=물리 삭제/미존재)
-        private BoardPostView post;         // 현재 — BOARD_POST=신고 게시글 / BOARD_COMMENT=원문 게시글
-        private BoardCommentThread thread;  // 현재 — BOARD_COMMENT 만(최상위 thread + 대상 강조)
-        // 신고 당시 증거
-        private boolean snapshotAvailable;  // 표시·제재 가능 = snapshotStatus AVAILABLE 일 때만 true
-        private String snapshotStatus;      // AVAILABLE / LEGACY_NOT_CAPTURED(기존 신고·정상 null) / UNSUPPORTED_VERSION / INVALID
-        private boolean changedSinceReport; // snapshot vs 현재 내용 상이(AVAILABLE 아니면 false)
-        private ReportedSnapshot reportedSnapshot; // 신고 당시 원문(불변, ★imageKeys 제거됨). AVAILABLE 일 때만, 아니면 null.
-        // 이미지 — ★secure proxy URL 만(raw storage key 미노출). 신고 당시 vs 현재 구분.
-        private int snapshotImageCount;          // 신고 당시 첨부 수
-        private java.util.List<String> snapshotImageUrls; // 신고 당시 이미지(이후 수정·삭제돼도 보존)
-        private java.util.List<String> currentImageUrls;  // 현재 게시글 이미지(비교용)
-    }
-
-    @Getter
-    @Builder
-    public static class BoardPostView {
-        private String postId;
-        private String type;
-        private String title;
-        private String content;
-        private String authorLabel;     // 표시명(공식글=운영팀, 그 외=닉네임)
-        private String status;          // ACTIVE / HIDDEN
-        private boolean hidden;         // status==HIDDEN
-        private boolean deleted;        // deletedAt != null
-        private LocalDateTime createdAt;
-    }
-
-    @Getter
-    @Builder
-    public static class BoardCommentThread {
-        private String targetCommentId; // 신고된 댓글(강조용)
-        private String topCommentId;
-        private List<BoardCommentView> comments; // 최상위 + 그 아래 대댓글만(unrelated 제외)
-    }
-
-    @Getter
-    @Builder
-    public static class BoardCommentView {
-        private String commentId;
-        private String parentCommentId;
-        private String authorLabel;
-        private String content;
-        private boolean deleted;
-        private boolean target;         // 신고된 댓글
         private LocalDateTime createdAt;
     }
 }

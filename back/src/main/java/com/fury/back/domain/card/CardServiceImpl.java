@@ -287,6 +287,10 @@ public class CardServiceImpl implements CardService {
                 .collect(Collectors.toMap(PriceSnapshot::getSource, s -> s, (a, b) -> a));
         PriceSnapshot koEst = snapshotsBySource.get("KO_ESTIMATED");
         PriceSnapshot jpSnap = snapshotsBySource.get("SCRYDEX_JP");
+        if (jpSnap == null) {
+            // JP 시장 패밀리: scrydex 없는 일본 독점 프로모(후쿠오카 등)는 SNKRDUNK RAW가 JP 시세.
+            jpSnap = snapshotsBySource.get("SNKRDUNK");
+        }
         PriceSnapshot enSnap = snapshotsBySource.get("SCRYDEX_EN");
 
         Integer ko = null;
@@ -295,7 +299,7 @@ public class CardServiceImpl implements CardService {
         if (card.isPromoExclusive()) {
             PriceSnapshot jpPsa10 = null;
             if (jpSnap == null) {
-                jpPsa10 = priceSnapshotRepository.findLatestScrydexJpPsa10ByCardIds(ids)
+                jpPsa10 = priceSnapshotRepository.findLatestJpMarketPsa10ByCardIds(ids)
                         .stream().findFirst().orElse(null);
             }
             if (jpSnap != null) {
@@ -367,11 +371,7 @@ public class CardServiceImpl implements CardService {
         if (name == null || name.isBlank()) {
             return ReturnData.badRequest("name은 필수입니다.");
         }
-        String q = CardSearchTerms.canonicalize(name);
-        if (q.isEmpty()) {
-            return ReturnData.success(List.of());
-        }
-        List<CardSearchDto> result = cardRepository.searchByCardNameOrProductName(q)
+        List<CardSearchDto> result = cardRepository.findByNameContainingIgnoreCase(name)
                 .stream()
                 .map(CardSearchDto::from)
                 .toList();
@@ -386,12 +386,8 @@ public class CardServiceImpl implements CardService {
         if (language == null || language.isBlank()) {
             return searchCards(name);
         }
-        String q = CardSearchTerms.canonicalize(name);
-        if (q.isEmpty()) {
-            return ReturnData.success(List.of());
-        }
         List<CardSearchDto> result = cardRepository
-                .searchByCardNameOrProductNameAndLanguage(q, language.toUpperCase())
+                .findByNameContainingIgnoreCaseAndLanguage(name, language.toUpperCase())
                 .stream()
                 .map(CardSearchDto::from)
                 .toList();
@@ -430,7 +426,6 @@ public class CardServiceImpl implements CardService {
     public Map<String, Object> getCardsByRarityOrderByPrice(List<String> rarityCodes, String name, int size, int offset) {
         size = Math.max(1, Math.min(size, 100));   // DoS 가드 — 전체 덤프 차단
         offset = Math.max(0, offset);
-        name = CardSearchTerms.canonicalize(name);  // 검색어 정규화(공백·구분자·별칭) — 컬럼 정규화와 동일 기준
         List<Card> cards = cardRepository.findByRarityOrderByLatestPriceDesc(rarityCodes, name, size, offset);
         long total = getCachedMarketCount(rarityCodes, name);
         return buildNativeResult(cards, total, size, offset / size);
@@ -443,7 +438,6 @@ public class CardServiceImpl implements CardService {
         page = Math.max(0, page);
         int offset = page * size;
         boolean asc = !"desc".equalsIgnoreCase(sortDir);
-        name = CardSearchTerms.canonicalize(name);  // 검색어 정규화(공백·구분자·별칭) — 데이터 8경로 + count 동일 기준
         long total = getCachedMarketCount(rarityCodes, name);
 
         List<Card> cards = switch (sortBy) {
@@ -622,7 +616,7 @@ public class CardServiceImpl implements CardService {
     }
 
     private long getCachedMarketCount(List<String> rarityCodes, String name) {
-        String normalizedName = CardSearchTerms.canonicalize(name);  // count 도 데이터 쿼리와 동일 정규화(멱등)
+        String normalizedName = name == null ? "" : name.trim();
         String cacheKey = normalizedName + "|" + rarityCodes.stream().sorted().collect(Collectors.joining(","));
         long now = System.nanoTime();
         CountCacheEntry cached = marketCountCache.get(cacheKey);
@@ -663,9 +657,11 @@ public class CardServiceImpl implements CardService {
         Map<String, PriceSnapshot> koEstMap = snapshotsBySource(latestMarketSnapshots, "KO_ESTIMATED");
         Map<String, PriceSnapshot> scrydexEnMap = snapshotsBySource(latestMarketSnapshots, "SCRYDEX_EN");
         Map<String, PriceSnapshot> scrydexJpMap = snapshotsBySource(latestMarketSnapshots, "SCRYDEX_JP");
+        // JP 시장 패밀리: scrydex 없는 일본 독점 프로모(후쿠오카 등)는 SNKRDUNK RAW를 JP 슬롯 폴백으로.
+        snapshotsBySource(latestMarketSnapshots, "SNKRDUNK").forEach(scrydexJpMap::putIfAbsent);
         // 프로모 카드 중 RAW JP가 없는 경우 PSA10 최신가로 보완
         Map<String, PriceSnapshot> scrydexJpPsa10Map = priceSnapshotRepository
-                .findLatestScrydexJpPsa10ByCardIds(cardIds)
+                .findLatestJpMarketPsa10ByCardIds(cardIds)
                 .stream()
                 .collect(Collectors.toMap(PriceSnapshot::getCardId, s -> s, (a, b) -> a));
 

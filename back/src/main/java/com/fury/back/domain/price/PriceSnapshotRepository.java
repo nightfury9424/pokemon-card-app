@@ -25,10 +25,11 @@ public interface PriceSnapshotRepository extends JpaRepository<PriceSnapshot, St
             String cardId, List<String> sources, String cardStatus);
 
     // 리스트용: 카드 목록의 화면 표시용 최신 가격 스냅샷을 소스별 1건씩 조회
+    // SNKRDUNK = scrydex 없는 일본 독점 프로모의 JP 시장 소스(후쿠오카 등) — 소비측에서 JP 슬롯 폴백.
     @Query(nativeQuery = true, value = """
             SELECT DISTINCT ON (card_id, source) * FROM price_snapshots
             WHERE card_id IN (:cardIds)
-              AND source IN ('SCRYDEX_EN', 'SCRYDEX_JP', 'KO_ESTIMATED')
+              AND source IN ('SCRYDEX_EN', 'SCRYDEX_JP', 'KO_ESTIMATED', 'SNKRDUNK')
               AND (source = 'KO_ESTIMATED' OR card_status = 'RAW')
             ORDER BY card_id, source, traded_at DESC
             """)
@@ -204,6 +205,52 @@ public interface PriceSnapshotRepository extends JpaRepository<PriceSnapshot, St
     List<PriceSnapshot> findScrydexPsaHistory(
             @Param("cardId") String cardId,
             @Param("source") String source,
+            @Param("gradeValue") String gradeValue,
+            @Param("after") LocalDateTime after);
+
+    // ── JP 시장 패밀리 (SCRYDEX_JP + SNKRDUNK) — 카드 상세 price-summary 전용 ──
+    // scrydex에 없는 일본 독점 프로모(후쿠오카 피카츄 SV-P 289 등)는 SNKRDUNK 실거래가 JP 시세 소스.
+    // DB source 라벨은 정직하게 SNKRDUNK 유지하고 조회만 합친다(SCRYDEX_JP로 개명 금지 — 2026-07-03 사용자 결정).
+    // 기존 findLatestScrydexJp* / findScrydexPsaHistory 는 리스트/배치 경로가 그대로 쓰므로 건드리지 않는다.
+
+    // JP 시장 최신 RAW 1건 (상세 jpRawSnap / 호가 prefill repJp)
+    @Query(nativeQuery = true, value = """
+            SELECT DISTINCT ON (card_id) * FROM price_snapshots
+            WHERE card_id IN (:cardIds) AND source IN ('SCRYDEX_JP', 'SNKRDUNK') AND card_status = 'RAW'
+            ORDER BY card_id, traded_at DESC
+            """)
+    List<PriceSnapshot> findLatestJpMarketByCardIds(@Param("cardIds") List<String> cardIds);
+
+    // JP 시장 PSA10 최신 1건 (RAW 없는 프로모 fallback)
+    @Query(nativeQuery = true, value = """
+            SELECT DISTINCT ON (card_id) * FROM price_snapshots
+            WHERE card_id IN (:cardIds) AND source IN ('SCRYDEX_JP', 'SNKRDUNK')
+              AND card_status = 'GRADED' AND grading_company = 'PSA' AND grade_value = '10'
+            ORDER BY card_id, traded_at DESC
+            """)
+    List<PriceSnapshot> findLatestJpMarketPsa10ByCardIds(@Param("cardIds") List<String> cardIds);
+
+    // JP 시장 RAW 히스토리 (상세 jpLine 차트)
+    @Query(nativeQuery = true, value = """
+            SELECT * FROM price_snapshots
+            WHERE card_id = :cardId AND source IN ('SCRYDEX_JP', 'SNKRDUNK') AND card_status = 'RAW'
+              AND traded_at > :after
+            ORDER BY traded_at ASC
+            """)
+    List<PriceSnapshot> findJpMarketHistory(
+            @Param("cardId") String cardId,
+            @Param("after") LocalDateTime after);
+
+    // JP 시장 PSA 등급별 히스토리 (상세 jpPsa10/9Line 차트)
+    @Query(nativeQuery = true, value = """
+            SELECT * FROM price_snapshots
+            WHERE card_id = :cardId AND source IN ('SCRYDEX_JP', 'SNKRDUNK')
+              AND card_status = 'GRADED' AND grading_company = 'PSA' AND grade_value = :gradeValue
+              AND traded_at > :after
+            ORDER BY traded_at ASC
+            """)
+    List<PriceSnapshot> findJpMarketPsaHistory(
+            @Param("cardId") String cardId,
             @Param("gradeValue") String gradeValue,
             @Param("after") LocalDateTime after);
 

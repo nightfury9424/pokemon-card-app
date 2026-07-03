@@ -1,6 +1,8 @@
 package com.fury.back.domain.board;
 
 import com.fury.back.common.IdGenerator;
+import com.fury.back.domain.board.event.BoardPostLikedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import com.fury.back.domain.board.dto.BoardLikeResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,12 +22,16 @@ public class BoardLikeService {
 
     private final BoardPostRepository postRepository;
     private final BoardPostLikeRepository likeRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** 좋아요(멱등). 이미 눌렀어도 likedByMe=true. */
     @Transactional
     public BoardLikeResponse like(String userId, String postId) {
-        requireLikeablePost(userId, postId);
-        likeRepository.insertIgnore(IdGenerator.generate(), postId, userId); // 충돌 시 no-op
+        BoardPost post = requireLikeablePost(userId, postId);
+        int inserted = likeRepository.insertIgnore(IdGenerator.generate(), postId, userId); // 충돌 시 no-op(0)
+        if (inserted == 1) { // 신규 좋아요만 알림(이미 좋아요/중복 PUT 은 no-op)
+            eventPublisher.publishEvent(new BoardPostLikedEvent(postId, post.getAuthorId(), userId));
+        }
         return new BoardLikeResponse(true, likeRepository.countByPostId(postId));
     }
 
@@ -38,7 +44,7 @@ public class BoardLikeService {
     }
 
     /** 좋아요 가능 게시글 검증. 비로그인=401, 미존재/HIDDEN/삭제=404, free 외=403. */
-    private void requireLikeablePost(String userId, String postId) {
+    private BoardPost requireLikeablePost(String userId, String postId) {
         if (userId == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
         }
@@ -49,5 +55,6 @@ public class BoardLikeService {
         if (!BoardTaxonomy.isBoardVisibleType(post.getType())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "좋아요할 수 없는 게시글입니다.");
         }
+        return post;
     }
 }

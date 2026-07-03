@@ -1882,8 +1882,10 @@ public class GlobalPriceService {
         LocalDateTime chartCutoff = LocalDateTime.now().minusDays(CHART_WINDOW_DAYS);
         List<PriceSnapshot> enSnapsHistory = priceSnapshotRepository
                 .findByCardIdAndSourceAndTradedAtAfterOrderByTradedAtAsc(cardId, "SCRYDEX_EN", chartCutoff);
+        // JP 히스토리 = JP 시장 패밀리(SCRYDEX_JP + SNKRDUNK). scrydex 없는 일본 독점 프로모(후쿠오카 등)는
+        // SNKRDUNK 실거래가 JP 차트 소스 — DB 라벨은 SNKRDUNK 그대로 두고 조회만 합친다(SCRYDEX_JP 개명 금지).
         List<PriceSnapshot> jpSnapsHistory = priceSnapshotRepository
-                .findByCardIdAndSourceAndTradedAtAfterOrderByTradedAtAsc(cardId, "SCRYDEX_JP", chartCutoff);
+                .findJpMarketHistory(cardId, chartCutoff);
         log.debug("[KoLine] card={} rarity={} enRatio={} jpRatio={} enSnaps={} jpSnaps={}",
                 cardId, rarity, String.format("%.3f", enRatio), String.format("%.3f", jpRatio),
                 enSnapsHistory.size(), jpSnapsHistory.size());
@@ -1921,7 +1923,7 @@ public class GlobalPriceService {
         List<String> singleId = List.of(cardId);
         PriceSnapshot enRawSnap = priceSnapshotRepository.findLatestScrydexEnByCardIds(singleId)
                 .stream().findFirst().orElse(null);
-        PriceSnapshot jpRawSnap = priceSnapshotRepository.findLatestScrydexJpByCardIds(singleId)
+        PriceSnapshot jpRawSnap = priceSnapshotRepository.findLatestJpMarketByCardIds(singleId)
                 .stream().findFirst().orElse(null);
         PriceSnapshot koEstimatedSnap = priceSnapshotRepository.findLatestKoEstimatedByCardIds(singleId)
                 .stream().findFirst().orElse(null);
@@ -1933,7 +1935,7 @@ public class GlobalPriceService {
             // 프로모 카드: JP RAW 우선, 없으면 PSA10 기준, 그것도 없으면 EN RAW
             PriceSnapshot jpPsa10Snap = null;
             if (jpRawSnap == null) {
-                jpPsa10Snap = priceSnapshotRepository.findLatestScrydexJpPsa10ByCardIds(singleId)
+                jpPsa10Snap = priceSnapshotRepository.findLatestJpMarketPsa10ByCardIds(singleId)
                         .stream().findFirst().orElse(null);
             }
             if (jpRawSnap != null) {
@@ -2083,9 +2085,9 @@ public class GlobalPriceService {
 
         List<CardPriceSummaryDto.ChartPoint> jpLine      = filterJumps(snapsToPoints(jpSnapsHistory, exchangeRate), 0.6);
         List<CardPriceSummaryDto.ChartPoint> jpPsa10Line = psaSnapsToPoints(
-                priceSnapshotRepository.findScrydexPsaHistory(cardId, "SCRYDEX_JP", "10", chartCutoff), exchangeRate);
+                priceSnapshotRepository.findJpMarketPsaHistory(cardId, "10", chartCutoff), exchangeRate);
         List<CardPriceSummaryDto.ChartPoint> jpPsa9Line  = psaSnapsToPoints(
-                priceSnapshotRepository.findScrydexPsaHistory(cardId, "SCRYDEX_JP", "9", chartCutoff), exchangeRate);
+                priceSnapshotRepository.findJpMarketPsaHistory(cardId, "9", chartCutoff), exchangeRate);
 
         // DB에 PSA 데이터 없으면 scrydex API 폴백 (배치 미실행 카드)
         if (enPsa10Line.isEmpty() && enPsa9Line.isEmpty() && jpPsa10Line.isEmpty() && jpPsa9Line.isEmpty()) {
@@ -2125,7 +2127,7 @@ public class GlobalPriceService {
                 : koDomesticCount >= 1  ? "C" : "D";
 
         // 발매판별 대표가(KRW) — 호가 등록 prefill용. KO=koMid(이미 KRW), JP/EN=최신 SCRYDEX 스냅샷(KRW).
-        Integer repJp = priceSnapshotRepository.findLatestScrydexJpByCardIds(java.util.List.of(cardId))
+        Integer repJp = priceSnapshotRepository.findLatestJpMarketByCardIds(java.util.List.of(cardId))
                 .stream().findFirst().map(PriceSnapshot::getPrice).filter(p -> p > 0).orElse(null);
         Integer repEn = priceSnapshotRepository.findLatestScrydexEnByCardIds(java.util.List.of(cardId))
                 .stream().findFirst().map(PriceSnapshot::getPrice).filter(p -> p > 0).orElse(null);
