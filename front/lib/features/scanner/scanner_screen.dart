@@ -42,6 +42,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   bool _initializingCamera = false; // _initCamera 재진입 방지
   bool _disposingCamera = false; // dispose 진행 중(재init 금지)
   bool _popping = false; // _popWithResult 중복 진입 방지
+  bool _pausedForDetail = false; // 썸네일→/card 상세 위에 있는 동안 스캔/스트림 시작 금지 (더블탭 재진입 겸용)
   int _camGen = 0; // init 세대 토큰 — 늦게 끝난 stale initialize 결과 무시
 
   Map<String, dynamic>? _foundCard;
@@ -276,8 +277,11 @@ class _ScannerScreenState extends State<ScannerScreen>
       controller = null; // 소유권 이전 — finally에서 dispose 안 되게.
       setState(() => _cameraReady = true);
       // auto 모드면 실시간 연속 스캔 스트림 시작(capture 모드는 셔터만 사용).
+      // _pausedForDetail: 썸네일→상세 위에 있는 동안 lifecycle 복귀가 스트림을 켜면
+      // 상세화면 밑에서 스캔이 돌아 늦은 결과 시트가 뜨므로 금지(복귀 시 재개).
       if (_scanMode == 'auto' &&
           !_leaving &&
+          !_pausedForDetail &&
           gen == _camGen &&
           _camera != null &&
           !_camera!.value.isStreamingImages) {
@@ -354,7 +358,9 @@ class _ScannerScreenState extends State<ScannerScreen>
   // ── 자동 스캔(auto) 경로 — 구 스트림 스캐너 복원 ──
   // 카메라 이미지 스트림 콜백. throttle(_scanInterval) + 결과 시트/처리중/이탈 가드.
   void _onFrame(CameraImage frame) {
-    if (_leaving || _resultShowing || _scanMode != 'auto') return;
+    if (_leaving || _pausedForDetail || _resultShowing || _scanMode != 'auto') {
+      return;
+    }
     final now = DateTime.now();
     final shouldScan =
         !_isProcessing && now.difference(_lastScan) >= _scanInterval;
@@ -522,6 +528,7 @@ class _ScannerScreenState extends State<ScannerScreen>
         // auto — 결과 시트가 열려있지 않을 때만 즉시 재개(시트 dismiss 시 재개됨).
         if (_cameraReady &&
             !_resultShowing &&
+            !_pausedForDetail &&
             !cam.value.isStreamingImages) {
           _lastScan = DateTime(0);
           await cam.startImageStream(_onFrame);
@@ -1273,8 +1280,8 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   // 최근 등록 카드의 자산 상세로 이동 — 보유 카드 열기와 동일 목적지(/card/:cardId + myAsset).
   // assetId가 있으면 card_detail이 /api/assets/{id}로 풀 자산을 refetch, 없으면 cardId로 보유 조회.
-  void _openLastRegistered() {
-    if (_isProcessing) return; // 촬영/식별 진행 중엔 이동 막음(진행 중 결과가 뒤 라우트에서 뜨는 혼란 방지).
+  Future<void> _openLastRegistered() async {
+    if (_pausedForDetail || _leaving) return; // 더블탭 재진입·이탈 중 push 금지
     final reg = _lastRegistered;
     if (reg == null) return;
     final cardId = reg['cardId'] as String?;
@@ -1284,9 +1291,46 @@ class _ScannerScreenState extends State<ScannerScreen>
     final myAsset = <String, dynamic>{'cardId': cardId};
     if (assetId != null) myAsset['assetId'] = assetId;
     if (card is Map) myAsset['card'] = Map<String, dynamic>.from(card);
-    context.push('/card/$cardId', extra: {'myAsset': myAsset}).then((_) {
-      if (mounted) _loadOwnedCards();
-    });
+
+    // ★구 `if (_isProcessing) return;` 가드 대체. 자동 모드는 1초 간격으로 계속 스캔 →
+    // identify 도는 동안 _isProcessing=true라, 그 창에 걸린 썸네일 탭이 통째로 씹혔다
+    // (모드 전환 후에야 먹히던 증상의 원인). 탭은 항상 먹히게 하되, 이동 직전에
+    // in-flight identify를 무효화(_scanEpoch++)하고 _pausedForDetail로 새 스캔/스트림
+    // 시작을 봉인(stop await 틈의 큐 프레임·lifecycle 복귀 재시작 포함) → 늦은 자동 인식
+    // 결과가 /card 상세 위로 시트를 띄우는 혼란을 방지. 복귀 시 자동 모드면 재개.
+    _pausedForDetail = true;
+    _scanEpoch++;
+    _isProcessing = false;
+    final cam = _camera;
+    if (cam != null && cam.value.isStreamingImages) {
+      try {
+        await cam.stopImageStream();
+      } catch (_) {}
+    }
+
+    if (!mounted || _leaving) {
+      _pausedForDetail = false;
+      return;
+    }
+    try {
+      await context.push('/card/$cardId', extra: {'myAsset': myAsset});
+    } finally {
+      _pausedForDetail = false;
+    }
+    if (!mounted) return;
+    _loadOwnedCards();
+    _lastScan = DateTime(0);
+    final resumeCam = _camera;
+    if (_scanMode == 'auto' &&
+        !_leaving &&
+        !_resultShowing &&
+        resumeCam != null &&
+        resumeCam.value.isInitialized &&
+        !resumeCam.value.isStreamingImages) {
+      try {
+        await resumeCam.startImageStream(_onFrame);
+      } catch (_) {}
+    }
   }
 
   Widget _buildCameraPreview() {
