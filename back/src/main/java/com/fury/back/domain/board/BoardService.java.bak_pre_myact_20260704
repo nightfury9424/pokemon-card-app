@@ -63,47 +63,8 @@ public class BoardService {
         // ★PG가 null 파라미터를 bytea 로 추론(lower(bytea) 오류) → %·LOWER 를 Java 에서 조립해 LIKE 직접 전달.
         String qLike = (nq == null) ? null : "%" + nq.toLowerCase() + "%";
         Page<BoardPost> posts = postRepository.findFeed(section, type, qLike, pinnedOnly, viewerId, PageRequest.of(page, s));
-        return buildPage(posts.getContent(), viewerId, posts.getNumber(), posts.getSize(),
-                posts.getTotalElements(), posts.getTotalPages());
-    }
+        List<BoardPost> list = posts.getContent();
 
-    /** 내가 쓴 글(인증 필수·null→401). 노출 글만 최신 작성순. */
-    @Transactional(readOnly = true)
-    public BoardPageDto getMyPosts(String viewerId, int page, int size) {
-        requireAuth(viewerId);
-        if (page < 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "page 는 0 이상이어야 합니다.");
-        int s = clampSize(size);
-        Page<BoardPost> posts = postRepository.findByAuthorVisible(viewerId, PageRequest.of(page, s));
-        return buildPage(posts.getContent(), viewerId, posts.getNumber(), posts.getSize(),
-                posts.getTotalElements(), posts.getTotalPages());
-    }
-
-    /** 내가 (대)댓글 단 글(인증 필수·null→401). dedup·최신 댓글 활동순·노출 글만. */
-    @Transactional(readOnly = true)
-    public BoardPageDto getMyCommentedPosts(String viewerId, int page, int size) {
-        requireAuth(viewerId);
-        if (page < 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "page 는 0 이상이어야 합니다.");
-        int s = clampSize(size);
-        long total = commentRepository.countMyCommentedPosts(viewerId);
-        int totalPages = (int) Math.ceil((double) total / s);
-        List<String> postIds = commentRepository.findMyCommentedPostIds(viewerId, s, page * s);
-        if (postIds.isEmpty()) {
-            return new BoardPageDto(List.of(), page, s, total, totalPages);
-        }
-        // ★IN 조회는 순서 미보장 → step1 postIds 순서(최신 댓글 활동순)대로 재정렬. race 로 사라진 글은 가시성 재확인 후 제외.
-        Map<String, BoardPost> postMap = postRepository.findAllById(postIds).stream()
-                .collect(Collectors.toMap(BoardPost::getPostId, p -> p));
-        List<BoardPost> ordered = postIds.stream()
-                .map(postMap::get)
-                .filter(Objects::nonNull)
-                .filter(p -> p.getDeletedAt() == null && "ACTIVE".equals(p.getStatus()))
-                .collect(Collectors.toList());
-        return buildPage(ordered, viewerId, page, s, total, totalPages);
-    }
-
-    /** 공통 페이지 DTO 빌더 — list 순서 보존(목록/내 글/댓글 단 글 재사용). bulk 쿼리로 N+1 회피. */
-    private BoardPageDto buildPage(List<BoardPost> list, String viewerId, int page, int size,
-                                   long totalElements, int totalPages) {
         List<String> postIds = list.stream().map(BoardPost::getPostId).collect(Collectors.toList());
         Map<String, String> nicknames = nicknameMap(
                 list.stream().map(BoardPost::getAuthorId).collect(Collectors.toSet()));
@@ -126,17 +87,8 @@ public class BoardService {
                 })
                 .collect(Collectors.toList());
 
-        return new BoardPageDto(content, page, size, totalElements, totalPages);
-    }
-
-    private void requireAuth(String viewerId) {
-        if (viewerId == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
-        }
-    }
-
-    private int clampSize(int size) {
-        return size <= 0 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
+        return new BoardPageDto(content, posts.getNumber(), posts.getSize(),
+                posts.getTotalElements(), posts.getTotalPages());
     }
 
     /** 검색·핀필터 없는 5-arg 오버로드(q=null, pinnedOnly=false) — 기존 호출 호환. */
