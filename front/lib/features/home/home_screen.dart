@@ -14,6 +14,7 @@ import '../board/home_notice_banner.dart';
 import '../../core/utils/price_label.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/animated_counter.dart';
+import '../../core/widgets/app_list_ui.dart' show AppSquircleIcon;
 import '../../core/widgets/card_image.dart'
     show CardImage, resolveCardImageUrl, precacheCardImage;
 import '../../core/widgets/pressable.dart';
@@ -1666,7 +1667,7 @@ class _NotificationSheetState extends State<_NotificationSheet> {
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.divider),
+          const Divider(height: 1, color: AppColors.dividerSoft),
           Expanded(
             child: _loading
                 ? const Center(
@@ -1740,19 +1741,15 @@ class _NotificationSheetState extends State<_NotificationSheet> {
                         child: Container(
                           color: isRead
                               ? Colors.transparent
-                              : AppColors.blue.withValues(alpha: 0.04),
+                              : AppColors.blue.withValues(alpha: 0.05),
                           padding: const EdgeInsets.all(16),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: accent.withValues(alpha: 0.14),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(icon, color: accent, size: 18),
+                              AppSquircleIcon(
+                                icon: icon,
+                                color: accent,
+                                size: 32,
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -1764,9 +1761,10 @@ class _NotificationSheetState extends State<_NotificationSheet> {
                                       style: TextStyle(
                                         color: isRead
                                             ? AppColors.textSecondary
-                                            : Colors.white,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
+                                            : AppColors.textPrimary,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: -0.2,
                                       ),
                                     ),
                                     if ((n['body'] as String? ?? '')

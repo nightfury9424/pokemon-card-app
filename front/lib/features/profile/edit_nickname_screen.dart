@@ -229,10 +229,9 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
                         width: 96,
                         height: 96,
                         clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           color: AppColors.surfaceCard,
-                          border: Border.all(color: AppColors.divider),
                         ),
                         child: _profileImageUrl != null
                             ? AuthImage(
@@ -274,20 +273,23 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.divider),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
                   children: [
                     const Text('현재 닉네임',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+                        style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500)),
                     const Spacer(),
                     Text(
                       _currentNickname,
                       style: const TextStyle(
                         color: AppColors.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
                       ),
                     ),
                   ],
@@ -299,7 +301,7 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: AppColors.red.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
@@ -340,15 +342,15 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.divider),
+                    borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.divider),
+                    borderSide: BorderSide.none,
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.blue, width: 1.5),
+                    borderSide: const BorderSide(color: AppColors.blue, width: 1),
                   ),
                   suffixIcon: _checking
                       ? const Padding(
@@ -398,7 +400,7 @@ class _EditNicknameScreenState extends State<EditNicknameScreen> {
                     disabledBackgroundColor: AppColors.surfaceCard,
                     disabledForegroundColor: AppColors.textMuted,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: _submitting
                       ? const SizedBox(
