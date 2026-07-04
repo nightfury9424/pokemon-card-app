@@ -4,6 +4,7 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/user_avatar.dart';
+import '../../core/widgets/app_list_ui.dart';
 import '../board/board_screen.dart';
 import 'my_activity_screen.dart';
 
@@ -106,23 +107,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 20),
                         _buildSummaryCard(),
                         const SizedBox(height: 28),
-                        _buildSectionLabel('내 거래'),
+                        const AppSectionLabel('내 거래'),
                         const SizedBox(height: 8),
-                        _menuGroup([
-                          _MenuRow(
+                        AppGroupCard(children: [
+                          AppMenuRow(
                             icon: Icons.style_rounded,
                             color: AppColors.blue,
                             label: '내 카드',
                             onTap: () => context.push('/assets'),
                           ),
-                          _MenuRow(
+                          AppMenuRow(
                             icon: Icons.shopping_cart_rounded,
                             color: AppColors.gold,
                             label: '매수',
                             badgeCount: _activeBuyOrders,
                             onTap: () => context.push('/assets?tab=buy'),
                           ),
-                          _MenuRow(
+                          AppMenuRow(
                             icon: Icons.receipt_long_rounded,
                             color: AppColors.green,
                             label: '판매',
@@ -132,7 +133,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ? null
                                 : () => context.push('/my-trades', extra: {'sellerId': _userId}),
                           ),
-                          _MenuRow(
+                          AppMenuRow(
                             icon: Icons.favorite_rounded,
                             color: AppColors.red,
                             label: '관심',
@@ -140,10 +141,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ]),
                         const SizedBox(height: 24),
-                        _buildSectionLabel('커뮤니티'),
+                        const AppSectionLabel('커뮤니티'),
                         const SizedBox(height: 8),
-                        _menuGroup([
-                          _MenuRow(
+                        AppGroupCard(children: [
+                          AppMenuRow(
                             icon: Icons.forum_rounded,
                             color: AppColors.blueLight,
                             label: '게시판',
@@ -151,7 +152,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onTap: () => Navigator.of(context, rootNavigator: true).push(
                                 MaterialPageRoute(builder: (_) => const BoardScreen())),
                           ),
-                          _MenuRow(
+                          AppMenuRow(
                             icon: Icons.history_rounded,
                             color: AppColors.blue,
                             label: '내 활동',
@@ -160,22 +161,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ]),
                         const SizedBox(height: 24),
-                        _buildSectionLabel('고객 지원'),
+                        const AppSectionLabel('고객 지원'),
                         const SizedBox(height: 8),
-                        _menuGroup([
-                          _MenuRow(
+                        AppGroupCard(children: [
+                          AppMenuRow(
                             icon: Icons.chat_bubble_rounded,
                             color: AppColors.blueLight,
                             label: '문의하기',
                             onTap: () => context.push('/support'),
                           ),
-                          _MenuRow(
+                          AppMenuRow(
                             icon: Icons.inbox_rounded,
                             color: AppColors.blue,
                             label: '내 문의',
                             onTap: () => context.push('/profile/inquiries'),
                           ),
-                          _MenuRow(
+                          AppMenuRow(
                             icon: Icons.flag_rounded,
                             color: AppColors.gold,
                             label: '신고내역',
@@ -296,42 +297,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _statDivider() =>
       Container(width: 1, height: 30, color: AppColors.dividerSoft);
 
-  /// 섹션 그룹 카드 — 행들을 한 카드에 묶고 인셋 디바이더로 구분 (토스 전체메뉴 패턴).
-  Widget _menuGroup(List<_MenuRow> rows) {
-    final children = <Widget>[];
-    for (var i = 0; i < rows.length; i++) {
-      if (i > 0) {
-        children.add(const Padding(
-          padding: EdgeInsets.only(left: 64),
-          child: Divider(height: 1, thickness: 1, color: AppColors.dividerSoft),
-        ));
-      }
-      children.add(rows[i]);
-    }
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: children),
-    );
-  }
-
-  Widget _buildSectionLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: AppColors.textSecondary,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.1,
-        ),
-      ),
-    );
-  }
 }
 
 /// 요약 카드의 스탯 1칸 — 숫자(크게)+단위(작게) / 라벨(아래 작게).
@@ -384,95 +349,6 @@ class _SummaryStat extends StatelessWidget {
                     color: AppColors.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w500)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 메뉴 행 — pseudo-3D 컬러 스쿼클 아이콘 + 라벨 + (배지) + chevron. 행 높이 ~56.
-class _MenuRow extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String label;
-  final int? badgeCount;
-  final VoidCallback? onTap;
-
-  const _MenuRow({
-    required this.icon,
-    required this.color,
-    required this.label,
-    this.badgeCount,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final showBadge = (badgeCount ?? 0) > 0;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            // pseudo-3D 스쿼클: 위 밝음 → 아래 딥 + 상단 하이라이트 라인
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(11),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color.lerp(color, Colors.white, 0.22)!,
-                    color,
-                    Color.lerp(color, Colors.black, 0.28)!,
-                  ],
-                  stops: const [0.0, 0.45, 1.0],
-                ),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  width: 0.8,
-                ),
-              ),
-              child: Icon(icon, color: Colors.white, size: 19),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.2,
-                ),
-              ),
-            ),
-            if (showBadge) ...[
-              Container(
-                constraints: const BoxConstraints(minWidth: 20),
-                height: 20,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.blue,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  badgeCount! > 99 ? '99+' : '$badgeCount',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-            const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textMuted, size: 20),
           ],
         ),
       ),
