@@ -104,7 +104,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
           indicatorColor: AppColors.blue,
           labelColor: AppColors.textPrimary,
           unselectedLabelColor: AppColors.textMuted,
-          labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+          labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           tabs: const [
             Tab(text: '게시물'),
             Tab(text: '관심 카드'),
@@ -137,10 +137,14 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       onRefresh: _loadPosts,
       color: AppColors.blue,
       backgroundColor: AppColors.surface,
-      child: ListView.builder(
+      child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(), // #9: 항목 적어도 pull-refresh
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _posts.length,
+        separatorBuilder: (_, _) => const Padding(
+          padding: EdgeInsets.only(left: 78),
+          child: Divider(height: 1, thickness: 1, color: AppColors.dividerSoft),
+        ),
         itemBuilder: (context, index) => _buildPostItem(_posts[index]),
       ),
     );
@@ -181,14 +185,14 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                         decoration: BoxDecoration(
                           color: badgeColor.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(badgeLabel,
                             style: TextStyle(
-                                color: badgeColor, fontSize: 9.5, fontWeight: FontWeight.w800)),
+                                color: badgeColor, fontSize: 10, fontWeight: FontWeight.w700)),
                       ),
                       const SizedBox(width: 6),
                       Flexible(
@@ -197,8 +201,8 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 color: AppColors.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
                                 letterSpacing: -0.2)),
                       ),
                     ],
@@ -207,7 +211,10 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                   Text('$nickname · ${_won(price)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+                      style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
@@ -241,10 +248,14 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       onRefresh: _loadCards,
       color: AppColors.blue,
       backgroundColor: AppColors.surface,
-      child: ListView.builder(
+      child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(), // #9: 항목 적어도 pull-refresh
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _cards.length,
+        separatorBuilder: (_, _) => const Padding(
+          padding: EdgeInsets.only(left: 78),
+          child: Divider(height: 1, thickness: 1, color: AppColors.dividerSoft),
+        ),
         itemBuilder: (context, index) => _buildCardItem(_cards[index]),
       ),
     );
@@ -276,30 +287,30 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                       style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                           letterSpacing: -0.2)),
                   const SizedBox(height: 4),
                   Row(
                     children: [
                       if (rarity.isNotEmpty)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                           decoration: BoxDecoration(
                             color: AppColors.rarityColor(rarity).withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(rarity,
                               style: TextStyle(
                                   color: AppColors.rarityColor(rarity),
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
                                   letterSpacing: 0.3)),
                         ),
                       if (language.isNotEmpty) ...[
                         const SizedBox(width: 6),
                         Text(language,
                             style: const TextStyle(
-                                color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w700)),
+                                color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w500)),
                       ],
                     ],
                   ),

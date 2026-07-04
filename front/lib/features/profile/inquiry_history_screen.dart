@@ -123,7 +123,6 @@ class _InquiryHistoryScreenState extends State<InquiryHistoryScreen> {
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,8 +134,9 @@ class _InquiryHistoryScreenState extends State<InquiryHistoryScreen> {
                     title.isEmpty ? catLabel : title,
                     style: const TextStyle(
                       color: AppColors.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.2,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -147,14 +147,14 @@ class _InquiryHistoryScreenState extends State<InquiryHistoryScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     statusLabel,
                     style: TextStyle(
                       color: statusColor,
                       fontSize: 11,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -178,7 +178,8 @@ class _InquiryHistoryScreenState extends State<InquiryHistoryScreen> {
                           fontSize: 11,
                           fontWeight: FontWeight.w700)),
                 const SizedBox(width: 2),
-                const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 16),
+                const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.textMuted, size: 20),
               ],
             ),
           ],
@@ -233,7 +234,8 @@ class _InquiryHistoryScreenState extends State<InquiryHistoryScreen> {
                   style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 17,
-                      fontWeight: FontWeight.w800)),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2)),
               const SizedBox(height: 4),
               Text(catLabel,
                   style: const TextStyle(
@@ -264,7 +266,7 @@ class _InquiryHistoryScreenState extends State<InquiryHistoryScreen> {
                       GestureDetector(
                         onTap: () => _viewImage(ctx, u),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                           child: AuthImage(
                             url: u,
                             width: 84,
@@ -284,8 +286,6 @@ class _InquiryHistoryScreenState extends State<InquiryHistoryScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.surfaceElevated,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: AppColors.green.withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

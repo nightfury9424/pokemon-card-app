@@ -161,7 +161,9 @@ class _ActivityTabState extends State<_ActivityTab>
   Widget build(BuildContext context) {
     super.build(context); // AutomaticKeepAlive
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2.4));
+      return const Center(
+          child: CircularProgressIndicator(
+              color: AppColors.blue, strokeWidth: 2.4));
     }
     if (_error != null) {
       return Center(
@@ -219,7 +221,8 @@ class _ActivityTabState extends State<_ActivityTab>
                 child: SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                  child: CircularProgressIndicator(
+                      color: AppColors.blue, strokeWidth: 2.2),
                 ),
               ),
             );
