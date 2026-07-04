@@ -4,10 +4,15 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/user_avatar.dart';
-import '../../core/widgets/app_info_toast.dart';
 import '../board/board_screen.dart';
 import 'my_activity_screen.dart';
 
+/// MY — ★Toss restyle(2026-07-04): 빈 타일 그리드 → 리스트 그룹.
+///  - 프로필: 박스 제거, 플레인 행 (큰 이름 + 편집 캡션 + chevron)
+///  - 스탯: 3분할 박스 → 요약 카드 1장 (숫자 위계 + 세로 디바이더)
+///  - 메뉴: 섹션별 그룹 카드 안의 행(아이콘·라벨·배지·chevron) — 밀도/스캔성 ↑
+///  - 아이콘: 컬러 그라데이션 스쿼클(pseudo-3D) — 플랫 서피스 위 입체 포인트
+///  - '준비 중 ?' 섹션 제거 (빈 약속 노출 안 함)
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -93,29 +98,90 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Padding(
                     // 하단 여백 = 셸 스캔 FAB 돌출 클리어런스(공통 디자인 상수, MainShell과 공유).
                     padding: const EdgeInsets.fromLTRB(
-                        16, 0, 16, AppDimens.bottomContentInsetForScanFab),
+                        20, 4, 20, AppDimens.bottomContentInsetForScanFab),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildProfileHeader(),
-                        const SizedBox(height: 16),
-                        _buildStatRow(),
+                        const SizedBox(height: 20),
+                        _buildSummaryCard(),
                         const SizedBox(height: 28),
                         _buildSectionLabel('내 거래'),
-                        const SizedBox(height: 10),
-                        _buildTradeGrid(),
+                        const SizedBox(height: 8),
+                        _menuGroup([
+                          _MenuRow(
+                            icon: Icons.style_rounded,
+                            color: AppColors.blue,
+                            label: '내 카드',
+                            onTap: () => context.push('/assets'),
+                          ),
+                          _MenuRow(
+                            icon: Icons.shopping_cart_rounded,
+                            color: AppColors.gold,
+                            label: '매수',
+                            badgeCount: _activeBuyOrders,
+                            onTap: () => context.push('/assets?tab=buy'),
+                          ),
+                          _MenuRow(
+                            icon: Icons.receipt_long_rounded,
+                            color: AppColors.green,
+                            label: '판매',
+                            badgeCount: _activeTrades,
+                            // _userId null이면 sellerId 누락 → trade_list가 메인 거래 화면으로 잘못 진입.
+                            onTap: _userId == null
+                                ? null
+                                : () => context.push('/my-trades', extra: {'sellerId': _userId}),
+                          ),
+                          _MenuRow(
+                            icon: Icons.favorite_rounded,
+                            color: AppColors.red,
+                            label: '관심',
+                            onTap: () => context.push('/favorites'),
+                          ),
+                        ]),
                         const SizedBox(height: 24),
                         _buildSectionLabel('커뮤니티'),
-                        const SizedBox(height: 10),
-                        _buildCommunityGrid(),
-                        const SizedBox(height: 24),
-                        _buildSectionLabel('준비 중'),
-                        const SizedBox(height: 10),
-                        _buildComingSoonGrid(),
+                        const SizedBox(height: 8),
+                        _menuGroup([
+                          _MenuRow(
+                            icon: Icons.forum_rounded,
+                            color: AppColors.blueLight,
+                            label: '게시판',
+                            // 게시판은 아직 go_router route 아님 — 공지배너와 동일하게 Navigator.push.
+                            onTap: () => Navigator.of(context, rootNavigator: true).push(
+                                MaterialPageRoute(builder: (_) => const BoardScreen())),
+                          ),
+                          _MenuRow(
+                            icon: Icons.history_rounded,
+                            color: AppColors.blue,
+                            label: '내 활동',
+                            onTap: () => Navigator.of(context, rootNavigator: true).push(
+                                MaterialPageRoute(builder: (_) => const MyActivityScreen())),
+                          ),
+                        ]),
                         const SizedBox(height: 24),
                         _buildSectionLabel('고객 지원'),
-                        const SizedBox(height: 10),
-                        _buildSupportGrid(),
+                        const SizedBox(height: 8),
+                        _menuGroup([
+                          _MenuRow(
+                            icon: Icons.chat_bubble_rounded,
+                            color: AppColors.blueLight,
+                            label: '문의하기',
+                            onTap: () => context.push('/support'),
+                          ),
+                          _MenuRow(
+                            icon: Icons.inbox_rounded,
+                            color: AppColors.blue,
+                            label: '내 문의',
+                            onTap: () => context.push('/profile/inquiries'),
+                          ),
+                          _MenuRow(
+                            icon: Icons.flag_rounded,
+                            color: AppColors.gold,
+                            label: '신고내역',
+                            onTap: () => context.push('/profile/reports'),
+                          ),
+                        ]),
                         const SizedBox(height: 28),
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 8),
@@ -152,27 +218,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// 프로필 — 박스 없는 플레인 행. 이름이 화면의 주인공.
   Widget _buildProfileHeader() {
     final nickname = _user?['nickname'] as String? ?? '-';
 
-    // #3: 카드 탭 → 프로필 편집(닉네임). 별도 '닉네임 변경' 메뉴 통합. (프로필 사진 변경=post-launch)
+    // #3: 탭 → 프로필 편집(닉네임). (프로필 사진 변경=post-launch)
     return InkWell(
       onTap: () async {
         await context.push('/profile/edit-nickname');
         if (mounted) _loadData();
       },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.divider),
-        ),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           children: [
             UserAvatar(imageUrl: _user?['profileImageUrl'] as String?),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,14 +243,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     nickname,
                     style: const TextStyle(
                       color: AppColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.3,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   const Text('프로필 편집',
-                      style: TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 13, fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
@@ -199,145 +261,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatRow() {
-    return Row(
-      children: [
-        _StatChip(
-            label: '보유 카드',
-            value: '$_totalCards종',
-            onTap: () => context.push('/assets')),
-        const SizedBox(width: 10),
-        _StatChip(
-            label: '판매중',
-            value: '$_activeTrades건',
-            onTap: () => context.push('/assets?tab=selling')),
-        const SizedBox(width: 10),
-        _StatChip(
-            label: '구매중',
-            value: '$_activeBuyOrders건',
-            onTap: () => context.push('/assets?tab=buy')),
-      ],
+  /// 요약 카드 — 보유/판매중/구매중을 한 장에. 숫자가 크고 라벨이 작다.
+  Widget _buildSummaryCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          _SummaryStat(
+              value: '$_totalCards',
+              unit: '종',
+              label: '보유 카드',
+              onTap: () => context.push('/assets')),
+          _statDivider(),
+          _SummaryStat(
+              value: '$_activeTrades',
+              unit: '건',
+              label: '판매중',
+              onTap: () => context.push('/assets?tab=selling')),
+          _statDivider(),
+          _SummaryStat(
+              value: '$_activeBuyOrders',
+              unit: '건',
+              label: '구매중',
+              onTap: () => context.push('/assets?tab=buy')),
+        ],
+      ),
     );
   }
 
-  // 한 행을 등간격 Expanded 타일로. IntrinsicHeight+stretch → 같은 행 타일은 항상 동일 높이
-  // (준비중 핀이 붙어 높이가 달라져도 행 내 정렬 안 깨짐).
-  Widget _gridRow(List<Widget> tiles) {
+  Widget _statDivider() =>
+      Container(width: 1, height: 30, color: AppColors.dividerSoft);
+
+  /// 섹션 그룹 카드 — 행들을 한 카드에 묶고 인셋 디바이더로 구분 (토스 전체메뉴 패턴).
+  Widget _menuGroup(List<_MenuRow> rows) {
     final children = <Widget>[];
-    for (var i = 0; i < tiles.length; i++) {
-      if (i > 0) children.add(const SizedBox(width: 12));
-      children.add(Expanded(child: tiles[i]));
+    for (var i = 0; i < rows.length; i++) {
+      if (i > 0) {
+        children.add(const Padding(
+          padding: EdgeInsets.only(left: 64),
+          child: Divider(height: 1, thickness: 1, color: AppColors.dividerSoft),
+        ));
+      }
+      children.add(rows[i]);
     }
-    return IntrinsicHeight(
-      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: children),
     );
-  }
-
-  // 내 거래 = 2x2 그리드. 핵심 숫자는 stat row에 두고, 타일엔 '바로 처리할' 액션 배지만(매수 OPEN/판매 진행중).
-  Widget _buildTradeGrid() {
-    return Column(
-      children: [
-        _gridRow([
-          _HubTile(
-            icon: Icons.style_rounded,
-            iconColor: AppColors.blue,
-            label: '내 카드',
-            onTap: () => context.push('/assets'),
-          ),
-          _HubTile(
-            icon: Icons.shopping_cart_rounded,
-            iconColor: const Color(0xFFF59E0B),
-            label: '매수',
-            badgeCount: _activeBuyOrders,
-            onTap: () => context.push('/assets?tab=buy'),
-          ),
-        ]),
-        const SizedBox(height: 12),
-        _gridRow([
-          _HubTile(
-            icon: Icons.receipt_long_rounded,
-            iconColor: const Color(0xFF10B981),
-            label: '판매',
-            badgeCount: _activeTrades,
-            // _userId null이면 sellerId 누락 → trade_list가 메인 거래 화면으로 잘못 진입.
-            onTap: _userId == null
-                ? null
-                : () => context.push('/my-trades', extra: {'sellerId': _userId}),
-          ),
-          _HubTile(
-            icon: Icons.favorite_rounded,
-            iconColor: AppColors.red,
-            label: '관심',
-            onTap: () => context.push('/favorites'),
-          ),
-        ]),
-      ],
-    );
-  }
-
-  // 커뮤니티 = 게시판 + 내 활동(2-col). 둘 다 커뮤니티 성격 → 같은 섹션.
-  Widget _buildCommunityGrid() {
-    return _gridRow([
-      _HubTile(
-        icon: Icons.forum_rounded,
-        iconColor: AppColors.blueLight,
-        label: '게시판',
-        // 게시판은 아직 go_router route 아님 — 공지배너와 동일하게 Navigator.push.
-        onTap: () => Navigator.of(context, rootNavigator: true).push(
-            MaterialPageRoute(builder: (_) => const BoardScreen())),
-      ),
-      _HubTile(
-        icon: Icons.history_rounded,
-        iconColor: AppColors.blue,
-        label: '내 활동',
-        onTap: () => Navigator.of(context, rootNavigator: true).push(
-            MaterialPageRoute(builder: (_) => const MyActivityScreen())),
-      ),
-    ]);
-  }
-
-  // 준비 중 = 오리파/경매 자리(2-col, 회색 ? + 준비중 뱃지). 기능명 미노출.
-  Widget _buildComingSoonGrid() {
-    return _gridRow([
-      _HubTile(
-        icon: Icons.question_mark_rounded,
-        iconColor: AppColors.textMuted,
-        label: '?',
-        comingSoon: true,
-        onTap: () => AppInfoToast.show(context, '오픈 준비 중이에요'),
-      ),
-      _HubTile(
-        icon: Icons.question_mark_rounded,
-        iconColor: AppColors.textMuted,
-        label: '?',
-        comingSoon: true,
-        onTap: () => AppInfoToast.show(context, '오픈 준비 중이에요'),
-      ),
-    ]);
-  }
-
-  // 고객 지원 = 3-col 그리드 (서비스와 톤 일치).
-  Widget _buildSupportGrid() {
-    return _gridRow([
-      _HubTile(
-        icon: Icons.chat_bubble_outline_rounded,
-        iconColor: AppColors.blueLight,
-        label: '문의하기',
-        onTap: () => context.push('/support'),
-      ),
-      _HubTile(
-        icon: Icons.inbox_outlined,
-        iconColor: AppColors.blueLight,
-        label: '내 문의',
-        onTap: () => context.push('/profile/inquiries'),
-      ),
-      _HubTile(
-        icon: Icons.flag_rounded,
-        iconColor: const Color(0xFFF59E0B),
-        label: '신고내역',
-        onTap: () => context.push('/profile/reports'),
-      ),
-    ]);
   }
 
   Widget _buildSectionLabel(String label) {
@@ -347,119 +325,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
         label,
         style: const TextStyle(
           color: AppColors.textSecondary,
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
+          letterSpacing: -0.1,
         ),
       ),
     );
   }
-
 }
 
-/// 허브 그리드 타일 — 아이콘 칩 + 라벨. 준비중이면 회색 + '준비중' 핀, 액션 배지(매수/판매)는 우상단.
-class _HubTile extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
+/// 요약 카드의 스탯 1칸 — 숫자(크게)+단위(작게) / 라벨(아래 작게).
+class _SummaryStat extends StatelessWidget {
+  final String value;
+  final String unit;
   final String label;
-  final int? badgeCount;
-  final bool comingSoon;
   final VoidCallback? onTap;
 
-  const _HubTile({
-    required this.icon,
-    required this.iconColor,
+  const _SummaryStat({
+    required this.value,
+    required this.unit,
     required this.label,
-    this.badgeCount,
-    this.comingSoon = false,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final showBadge = !comingSoon && (badgeCount ?? 0) > 0;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
-        ),
-        // stretch 된 높이 안에서 아이콘+라벨(+핀)을 세로 중앙 정렬.
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: Stack(
-                clipBehavior: Clip.none,
+            Text.rich(
+              TextSpan(
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: iconColor.withValues(alpha: comingSoon ? 0.08 : 0.12),
-                      borderRadius: BorderRadius.circular(12),
+                  TextSpan(
+                    text: value,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
                     ),
-                    child: Icon(icon, color: iconColor, size: 22),
                   ),
-                  if (showBadge)
-                    Positioned(
-                      top: -4,
-                      right: -6,
-                      child: Container(
-                        constraints: const BoxConstraints(minWidth: 18),
-                        height: 18,
-                        padding: const EdgeInsets.symmetric(horizontal: 5),
-                        decoration: BoxDecoration(
-                          color: AppColors.blue,
-                          borderRadius: BorderRadius.circular(9),
-                          border: Border.all(color: AppColors.surfaceCard, width: 1.5),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          badgeCount! > 99 ? '99+' : '$badgeCount',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700),
-                        ),
-                      ),
+                  TextSpan(
+                    text: unit,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: comingSoon ? AppColors.textMuted : AppColors.textPrimary,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            if (comingSoon) ...[
-              const SizedBox(height: 5),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.textMuted.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: const Text('준비중',
-                    style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700)),
-              ),
-            ],
+            const SizedBox(height: 3),
+            Text(label,
+                style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500)),
           ],
         ),
       ),
@@ -467,47 +391,91 @@ class _HubTile extends StatelessWidget {
   }
 }
 
-class _StatChip extends StatelessWidget {
+/// 메뉴 행 — pseudo-3D 컬러 스쿼클 아이콘 + 라벨 + (배지) + chevron. 행 높이 ~56.
+class _MenuRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
   final String label;
-  final String value;
-  final VoidCallback? onTap; // B2-9: 탭하면 내자산 해당 탭으로.
+  final int? badgeCount;
+  final VoidCallback? onTap;
 
-  const _StatChip({required this.label, required this.value, this.onTap});
+  const _MenuRow({
+    required this.icon,
+    required this.color,
+    required this.label,
+    this.badgeCount,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final content = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
+    final showBadge = (badgeCount ?? 0) > 0;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            // pseudo-3D 스쿼클: 위 밝음 → 아래 딥 + 상단 하이라이트 라인
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(11),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color.lerp(color, Colors.white, 0.22)!,
+                    color,
+                    Color.lerp(color, Colors.black, 0.28)!,
+                  ],
+                  stops: const [0.0, 0.45, 1.0],
+                ),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  width: 0.8,
+                ),
+              ),
+              child: Icon(icon, color: Colors.white, size: 19),
             ),
-          ),
-        ],
-      ),
-    );
-    return Expanded(
-      child: onTap == null
-          ? content
-          : InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(14),
-              child: content,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
+                ),
+              ),
             ),
+            if (showBadge) ...[
+              Container(
+                constraints: const BoxConstraints(minWidth: 20),
+                height: 20,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.blue,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  badgeCount! > 99 ? '99+' : '$badgeCount',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textMuted, size: 20),
+          ],
+        ),
+      ),
     );
   }
 }
