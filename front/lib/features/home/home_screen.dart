@@ -633,22 +633,11 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: () => context.go('/assets'),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
-            border: Border.all(color: AppColors.divider, width: 1),
-            borderRadius: BorderRadius.circular(18),
+            // ★Toss restyle: 그라데이션/테두리 제거 — 서피스 색차만으로 구분
+            color: AppColors.surfaceElevated,
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.blue.withValues(alpha: 0.15),
-                  AppColors.surfaceCard.withValues(alpha: 0.0),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(18),
-            ),
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -805,47 +794,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.zero,
                     ),
                   ),
-                // 2) 메인 그라데이션 (좌상 = 액센트 / 우하 = 어두움)
+                // ★Toss restyle: 2) 가독성용 무채색 스크림만 (액센트 그라데이션·글래스보더·글로우 제거)
                 Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      stops: const [0.0, 0.5, 1.0],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: const [0.0, 0.55, 1.0],
                       colors: [
-                        AppColors.blue.withValues(alpha: 0.28),
-                        AppColors.surfaceCard.withValues(alpha: 0.78),
-                        Colors.black.withValues(alpha: 0.78),
+                        Colors.black.withValues(alpha: 0.10),
+                        Colors.black.withValues(alpha: 0.45),
+                        Colors.black.withValues(alpha: 0.82),
                       ],
-                    ),
-                  ),
-                ),
-                // 3) 글래스 inner border (subtle)
-                Container(
-                  margin: const EdgeInsets.all(1),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(AppRadius.xl - 1),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.06),
-                      width: 1,
-                    ),
-                  ),
-                ),
-                // 4) 우상단 액센트 글로우 (radial)
-                Positioned(
-                  top: -40,
-                  right: -40,
-                  child: Container(
-                    width: 160,
-                    height: 160,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          AppColors.blue.withValues(alpha: 0.25),
-                          Colors.transparent,
-                        ],
-                      ),
                     ),
                   ),
                 ),
@@ -1470,7 +1430,6 @@ class _HomeScreenState extends State<HomeScreen> {
             decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
             ),
             child: Column(
               children: visibleTrades.asMap().entries.map((entry) {
@@ -1931,7 +1890,6 @@ class _MiniSegment extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2129,7 +2087,6 @@ class _CarouselCardState extends State<_CarouselCard>
                     decoration: BoxDecoration(
                       color: AppColors.surfaceElevated,
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.divider, width: 0.5),
                     ),
                     child: Text(
                       (isMyCard && assetLang == 'JP')

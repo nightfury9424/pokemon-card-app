@@ -554,7 +554,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                               width: 80, height: 80,
                               decoration: BoxDecoration(
                                 color: AppColors.surface,
-                                border: Border.all(color: AppColors.divider),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Image.network(
@@ -943,7 +942,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(AppRadius.pill),
-                      border: Border.all(color: AppColors.divider, width: 0.6),
                     ),
                     child: TabBar(
                 controller: _tabController,
@@ -1339,7 +1337,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.divider),
         ),
         child: Row(
           children: [
@@ -1390,7 +1387,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1497,7 +1493,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
         ),
         child: Row(
           children: [
@@ -1561,7 +1556,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.divider, width: 0.6),
         ),
         child: Row(
           children: [
@@ -1665,7 +1659,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider, width: 0.6),
       ),
       child: Row(
         children: [
@@ -1781,7 +1774,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1954,7 +1946,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Row(
         children: [
@@ -2583,7 +2574,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2840,7 +2830,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceElevated,
         borderRadius: BorderRadius.circular(AppRadius.pill),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Text(
         text,
@@ -3629,7 +3618,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3777,7 +3765,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4315,7 +4302,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       decoration: BoxDecoration(
                         color: AppColors.surfaceElevated,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.divider),
                       ),
                       child: slab == null
                           ? const Column(
