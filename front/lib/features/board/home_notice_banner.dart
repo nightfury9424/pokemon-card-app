@@ -72,23 +72,18 @@ class HomeNoticeBannerState extends State<HomeNoticeBanner> {
 
     // ★접근성: 배너 전체를 상세 탭으로 감싸지 않고, 상세 영역 / 목록 영역을 형제 버튼 2개로 분리(중첩 시 스크린리더
     //   focus/action 병합 위험). 각 Semantics 가 onTap(=tap action) 직접 보유 — excludeSemantics 로 자식 GestureDetector
-    //   액션이 사라지지 않게. 두 영역 모두 SizedBox(height 46)로 풀 높이 터치 보장(Expanded 는 너비만 채움).
+    //   액션이 사라지지 않게. 두 영역 모두 SizedBox(height 38)로 풀 높이 터치 보장(Expanded 는 너비만 채움).
+    // ★Toss restyle: 카드형(테두리+서피스) → 슬림 티커(배경 투명·보더 제거·높이 38).
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: Container(
-        height: 46,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.divider, width: 1),
-        ),
+      child: SizedBox(
+        height: 38,
         child: Row(
           children: [
-            // ── 상세 버튼(형제 1): 아이콘·유형배지·제목 포함, 라벨에 실제 제목 포함. 터치 높이 46 보장 ──
+            // ── 상세 버튼(형제 1): 아이콘·유형배지·제목 포함, 라벨에 실제 제목 포함. 터치 높이 38 보장 ──
             Expanded(
               child: SizedBox(
-                height: 46,
+                height: 38,
                 child: Semantics(
                   button: true,
                   label: '공지 상세 보기: ${p.title}',
@@ -100,11 +95,11 @@ class HomeNoticeBannerState extends State<HomeNoticeBanner> {
                     child: Row(
                       children: [
                         const Icon(
-                          Icons.campaign,
-                          size: 17,
-                          color: AppColors.blueLight,
+                          Icons.campaign_rounded,
+                          size: 16,
+                          color: AppColors.textSecondary,
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
@@ -130,9 +125,9 @@ class HomeNoticeBannerState extends State<HomeNoticeBanner> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: AppColors.textPrimary,
+                              color: AppColors.textSecondary,
                               fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
@@ -142,7 +137,7 @@ class HomeNoticeBannerState extends State<HomeNoticeBanner> {
                 ),
               ),
             ),
-            // ── 목록 버튼(형제 2): › → 공지 목록(공지 탭). 터치 44×46, 아이콘 우측정렬로 시각 위치 유지 ──
+            // ── 목록 버튼(형제 2): › → 공지 목록(공지 탭). 터치 44×38, 아이콘 우측정렬로 시각 위치 유지 ──
             Semantics(
               button: true,
               label: '공지 목록 보기',
@@ -153,12 +148,12 @@ class HomeNoticeBannerState extends State<HomeNoticeBanner> {
                 onTap: openList,
                 child: const SizedBox(
                   width: 44,
-                  height: 46,
+                  height: 38,
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: Icon(
                       Icons.chevron_right,
-                      size: 18,
+                      size: 16,
                       color: AppColors.textMuted,
                     ),
                   ),
