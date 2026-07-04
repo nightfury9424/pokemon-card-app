@@ -59,23 +59,4 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, String> {
     /** 공식 고정 토글 직렬화 — 동시 ON 요청에도 ≤1개만 고정되도록 트랜잭션 advisory lock(동일 키). */
     @Query(value = "SELECT pg_advisory_xact_lock(5417)", nativeQuery = true)
     void lockOfficialPin();
-
-    /**
-     * 내가 쓴 글 — 노출(deleted_at NULL, status ACTIVE, 노출 타입)만, 최신 작성순.
-     * 본인 글이라 차단 필터 불필요. 숨김(HIDDEN)·삭제 글 제외(사용자 정책).
-     */
-    @Query(value = """
-            SELECT p FROM BoardPost p
-            WHERE p.authorId = :authorId
-              AND p.deletedAt IS NULL AND p.status = 'ACTIVE'
-              AND p.type IN ('notice', 'event', 'patch', 'free')
-            ORDER BY p.createdAt DESC, p.postId DESC
-            """,
-            countQuery = """
-            SELECT COUNT(p) FROM BoardPost p
-            WHERE p.authorId = :authorId
-              AND p.deletedAt IS NULL AND p.status = 'ACTIVE'
-              AND p.type IN ('notice', 'event', 'patch', 'free')
-            """)
-    Page<BoardPost> findByAuthorVisible(@Param("authorId") String authorId, Pageable pageable);
 }

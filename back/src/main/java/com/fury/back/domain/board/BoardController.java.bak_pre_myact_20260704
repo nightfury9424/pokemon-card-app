@@ -114,24 +114,6 @@ public class BoardController {
         return ReturnData.success(boardLikeService.unlike(optionalUserId(request), postId));
     }
 
-    @Operation(summary = "내가 쓴 글", description = "인증 필수(비로그인 401). 노출 중인 본인 게시글 최신 작성순.")
-    @GetMapping("/me/posts")
-    public ReturnData<BoardPageDto> myPosts(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            HttpServletRequest request) {
-        return ReturnData.success(boardService.getMyPosts(optionalUserId(request), page, size));
-    }
-
-    @Operation(summary = "내가 댓글 단 글", description = "인증 필수(비로그인 401). 내가 (대)댓글 단 게시글, 최신 댓글 활동순·중복 제거.")
-    @GetMapping("/me/commented-posts")
-    public ReturnData<BoardPageDto> myCommentedPosts(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            HttpServletRequest request) {
-        return ReturnData.success(boardService.getMyCommentedPosts(optionalUserId(request), page, size));
-    }
-
     /** 공개 읽기 — 토큰 있으면 viewerId, 없으면 null(차단 필터 미적용). */
     private String optionalUserId(HttpServletRequest request) {
         String bearer = request.getHeader("Authorization");
