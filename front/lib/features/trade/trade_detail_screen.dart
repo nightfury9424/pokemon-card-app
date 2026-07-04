@@ -831,9 +831,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.blue, Color(0xFF1A56B0)],
-                        ),
+                        color: AppColors.blue,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Row(
@@ -908,11 +906,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: canChat
-                              ? [AppColors.blue, const Color(0xFF1A56B0)]
-                              : [AppColors.textMuted, AppColors.textMuted],
-                        ),
+                        color: canChat ? AppColors.blue : AppColors.textMuted,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: _chatLoading

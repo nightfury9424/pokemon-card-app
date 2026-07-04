@@ -436,10 +436,8 @@ class _AssetScreenState extends State<AssetScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppColors.blue, Color(0xFF1A56B0)],
-                            ),
-                            borderRadius: BorderRadius.circular(10),
+                            color: AppColors.blue,
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             submitting ? '등록 중...' : '판매 등록',
