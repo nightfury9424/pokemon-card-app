@@ -325,7 +325,7 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
     return Stack(
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           child: Image.file(
             File(photo.path),
             width: 84,
@@ -359,9 +359,8 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
         width: 84,
         height: 84,
         decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.divider),
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -507,20 +506,20 @@ class _InquiryComposeScreenState extends State<InquiryComposeScreen> {
         hintText: hint,
         hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 12.5),
         filled: true,
-        fillColor: AppColors.surfaceCard,
+        fillColor: AppColors.surfaceElevated,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.divider),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.divider),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.blue, width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
       ),
     );

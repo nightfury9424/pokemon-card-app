@@ -79,7 +79,7 @@ extension BoardTypeMeta on BoardType {
     switch (this) {
       case BoardType.notice: return AppColors.blue;
       case BoardType.event: return AppColors.gold;
-      case BoardType.patch: return const Color(0xFF9575CD);
+      case BoardType.patch: return AppColors.raritySR; // 동일 hex(0xFF9575CD) — 토큰 단일화
       case BoardType.free: return AppColors.textSecondary;
       case BoardType.tradeReview: return AppColors.green;
       case BoardType.scamAlert: return AppColors.red;

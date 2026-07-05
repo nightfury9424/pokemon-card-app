@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/pressable.dart';
 
 /// 관심 목록 — 2탭: 게시물(저장한 거래글) + 관심 카드(하트 찜한 카드).
 /// 게시물 = GET /api/interests/my (PostInterest), 카드 = GET /api/card-interests/me (CardInterest).
@@ -104,7 +106,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
           indicatorColor: AppColors.blue,
           labelColor: AppColors.textPrimary,
           unselectedLabelColor: AppColors.textMuted,
-          labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+          labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           tabs: const [
             Tab(text: '게시물'),
             Tab(text: '관심 카드'),
@@ -127,20 +129,25 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       return const Center(child: CircularProgressIndicator(color: AppColors.blue));
     }
     if (_posts.isEmpty) {
-      return _empty(
-        icon: Icons.bookmark_border_rounded,
-        title: '저장한 게시물이 없습니다',
-        sub: '거래글 상세에서 하트를 눌러 저장해보세요',
+      // 로드 실패 시에도 _posts가 빈 채로 남음(에러 상태 미분리) — 기존 분기 유지, 표현만 교체.
+      return const EmptyState(
+        icon: Icons.bookmark_rounded,
+        title: '저장한 게시물이 없어요',
+        description: '거래글 상세에서 하트를 눌러 저장해보세요',
       );
     }
     return RefreshIndicator(
       onRefresh: _loadPosts,
       color: AppColors.blue,
       backgroundColor: AppColors.surface,
-      child: ListView.builder(
+      child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(), // #9: 항목 적어도 pull-refresh
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _posts.length,
+        separatorBuilder: (_, _) => const Padding(
+          padding: EdgeInsets.only(left: 78),
+          child: Divider(height: 1, thickness: 1, color: AppColors.dividerSoft),
+        ),
         itemBuilder: (context, index) => _buildPostItem(_posts[index]),
       ),
     );
@@ -162,7 +169,9 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       _ => ('판매중', AppColors.green),
     };
 
-    return InkWell(
+    return Pressable(
+      pressedScale: 0.98,
+      haptic: false,
       onTap: () async {
         await context.push<bool>('/trades/$tradeId');
         if (mounted) _loadPosts();
@@ -181,14 +190,14 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                         decoration: BoxDecoration(
                           color: badgeColor.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(badgeLabel,
                             style: TextStyle(
-                                color: badgeColor, fontSize: 9.5, fontWeight: FontWeight.w800)),
+                                color: badgeColor, fontSize: 10, fontWeight: FontWeight.w700)),
                       ),
                       const SizedBox(width: 6),
                       Flexible(
@@ -197,8 +206,8 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 color: AppColors.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
                                 letterSpacing: -0.2)),
                       ),
                     ],
@@ -207,7 +216,10 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                   Text('$nickname · ${_won(price)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+                      style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
@@ -231,20 +243,25 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       return const Center(child: CircularProgressIndicator(color: AppColors.blue));
     }
     if (_cards.isEmpty) {
-      return _empty(
-        icon: Icons.favorite_border_rounded,
-        title: '관심 카드가 없습니다',
-        sub: '거래 리스트에서 하트를 눌러 추가해보세요',
+      // 로드 실패 시에도 _cards가 빈 채로 남음(에러 상태 미분리) — 기존 분기 유지, 표현만 교체.
+      return const EmptyState(
+        icon: Icons.favorite_rounded,
+        title: '관심 카드가 없어요',
+        description: '마음에 드는 카드에 하트를 눌러보세요',
       );
     }
     return RefreshIndicator(
       onRefresh: _loadCards,
       color: AppColors.blue,
       backgroundColor: AppColors.surface,
-      child: ListView.builder(
+      child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(), // #9: 항목 적어도 pull-refresh
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _cards.length,
+        separatorBuilder: (_, _) => const Padding(
+          padding: EdgeInsets.only(left: 78),
+          child: Divider(height: 1, thickness: 1, color: AppColors.dividerSoft),
+        ),
         itemBuilder: (context, index) => _buildCardItem(_cards[index]),
       ),
     );
@@ -257,7 +274,9 @@ class _FavoritesScreenState extends State<FavoritesScreen>
     final language = item['language'] as String? ?? '';
     final imageUrl = resolveCardImageUrl(item);
 
-    return InkWell(
+    return Pressable(
+      pressedScale: 0.98,
+      haptic: false,
       onTap: () => context.push('/card/$cardId', extra: {'cardData': item}),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -276,30 +295,30 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                       style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                           letterSpacing: -0.2)),
                   const SizedBox(height: 4),
                   Row(
                     children: [
                       if (rarity.isNotEmpty)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                           decoration: BoxDecoration(
                             color: AppColors.rarityColor(rarity).withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(rarity,
                               style: TextStyle(
                                   color: AppColors.rarityColor(rarity),
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
                                   letterSpacing: 0.3)),
                         ),
                       if (language.isNotEmpty) ...[
                         const SizedBox(width: 6),
                         Text(language,
                             style: const TextStyle(
-                                color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w700)),
+                                color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w500)),
                       ],
                     ],
                   ),
@@ -316,21 +335,6 @@ class _FavoritesScreenState extends State<FavoritesScreen>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _empty({required IconData icon, required String title, required String sub}) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: AppColors.textMuted, size: 56),
-          const SizedBox(height: 16),
-          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 15)),
-          const SizedBox(height: 8),
-          Text(sub, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
-        ],
       ),
     );
   }

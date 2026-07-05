@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/constants/feature_flags.dart';
@@ -11,6 +12,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/rarity.dart';
 import '../../core/widgets/animated_counter.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
+import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pressable.dart';
@@ -63,13 +65,7 @@ class _AssetScreenState extends State<AssetScreen> {
 
   // 레어도 hierarchy는 AppRarity로 통일 — 한국 포카 시세 기준 (MUR > SSR > SAR > PR > ...)
   // REFACTOR_2026-05-12.md 4차 디자인 시스템.
-
-  // 카드 격자 테두리 — 시그너처 레어도는 색 + 글로우
-  static const _premiumRarities = {'MUR', 'UR', 'SAR', 'AR', 'MA', 'BWR', 'SSR'};
-  bool _isRarityPremium(String r) => _premiumRarities.contains(r);
-  Color _rarityBorderColor(String r) => _isRarityPremium(r)
-      ? AppColors.rarityGlow(r).withValues(alpha: 0.45)
-      : AppColors.divider;
+  // ★Toss restyle(2026-07): 레어도 테두리/글로우 전폐 — 레어도 표현은 AppRarityBadge 칩만.
 
   void _applySortInPlace() {
     final asc = _sortAscending ? 1 : -1;
@@ -326,6 +322,7 @@ class _AssetScreenState extends State<AssetScreen> {
               final tradeId = (data is Map ? data['tradeId'] : null) as String?;
               if (!mounted || !ctx.mounted) return;
               created = true;
+              HapticFeedback.mediumImpact(); // 판매 등록 성공
               Navigator.pop(ctx);
               setState(() {
                 asset['isSelling'] = true;
@@ -399,7 +396,7 @@ class _AssetScreenState extends State<AssetScreen> {
                     filled: true,
                     fillColor: AppColors.surface,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                       borderSide: BorderSide.none,
                     ),
                   ),
@@ -415,7 +412,7 @@ class _AssetScreenState extends State<AssetScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
                             color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
                           child: const Text(
                             '취소',
@@ -436,10 +433,8 @@ class _AssetScreenState extends State<AssetScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppColors.blue, Color(0xFF1A56B0)],
-                            ),
-                            borderRadius: BorderRadius.circular(10),
+                            color: AppColors.blue,
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             submitting ? '등록 중...' : '판매 등록',
@@ -470,6 +465,7 @@ class _AssetScreenState extends State<AssetScreen> {
     try {
       await ApiClient.delete('/api/trades/$tradeId');
       if (!mounted) return;
+      HapticFeedback.mediumImpact(); // 판매 내리기 성공
       setState(() {
         asset['isSelling'] = false;
         asset['activeTradeId'] = null;
@@ -552,6 +548,7 @@ class _AssetScreenState extends State<AssetScreen> {
                         as String?;
                 if (!mounted || !ctx.mounted) return;
                 created = true;
+                HapticFeedback.mediumImpact(); // 등급 카드 판매 등록 성공
                 Navigator.pop(ctx);
                 setState(() {
                   asset['gradingCompany'] = gradingCompany;
@@ -626,11 +623,7 @@ class _AssetScreenState extends State<AssetScreen> {
                                   : AppColors.textSecondary,
                               fontWeight: FontWeight.bold,
                             ),
-                            side: BorderSide(
-                              color: selected
-                                  ? AppColors.gold
-                                  : AppColors.divider,
-                            ),
+                            side: BorderSide.none,
                             onSelected: (_) =>
                                 setModal(() => gradingCompany = company),
                           ),
@@ -656,15 +649,11 @@ class _AssetScreenState extends State<AssetScreen> {
                         fillColor: AppColors.surfaceElevated,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: AppColors.divider,
-                          ),
+                          borderSide: BorderSide.none,
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: AppColors.divider,
-                          ),
+                          borderSide: BorderSide.none,
                         ),
                       ),
                       items: gradeValues
@@ -679,7 +668,7 @@ class _AssetScreenState extends State<AssetScreen> {
                       children: [
                         if (slabPhoto != null)
                           ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
                             child: Image.file(
                               slabPhoto!,
                               width: 84,
@@ -693,8 +682,7 @@ class _AssetScreenState extends State<AssetScreen> {
                             height: 84,
                             decoration: BoxDecoration(
                               color: AppColors.surfaceElevated,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: AppColors.divider),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
                             ),
                             child: const Icon(
                               Icons.image_outlined,
@@ -735,15 +723,11 @@ class _AssetScreenState extends State<AssetScreen> {
                         fillColor: AppColors.surfaceElevated,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: AppColors.divider,
-                          ),
+                          borderSide: BorderSide.none,
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: AppColors.divider,
-                          ),
+                          borderSide: BorderSide.none,
                         ),
                       ),
                     ),
@@ -851,15 +835,10 @@ class _AssetScreenState extends State<AssetScreen> {
                     if (_myBuyOrders.isEmpty)
                       const SliverFillRemaining(
                         hasScrollBody: false,
-                        child: Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(32),
-                            child: Text(
-                              '등록한 매수 호가가 없습니다.\n카드 상세에서 등록할 수 있습니다.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.5),
-                            ),
-                          ),
+                        child: EmptyState(
+                          icon: Icons.shopping_cart_rounded,
+                          title: '등록한 매수 호가가 없어요',
+                          description: '카드 상세의 구매하기에서 등록할 수 있어요',
                         ),
                       )
                     else
@@ -950,17 +929,14 @@ class _AssetScreenState extends State<AssetScreen> {
 
     // Polish Step 1 (2026-05-19): summary card 축소.
     // - margin top 8 → 6, padding 18 → (20,16,20,14), height ~144 → ~100
-    // - radius 20 → 18 (살짝 sharp)
     // - "총 평가 자산" 12 → 13px, letterSpacing -0.2 (한글 가독)
-    // - 금액 32 w900 → 30 w800 (덜 강조, 그러나 임팩트 유지)
     // - 수익률 + 보유 종수 → RichText 한 줄 (dot separator)
-    // - 박스/border 유지 (보수)
+    // ★Toss restyle(2026-07): borderless surfaceCard r16 + 금액 AppText.display.
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 6, 16, 0),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.divider),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
@@ -982,13 +958,7 @@ class _AssetScreenState extends State<AssetScreen> {
             TweenedCounter(
               value: totalMarketValue,
               formatter: (v) => _formatPrice(v.toDouble()),
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 30,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -1.0,
-                height: 1.05,
-              ),
+              style: AppText.display,
             ),
             const SizedBox(height: 6),
             // 수익률 + 보유 종수 한 줄. hasRate 없으면 보유 종수만.
@@ -1004,8 +974,9 @@ class _AssetScreenState extends State<AssetScreen> {
                         TextSpan(
                           text: () {
                             final diff = totalCurrent - totalPurchase;
-                            final sign = isFlat ? '' : (isPos ? '+' : '');
-                            return '$sign${_formatPrice(diff)} ($sign${totalRate.toStringAsFixed(1)}%)';
+                            // ★_formatPrice는 가격용(p<=0 → '0원' 클램프) — 변동액은 절대값+부호 직접 조립.
+                            final sign = isFlat ? '' : (isPos ? '+' : '-');
+                            return '$sign${_formatPrice(diff.abs())} ($sign${totalRate.abs().toStringAsFixed(1)}%)';
                           }(),
                           // 색상 정책: >0 빨강, <0 파랑, =0 회색(변동 없음)
                           style: TextStyle(color: rateColor),
@@ -1058,10 +1029,8 @@ class _AssetScreenState extends State<AssetScreen> {
           margin: const EdgeInsets.only(right: 8),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
-            color: sel ? AppColors.blueDeep : AppColors.surfaceCard,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: sel ? AppColors.blue : AppColors.divider, width: 1),
+            color: sel ? AppColors.blueDeep : AppColors.surfaceElevated,
+            borderRadius: BorderRadius.circular(AppRadius.xl),
           ),
           child: Text(
             label,
@@ -1254,6 +1223,7 @@ class _AssetScreenState extends State<AssetScreen> {
     final selected = _sortMode == mode;
     return InkWell(
       onTap: () {
+        HapticFeedback.lightImpact(); // 정렬 선택 확정 1회
         _onSortTap(mode);
         Navigator.pop(ctx);
       },
@@ -1280,7 +1250,7 @@ class _AssetScreenState extends State<AssetScreen> {
             ],
             const Spacer(),
             if (selected)
-              const Icon(Icons.check, color: AppColors.blue, size: 18),
+              const Icon(Icons.check_rounded, color: AppColors.blue, size: 18),
           ],
         ),
       ),
@@ -1316,7 +1286,6 @@ class _AssetScreenState extends State<AssetScreen> {
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Row(
         children: [
@@ -1414,7 +1383,6 @@ class _AssetScreenState extends State<AssetScreen> {
     final rate = (diff != null && purchasePrice != null && purchasePrice > 0)
         ? diff / purchasePrice * 100
         : null;
-    final premium = _isRarityPremium(rarity);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -1431,20 +1399,7 @@ class _AssetScreenState extends State<AssetScreen> {
           decoration: BoxDecoration(
             color: AppColors.surfaceCard,
             borderRadius: BorderRadius.circular(AppRadius.xl),
-            border: Border.all(
-              color: _rarityBorderColor(rarity),
-              width: premium ? 1.0 : 0.5,
-            ),
-            boxShadow: premium
-                ? [
-                    BoxShadow(
-                      color: AppColors.rarityGlow(rarity).withValues(alpha: 0.22),
-                      blurRadius: 28,
-                      spreadRadius: 1,
-                      offset: const Offset(0, 6),
-                    ),
-                  ]
-                : AppShadows.light(Colors.black),
+            boxShadow: AppShadows.light(Colors.black),
           ),
           child: IntrinsicHeight(
             child: Row(
@@ -1481,24 +1436,7 @@ class _AssetScreenState extends State<AssetScreen> {
                         Row(
                           children: [
                             if (rarity.isNotEmpty)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.rarityColor(rarity).withValues(alpha: 0.18),
-                                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                                ),
-                                child: Text(
-                                  rarity,
-                                  style: TextStyle(
-                                    color: AppColors.rarityColor(rarity),
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.4,
-                                  ),
-                                ),
-                              ),
+                              AppRarityBadge(rarity),
                             const SizedBox(width: AppSpacing.sm),
                             Text(
                               'TOP 1',
@@ -1532,7 +1470,8 @@ class _AssetScreenState extends State<AssetScreen> {
                         if (diff != null && rate != null) ...[
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            '${diff >= 0 ? '+' : ''}${_formatPrice(diff)} (${diff >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%)',
+                            // ★_formatPrice 음수 클램프('0원') 회피 — 절대값+부호 직접 조립.
+                            '${diff >= 0 ? '+' : '-'}${_formatPrice(diff.abs())} (${diff >= 0 ? '+' : '-'}${rate.abs().toStringAsFixed(1)}%)',
                             style: TextStyle(
                               // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
                               color: diff >= 0 ? AppColors.red : AppColors.blue,
@@ -1587,13 +1526,13 @@ class _AssetScreenState extends State<AssetScreen> {
     }
 
     // 4차-Round4: 풀 오버레이 디자인 — 카드 이미지 풀 + 하단 그라데이션 위 정보 (NFT 갤러리 패턴)
-    final rarityColor = AppColors.rarityColor(rarity);
-    final premium = _isRarityPremium(rarity);
     final rate = (marketPrice != null && purchasePrice != null && purchasePrice > 0)
         ? (marketPrice - purchasePrice) * 100.0 / purchasePrice
         : null;
 
     return Pressable(
+      pressedScale: 0.97,
+      haptic: false,
       onTap: () async {
         final changed = await context.push<bool>(
           '/card/$cardId',
@@ -1602,33 +1541,14 @@ class _AssetScreenState extends State<AssetScreen> {
         if (changed == true && mounted) _loadData();
       },
       child: Container(
+        // ★Toss restyle(2026-07): flat — 레어도 테두리/글로우 제거, 무채색 depth만.
         decoration: BoxDecoration(
           color: AppColors.surfaceElevated,
           borderRadius: BorderRadius.circular(AppRadius.lg),
-          // UX 테스트(토스풍): 레어도 glow 테두리/그림자 밀도 완화(트레이딩 느낌 ↓).
-          border: Border.all(
-            color: premium
-                ? AppColors.rarityGlow(rarity).withValues(alpha: 0.30)
-                : AppColors.divider,
-            width: premium ? 0.8 : 0.6,
-          ),
-          boxShadow: premium
-              ? [
-                  BoxShadow(
-                    color: AppColors.rarityGlow(rarity).withValues(alpha: 0.12),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.18),
-                    blurRadius: 6,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : AppShadows.light(Colors.black),
+          boxShadow: AppShadows.light(Colors.black),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.lg - 1),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -1658,29 +1578,17 @@ class _AssetScreenState extends State<AssetScreen> {
                 ),
               ),
               // 좌상단: 레어도 단일 chip (KO/등급은 하단 정보 line으로 이동 — 잘림 해소)
+              // 밝은 카드 아트 위 가독성 확보용 다크 백킹(이미지 위 스크림 허용 예외).
               if (rarity.isNotEmpty)
                 Positioned(
                   top: 6,
                   left: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(AppRadius.sm),
-                      border: Border.all(
-                        color: rarityColor.withValues(alpha: 0.6),
-                        width: 0.6,
-                      ),
+                      color: Colors.black.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(7),
                     ),
-                    child: Text(
-                      rarity,
-                      style: TextStyle(
-                        color: rarityColor,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
+                    child: AppRarityBadge(rarity, fontSize: 9),
                   ),
                 ),
               // Hotfix 10-3: 우상단 매트릭스
@@ -1710,33 +1618,12 @@ class _AssetScreenState extends State<AssetScreen> {
                   ),
                 )
               else if (asset['cardVerified'] == true)
-                Positioned(
+                const Positioned(
                   top: 6,
                   right: 6,
                   // Codex 사후 (Item 6 P1) fix: Tooltip 만 사용 — Tooltip.message 가 자체 Semantics 제공.
                   // 외부 Semantics wrapper 중복 → TalkBack/VoiceOver 2회 read 방지.
-                  child: Tooltip(
-                    message: '실물 사진 등록 완료',
-                    child: Container(
-                      width: 20, height: 20,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF15110A),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFD4AF37), width: 1.2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFD4AF37).withValues(alpha: 0.25),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.check_rounded,
-                        size: 12,
-                        color: Color(0xFFFFD86B),
-                      ),
-                    ),
-                  ),
+                  child: AppVerifiedGoldBadge(tooltip: '실물 사진 등록 완료'),
                 ),
               // 하단: 카드명 + 가격 + 손익률
               Positioned(
@@ -1806,7 +1693,7 @@ class _AssetScreenState extends State<AssetScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                                   decoration: BoxDecoration(
-                                    color: Colors.amber.withValues(alpha: 0.85),
+                                    color: AppColors.gold.withValues(alpha: 0.85),
                                     borderRadius: BorderRadius.circular(3),
                                   ),
                                   child: const Text(
@@ -2018,9 +1905,8 @@ class _AssetScreenState extends State<AssetScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
-                            color: sel ? AppColors.blue : AppColors.surfaceElevated,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
+                            color: sel ? AppColors.blueDeep : AppColors.surfaceElevated,
+                            borderRadius: BorderRadius.circular(AppRadius.lg),
                           ),
                           child: Text(
                             lang,
@@ -2248,9 +2134,8 @@ class _AssetScreenState extends State<AssetScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.blue.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.blue.withValues(alpha: 0.3)),
+                          color: AppColors.blue.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                         child: Row(
                           children: [
@@ -2292,7 +2177,7 @@ class _AssetScreenState extends State<AssetScreen> {
                         fillColor: AppColors.surfaceElevated,
                         prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textMuted),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                           borderSide: BorderSide.none,
                         ),
                       ),
@@ -2308,15 +2193,14 @@ class _AssetScreenState extends State<AssetScreen> {
                         margin: const EdgeInsets.only(top: 6),
                         decoration: BoxDecoration(
                           color: AppColors.surfaceElevated,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.divider),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                         constraints: const BoxConstraints(maxHeight: 200),
                         child: ListView.separated(
                           shrinkWrap: true,
                           physics: const ClampingScrollPhysics(),
                           itemCount: searchResults.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.divider),
+                          separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.dividerSoft),
                           itemBuilder: (_, i) {
                             final card = searchResults[i];
                             return ListTile(
@@ -2361,9 +2245,8 @@ class _AssetScreenState extends State<AssetScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             decoration: BoxDecoration(
-                              color: sel ? AppColors.blue : AppColors.surfaceElevated,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
+                              color: sel ? AppColors.blueDeep : AppColors.surfaceElevated,
+                              borderRadius: BorderRadius.circular(AppRadius.xl),
                             ),
                             child: Text(
                               lang,
@@ -2394,9 +2277,8 @@ class _AssetScreenState extends State<AssetScreen> {
                             duration: const Duration(milliseconds: 150),
                             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                             decoration: BoxDecoration(
-                              color: sel ? AppColors.gold.withValues(alpha: 0.15) : AppColors.surfaceElevated,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: sel ? AppColors.gold : AppColors.divider),
+                              color: sel ? AppColors.gold.withValues(alpha: 0.2) : AppColors.surfaceElevated,
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
                             ),
                             child: Text(
                               c,
@@ -2419,19 +2301,18 @@ class _AssetScreenState extends State<AssetScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                        color: AppColors.gold.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
                       ),
-                      child: Row(
+                      child: const Row(
                         children: [
-                          const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 14),
-                          const SizedBox(width: 6),
+                          Icon(Icons.info_outline_rounded, color: AppColors.gold, size: 14),
+                          SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               '데이터에 없는 등급은 RAW 시세로 대체됩니다.',
                               style: TextStyle(
-                                color: Colors.amber.shade200,
+                                color: AppColors.gold,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -2457,9 +2338,8 @@ class _AssetScreenState extends State<AssetScreen> {
                           duration: const Duration(milliseconds: 150),
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
-                            color: sel ? AppColors.blue.withValues(alpha: 0.15) : AppColors.surfaceElevated,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
+                            color: sel ? AppColors.blue.withValues(alpha: 0.2) : AppColors.surfaceElevated,
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
                           ),
                           child: Text(
                             g,
@@ -2487,7 +2367,7 @@ class _AssetScreenState extends State<AssetScreen> {
                       filled: true,
                       fillColor: AppColors.surfaceElevated,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -2509,7 +2389,7 @@ class _AssetScreenState extends State<AssetScreen> {
                       filled: true,
                       fillColor: AppColors.surfaceElevated,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -2526,7 +2406,7 @@ class _AssetScreenState extends State<AssetScreen> {
                             alignment: Alignment.topRight,
                             children: [
                               ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                                 child: Image.file(slabPhoto!, height: 160, width: double.infinity, fit: BoxFit.cover),
                               ),
                               GestureDetector(
@@ -2547,8 +2427,7 @@ class _AssetScreenState extends State<AssetScreen> {
                             height: 100,
                             decoration: BoxDecoration(
                               color: AppColors.surfaceElevated,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: AppColors.divider, style: BorderStyle.solid),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
                             ),
                             child: const Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -2609,8 +2488,7 @@ class _AssetScreenState extends State<AssetScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.divider),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Row(
           children: [
@@ -2637,7 +2515,7 @@ class _AssetScreenState extends State<AssetScreen> {
               ],
             ),
             const Spacer(),
-            const Icon(Icons.chevron_right, color: AppColors.textMuted),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
           ],
         ),
       ),
@@ -2667,25 +2545,10 @@ class _AssetScreenState extends State<AssetScreen> {
     if (ok == true) await _deleteAsset(assetId);
   }
 
+  // ★Toss restyle(2026-07): 공용 킷 AppTagChip 으로 위임 (borderless tonal).
   // ignore: unused_element
-  Widget _buildChip(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
+  Widget _buildChip(String label, Color color) =>
+      AppTagChip(label: label, color: color);
 
   String _formatPrice(dynamic price) {
     if (price == null) return '-';

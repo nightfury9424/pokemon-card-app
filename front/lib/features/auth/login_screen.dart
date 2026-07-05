@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -82,22 +81,10 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: AppColors.bg,
       body: Stack(
         children: [
-          // 앰비언트 그라데이션 (위쪽 살짝 푸른 빛 → 딥 다크)
+          // ★Toss restyle: 플랫 배경 (그라데이션/글로우 blob 제거)
           const Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF0B1628), AppColors.bg, AppColors.bg],
-                  stops: [0.0, 0.45, 1.0],
-                ),
-              ),
-            ),
+            child: ColoredBox(color: AppColors.bg),
           ),
-          // 블러 글로우 blob — 깊이감
-          Positioned(top: -100, right: -80, child: _glow(AppColors.blue.withValues(alpha: 0.22), 280)),
-          Positioned(bottom: 60, left: -90, child: _glow(AppColors.blueLight.withValues(alpha: 0.10), 240)),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -110,7 +97,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     height: 96,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(24),
-                      boxShadow: AppShadows.glow(AppColors.blue),
                     ),
                     child: Image.asset(
                       'assets/app_icon/logo.png',
@@ -196,18 +182,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// 블러 처리된 원형 글로우 (배경 깊이감).
-  Widget _glow(Color color, double size) => IgnorePointer(
-        child: ImageFiltered(
-          imageFilter: ImageFilter.blur(sigmaX: 70, sigmaY: 70),
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-          ),
-        ),
-      );
-
   Widget _feature(IconData icon, String text) => Row(
         children: [
           Container(
@@ -215,7 +189,7 @@ class _LoginScreenState extends State<LoginScreen> {
             height: 38,
             decoration: BoxDecoration(
               color: AppColors.surfaceElevated,
-              borderRadius: BorderRadius.circular(11),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.divider, width: 1),
             ),
             child: Icon(icon, size: 19, color: AppColors.blueLight),
@@ -251,7 +225,7 @@ class _LoginScreenState extends State<LoginScreen> {
           foregroundColor: foreground,
           disabledBackgroundColor: background,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(12),
             side: border != null ? BorderSide(color: border, width: 1) : BorderSide.none,
           ),
           elevation: 0,

@@ -49,18 +49,11 @@ class AppColors {
   }
 
   // 레어도별 글로우 색상 (카드 테두리/그림자용)
+  // ★Toss restyle(2026-07-04): 컬러 글로우 전폐 — 항상 transparent.
+  //   RarityAura는 transparent면 child만 그리므로 레이아웃 무손상으로 오라가 꺼짐.
+  //   레어도 표현은 rarityColor 라벨/칩으로만. (롤백 = git으로 이전 switch 복원)
   static Color rarityGlow(String rarity) {
-    switch (rarity) {
-      case 'SSR': return const Color(0xFFFF6B6B);
-      case 'SAR': return const Color(0xFFFFD700);
-      case 'BWR': return const Color(0xFF90EE90);
-      case 'CSR': return const Color(0xFF00E5FF);
-      case 'CHR': return const Color(0xFF4FC3F7);
-      case 'UR':  return const Color(0xFFCE93D8);
-      case 'SR':  return const Color(0xFF9575CD);
-      case 'AR':  return const Color(0xFFFF9800);
-      default:    return Colors.transparent;
-    }
+    return Colors.transparent;
   }
 
   static String formatPrice(int price) {
@@ -95,65 +88,39 @@ class AppRadius {
   static const double pill = 999; // 캡슐 모양 (chip, button)
 }
 
-/// 다층 그림자 — Toss/Linear 스타일.
-/// 단일 BoxShadow는 단조로움. ambient + key 조합으로 깊이 표현.
+/// 그림자 — ★Toss restyle(2026-07-04): 컬러 글로우 전폐, 무채색 depth만.
+/// baseColor 파라미터는 호출부 호환용으로 유지하되 무시(항상 검정 계열).
+/// 롤백 = git으로 이전 다층 프리셋 복원.
 class AppShadows {
-  /// 작은 카드, chip, 작은 elevation
+  /// 작은 카드, chip, 작은 elevation — 거의 안 보이는 수준
   static List<BoxShadow> light(Color baseColor) => [
         BoxShadow(
-          color: baseColor.withValues(alpha: 0.18),
+          color: Colors.black.withValues(alpha: 0.16),
           blurRadius: 6,
           offset: const Offset(0, 2),
-        ),
-        BoxShadow(
-          color: baseColor.withValues(alpha: 0.08),
-          blurRadius: 1,
-          offset: const Offset(0, 1),
         ),
       ];
 
   /// 중간 elevation — sheet, dropdown, FAB 등
   static List<BoxShadow> medium(Color baseColor) => [
         BoxShadow(
-          color: baseColor.withValues(alpha: 0.28),
-          blurRadius: 18,
-          offset: const Offset(0, 8),
-        ),
-        BoxShadow(
-          color: baseColor.withValues(alpha: 0.12),
-          blurRadius: 4,
-          offset: const Offset(0, 2),
+          color: Colors.black.withValues(alpha: 0.22),
+          blurRadius: 14,
+          offset: const Offset(0, 6),
         ),
       ];
 
   /// 큰 elevation — 모달, 떠 있는 큰 카드
   static List<BoxShadow> heavy(Color baseColor) => [
         BoxShadow(
-          color: baseColor.withValues(alpha: 0.42),
-          blurRadius: 32,
-          offset: const Offset(0, 14),
-        ),
-        BoxShadow(
-          color: baseColor.withValues(alpha: 0.18),
-          blurRadius: 8,
-          offset: const Offset(0, 4),
+          color: Colors.black.withValues(alpha: 0.28),
+          blurRadius: 22,
+          offset: const Offset(0, 10),
         ),
       ];
 
-  /// FAB 액션색 글로우 (centerDocked FAB 같은 강조 요소)
-  static List<BoxShadow> glow(Color color) => [
-        BoxShadow(
-          color: color.withValues(alpha: 0.35),
-          blurRadius: 20,
-          spreadRadius: 1,
-          offset: const Offset(0, 6),
-        ),
-        BoxShadow(
-          color: color.withValues(alpha: 0.18),
-          blurRadius: 6,
-          offset: const Offset(0, 2),
-        ),
-      ];
+  /// (구 FAB 글로우) — 글로우 제거, 표준 medium으로 위임
+  static List<BoxShadow> glow(Color color) => medium(color);
 }
 
 /// Typography scale — Toss/Robinhood 스타일 kinetic numbers + 명확한 위계.

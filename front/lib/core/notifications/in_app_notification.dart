@@ -144,7 +144,7 @@ class _BannerBodyState extends State<_BannerBody>
               color: AppColors.blueLight, size: 22),
     );
     return ClipRRect(
-      borderRadius: BorderRadius.circular(13),
+      borderRadius: BorderRadius.circular(12),
       child: SizedBox(
         width: 42,
         height: 42,
@@ -184,7 +184,7 @@ class _BannerBodyState extends State<_BannerBody>
                 child: Container(
                   decoration: BoxDecoration(
                     color: AppColors.surfaceElevated,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                         color: AppColors.textPrimary.withValues(alpha: 0.06)),
                     boxShadow: [

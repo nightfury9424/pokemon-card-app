@@ -127,7 +127,7 @@ class _ToastBodyState extends State<_ToastBody>
                     ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.82),
-                      borderRadius: BorderRadius.circular(22),
+                      borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.3),

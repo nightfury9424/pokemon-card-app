@@ -364,7 +364,7 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
                 disabledForegroundColor: AppColors.textMuted,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                    borderRadius: BorderRadius.circular(16)),
               ),
               child: (_busy || _sendingOtp)
                   ? const SizedBox(
@@ -389,17 +389,17 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
         prefixStyle:
             const TextStyle(color: AppColors.textSecondary, fontSize: 15),
         filled: true,
-        fillColor: AppColors.surfaceCard,
+        fillColor: AppColors.surfaceElevated,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppColors.divider)),
+            borderSide: BorderSide.none),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppColors.divider)),
+            borderSide: BorderSide.none),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppColors.blue, width: 1.5)),
+            borderSide: BorderSide.none),
       );
 }

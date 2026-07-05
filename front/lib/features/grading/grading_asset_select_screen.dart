@@ -97,7 +97,7 @@ class _GradingAssetSelectScreenState extends State<GradingAssetSelectScreen> {
         backgroundColor: AppColors.bg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
         title: const Text(
@@ -137,9 +137,8 @@ class _GradingAssetSelectScreenState extends State<GradingAssetSelectScreen> {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.blue.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.blue.withValues(alpha: 0.2)),
+            color: AppColors.blue.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: const Row(children: [
             Icon(Icons.info_outline_rounded, color: AppColors.blue, size: 16),
@@ -162,17 +161,17 @@ class _GradingAssetSelectScreenState extends State<GradingAssetSelectScreen> {
           decoration: InputDecoration(
             hintText: '카드명 검색',
             hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
-            prefixIcon: const Icon(Icons.search, color: AppColors.textMuted, size: 20),
+            prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textMuted, size: 20),
             filled: true,
-            fillColor: AppColors.surfaceCard,
+            fillColor: AppColors.surfaceElevated,
             isDense: true,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: AppColors.divider),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: AppColors.divider),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
             ),
           ),
         ),
@@ -242,7 +241,7 @@ class _GradingAssetSelectScreenState extends State<GradingAssetSelectScreen> {
           padding: const EdgeInsets.all(10),
           child: Row(children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(8),
               child: SizedBox(
                 width: 48, height: 66,
                 child: imageUrl != null
@@ -283,7 +282,7 @@ class _GradingAssetSelectScreenState extends State<GradingAssetSelectScreen> {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 20),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 20),
           ]),
         ),
       ),

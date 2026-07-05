@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import 'app_list_ui.dart';
+import 'pressable.dart';
 
-/// 도메인 비주얼 — 그래픽 일러스트 없이도 Codex가 권한 "어두운 카드 실루엣" 분위기.
-/// 카드 뒷면 실루엣 + 텍스트 + CTA 조합. (REFACTOR_2026-05-12.md 4차-Round2)
+/// 빈 상태 — 입체 스쿼클 아이콘(앱 시그니처) + 텍스트 + pill CTA. (Toss restyle 2026-07)
 class EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -57,76 +58,57 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = accentColor ?? AppColors.textSecondary;
+    final accent = accentColor ?? AppColors.blue;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
+        padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 어두운 원 안에 큰 아이콘 (카드 backside 실루엣 느낌)
-            Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.surfaceElevated,
-                    AppColors.surfaceCard,
-                  ],
-                ),
-                border: Border.all(color: AppColors.divider, width: 1),
-                boxShadow: [
-                  BoxShadow(
-                    color: accent.withValues(alpha: 0.08),
-                    blurRadius: 28,
-                    spreadRadius: 4,
-                  ),
-                ],
-              ),
-              child: Icon(
-                icon,
-                size: 40,
-                color: accent.withValues(alpha: 0.85),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xl),
+            AppSquircleIcon(icon: icon, color: accent, size: 56),
+            const SizedBox(height: 16),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: AppText.h2.copyWith(fontWeight: FontWeight.w800),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+              ),
             ),
             if (description != null) ...[
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: 6),
               Text(
                 description!,
                 textAlign: TextAlign.center,
-                style: AppText.body.copyWith(
+                style: const TextStyle(
                   color: AppColors.textSecondary,
-                  height: 1.55,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  height: 1.5,
                 ),
               ),
             ],
             if (ctaLabel != null && onCta != null) ...[
-              const SizedBox(height: AppSpacing.xl),
-              GestureDetector(
+              const SizedBox(height: 20),
+              Pressable(
                 onTap: onCta,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xl,
-                    vertical: AppSpacing.md,
+                    horizontal: 20,
+                    vertical: 10,
                   ),
                   decoration: BoxDecoration(
                     color: accent,
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                    boxShadow: AppShadows.glow(accent),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
                     ctaLabel!,
-                    style: AppText.bodyStrong.copyWith(
+                    style: const TextStyle(
                       color: Colors.white,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),

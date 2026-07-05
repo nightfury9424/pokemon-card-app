@@ -3,7 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:dio/dio.dart' show DioException;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show TextInputFormatter, TextEditingValue, TextSelection;
+import 'package:flutter/services.dart' show TextInputFormatter, TextEditingValue, TextSelection, HapticFeedback;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -15,10 +15,13 @@ import '../../core/widgets/trade_safety_notice.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/constants/feature_flags.dart';
 import '../../core/notifiers/asset_notifier.dart';
+import '../../core/widgets/animated_counter.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
+import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/holographic_card_viewer.dart';
+import '../../core/widgets/pressable.dart';
 import '../../core/widgets/rarity_aura.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
@@ -381,11 +384,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       filled: true,
                       fillColor: AppColors.surface,
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: AppColors.divider),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: AppColors.blue),
                       ),
                     ),
@@ -554,7 +557,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                               width: 80, height: 80,
                               decoration: BoxDecoration(
                                 color: AppColors.surface,
-                                border: Border.all(color: AppColors.divider),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Image.network(
@@ -587,11 +589,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       filled: true,
                       fillColor: AppColors.surface,
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: AppColors.divider),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: AppColors.blue),
                       ),
                     ),
@@ -608,11 +610,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       filled: true,
                       fillColor: AppColors.surface,
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: AppColors.divider),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: AppColors.blue),
                       ),
                     ),
@@ -793,7 +795,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
                         color: _bannerIsError ? AppColors.red : AppColors.green,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.35),
@@ -900,7 +902,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                             child: Row(
                               children: [
                                 IconButton(
-                                  icon: const Icon(Icons.arrow_back,
+                                  icon: const Icon(Icons.arrow_back_rounded,
                                       size: 24, color: Colors.white),
                                   style: _noSplash,
                                   onPressed: () => context.pop(),
@@ -943,7 +945,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(AppRadius.pill),
-                      border: Border.all(color: AppColors.divider, width: 0.6),
                     ),
                     child: TabBar(
                 controller: _tabController,
@@ -1082,24 +1083,27 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 ),
                 child: Hero(
                   tag: 'card-${widget.cardId}',
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.55),
-                          blurRadius: 28,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: CardImage(
-                      imageUrl: imageUrl,
-                      width: cardWidth,
-                      height: cardHeight,
-                      borderRadius: BorderRadius.circular(16),
-                      // 데이터(_cardDetail/cardData) 도착 전엔 '이미지 없음' 대신 skeleton.
-                      isLoading: _loading && data == null,
+                  child: _TiltableCard(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.55),
+                            blurRadius: 28,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: CardImage(
+                        imageUrl: imageUrl,
+                        width: cardWidth,
+                        height: cardHeight,
+                        borderRadius: BorderRadius.circular(16),
+                        // 데이터(_cardDetail/cardData) 도착 전엔 '이미지 없음' 대신 skeleton.
+                        isLoading: _loading && data == null,
+                      ),
                     ),
                   ),
                 ),
@@ -1146,14 +1150,14 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     ),
                     if (rarity.isNotEmpty) ...[
                       const SizedBox(width: 8),
-                      _buildBadge(rarity),
+                      AppRarityBadge(rarity, fontSize: 12),
                     ],
                     if (number.isNotEmpty) ...[
                       const SizedBox(width: 6),
                       Text(
                         number,
                         style: const TextStyle(
-                          color: Colors.white38,
+                          color: AppColors.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -1166,7 +1170,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     [if (productName != null) productName, if (seriesName != null) seriesName]
                         .join(' · '),
                     style: const TextStyle(
-                      color: Colors.white38,
+                      color: AppColors.textSecondary,
                       fontSize: 11,
                     ),
                     maxLines: 1,
@@ -1273,19 +1277,18 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
-                      color: Colors.amber.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                      color: AppColors.gold.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Row(
+                    child: const Row(
                       children: [
-                        const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 16),
-                        const SizedBox(width: 8),
+                        Icon(Icons.info_outline_rounded, color: AppColors.gold, size: 16),
+                        SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'PSA 10 시세 데이터가 아직 없어 RAW 시세 기준으로 표시됩니다.',
                             style: TextStyle(
-                              color: Colors.amber.shade200,
+                              color: AppColors.gold,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               height: 1.4,
@@ -1339,7 +1342,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.divider),
         ),
         child: Row(
           children: [
@@ -1390,7 +1392,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1497,7 +1498,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
         ),
         child: Row(
           children: [
@@ -1533,7 +1533,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 ),
               ),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right, color: Colors.white24, size: 16),
+            const Icon(Icons.chevron_right_rounded, color: Colors.white24, size: 16),
           ],
         ),
       ),
@@ -1561,7 +1561,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.divider, width: 0.6),
         ),
         child: Row(
           children: [
@@ -1665,7 +1664,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider, width: 0.6),
       ),
       child: Row(
         children: [
@@ -1781,7 +1779,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1954,7 +1951,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Row(
         children: [
@@ -2140,9 +2136,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: sel ? AppColors.blue : AppColors.surface,
+                              color: sel ? AppColors.blueDeep : AppColors.surfaceElevated,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
                             ),
                             child: Text(c, style: TextStyle(color: sel ? Colors.white : AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700)),
                           ),
@@ -2162,9 +2157,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: sel ? AppColors.gold.withValues(alpha: 0.2) : AppColors.surface,
+                              color: sel ? AppColors.gold.withValues(alpha: 0.2) : AppColors.surfaceElevated,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: sel ? AppColors.gold : AppColors.divider),
                             ),
                             child: Text(v, style: TextStyle(color: sel ? AppColors.gold : AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w800)),
                           ),
@@ -2191,11 +2185,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       filled: true,
                       fillColor: AppColors.surface,
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: AppColors.divider),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: AppColors.blue),
                       ),
                     ),
@@ -2211,11 +2205,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       filled: true,
                       fillColor: AppColors.surface,
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: AppColors.divider),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: AppColors.blue),
                       ),
                     ),
@@ -2225,9 +2219,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       decoration: BoxDecoration(
-                        color: AppColors.red.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.red.withValues(alpha: 0.35)),
+                        color: AppColors.red.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
@@ -2354,14 +2347,13 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: sel ? AppColors.blue.withValues(alpha: 0.18) : AppColors.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
+            color: sel ? AppColors.blueDeep : AppColors.surfaceElevated,
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Center(
             child: Text(label,
                 style: TextStyle(
-                  color: sel ? AppColors.blue : AppColors.textSecondary,
+                  color: sel ? Colors.white : AppColors.textSecondary,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                 )),
@@ -2454,9 +2446,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: AppColors.green.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.green.withValues(alpha: 0.18)),
+                color: AppColors.green.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
@@ -2583,7 +2574,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2638,8 +2628,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
-                    Text(
-                      _formatPrice(koLow),
+                    TweenedCounter(
+                      value: koLow,
+                      formatter: (v) => _formatPrice(v.round()),
+                      duration: const Duration(milliseconds: 700),
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 24,
@@ -2658,8 +2650,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                         ),
                       ),
                     ),
-                    Text(
-                      _formatPrice(koHigh),
+                    TweenedCounter(
+                      value: koHigh,
+                      formatter: (v) => _formatPrice(v.round()),
+                      duration: const Duration(milliseconds: 700),
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 24,
@@ -2764,7 +2758,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       'RAW NM',
                       lastRaw,
                       '\$',
-                      const Color(0xFF2196F3),
+                      AppColors.blue,
                       selected: _selectedGlobalGrade == 'RAW',
                       onTap: () => setState(() { _selectedGlobalGrade = 'RAW'; _gradeManuallyPicked = true; }),
                     ),
@@ -2775,7 +2769,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       'PSA 10',
                       activePsa10,
                       '\$',
-                      const Color(0xFFFFD700),
+                      AppColors.gold,
                       selected: _selectedGlobalGrade == 'PSA10',
                       onTap: () => setState(() {
                         _selectedGlobalGrade = 'PSA10';
@@ -2788,7 +2782,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       'PSA 9',
                       activePsa9,
                       '\$',
-                      const Color(0xFF90CAF9),
+                      AppColors.blueLight,
                       selected: _selectedGlobalGrade == 'PSA9',
                       onTap: () => setState(() {
                         _selectedGlobalGrade = 'PSA9';
@@ -2840,7 +2834,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceElevated,
         borderRadius: BorderRadius.circular(AppRadius.pill),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Text(
         text,
@@ -2862,22 +2855,18 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     VoidCallback? onTap,
   }) {
     final color = label == 'RAW'
-        ? const Color(0xFF4CAF50)
+        ? AppColors.green
         : label == 'PSA 10'
-        ? const Color(0xFFFFD700)
-        : const Color(0xFF90CAF9);
+        ? AppColors.gold
+        : AppColors.blueLight;
     final hasPrice = low != null && high != null;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(selected ? 0.16 : 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: color.withOpacity(selected ? 0.75 : 0.3),
-            width: selected ? 1.5 : 1,
-          ),
+          color: color.withValues(alpha: selected ? 0.20 : 0.08),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2962,13 +2951,13 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           const SizedBox(width: 8),
         ],
         if (psa10Krw != null)
-          _buildPriceChip('PSA 10', psa10Krw, '', const Color(0xFFFFD700),
+          _buildPriceChip('PSA 10', psa10Krw, '', AppColors.gold,
               selected: _selectedGlobalGrade == 'PSA10',
               onTap: () => setState(() { _selectedGlobalGrade = 'PSA10'; _gradeManuallyPicked = true; }),
               isWon: true),
         if (psa9Krw != null) ...[
           const SizedBox(width: 8),
-          _buildPriceChip('PSA 9', psa9Krw, '', const Color(0xFF90CAF9),
+          _buildPriceChip('PSA 9', psa9Krw, '', AppColors.blueLight,
               selected: _selectedGlobalGrade == 'PSA9',
               onTap: () => setState(() { _selectedGlobalGrade = 'PSA9'; _gradeManuallyPicked = true; }),
               isWon: true),
@@ -2991,12 +2980,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(selected ? 0.16 : 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: color.withOpacity(selected ? 0.75 : 0.3),
-            width: selected ? 1.5 : 1,
-          ),
+          color: color.withValues(alpha: selected ? 0.20 : 0.08),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -3126,6 +3111,23 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     );
   }
 
+  // 차트 스크럽 햅틱 — 터치 중인 spot index가 바뀔 때만 selectionClick.
+  // KO/시장 차트는 chartType에 따라 동시에 하나만 렌더되므로 index 하나로 공유 안전.
+  int? _lastScrubSpotIndex;
+
+  void _onChartScrub(FlTouchEvent event, LineTouchResponse? response) {
+    final spots = response?.lineBarSpots;
+    if (!event.isInterestedForInteractions || spots == null || spots.isEmpty) {
+      _lastScrubSpotIndex = null; // 터치 종료 → 다음 스크럽 첫 spot에서 다시 틱
+      return;
+    }
+    final idx = spots.first.spotIndex;
+    if (idx != _lastScrubSpotIndex) {
+      _lastScrubSpotIndex = idx;
+      HapticFeedback.selectionClick();
+    }
+  }
+
   Widget _buildMarketChart(Map<String, dynamic>? charts) {
     final bool isKrw = _selectedMarket == 'KO';
 
@@ -3190,14 +3192,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     }
 
     final activeColor = isKrw
-        ? const Color(0xFF4CAF50)
+        ? AppColors.green
         : _selectedGlobalGrade == 'PSA10'
-        ? const Color(0xFFFFD700)
+        ? AppColors.gold
         : _selectedGlobalGrade == 'PSA9'
-        ? const Color(0xFF90CAF9)
+        ? AppColors.blueLight
         : (_selectedMarket == 'JP'
-              ? const Color(0xFFFFB74D)
-              : const Color(0xFF2196F3));
+              // JP RAW 라인: gold 파생 오렌지 — PSA10 gold 칩과 구분 유지
+              ? Color.lerp(AppColors.gold, AppColors.red, 0.4)!
+              : AppColors.blue);
 
     if (rawData == null || rawData.isEmpty) {
       return const Padding(
@@ -3315,8 +3318,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           maxX: lastX,
           clipData: const FlClipData.all(),
           lineTouchData: LineTouchData(
+            handleBuiltInTouches: true,
+            touchCallback: _onChartScrub,
             touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (_) => const Color(0xFF1A2035),
+              getTooltipColor: (_) => AppColors.surfaceElevated,
               tooltipRoundedRadius: 10,
               tooltipBorder: const BorderSide(color: Colors.white12),
               getTooltipItems: (pts) => pts.map((s) {
@@ -3480,8 +3485,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         .clamp(1.0, double.infinity);
     final xInterval = (lastX / 4).ceilToDouble().clamp(1.0, double.infinity);
 
-    const lineColor = Color(0xFF4CAF50);
-    const pointColor = Color(0xFFFFC107);
+    const lineColor = AppColors.green;
+    const pointColor = AppColors.gold;
 
     final bars = <LineChartBarData>[
       if (lineSpots.length >= 2)
@@ -3515,8 +3520,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           maxX: lastX,
           clipData: const FlClipData.all(),
           lineTouchData: LineTouchData(
+            handleBuiltInTouches: true,
+            touchCallback: _onChartScrub,
             touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (_) => const Color(0xFF1A2035),
+              getTooltipColor: (_) => AppColors.surfaceElevated,
               tooltipRoundedRadius: 10,
               tooltipBorder: const BorderSide(color: Colors.white12),
               getTooltipItems: (pts) => pts.map((s) {
@@ -3603,7 +3610,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         Container(
           width: 18,
           height: 2,
-          color: const Color(0xFF4CAF50).withOpacity(0.7),
+          color: AppColors.green.withOpacity(0.7),
         ),
         const SizedBox(width: 5),
         const Text(
@@ -3629,7 +3636,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3714,14 +3720,14 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     Text(
                       _formatPrice(price),
                       style: const TextStyle(
-                        color: Color(0xFFEF5350),
+                        color: AppColors.red,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(width: 4),
                     const Icon(
-                      Icons.chevron_right,
+                      Icons.chevron_right_rounded,
                       color: Colors.white24,
                       size: 14,
                     ),
@@ -3777,7 +3783,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3823,9 +3828,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                    color: AppColors.surfaceElevated,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
@@ -3886,7 +3890,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                             Text(
                               _formatPrice(price.toInt()),
                               style: const TextStyle(
-                                color: Color(0xFF4CAF50),
+                                color: AppColors.green,
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -3903,7 +3907,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       ),
                       const SizedBox(width: 4),
                       const Icon(
-                        Icons.chevron_right,
+                        Icons.chevron_right_rounded,
                         color: Colors.white24,
                         size: 16,
                       ),
@@ -3975,43 +3979,55 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: Row(
           children: [
+            // CTA 눌림 반응 (Toss restyle): ElevatedButton → Pressable+Container.
+            // 색/높이 48/radius 12/라벨/onTap(가드 포함) 동일 — 눌림 scale 0.97만 추가.
             Expanded(
-              child: SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () => _onSellTap(cardName, rarity, imageUrl),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.blue,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+              child: Pressable(
+                pressedScale: 0.97,
+                onTap: () => _onSellTap(cardName, rarity, imageUrl),
+                child: Container(
+                  height: 48,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.blue,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   // 매수 대기 인원 배지 — "사려는 사람 N명" 신호로 판매 유도.
                   child: Text(
                     (_hogaBidCount != null && _hogaBidCount! > 0)
                         ? '판매하기 ($_hogaBidCount)'
                         : '판매하기',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _onBuyTap,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.red,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+              child: Pressable(
+                pressedScale: 0.97,
+                onTap: _onBuyTap,
+                child: Container(
+                  height: 48,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.red,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   // 판매글 수 배지 — "파는 사람 N건" 신호로 구매 유도.
                   child: Text(
                     (_hogaAskCount != null && _hogaAskCount! > 0)
                         ? '구매하기 ($_hogaAskCount)'
                         : '구매하기',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ),
@@ -4314,8 +4330,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       height: 200,
                       decoration: BoxDecoration(
                         color: AppColors.surfaceElevated,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.divider),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: slab == null
                           ? const Column(
@@ -4331,7 +4346,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                               ],
                             )
                           : ClipRRect(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(16),
                               child: Image.file(slab!,
                                   fit: BoxFit.cover, width: double.infinity),
                             ),
@@ -4413,7 +4428,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     backgroundColor: AppColors.blue,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                   ),
                   child: const Text('촬영 시작'),
                 ),
@@ -4480,7 +4495,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     backgroundColor: AppColors.blue,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                   ),
                   child: const Text('판매글 작성하러 가기'),
                 ),
@@ -4658,9 +4673,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
+          color: AppColors.gold.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
         ),
         child: Row(
           children: [
@@ -4712,9 +4726,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
+            color: AppColors.blue.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.blue.withValues(alpha: 0.3)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -4750,7 +4763,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   ),
                   const SizedBox(width: 6),
                   const Icon(
-                    Icons.chevron_right,
+                    Icons.chevron_right_rounded,
                     color: AppColors.textMuted,
                     size: 18,
                   ),
@@ -4792,28 +4805,16 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           decoration: BoxDecoration(
             color: AppColors.surfaceCard,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4)),
           ),
           child: Row(
             children: [
-              Container(
-                width: 24, height: 24,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF15110A),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFD4AF37), width: 1.2),
-                ),
-                child: const Icon(Icons.check_rounded, size: 14, color: Color(0xFFFFD86B)),
-              ),
-              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('실물 사진 등록 완료',
-                        style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 2),
+                    const AppVerifiedGoldBadge(label: '실물 사진 등록 완료', size: 24),
+                    const SizedBox(height: 6),
                     Text(
                         canViewPhotos
                             ? '탭하여 앞면/뒷면 실사진 보기'
@@ -4824,7 +4825,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               ),
               if (canViewPhotos) ...[
                 const SizedBox(width: 6),
-                const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
+                const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 18),
               ],
             ],
           ),
@@ -4855,9 +4856,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
+          color: AppColors.blue.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.blue.withValues(alpha: 0.4)),
         ),
         child: Row(
           children: [
@@ -4877,7 +4877,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               ),
             ),
             const SizedBox(width: 6),
-            const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 18),
           ],
         ),
       ),
@@ -5119,7 +5119,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       children: [
         if (url != null)
           ClipRRect(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             // AuthImage: JWT Authorization header 자동 부착 (proxy endpoint /api/images/secure/**).
             // 일반 Image.network는 헤더 못 부착 → 401 → broken image placeholder.
             child: AuthImage(
@@ -5196,9 +5196,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           children: [
@@ -5240,29 +5239,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     }
   }
 
-  Widget _buildBadge(String rarity) {
-    final color = _rarityColor(rarity);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color, width: 1),
-      ),
-      child: Text(
-        rarity,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  // 레어도 칩 색 — 앱 전역 단일 소스(AppColors.rarityColor)로 통일.
-  // (이전: 자체 switch 라 SSR 이 캐러셀=빨강 vs 상세=노랑 으로 불일치하던 버그.)
-  Color _rarityColor(String rarity) => AppColors.rarityColor(rarity);
+  // 레어도 배지 — 공용 킷 AppRarityBadge 사용 (로컬 _buildBadge/_rarityColor 제거, Toss restyle).
 
   Widget _buildNoUsefulChartBox(String reason) {
     final msg = reason == 'FLAT_DATA'
@@ -5473,6 +5450,156 @@ class _ThousandsCommaFormatter extends TextInputFormatter {
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+/// 히어로 카드 터치 틸트 + 광택 (Toss restyle 시그니처 인터랙션).
+///
+/// 제스처 안전성: NestedScrollView 헤더 안에 살기 때문에 제스처 아레나에
+/// 참여하는 GestureDetector 드래그를 쓰면 세로 스크롤이 죽는다.
+/// → Listener(passive, 아레나 비참여)로 포인터만 관찰: 스크롤/탭(홀로그램 뷰어)
+///   제스처는 그대로 동작하고, 틸트는 순수 시각 효과로만 얹힌다.
+///
+/// 60fps: 포인터 이동은 `ValueNotifier<Offset>`만 갱신 →
+/// ValueListenableBuilder가 Transform+광택 오버레이만 리빌드 (setState 없음).
+class _TiltableCard extends StatefulWidget {
+  final Widget child;
+  final BorderRadius borderRadius;
+
+  const _TiltableCard({
+    required this.child,
+    required this.borderRadius,
+  });
+
+  @override
+  State<_TiltableCard> createState() => _TiltableCardState();
+}
+
+class _TiltableCardState extends State<_TiltableCard>
+    with SingleTickerProviderStateMixin {
+  /// (dx, dy) ∈ [-1, 1]² — 카드 중심 대비 포인터 위치 비율.
+  final ValueNotifier<Offset> _tilt = ValueNotifier<Offset>(Offset.zero);
+
+  late final AnimationController _resetController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 350),
+  );
+  Animation<Offset>? _resetAnim;
+
+  static const double _maxTiltRad = 0.10;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetController.addListener(() {
+      final anim = _resetAnim;
+      if (anim != null) _tilt.value = anim.value;
+    });
+  }
+
+  @override
+  void dispose() {
+    _resetController.dispose();
+    _tilt.dispose();
+    super.dispose();
+  }
+
+  void _updateFromPointer(Offset localPosition) {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final size = box.size;
+    if (size.width <= 0 || size.height <= 0) return;
+    final dx = ((localPosition.dx - size.width / 2) / (size.width / 2))
+        .clamp(-1.0, 1.0);
+    final dy = ((localPosition.dy - size.height / 2) / (size.height / 2))
+        .clamp(-1.0, 1.0);
+    _tilt.value = Offset(dx, dy);
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    _resetController.stop();
+    _resetAnim = null;
+    HapticFeedback.selectionClick();
+    _updateFromPointer(event.localPosition);
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    _updateFromPointer(event.localPosition);
+  }
+
+  void _onPointerEnd(PointerEvent event) {
+    if (_tilt.value == Offset.zero) return;
+    // 손 뗄 때 살짝 오버슈트하며 평평하게 복귀 (spring 느낌).
+    _resetAnim = Tween<Offset>(begin: _tilt.value, end: Offset.zero).animate(
+      CurvedAnimation(parent: _resetController, curve: Curves.easeOutBack),
+    );
+    _resetController
+      ..reset()
+      ..forward();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      // Listener는 제스처 아레나에 참여하지 않는 passive 관찰자 —
+      // NestedScrollView 스크롤/탭 제스처를 절대 가로채지 않는다.
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerEnd,
+      onPointerCancel: _onPointerEnd,
+      child: ValueListenableBuilder<Offset>(
+        valueListenable: _tilt,
+        builder: (context, tilt, child) {
+          final rotateX = -tilt.dy * _maxTiltRad;
+          final rotateY = tilt.dx * _maxTiltRad;
+          final glossOpacity = tilt.distance.clamp(0.0, 1.0);
+          return Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.0012)
+              ..rotateX(rotateX)
+              ..rotateY(rotateY),
+            child: Stack(
+              children: [
+                child!,
+                // 광택: 틸트 반대 방향으로 흐르는 좁은 흰색 sheen 밴드 (광원 착시).
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: glossOpacity,
+                      child: ClipRRect(
+                        borderRadius: widget.borderRadius,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment(
+                                (-tilt.dx - 0.7).clamp(-2.0, 2.0),
+                                (-tilt.dy - 0.7).clamp(-2.0, 2.0),
+                              ),
+                              end: Alignment(
+                                (-tilt.dx + 0.7).clamp(-2.0, 2.0),
+                                (-tilt.dy + 0.7).clamp(-2.0, 2.0),
+                              ),
+                              colors: const [
+                                Color(0x00FFFFFF),
+                                Color(0x2EFFFFFF),
+                                Color(0x00FFFFFF),
+                              ],
+                              stops: const [0.35, 0.5, 0.65],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+        child: widget.child,
+      ),
     );
   }
 }

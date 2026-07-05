@@ -156,7 +156,7 @@ class _HogaBoardState extends State<HogaBoard> {
           borderRadius: BorderRadius.circular(6),
           child: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: AppColors.divider, width: 0.6),
+              border: Border.all(color: AppColors.dividerSoft, width: 0.6),
             ),
             child: Stack(
               children: [

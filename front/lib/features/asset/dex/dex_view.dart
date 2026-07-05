@@ -177,11 +177,7 @@ class _HeroFallback extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.surfaceElevated, AppColors.surface],
-        ),
+        color: AppColors.surfaceElevated,
       ),
       padding: const EdgeInsets.all(8),
       child: Center(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_error_toast.dart';
+import '../../core/widgets/empty_state.dart';
 
 /// 내 신고 진행 상황 — GET /api/reports/me (백엔드 Report status 그대로 노출).
 /// 신규 기능 아님: 백엔드(상태/메모/처리)는 이미 존재, 사용자 조회 화면만 추가.
@@ -91,12 +92,11 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.blue))
+          // 로드 실패 시 에러 토스트 후 _items가 빈 채로 남음(에러 상태 미분리) — 분기 유지, 표현만 교체.
           : _items.isEmpty
-              ? const Center(
-                  child: Text(
-                    '신고 내역이 없습니다',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
+              ? const EmptyState(
+                  icon: Icons.flag_rounded,
+                  title: '신고 내역이 없어요',
                 )
               : RefreshIndicator(
                   color: AppColors.blue,
@@ -130,7 +130,6 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -142,8 +141,9 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                   [if (targetLabel.isNotEmpty) targetLabel, reasonLabel].join(' · '),
                   style: const TextStyle(
                     color: AppColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -154,14 +154,14 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   statusLabel,
                   style: TextStyle(
                     color: statusColor,
                     fontSize: 11,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -185,10 +185,10 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
               (status == 'RESOLVED' || status == 'DISMISSED')) ...[
             const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.surfaceElevated,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,

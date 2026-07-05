@@ -192,7 +192,6 @@ class SettingsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         children: List.generate(items.length, (i) {
@@ -241,16 +240,6 @@ class _SettingsRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: item.iconColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(item.icon, color: item.iconColor, size: 18),
-                ),
-                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,7 +249,8 @@ class _SettingsRow extends StatelessWidget {
                         style: TextStyle(
                           color: item.labelColor ?? AppColors.textPrimary,
                           fontSize: 15,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.2,
                         ),
                       ),
                       if (item.sub != null) ...[
@@ -294,8 +284,8 @@ class _SettingsRow extends StatelessWidget {
           ),
           if (!isLast)
             Padding(
-              padding: const EdgeInsets.only(left: 66),
-              child: Container(height: 0.5, color: AppColors.divider),
+              padding: const EdgeInsets.only(left: 16),
+              child: Container(height: 1, color: AppColors.dividerSoft),
             ),
         ],
       ),

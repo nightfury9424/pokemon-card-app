@@ -339,12 +339,19 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
                       textInputAction: TextInputAction.next,
                       style: const TextStyle(
                           color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
-                      decoration: const InputDecoration(
+                      // ★Toss restyle: 필드 = filled surfaceElevated · borderless r12(전역 필드 문법).
+                      decoration: InputDecoration(
                         hintText: '제목을 입력하세요',
-                        hintStyle: TextStyle(color: AppColors.textMuted),
-                        border: InputBorder.none,
+                        hintStyle: const TextStyle(color: AppColors.textMuted),
+                        filled: true,
+                        fillColor: AppColors.surfaceElevated,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
                         isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 6),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         counterText: '', // 기본 카운터 숨김
                       ),
                     ),
@@ -354,9 +361,8 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
                       style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
                 ],
               ),
-              const SizedBox(height: 6),
-              const Divider(height: 1, color: AppColors.dividerSoft),
-              const SizedBox(height: 6),
+              // ★Toss restyle: 제목·본문이 filled 박스가 되면서 사이 divider 는 중복 → 여백으로 대체.
+              const SizedBox(height: 10),
               TextField(
                 controller: _body,
                 maxLength: _bodyMax,
@@ -365,11 +371,17 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
                 keyboardType: TextInputType.multiline,
                 textInputAction: TextInputAction.newline,
                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, height: 1.5),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: '내용을 입력하세요',
-                  hintStyle: TextStyle(color: AppColors.textMuted),
-                  border: InputBorder.none,
+                  hintStyle: const TextStyle(color: AppColors.textMuted),
+                  filled: true,
+                  fillColor: AppColors.surfaceElevated,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                   isDense: true,
+                  contentPadding: const EdgeInsets.all(14),
                   counterText: '',
                 ),
               ),
@@ -423,7 +435,7 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
         child: Stack(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               child: p.isExisting
                   ? AuthImage(url: p.existingUrl!, width: 78, height: 78, fit: BoxFit.cover)
                   : Image.file(p.file!, width: 78, height: 78, fit: BoxFit.cover),
@@ -437,7 +449,7 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
                 child: const Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.refresh, color: Colors.white, size: 22),
+                    Icon(Icons.refresh_rounded, color: Colors.white, size: 22),
                     Text('재시도', style: TextStyle(color: Colors.white, fontSize: 10)),
                   ],
                 ),
@@ -451,7 +463,7 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
                 child: Container(
                   decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
                   padding: const EdgeInsets.all(2),
-                  child: const Icon(Icons.close, color: Colors.white, size: 15),
+                  child: const Icon(Icons.close_rounded, color: Colors.white, size: 15),
                 ),
               ),
             ),
@@ -463,7 +475,7 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
 
   Widget _overlay(Widget child) => Positioned.fill(
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           child: Container(color: Colors.black.withValues(alpha: 0.45), child: Center(child: child)),
         ),
       );
@@ -475,10 +487,10 @@ class _BoardComposeScreenState extends State<BoardComposeScreen> {
       child: Container(
         width: 78,
         height: 78,
+        // ★Toss restyle: 점선/외곽선 없는 filled 타일(전역 필드 문법 — surfaceElevated r12).
         decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.divider),
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(12),
         ),
         child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,

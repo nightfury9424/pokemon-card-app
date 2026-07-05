@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_error_toast.dart';
+import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/app_success_toast.dart';
+import '../../core/widgets/empty_state.dart';
 
 class BlockedUsersScreen extends StatefulWidget {
   const BlockedUsersScreen({super.key});
@@ -71,81 +73,83 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.blue))
+          // 로드 실패 시 에러 토스트 후 _items가 빈 채로 남음(에러 상태 미분리) — 분기 유지, 표현만 교체.
           : _items.isEmpty
-              ? const Center(
-                  child: Text(
-                    '차단한 사용자가 없습니다',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
+              ? const EmptyState(
+                  icon: Icons.person_off_rounded,
+                  title: '차단한 사용자가 없어요',
                 )
-              : ListView.separated(
+              : ListView(
                   padding: const EdgeInsets.all(16),
-                  itemCount: _items.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final item = _items[index];
-                    final blockedId = item['blockedId']?.toString() ?? '';
-                    final blockedAt = item['blockedAt']?.toString() ?? '';
-                    // Phase 1 hotfix: nickname 우선. 없으면 "알 수 없는 사용자". raw user_id 노출 X.
-                    final nickname = item['blockedNickname']?.toString();
-                    final displayName =
-                        (nickname != null && nickname.isNotEmpty) ? nickname : '알 수 없는 사용자';
-                    final busy = _unblocking.contains(blockedId);
-                    return Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceCard,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: Row(
-                        children: [
-                          const CircleAvatar(
-                            radius: 20,
-                            backgroundColor: AppColors.surfaceElevated,
-                            child: Icon(
-                              Icons.person_off_rounded,
-                              color: AppColors.textMuted,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  displayName,
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                if (blockedAt.isNotEmpty) ...[
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    blockedAt.split('.').first.replaceFirst('T', ' '),
-                                    style: const TextStyle(
-                                      color: AppColors.textMuted,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: busy || blockedId.isEmpty
-                                ? null
-                                : () => _unblock(blockedId),
-                            child: Text(busy ? '처리 중' : '차단 해제'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                  children: [
+                    AppGroupCard(
+                      dividerIndent: 68,
+                      children: [
+                        for (final item in _items) _buildRow(item),
+                      ],
+                    ),
+                  ],
                 ),
+    );
+  }
+
+  Widget _buildRow(Map<String, dynamic> item) {
+    final blockedId = item['blockedId']?.toString() ?? '';
+    final blockedAt = item['blockedAt']?.toString() ?? '';
+    // Phase 1 hotfix: nickname 우선. 없으면 "알 수 없는 사용자". raw user_id 노출 X.
+    final nickname = item['blockedNickname']?.toString();
+    final displayName =
+        (nickname != null && nickname.isNotEmpty) ? nickname : '알 수 없는 사용자';
+    final busy = _unblocking.contains(blockedId);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          const CircleAvatar(
+            radius: 20,
+            backgroundColor: AppColors.surfaceElevated,
+            child: Icon(
+              Icons.person_off_rounded,
+              color: AppColors.textMuted,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (blockedAt.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    blockedAt.split('.').first.replaceFirst('T', ' '),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed:
+                busy || blockedId.isEmpty ? null : () => _unblock(blockedId),
+            child: Text(busy ? '처리 중' : '차단 해제'),
+          ),
+        ],
+      ),
     );
   }
 }

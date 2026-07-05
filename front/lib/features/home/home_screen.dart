@@ -14,6 +14,7 @@ import '../board/home_notice_banner.dart';
 import '../../core/utils/price_label.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/animated_counter.dart';
+import '../../core/widgets/app_list_ui.dart' show AppSquircleIcon;
 import '../../core/widgets/card_image.dart'
     show CardImage, resolveCardImageUrl, precacheCardImage;
 import '../../core/widgets/pressable.dart';
@@ -295,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
               'sortBy': 'price',
               'sortDir': 'desc',
               'page': 0,
-              'size': 6,
+              'size': 10,
             },
           );
         } catch (_) {}
@@ -305,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // #11: 호가(활성 매물) 먼저 — 거래탭 호가 탭과 동일 endpoint. 호가 0개 카드는 백엔드 제외.
           final active = await ApiClient.getList(
             '/api/cards/market/active',
-            params: {'size': 6},
+            params: {'size': 10},
           );
           hotActive = active
               .whereType<Map>()
@@ -320,7 +321,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 'sortBy': 'price',
                 'sortDir': 'desc',
                 'page': 0,
-                'size': 6,
+                'size': 10,
               },
             );
           }
@@ -333,11 +334,11 @@ class _HomeScreenState extends State<HomeScreen> {
     // #11: 호가 우선, 없으면 힛카드 폴백.
     final List<Map<String, dynamic>> hotCards;
     if (hotActive.isNotEmpty) {
-      hotCards = hotActive.take(6).toList();
+      hotCards = hotActive.take(10).toList();
     } else {
       final hotData = hotRes?['data'] as Map<String, dynamic>?;
       final hotRaw = List<Map<String, dynamic>>.from(hotData?['content'] ?? []);
-      hotCards = hotRaw.take(6).toList();
+      hotCards = hotRaw.take(10).toList();
     }
 
     if (!mounted) return;
@@ -442,6 +443,18 @@ class _HomeScreenState extends State<HomeScreen> {
     await Future.wait(
       cards.map((c) => precacheCardImage(context, resolveCardImageUrl(c))),
     );
+  }
+
+  /// 스마트 프리캐시 — 페이지가 정착할 때 현재 탭 아이템 realIndex±1, ±2 이미지를 미리 워밍.
+  /// Dart % 는 non-negative(모듈러) → 음수 offset 도 기존 realIndex 계산과 동일하게 wrap.
+  /// precacheCardImage 는 내부에서 실패를 삼킴 → fire-and-forget 안전.
+  void _precacheAround(List<Map<String, dynamic>> items, int realIndex) {
+    if (!mounted || items.length < 2) return;
+    for (final offset in const [-2, -1, 1, 2]) {
+      final idx = (realIndex + offset) % items.length;
+      final card = items[idx]['card'] as Map<String, dynamic>? ?? const {};
+      unawaited(precacheCardImage(context, resolveCardImageUrl(card)));
+    }
   }
 
   Future<void> _loadData() => _loadAll(silent: true);
@@ -633,22 +646,11 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: () => context.go('/assets'),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
-            border: Border.all(color: AppColors.divider, width: 1),
-            borderRadius: BorderRadius.circular(18),
+            // ★Toss restyle: 그라데이션/테두리 제거 — 서피스 색차만으로 구분
+            color: AppColors.surfaceElevated,
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.blue.withValues(alpha: 0.15),
-                  AppColors.surfaceCard.withValues(alpha: 0.0),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(18),
-            ),
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -805,47 +807,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.zero,
                     ),
                   ),
-                // 2) 메인 그라데이션 (좌상 = 액센트 / 우하 = 어두움)
+                // ★Toss restyle: 2) 가독성용 무채색 스크림만 (액센트 그라데이션·글래스보더·글로우 제거)
                 Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      stops: const [0.0, 0.5, 1.0],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: const [0.0, 0.55, 1.0],
                       colors: [
-                        AppColors.blue.withValues(alpha: 0.28),
-                        AppColors.surfaceCard.withValues(alpha: 0.78),
-                        Colors.black.withValues(alpha: 0.78),
+                        Colors.black.withValues(alpha: 0.10),
+                        Colors.black.withValues(alpha: 0.45),
+                        Colors.black.withValues(alpha: 0.82),
                       ],
-                    ),
-                  ),
-                ),
-                // 3) 글래스 inner border (subtle)
-                Container(
-                  margin: const EdgeInsets.all(1),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(AppRadius.xl - 1),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.06),
-                      width: 1,
-                    ),
-                  ),
-                ),
-                // 4) 우상단 액센트 글로우 (radial)
-                Positioned(
-                  top: -40,
-                  right: -40,
-                  child: Container(
-                    width: 160,
-                    height: 160,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          AppColors.blue.withValues(alpha: 0.25),
-                          Colors.transparent,
-                        ],
-                      ),
                     ),
                   ),
                 ),
@@ -1296,13 +1269,17 @@ class _HomeScreenState extends State<HomeScreen> {
               controller: controller,
               // 2장 이상 모두 virtual 무한 캐러셀(양옆 peek). realIndex = index % items.length.
               itemCount: _kCarouselVirtual,
-              onPageChanged: (page) => setState(() {
-                if (isMyCards) {
-                  _carouselPage = page;
-                } else {
-                  _marketCarouselPage = page;
-                }
-              }),
+              onPageChanged: (page) {
+                setState(() {
+                  if (isMyCards) {
+                    _carouselPage = page;
+                  } else {
+                    _marketCarouselPage = page;
+                  }
+                });
+                // 스마트 프리캐시: 정착한 realIndex 주변 ±1, ±2 워밍(자동회전/스와이프 공통).
+                _precacheAround(items, page % items.length);
+              },
               itemBuilder: (context, index) {
                 final realIndex = index % items.length;
                 final cardId =
@@ -1470,7 +1447,6 @@ class _HomeScreenState extends State<HomeScreen> {
             decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
             ),
             child: Column(
               children: visibleTrades.asMap().entries.map((entry) {
@@ -1707,7 +1683,7 @@ class _NotificationSheetState extends State<_NotificationSheet> {
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.divider),
+          const Divider(height: 1, color: AppColors.dividerSoft),
           Expanded(
             child: _loading
                 ? const Center(
@@ -1781,19 +1757,15 @@ class _NotificationSheetState extends State<_NotificationSheet> {
                         child: Container(
                           color: isRead
                               ? Colors.transparent
-                              : AppColors.blue.withValues(alpha: 0.04),
+                              : AppColors.blue.withValues(alpha: 0.05),
                           padding: const EdgeInsets.all(16),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: accent.withValues(alpha: 0.14),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(icon, color: accent, size: 18),
+                              AppSquircleIcon(
+                                icon: icon,
+                                color: accent,
+                                size: 32,
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -1805,9 +1777,10 @@ class _NotificationSheetState extends State<_NotificationSheet> {
                                       style: TextStyle(
                                         color: isRead
                                             ? AppColors.textSecondary
-                                            : Colors.white,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
+                                            : AppColors.textPrimary,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: -0.2,
                                       ),
                                     ),
                                     if ((n['body'] as String? ?? '')
@@ -1931,7 +1904,6 @@ class _MiniSegment extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.divider),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2129,7 +2101,6 @@ class _CarouselCardState extends State<_CarouselCard>
                     decoration: BoxDecoration(
                       color: AppColors.surfaceElevated,
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.divider, width: 0.5),
                     ),
                     child: Text(
                       (isMyCard && assetLang == 'JP')
@@ -2214,13 +2185,17 @@ class _CarouselCardState extends State<_CarouselCard>
                   final label =
                       widget.item['changeLabel'] as String? ?? '전일 대비';
                   final price = (widget.item['price'] as num?)?.toInt();
-                  int? prevPriceApprox;
-                  if (price != null && pct > -100) {
-                    prevPriceApprox = (price / (1 + pct / 100)).round();
+                  // 정확한 전일가: API yesterdayPrice 가 양수면 그대로 사용, 없으면 pct 역산 근사 fallback.
+                  final yesterday = card['yesterdayPrice'] as num?;
+                  int? prevPrice;
+                  if (yesterday != null && yesterday > 0) {
+                    prevPrice = yesterday.toInt();
+                  } else if (price != null && pct > -100) {
+                    prevPrice = (price / (1 + pct / 100)).round();
                   }
                   final display = PriceDisplayPolicy.buildChangeDisplay(
                     lastPrice: price,
-                    prevPrice: prevPriceApprox,
+                    prevPrice: prevPrice,
                     prefix: label,
                   );
                   if (display == null) return const SizedBox.shrink();

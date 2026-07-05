@@ -666,7 +666,7 @@ class _ScannerScreenState extends State<ScannerScreen>
     final ok = await AppConfirmDialog.show(
       context,
       icon: Icons.warning_amber_rounded,
-      iconColor: const Color(0xFFEAB308),
+      iconColor: AppColors.gold,
       title: '인식 신뢰도 낮음',
       message:
           '카드 인식 신뢰도가 낮아 다른 카드일 수 있어요.\n'
@@ -708,7 +708,7 @@ class _ScannerScreenState extends State<ScannerScreen>
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1A2035),
+      backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -957,7 +957,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                           ? null
                           : submit,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
+                        backgroundColor: AppColors.blue,
                         disabledBackgroundColor: Colors.white12,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -1060,7 +1060,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                     child: Text(
                       _debugText,
                       style: const TextStyle(
-                        color: Color(0xFFEAB308),
+                        color: AppColors.gold,
                         fontSize: 11,
                       ),
                     ),
@@ -1382,7 +1382,7 @@ class _ScannerScreenState extends State<ScannerScreen>
             children: [
               const Icon(
                 Icons.warning_amber_rounded,
-                color: Color(0xFFEF4444),
+                color: AppColors.red,
                 size: 56,
               ),
               const SizedBox(height: 16),
@@ -1451,7 +1451,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                 child: ElevatedButton(
                   onPressed: _dismissResult,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
+                    backgroundColor: AppColors.blue,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -1931,7 +1931,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2563EB),
+                    color: AppColors.blue,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
@@ -1952,14 +1952,7 @@ class _ScannerScreenState extends State<ScannerScreen>
           height: h + 6,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFEAB308), width: 3),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFEAB308).withValues(alpha: 0.5),
-                blurRadius: 16,
-                spreadRadius: 2,
-              ),
-            ],
+            border: Border.all(color: AppColors.gold, width: 3),
           ),
         ),
       ],
@@ -2153,7 +2146,7 @@ class _ShutterButton extends StatelessWidget {
                   height: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 3,
-                    color: Color(0xFF2563EB),
+                    color: AppColors.blue,
                   ),
                 )
               : null,

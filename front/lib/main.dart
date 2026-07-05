@@ -98,9 +98,9 @@ class PokemonCardApp extends StatelessWidget {
           // #13 root fix: primary 가 빨강(0xFFE53935)이라 색 미지정 위젯의 ripple/splash/indicator/
           //   기본 RefreshIndicator(#10)가 전부 빨강으로 번졌음 → 브랜드 블루로. 명시적 AppColors.red(매수/하트)는 무관.
           primary: AppColors.blue,
-          surface: Color(0xFF16213E),
+          surface: AppColors.surface,
         ),
-        scaffoldBackgroundColor: const Color(0xFF1A1A2E),
+        scaffoldBackgroundColor: AppColors.bg,
         appBarTheme: const AppBarTheme(
           centerTitle: true,
           backgroundColor: AppColors.bg,

@@ -56,7 +56,7 @@ class AppConfirmDialog {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Icon(
                         icon,
-                        color: iconColor ?? const Color(0xFFEAB308),
+                        color: iconColor ?? AppColors.gold,
                         size: 26,
                       ),
                     ),

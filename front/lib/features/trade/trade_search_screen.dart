@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
@@ -8,6 +9,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/utils/price_label.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/pressable.dart';
 import 'widgets/market_row_price_meta.dart';
 
 /// 거래 탭 검색 — 풀스크린 모달.
@@ -228,6 +231,7 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
 
   /// 하트 토글 — optimistic, 실패 시 롤백.
   Future<void> _toggleLike(String cardId) async {
+    HapticFeedback.lightImpact(); // 찜 토글 촉각 피드백 (optimistic 시점)
     final wasLiked = _likedCardIds.contains(cardId);
     setState(() {
       if (wasLiked) {
@@ -264,7 +268,7 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back,
+                  icon: const Icon(Icons.arrow_back_rounded,
                       color: AppColors.textPrimary),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
@@ -273,9 +277,8 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
                     height: 38,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(19),
-                      border: Border.all(color: AppColors.divider),
+                      color: AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
                     ),
                     child: Row(
                       children: [
@@ -348,23 +351,8 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
     // 입력 중 → 자동완성 list. suggestion/↵/recent 탭 후 → 카드 결과.
     if (!_showCards) return _buildSuggestions();
     if (_cards.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 60),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              Icon(Icons.search_off_rounded,
-                  color: AppColors.textMuted, size: 40),
-              SizedBox(height: 10),
-              Text(
-                '검색 결과가 없습니다',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 14),
-              ),
-            ],
-          ),
-        ),
-      );
+      // Toss restyle 2026-07: 공용 EmptyState.noSearchResult로 통일.
+      return EmptyState.noSearchResult(q);
     }
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 20),
@@ -489,9 +477,8 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              color: AppColors.surfaceCard,
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -529,14 +516,15 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
   }
 
   Widget _buildRecentChip(String query) {
-    return GestureDetector(
+    return Pressable(
+      pressedScale: 0.97,
+      haptic: false, // 칩은 고빈도 탭 — 햅틱 제외
       onTap: () => _applyRecent(query),
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -544,7 +532,7 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
             Text(
               query,
               style: const TextStyle(
-                color: AppColors.textPrimary,
+                color: AppColors.textSecondary,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -573,8 +561,7 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
         decoration: BoxDecoration(
           color: AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.divider, width: 0.5),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           code,
@@ -626,27 +613,23 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
             PriceChangeColor.neutral => AppColors.textMuted,
           };
 
-    return InkWell(
-      onTap: () async {
-        _focusNode.unfocus();
-        await context.push('/card/$cardId', extra: {'cardData': card});
-        if (mounted) _loadLikedStatuses(_searchReqId); // 상세에서 찜 토글했을 수 있어 재동기화.
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Row(
+    // 하트는 Pressable 밖 — 찜 탭이 행 scale을 트리거하지 않게 분리 (거래 목록과 동일 구조).
+    return Row(
+      children: [
+        Expanded(
+          child: Pressable(
+            pressedScale: 0.97,
+            haptic: false, // 결과 행은 고빈도 탭 — 햅틱 제외
+            onTap: () async {
+              _focusNode.unfocus();
+              await context.push('/card/$cardId', extra: {'cardData': card});
+              if (mounted) _loadLikedStatuses(_searchReqId); // 상세에서 찜 토글했을 수 있어 재동기화.
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 0, 12),
+              child: Row(
           children: [
-            SizedBox(
-              width: 22,
-              child: Text(
-                '$rank',
-                style: TextStyle(
-                  color: AppColors.blue.withValues(alpha: rank <= 3 ? 1.0 : 0.5),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
+            _RankNumber(rank: rank),
             const SizedBox(width: 8),
             CardThumb(
               imageUrl: resolveCardImageUrl(card),
@@ -728,20 +711,52 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
                 );
               }),
             ),
-            // 하트 — 카드 단위 찜 토글 (거래 리스트와 동일).
-            GestureDetector(
-              onTap: () => _toggleLike(cardId),
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Icon(
-                  liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  color: liked ? AppColors.red : AppColors.textMuted,
-                  size: 22,
-                ),
+          ],
               ),
             ),
-          ],
+          ),
+        ),
+        // 하트 — 카드 단위 찜 토글 (Pressable 밖: 행 scale 미트리거).
+        // 기존 여백 보존: 아이콘 패딩 6 + right 20(화면 여백).
+        GestureDetector(
+          onTap: () => _toggleLike(cardId),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(6, 6, 26, 6),
+            child: Icon(
+              liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              color: liked ? AppColors.red : AppColors.textMuted,
+              size: 22,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 순위 숫자 — Toss 증권 스타일 (거래 목록 _RankNumber와 동일 스펙).
+/// 1~3위 = 18 w800 blue 강조, 4위+ = 16 w700 muted.
+/// 고정폭 28 + 우측정렬 + tabular figures → 폰트 크기가 달라도 뒤 요소 정렬 불변.
+class _RankNumber extends StatelessWidget {
+  final int rank;
+  const _RankNumber({required this.rank});
+
+  @override
+  Widget build(BuildContext context) {
+    final top3 = rank <= 3;
+    return SizedBox(
+      width: 28,
+      child: Text(
+        '$rank',
+        textAlign: TextAlign.right,
+        maxLines: 1,
+        style: TextStyle(
+          color: top3 ? AppColors.blue : AppColors.textMuted,
+          fontSize: top3 ? 18 : 16,
+          fontWeight: top3 ? FontWeight.w800 : FontWeight.w700,
+          height: 1.0,
+          fontFeatures: const [FontFeature.tabularFigures()],
         ),
       ),
     );

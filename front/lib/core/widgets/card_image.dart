@@ -213,7 +213,7 @@ class CardImage extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E),
+        color: AppColors.surfaceElevated,
         borderRadius: borderRadius,
       ),
       child: Icon(Icons.catching_pokemon, color: Colors.white24,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/rarity.dart';
@@ -187,8 +188,7 @@ class _ProductCardsScreenState extends State<ProductCardsScreen> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider, width: 1),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           children: [
@@ -218,48 +218,20 @@ class _ProductCardsScreenState extends State<ProductCardsScreen> {
                   Row(
                     children: [
                       if (rarity.isNotEmpty) ...[
-                        _buildRarityBadge(rarity),
+                        AppRarityBadge(rarity, fontSize: 11),
                         const SizedBox(width: 8),
                       ],
                       if (number.isNotEmpty)
-                        Text(
-                          number,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        Flexible(child: AppMetaDotRow([number])),
                     ],
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right,
+            const Icon(Icons.chevron_right_rounded,
                 color: AppColors.textMuted, size: 20),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRarityBadge(String rarity) {
-    final color = AppColors.rarityColor(rarity);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.13),
-        borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: color.withValues(alpha: 0.45)),
-      ),
-      child: Text(
-        rarity,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.3,
         ),
       ),
     );

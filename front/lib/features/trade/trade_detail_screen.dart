@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'trade_partner_select_sheet.dart';
 import 'trade_settlement_sheet.dart';
@@ -7,11 +8,13 @@ import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
+import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/app_success_toast.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_info_toast.dart';
+import '../../core/widgets/pressable.dart';
 import '../auth/phone_verify_sheet.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import 'report_sheet.dart';
@@ -155,6 +158,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Future<void> _toggleLike() async {
     if (_likeLoading) return;
+    HapticFeedback.lightImpact(); // 찜 토글 촉각 피드백
     setState(() => _likeLoading = true);
     try {
       final res = await ApiClient.post(
@@ -298,11 +302,8 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: AppColors.blue.withOpacity(0.15),
+                        color: AppColors.blue.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.blue.withOpacity(0.3),
-                        ),
                       ),
                       child: const Icon(
                         Icons.person,
@@ -455,7 +456,6 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.surfaceCard,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.divider),
                     ),
                     child: Row(
                       children: [
@@ -497,7 +497,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                           ),
                         ),
                         const Icon(
-                          Icons.chevron_right,
+                          Icons.chevron_right_rounded,
                           color: AppColors.textMuted,
                           size: 18,
                         ),
@@ -577,7 +577,8 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                     setState(() => _currentImageIndex = index);
                   },
                   itemBuilder: (context, index) {
-                    return GestureDetector(
+                    return Pressable(
+                      pressedScale: 0.97,
                       onTap: () => _showFullscreenImages(index),
                       // AuthImage: /api/images/secure/** JWT 부착 (사용자 업로드 trade 이미지)
                       child: AuthImage(
@@ -598,7 +599,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
               if (tradeStatus != 'OPEN')
                 Positioned.fill(
                   child: Container(
-                    color: Colors.black.withOpacity(0.55),
+                    color: Colors.black.withValues(alpha: 0.55),
                     child: Center(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -608,7 +609,6 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                         decoration: BoxDecoration(
                           color: Colors.black54,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white30),
                         ),
                         child: Text(
                           switch (tradeStatus) {
@@ -710,23 +710,9 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
     ).whenComplete(controller.dispose);
   }
 
+  // Toss restyle: bordered pill → 공용 AppTagChip (borderless tonal, r8).
   Widget _buildChip(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.4)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
+    return AppTagChip(label: label, color: color);
   }
 
   /// Bundle 2-A.5: 거래 상태 + 기존 채팅방 조합 CTA 라벨.
@@ -831,9 +817,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.blue, Color(0xFF1A56B0)],
-                        ),
+                        color: AppColors.blue,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Row(
@@ -862,7 +846,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                 IconButton(
                   onPressed: _showSellerMenu,
                   icon: const Icon(
-                    Icons.more_vert,
+                    Icons.more_vert_rounded,
                     color: AppColors.textSecondary,
                   ),
                 ),
@@ -870,20 +854,19 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
             )
           : Row(
               children: [
-                // 관심 버튼
-                GestureDetector(
+                // 관심 버튼 — Pressable scale + 햅틱은 _toggleLike 내부(중복 방지 haptic:false).
+                Pressable(
+                  pressedScale: 0.97,
+                  haptic: false,
                   onTap: _toggleLike,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
+                    // Toss restyle: 테두리 제거 — liked=red tonal / unliked=surfaceElevated.
+                    // 토글 애니메이션/동작은 기존 그대로 (색만 교체).
                     decoration: BoxDecoration(
                       color: _isLiked
-                          ? AppColors.red.withOpacity(0.12)
-                          : Colors.transparent,
-                      border: Border.all(
-                        color: _isLiked
-                            ? AppColors.red.withOpacity(0.6)
-                            : AppColors.divider,
-                      ),
+                          ? AppColors.red.withValues(alpha: 0.14)
+                          : AppColors.surfaceElevated,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Padding(
@@ -901,18 +884,15 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // 채팅하기 버튼
+                // 채팅하기 버튼 — canChat 게이트 로직 그대로 (null이면 Pressable 비활성=scale/haptic 없음).
                 Expanded(
-                  child: GestureDetector(
+                  child: Pressable(
+                    pressedScale: 0.98,
                     onTap: canChat ? _startChat : null,
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: canChat
-                              ? [AppColors.blue, const Color(0xFF1A56B0)]
-                              : [AppColors.textMuted, AppColors.textMuted],
-                        ),
+                        color: canChat ? AppColors.blue : AppColors.textMuted,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: _chatLoading

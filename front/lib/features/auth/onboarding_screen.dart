@@ -214,7 +214,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               backgroundColor: AppColors.blue,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
             child: const Text('만 14세 이상입니다',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
@@ -266,7 +266,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               backgroundColor: AppColors.surfaceCard,
               foregroundColor: AppColors.textPrimary,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
             child: const Text('로그아웃',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
@@ -325,19 +325,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   hintText: '닉네임',
                   hintStyle: const TextStyle(color: AppColors.textMuted),
                   filled: true,
-                  fillColor: AppColors.surfaceCard,
+                  fillColor: AppColors.surfaceElevated,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.divider),
+                    borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.divider),
+                    borderSide: BorderSide.none,
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.blue, width: 1.5),
+                    borderSide: BorderSide.none,
                   ),
                   suffixIcon: _checking
                       ? const Padding(
@@ -450,7 +450,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     disabledBackgroundColor: AppColors.surfaceCard,
                     disabledForegroundColor: AppColors.textMuted,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   child: _submitting
                       ? const SizedBox(
