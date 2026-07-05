@@ -175,7 +175,8 @@ export default function PullRate() {
 
   // 봉입률
   const [poolName, setPoolName] = useState('')          // 기본=카드 rarity, 수정 가능
-  const [freqBoxes, setFreqBoxes] = useState('')        // N박스당
+  const [freqBoxes, setFreqBoxes] = useState('')        // N (단위당)
+  const [rateUnit, setRateUnit] = useState('box')       // pack | box | carton — 등급별 자연 단위
   const [freqCopies, setFreqCopies] = useState('1')     // M장
   const [poolSize, setPoolSize] = useState('')          // 풀 종수
   const [weightMode, setWeightMode] = useState('equal') // equal | manual
@@ -212,7 +213,13 @@ export default function PullRate() {
   const calc = useMemo(() => {
     const M = parseFloat(freqCopies), N = parseFloat(freqBoxes)
     if (!(M > 0) || !(N > 0)) return null
-    const rate = M / N
+    // 봉입률 단위 → 박스당 출현 장수로 환산 (박스=1, 카톤=박스/카톤, 팩=1/팩당박스)
+    const packsN = parseFloat(packsPerBox), cartonN = parseFloat(boxesPerCarton)
+    let unitBoxes = 1
+    if (rateUnit === 'carton') unitBoxes = cartonN
+    else if (rateUnit === 'pack') unitBoxes = (packsN > 0 ? 1 / packsN : NaN)
+    if (!(unitBoxes > 0)) return null   // 카톤당인데 박스/카톤 미입력 등
+    const rate = M / (N * unitBoxes)    // 박스당 풀 출현 장수
     const isEqual = weightMode === 'equal'
     const pBoxNormal = isEqual
       ? perBoxProb(rate, parseFloat(poolSize), null)
@@ -248,7 +255,7 @@ export default function PullRate() {
       expectedCost: boxW > 0 ? (1 / pBox) * boxW : null,
       isEqual, rate,
     }
-  }, [freqCopies, freqBoxes, weightMode, poolSize, manualWeight, godEnabled, godRateBoxes, godTargetProb, packsPerBox, boxesPerCarton, cardPrice, boxPrice])
+  }, [freqCopies, freqBoxes, rateUnit, weightMode, poolSize, manualWeight, godEnabled, godRateBoxes, godTargetProb, packsPerBox, boxesPerCarton, cardPrice, boxPrice])
 
   const rows = useMemo(() => {
     if (!calc) return []
@@ -346,12 +353,19 @@ export default function PullRate() {
             <label style={S.lbl}>이 카드가 속한 등급/풀 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 기본=카드 등급, 필요 시 수정</span></label>
             <input style={S.inp} placeholder="예: SAR / 포켓몬 SAR" value={poolName} onChange={e => setPoolName(e.target.value)} />
           </div>
-          <label style={S.lbl}>{poolName || '이 풀'} 봉입률</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-            <input type="number" min="0" step="any" style={{ ...S.inp, width: 70 }} value={freqBoxes} onChange={e => setFreqBoxes(e.target.value)} placeholder="3" />
-            <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>박스당</span>
-            <input type="number" min="0" step="any" style={{ ...S.inp, width: 60 }} value={freqCopies} onChange={e => setFreqCopies(e.target.value)} />
+          <label style={S.lbl}>{poolName || '이 풀'} 봉입률 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 직접 조사해서 입력</span></label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+            <input type="number" min="0" step="any" style={{ ...S.inp, width: 58 }} value={freqBoxes} onChange={e => setFreqBoxes(e.target.value)} placeholder="예:2.5" />
+            <select style={{ ...S.inp, width: 74, background: '#fff', padding: '9px 6px' }} value={rateUnit} onChange={e => setRateUnit(e.target.value)}>
+              <option value="pack">팩당</option>
+              <option value="box">박스당</option>
+              <option value="carton">카톤당</option>
+            </select>
+            <input type="number" min="0" step="any" style={{ ...S.inp, width: 52 }} value={freqCopies} onChange={e => setFreqCopies(e.target.value)} />
             <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>장</span>
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+            등급마다 자연스러운 단위로 — SAR·AR은 박스당, MUR은 카톤당이 편함
           </div>
           {weightMode === 'equal' && (
             <div style={{ marginBottom: 10 }}>
@@ -395,7 +409,7 @@ export default function PullRate() {
 
           {calc && (
             <div style={{ marginTop: 16, padding: '10px 12px', borderRadius: 10, background: '#f8fafc', fontSize: 11, color: '#64748b', lineHeight: 1.6 }}>
-              1박스 확률 = {freqCopies}÷{freqBoxes} {calc.isEqual ? <>÷ {fmtNum(parseFloat(poolSize))}종</> : <>× {manualWeight}%</>}{calc.pBoxGod > 0 ? ' + 갓팩(독립결합)' : ''} = <b style={{ color: '#4f46e5' }}>{fmtPct(calc.pBox)}</b>
+              1박스 확률 = {freqCopies}장 ÷ {freqBoxes}{{ pack: '팩', box: '박스', carton: '카톤' }[rateUnit]} {calc.isEqual ? <>÷ {fmtNum(parseFloat(poolSize))}종</> : <>× {manualWeight}%</>}{calc.pBoxGod > 0 ? ' + 갓팩(독립결합)' : ''} = <b style={{ color: '#4f46e5' }}>{fmtPct(calc.pBox)}</b>
             </div>
           )}
         </div>
