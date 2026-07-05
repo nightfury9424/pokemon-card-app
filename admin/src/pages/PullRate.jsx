@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search, X, Calculator, Copy, Check } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import api from '../api'
-import { atLeastOne, unionIndependent, trialsToReach } from '../lib/pullMath'
+import { atLeastOne, unionIndependent, trialsToReach, kdrawNoReplace, kdrawWithReplace } from '../lib/pullMath'
 
 const S = {
   page:   { padding: '32px 36px', minHeight: '100%', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
@@ -152,12 +152,18 @@ export default function PullRate() {
   const [boxesPerCarton, setBoxesPerCarton] = useState('30')
 
   // 대상 카드 풀 (출현율과 풀을 한 묶음으로 — 17종 함정 방지)
+  const [poolMode, setPoolMode] = useState('single')     // single | kdraw
   const [poolName, setPoolName] = useState('')
-  const [freqBoxes, setFreqBoxes] = useState('')   // N박스당
-  const [freqCopies, setFreqCopies] = useState('1')// M장
-  const [poolSize, setPoolSize] = useState('')     // 풀 내 카드 수
-  const [weightMode, setWeightMode] = useState('equal')  // equal | manual
+  const [freqBoxes, setFreqBoxes] = useState('')   // single: N박스당
+  const [freqCopies, setFreqCopies] = useState('1')// single: M장
+  const [poolSize, setPoolSize] = useState('')     // 풀 내 카드 수 (공용)
+  const [weightMode, setWeightMode] = useState('equal')  // single: equal | manual
   const [manualWeight, setManualWeight] = useState('')   // %
+  const [drawK, setDrawK] = useState('')           // kdraw: 박스당 K장
+  const [drawReplace, setDrawReplace] = useState('no')   // kdraw: no(중복없음) | yes(중복가능)
+
+  // 가격 표기 (콘텐츠용) — 자동값은 예상가치, 수동 실거래는 사용자가 변경
+  const [priceLabel, setPriceLabel] = useState('포켓폴리오 예상가치')
 
   // 팩 위치 균등 가정 (1팩 환산 조건)
   const [packUniform, setPackUniform] = useState(true)
@@ -174,27 +180,35 @@ export default function PullRate() {
 
   const [copied, setCopied] = useState(false)
 
-  // 카드 선택 시 시세를 카드값 기본값으로 (effect 아님 — 핸들러에서 처리)
+  // 카드 선택 시 시세를 카드값으로 매번 교체 (연속 카드 작업 — 이전 가격 잔존 방지)
   const handleSelectCard = (c) => {
     setCard(c)
-    if (c?.koEstimatedPrice && !cardPrice) setCardPrice(String(c.koEstimatedPrice))
+    setCardPrice(c?.koEstimatedPrice ? String(c.koEstimatedPrice) : '')
   }
 
   const calc = useMemo(() => {
-    const M = parseFloat(freqCopies), N = parseFloat(freqBoxes)
-    if (!(M > 0) || !(N > 0)) return null
-    const poolHitPerBox = M / N                       // 풀이 박스에 나올 확률
-    let weight
-    if (weightMode === 'equal') {
-      const pool = parseFloat(poolSize)
-      if (!(pool > 0)) return null
-      weight = 1 / pool
-    } else {
-      const w = parseFloat(manualWeight)
-      if (!(w > 0)) return null
-      weight = w / 100
+    // ── 일반 슬롯 경로: 풀 봉입 방식별 박스당 목표카드 확률 ──
+    let pBoxNormal
+    const pool = parseFloat(poolSize)
+    if (poolMode === 'single') {
+      const M = parseFloat(freqCopies), N = parseFloat(freqBoxes)
+      if (!(M > 0) || !(N > 0)) return null
+      const poolHitPerBox = M / N                     // 풀이 박스에 나올 확률
+      let weight
+      if (weightMode === 'equal') {
+        if (!(pool > 0)) return null
+        weight = 1 / pool
+      } else {
+        const w = parseFloat(manualWeight)
+        if (!(w > 0)) return null
+        weight = w / 100
+      }
+      pBoxNormal = Math.min(1, poolHitPerBox * weight)
+    } else {                                           // kdraw: 박스당 K장 추출
+      const K = parseFloat(drawK)
+      if (!(K > 0) || !(pool > 0)) return null
+      pBoxNormal = drawReplace === 'yes' ? kdrawWithReplace(pool, K) : kdrawNoReplace(pool, K)
     }
-    const pBoxNormal = Math.min(1, poolHitPerBox * weight)
 
     // 갓팩 경로 — 독립 가정으로 결합
     let pBoxGod = 0
@@ -209,7 +223,11 @@ export default function PullRate() {
     const pPack = (packUniform && packs > 0) ? pBox / packs : null   // 박스 내 1장·팩 위치 균등 가정에서만
 
     const cardW = parseFloat(cardPrice), boxW = parseFloat(boxPrice)
-    const breakevenBoxes = (cardW > 0 && boxW > 0) ? Math.ceil(cardW / boxW) : null
+    // 본전 = 카드값 이내로 살 수 있는 최대 박스 수 → floor. (ceil이면 카드값 초과)
+    const breakevenBoxes = (cardW > 0 && boxW > 0) ? Math.floor(cardW / boxW) : null
+    const hasBreakeven = breakevenBoxes != null && breakevenBoxes >= 1
+
+    const isEqual = poolMode === 'kdraw' || weightMode === 'equal'
 
     return {
       pBox, pPack, pBoxGod,
@@ -218,15 +236,16 @@ export default function PullRate() {
       avgBoxes: 1 / pBox,
       box50: trialsToReach(pBox, 0.5),
       box90: trialsToReach(pBox, 0.9),
-      breakevenBoxes,
-      pBreakeven: breakevenBoxes ? atLeastOne(pBox, breakevenBoxes) : null,
+      breakevenBoxes: hasBreakeven ? breakevenBoxes : null,
+      pBreakeven: hasBreakeven ? atLeastOne(pBox, breakevenBoxes) : null,
+      belowBox: breakevenBoxes === 0,   // 카드값 < 박스값
       boxPrice: boxW > 0 ? boxW : null,
       packPrice: parseFloat(packPrice) > 0 ? parseFloat(packPrice) : null,
       cardPrice: cardW > 0 ? cardW : null,
       expectedCost: boxW > 0 ? (1 / pBox) * boxW : null,
-      isEqual: weightMode === 'equal',
+      isEqual,
     }
-  }, [freqCopies, freqBoxes, weightMode, poolSize, manualWeight, godEnabled, godRateBoxes, godTargetProb, packsPerBox, boxesPerCarton, packUniform, cardPrice, boxPrice, packPrice])
+  }, [poolMode, freqCopies, freqBoxes, weightMode, poolSize, manualWeight, drawK, drawReplace, godEnabled, godRateBoxes, godTargetProb, packsPerBox, boxesPerCarton, packUniform, cardPrice, boxPrice, packPrice])
 
   // 구매 단위별 확률 표
   const rows = useMemo(() => {
@@ -239,7 +258,7 @@ export default function PullRate() {
     const boxUnits = [
       { key: '1박스', n: 1 }, { key: '3박스', n: 3 }, { key: '5박스', n: 5 }, { key: '10박스', n: 10 },
     ]
-    if (calc.carton) boxUnits.push({ key: `1카톤 (${fmtNum(calc.carton)}박스)`, n: calc.carton })
+    if (calc.carton) boxUnits.push({ key: `${fmtNum(calc.carton)}박스 (1카톤 분량)`, n: calc.carton })
     for (const b of boxUnits) out.push({ key: b.key, n: b.n, unit: 'box', prob: atLeastOne(calc.pBox, b.n), cost: calc.boxPrice ? b.n * calc.boxPrice : null })
     return out
   }, [calc])
@@ -264,18 +283,21 @@ export default function PullRate() {
     const L = []
     L.push(`🔥 ${cardName} — 몇 박스 안에 뽑아야 본전?`)
     L.push('')
-    if (calc.cardPrice) L.push(`💰 카드 시세 ${fmtWon(calc.cardPrice)}${calc.boxPrice ? ` / 박스 ${fmtWon(calc.boxPrice)}` : ''}`)
+    if (calc.cardPrice) L.push(`💰 ${priceLabel} ${fmtWon(calc.cardPrice)}${calc.boxPrice ? ` / 박스 ${fmtWon(calc.boxPrice)}` : ''}`)
     L.push(`🎴 1박스 확률 ${fmtPct(calc.pBox)}`)
     L.push(`📦 10박스 확률 ${fmtPct(atLeastOne(calc.pBox, 10))}`)
-    if (calc.carton) L.push(`🏷️ 1카톤(${fmtNum(calc.carton)}박스) 확률 ${fmtPct(atLeastOne(calc.pBox, calc.carton))}`)
+    if (calc.carton) L.push(`🏷️ ${fmtNum(calc.carton)}박스 누적 확률 ${fmtPct(atLeastOne(calc.pBox, calc.carton))}`)
     L.push(`📊 평균 약 ${fmtBoxes(calc.avgBoxes)}박스당 1장`)
     if (calc.breakevenBoxes) L.push(`✅ 카드값 기준 본전 ${fmtNum(calc.breakevenBoxes)}박스 → 그 안에 뽑을 확률 ${fmtPct(calc.pBreakeven)}`)
-    if (calc.isEqual) L.push('')
-    if (calc.isEqual) L.push('※ 풀 내 균등 봉입 가정 추정치')
+    const notes = []
+    if (calc.isEqual) notes.push('풀 내 균등 봉입 가정 추정치')
+    notes.push('박스 독립 개봉 누적 (sealed carton 아님)')
+    L.push('')
+    L.push(`※ ${notes.join(' · ')}`)
     L.push('')
     L.push('갖고 싶은 카드 확률이 궁금하면 댓글로 남겨주세요!')
     return L.join('\n')
-  }, [calc, cardName])
+  }, [calc, cardName, priceLabel])
 
   const doCopy = () => {
     if (!contentText) return
@@ -285,14 +307,20 @@ export default function PullRate() {
     }).catch(() => {})
   }
 
-  const wBtn = (key, label) => (
-    <button onClick={() => setWeightMode(key)} style={{
+  const segBtn = (active, onClick, label, hint) => (
+    <button onClick={onClick} style={{
       flex: 1, padding: '7px 8px', borderRadius: 8, border: '1px solid', cursor: 'pointer',
-      fontSize: 12, fontWeight: weightMode === key ? 700 : 500, fontFamily: 'inherit',
-      background: weightMode === key ? '#6366f1' : '#fff', color: weightMode === key ? '#fff' : '#64748b',
-      borderColor: weightMode === key ? '#6366f1' : '#e2e8f0',
-    }}>{label}</button>
+      fontSize: 12, fontWeight: active ? 700 : 500, fontFamily: 'inherit', lineHeight: 1.3,
+      background: active ? '#6366f1' : '#fff', color: active ? '#fff' : '#64748b',
+      borderColor: active ? '#6366f1' : '#e2e8f0',
+    }}>
+      {label}
+      {hint && <div style={{ fontSize: 9, fontWeight: 500, color: active ? 'rgba(255,255,255,0.75)' : '#94a3b8', marginTop: 2 }}>{hint}</div>}
+    </button>
   )
+  const wBtn = (key, label) => segBtn(weightMode === key, () => setWeightMode(key), label)
+  const pmBtn = (key, label, hint) => segBtn(poolMode === key, () => setPoolMode(key), label, hint)
+  const drBtn = (key, label, hint) => segBtn(drawReplace === key, () => setDrawReplace(key), label, hint)
 
   return (
     <div style={S.page}>
@@ -320,27 +348,57 @@ export default function PullRate() {
           {/* 대상 카드 풀 — 출현율과 풀을 한 묶음으로 */}
           <div style={S.fieldset}>
             <div style={S.fsTitle}>대상 카드 풀 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 출현율과 풀은 같은 묶음</span></div>
+
+            {/* 풀 봉입 방식 */}
+            <label style={S.lbl}>풀 봉입 방식</label>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              {pmBtn('single', '단일 출현 슬롯', 'SAR N박스당 1장')}
+              {pmBtn('kdraw', '박스당 K장 추출', 'AR 1박스당 3장')}
+            </div>
+
             <div style={{ marginBottom: 10 }}>
               <label style={S.lbl}>카드 풀 이름</label>
-              <input style={S.inp} placeholder="예: 포켓몬 SAR" value={poolName} onChange={e => setPoolName(e.target.value)} />
+              <input style={S.inp} placeholder={poolMode === 'single' ? '예: 포켓몬 SAR' : '예: AR'} value={poolName} onChange={e => setPoolName(e.target.value)} />
             </div>
-            <label style={S.lbl}>출현 빈도 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 이 풀이 나오는 빈도</span></label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-              <input type="number" min="0" step="any" style={{ ...S.inp, width: 70 }} value={freqBoxes} onChange={e => setFreqBoxes(e.target.value)} />
-              <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>박스당</span>
-              <input type="number" min="0" step="any" style={{ ...S.inp, width: 60 }} value={freqCopies} onChange={e => setFreqCopies(e.target.value)} />
-              <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>장</span>
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <NumField label="풀 내 카드 수" value={poolSize} onChange={setPoolSize} step="1" suffix="종" disabled={weightMode !== 'equal'} />
-            </div>
-            <label style={S.lbl}>카드 선택 방식</label>
-            <div style={{ display: 'flex', gap: 6, marginBottom: weightMode === 'manual' ? 10 : 0 }}>
-              {wBtn('equal', poolSize > 0 ? `균등 가정 (1/${fmtNum(parseFloat(poolSize))})` : '균등 가정')}
-              {wBtn('manual', '직접 확률 입력')}
-            </div>
-            {weightMode === 'manual' && (
-              <NumField label={null} value={manualWeight} onChange={setManualWeight} suffix="%" hint="풀 안에서 이 카드 비중" />
+
+            {poolMode === 'single' ? (
+              <>
+                <label style={S.lbl}>출현 빈도 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 이 풀이 나오는 빈도</span></label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <input type="number" min="0" step="any" style={{ ...S.inp, width: 70 }} value={freqBoxes} onChange={e => setFreqBoxes(e.target.value)} />
+                  <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>박스당</span>
+                  <input type="number" min="0" step="any" style={{ ...S.inp, width: 60 }} value={freqCopies} onChange={e => setFreqCopies(e.target.value)} />
+                  <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>장</span>
+                </div>
+                <div style={{ marginBottom: 10 }}>
+                  <NumField label="풀 내 카드 수" value={poolSize} onChange={setPoolSize} step="1" suffix="종" disabled={weightMode !== 'equal'} />
+                </div>
+                <label style={S.lbl}>카드 선택 방식</label>
+                <div style={{ display: 'flex', gap: 6, marginBottom: weightMode === 'manual' ? 10 : 0 }}>
+                  {wBtn('equal', poolSize > 0 ? `균등 가정 (1/${fmtNum(parseFloat(poolSize))})` : '균등 가정')}
+                  {wBtn('manual', '직접 확률 입력')}
+                </div>
+                {weightMode === 'manual' && (
+                  <NumField label={null} value={manualWeight} onChange={setManualWeight} suffix="%" hint="풀 안에서 이 카드 비중" />
+                )}
+              </>
+            ) : (
+              <>
+                <label style={S.lbl}>박스당 추출 수 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 1박스에 이 풀이 나오는 장수</span></label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>1박스당</span>
+                  <input type="number" min="0" step="1" style={{ ...S.inp, width: 70 }} value={drawK} onChange={e => setDrawK(e.target.value)} />
+                  <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>장</span>
+                </div>
+                <div style={{ marginBottom: 10 }}>
+                  <NumField label="풀 내 카드 수" value={poolSize} onChange={setPoolSize} step="1" suffix="종" />
+                </div>
+                <label style={S.lbl}>추출 방식 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 균등 가정</span></label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {drBtn('no', '중복 없음', 'K/풀 (초기하)')}
+                  {drBtn('yes', '중복 가능', '1-(1-1/풀)^K')}
+                </div>
+              </>
             )}
           </div>
 
@@ -372,12 +430,25 @@ export default function PullRate() {
             <NumField label="팩 가격" value={packPrice} onChange={setPackPrice} suffix="원" />
           </div>
           <div style={{ marginTop: 10 }}>
-            <NumField label="카드 시세" hint={card?.koEstimatedPrice ? '검색 시 자동' : '본전 계산용'} value={cardPrice} onChange={setCardPrice} suffix="원" />
+            <NumField label="카드 가격" hint={card?.koEstimatedPrice ? '검색 시 자동' : '본전 계산용'} value={cardPrice} onChange={setCardPrice} suffix="원" />
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <label style={S.lbl}>가격 표기 (콘텐츠) <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 자동값=예상가치. 실거래 수동입력 시 변경</span></label>
+            <select style={{ ...S.inp, background: '#fff' }} value={priceLabel} onChange={e => setPriceLabel(e.target.value)}>
+              <option value="포켓폴리오 예상가치">포켓폴리오 예상가치</option>
+              <option value="최근 거래가 기준">최근 거래가 기준</option>
+            </select>
           </div>
 
           {calc && (
             <div style={{ marginTop: 14, padding: '10px 12px', borderRadius: 10, background: '#f8fafc', fontSize: 11, color: '#64748b', lineHeight: 1.6 }}>
-              1박스 목표카드 확률 = {freqCopies}÷{freqBoxes}(풀 출현) × {calc.isEqual ? `1/${fmtNum(parseFloat(poolSize))}` : `${manualWeight}%`}(카드 비중){calc.pBoxGod > 0 ? ' + 갓팩(독립결합)' : ''} = <b style={{ color: '#4f46e5' }}>{fmtPct(calc.pBox)}</b>
+              1박스 목표카드 확률 = {
+                poolMode === 'single'
+                  ? <>{freqCopies}÷{freqBoxes}(풀 출현) × {calc.isEqual ? `1/${fmtNum(parseFloat(poolSize))}` : `${manualWeight}%`}(카드 비중)</>
+                  : (drawReplace === 'no'
+                      ? <>{drawK}÷{fmtNum(parseFloat(poolSize))} (중복없음 추출)</>
+                      : <>1-(1-1/{fmtNum(parseFloat(poolSize))})^{drawK} (중복가능 추출)</>)
+              }{calc.pBoxGod > 0 ? ' + 갓팩(독립결합)' : ''} = <b style={{ color: '#4f46e5' }}>{fmtPct(calc.pBox)}</b>
             </div>
           )}
         </div>
@@ -406,7 +477,12 @@ export default function PullRate() {
                   <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 10, background: 'linear-gradient(135deg,#f0fdf4,#ecfdf5)', border: '1px solid #bbf7d0' }}>
                     <span style={{ fontSize: 13, color: '#15803d', fontWeight: 700 }}>💰 카드값 기준 본전 {fmtNum(calc.breakevenBoxes)}박스</span>
                     <span style={{ fontSize: 13, color: '#166534', marginLeft: 8 }}>— 그 안에 뽑을 확률 <b>{fmtPct(calc.pBreakeven)}</b></span>
-                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>카드 {fmtWon(calc.cardPrice)} ÷ 박스 {fmtWon(calc.boxPrice)}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>카드 {fmtWon(calc.cardPrice)} ÷ 박스 {fmtWon(calc.boxPrice)} (이내 최대 박스)</div>
+                  </div>
+                )}
+                {calc.belowBox && (
+                  <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 12, color: '#c2410c' }}>
+                    카드값이 박스값보다 낮아 박스깡 본전이 성립하지 않음 (1박스도 카드값 초과)
                   </div>
                 )}
               </div>
@@ -439,6 +515,9 @@ export default function PullRate() {
                     ))}
                   </tbody>
                 </table>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, lineHeight: 1.5 }}>
+                  ※ 박스/카톤 확률 = 박스 독립 개봉 누적 (1−(1−p박스)^n). 실제 sealed carton collation 아님.
+                </div>
               </div>
 
               {/* 차트 */}

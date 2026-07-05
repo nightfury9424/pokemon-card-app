@@ -20,3 +20,15 @@ export const trialsToReach = (p, target) => {
   if (target >= 1) return Infinity
   return Math.ceil(Math.log(1 - target) / Math.log(1 - p))
 }
+
+/** 박스당 K장을 풀(pool종)에서 균등·중복없이 추출 → 목표카드 포함 확률 = K/pool (초기하) */
+export const kdrawNoReplace = (pool, k) => {
+  if (!(pool > 0) || !(k > 0)) return 0
+  return Math.min(1, k / pool)
+}
+
+/** 박스당 K장을 풀(pool종)에서 균등·중복허용 독립추출 → 목표카드 ≥1 확률 = 1-(1-1/pool)^K */
+export const kdrawWithReplace = (pool, k) => {
+  if (!(pool > 0) || !(k > 0)) return 0
+  return 1 - Math.pow(1 - 1 / pool, k)
+}
