@@ -365,7 +365,7 @@ export default function PullRate() {
             <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>장</span>
           </div>
           <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
-            등급마다 자연스러운 단위로 — SAR·AR은 박스당, MUR은 카톤당이 편함
+            조사 자료에 나온 단위 그대로 — "60박스당 1장"은 박스당, "카톤당 평균 0.5장"은 카톤당
           </div>
           {weightMode === 'equal' && (
             <div style={{ marginBottom: 10 }}>
@@ -407,11 +407,19 @@ export default function PullRate() {
             </div>
           )}
 
-          {calc && (
-            <div style={{ marginTop: 16, padding: '10px 12px', borderRadius: 10, background: '#f8fafc', fontSize: 11, color: '#64748b', lineHeight: 1.6 }}>
-              1박스 확률 = {freqCopies}장 ÷ {freqBoxes}{{ pack: '팩', box: '박스', carton: '카톤' }[rateUnit]} {calc.isEqual ? <>÷ {fmtNum(parseFloat(poolSize))}종</> : <>× {manualWeight}%</>}{calc.pBoxGod > 0 ? ' + 갓팩(독립결합)' : ''} = <b style={{ color: '#4f46e5' }}>{fmtPct(calc.pBox)}</b>
-            </div>
-          )}
+          {calc && (() => {
+              const N = parseFloat(freqBoxes), M = parseFloat(freqCopies)
+              const cartonN = parseFloat(boxesPerCarton), packsN = parseFloat(packsPerBox)
+              const ub = rateUnit === 'carton' ? cartonN : rateUnit === 'pack' ? (packsN > 0 ? 1 / packsN : NaN) : 1
+              const denomBoxes = N * ub
+              return (
+                <div style={{ marginTop: 16, padding: '10px 12px', borderRadius: 10, background: '#f8fafc', fontSize: 11, color: '#64748b', lineHeight: 1.7 }}>
+                  {rateUnit === 'carton' && <div>{fmtBoxes(N)}카톤 × {fmtBoxes(cartonN)}박스 = <b>{fmtBoxes(denomBoxes)}박스</b> 환산</div>}
+                  {rateUnit === 'pack' && <div>{fmtBoxes(N)}팩 ÷ {fmtBoxes(packsN)}팩/박스 = <b>{fmtBoxes(denomBoxes)}박스</b> 환산</div>}
+                  1박스 예상 확률 = {fmtBoxes(M)}장 ÷ {fmtBoxes(denomBoxes)}박스 {calc.isEqual ? <>÷ {fmtNum(parseFloat(poolSize))}종</> : <>× {manualWeight}%</>}{calc.pBoxGod > 0 ? ' + 갓팩(독립결합)' : ''} = <b style={{ color: '#4f46e5' }}>{fmtPct(calc.pBox)}</b>
+                </div>
+              )
+            })()}
         </div>
 
         {/* ── 결과 ── */}
