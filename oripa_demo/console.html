@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>포켓폴리오 오리파 — 판매자 콘솔</title>
+<style>
+/* ── 토큰 (PokeFolio 다크) ── */
+:root{
+  --bg:#04080F; --surface:#090E18; --card:#0D1520; --elev:#111D2C;
+  --blue:#1B64DA; --blueL:#4D8FEA; --gold:#FFCC00; --green:#05C072; --red:#EF4444;
+  --t1:#FFFFFF; --t2:#7A93B0; --t3:#3A5470; --div:#1A2638;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--t1);
+  font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  font-size:14px; line-height:1.5; overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select{
+  font:inherit;color:var(--t1);background:var(--elev);
+  border:1px solid var(--div);border-radius:8px;padding:9px 12px;outline:none;width:100%;
+}
+input:focus,select:focus{border-color:var(--blue)}
+input::placeholder{color:var(--t3)}
+select{appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237A93B0' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:30px}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--div);border-radius:4px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ── 레이아웃 ── */
+#app{display:flex;height:100vh}
+aside{
+  width:220px;flex:none;background:var(--surface);border-right:1px solid var(--div);
+  display:flex;flex-direction:column;padding:20px 12px;
+}
+main{flex:1;overflow-y:auto;padding:24px 28px 60px}
+.tab{display:none;max-width:1220px}
+.tab.on{display:block}
+
+/* ── 사이드바 ── */
+.shop{display:flex;align-items:center;gap:10px;padding:4px 8px 18px;border-bottom:1px solid var(--div);margin-bottom:14px}
+.squircle{
+  width:40px;height:40px;flex:none;border-radius:13px;
+  background:linear-gradient(135deg,#1B64DA,#4D8FEA); /* 아이콘 스쿼클만 그라데이션 허용 */
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;
+}
+.shop b{font-size:14px;display:block}
+.shop small{color:var(--t2);font-size:11px}
+.menu{flex:1}
+.mi{
+  display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:10px;
+  color:var(--t2);font-weight:600;font-size:13.5px;margin-bottom:2px;text-align:left;
+}
+.mi svg{flex:none}
+.mi:hover{background:var(--card);color:var(--t1)}
+.mi.on{background:rgba(27,100,218,.14);color:var(--blueL)}
+.partner{
+  margin:0 4px;padding:10px 12px;border-radius:10px;background:var(--card);
+  font-size:11.5px;color:var(--t2);display:flex;align-items:center;gap:8px;
+}
+.partner .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);flex:none}
+
+/* ── 공용 ── */
+.pgtitle{font-size:20px;font-weight:800;margin-bottom:4px}
+.pgcap{color:var(--t2);font-size:13px;margin-bottom:20px}
+.cardbox{background:var(--card);border-radius:16px;padding:20px;margin-bottom:16px}
+.cardbox h3{font-size:15px;font-weight:700;margin-bottom:14px}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:8px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.chip.blue{background:rgba(27,100,218,.14);color:var(--blueL)}
+.chip.gold{background:rgba(255,204,0,.14);color:var(--gold)}
+.chip.green{background:rgba(5,192,114,.14);color:var(--green)}
+.chip.red{background:rgba(239,68,68,.14);color:var(--red)}
+.chip.mut{background:rgba(122,147,176,.14);color:var(--t2)}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:10px 16px;border-radius:12px;font-weight:700;font-size:13.5px;
+  background:var(--blue);color:#fff;transition:opacity .15s;
+}
+.btn:hover{opacity:.88}
+.btn.ghost{background:var(--elev);color:var(--t2)}
+.btn.sm{padding:6px 12px;border-radius:8px;font-size:12.5px}
+.btn:disabled{background:var(--elev);color:var(--t3);cursor:not-allowed}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;color:var(--t2);font-weight:600;margin-bottom:6px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.suffix{position:relative}
+.suffix input{padding-right:36px}
+.suffix span{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:13px;pointer-events:none}
+.cimg{border-radius:4px;background:var(--elev);object-fit:cover;flex:none}
+.mono{font-variant-numeric:tabular-nums}
+
+/* ── 만들기 탭 ── */
+.mk{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+.mk-right{position:sticky;top:0}
+.srchwrap{position:relative;margin-bottom:14px}
+.results{
+  background:var(--elev);border:1px solid var(--div);border-radius:12px;margin-top:8px;
+  max-height:320px;overflow-y:auto;display:none;
+}
+.results.show{display:block}
+.rrow{display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--div)}
+.rrow:last-child{border-bottom:none}
+.rrow .nm{flex:1;min-width:0}
+.rrow .nm b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rrow .nm small{color:var(--t2);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.rrow .pr{color:var(--gold);font-weight:700;font-size:13px;white-space:nowrap}
+.noresult{padding:16px;color:var(--t3);text-align:center;font-size:13px}
+.complist{max-height:420px;overflow-y:auto;margin-top:4px}
+.crow{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--div)}
+.crow:last-child{border-bottom:none}
+.crow .nm{flex:1;min-width:0}
+.crow .nm b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crow .nm small{color:var(--t2);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.step{display:flex;align-items:center;gap:2px;background:var(--elev);border-radius:8px;padding:2px}
+.step button{width:24px;height:24px;border-radius:6px;color:var(--t2);font-weight:700}
+.step button:hover{background:var(--card);color:var(--t1)}
+.step b{min-width:26px;text-align:center;font-size:13px}
+.crow select{width:96px;padding:6px 26px 6px 10px;font-size:12.5px}
+.exwrap{width:118px}
+.exwrap input{padding:6px 10px;font-size:12.5px;text-align:right}
+.expct{font-size:10.5px;margin-top:3px;text-align:right;font-weight:700}
+.delx{width:26px;height:26px;border-radius:8px;color:var(--t3);font-size:15px;flex:none}
+.delx:hover{background:rgba(239,68,68,.14);color:var(--red)}
+.empty{padding:28px 0;text-align:center;color:var(--t3);font-size:13px}
+
+/* 요약 카드 */
+.sumline{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px}
+.sumline .k{color:var(--t2)}
+.sumline .v{font-weight:700}
+.sumline.big .v{font-size:16px}
+.pbar{height:6px;border-radius:3px;background:var(--elev);margin:8px 0 10px;overflow:hidden}
+.pbar i{display:block;height:100%;border-radius:3px;background:var(--blue);transition:width .25s,background .25s}
+.divline{height:1px;background:var(--div);margin:10px 0}
+.approve-hint{font-size:11.5px;color:var(--t3);margin-top:8px;text-align:center}
+
+/* 폰 미리보기 */
+.phone{
+  width:280px;margin:16px auto 0;border-radius:32px;background:#000;
+  border:6px solid #1c2431;box-shadow:0 12px 40px rgba(0,0,0,.5);overflow:hidden;
+}
+.phone .scr{background:var(--bg);height:470px;overflow-y:auto;padding:14px 14px 0;position:relative}
+.phone .notch{width:90px;height:18px;background:#000;border-radius:0 0 12px 12px;margin:-14px auto 10px}
+.ph-hero{width:130px;height:182px;border-radius:8px;display:block;margin:4px auto 12px;background:var(--elev);object-fit:cover;box-shadow:0 8px 24px rgba(27,100,218,.25)}
+.ph-name{font-size:15px;font-weight:800;text-align:center;margin-bottom:4px;word-break:keep-all}
+.ph-price{text-align:center;color:var(--gold);font-weight:800;font-size:14px;margin-bottom:10px}
+.ph-gauge{height:8px;border-radius:4px;background:var(--elev);overflow:hidden;margin-bottom:5px}
+.ph-gauge i{display:block;height:100%;background:var(--green);border-radius:4px}
+.ph-gcap{display:flex;justify-content:space-between;font-size:10.5px;color:var(--t2);margin-bottom:10px}
+.ph-badges{display:flex;gap:6px;justify-content:center;margin-bottom:12px;flex-wrap:wrap}
+.ph-sec{font-size:11px;color:var(--t2);font-weight:700;margin-bottom:6px}
+.ph-lineup{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px}
+.ph-lineup img{width:56px;height:78px;border-radius:5px;flex:none;background:var(--elev);object-fit:cover}
+.ph-cta{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 40%);padding:12px 0 14px}
+.ph-cta button{width:100%;padding:12px;border-radius:14px;background:var(--blue);color:#fff;font-weight:800;font-size:14px}
+.ph-cap{text-align:center;color:var(--t3);font-size:11.5px;margin-top:10px}
+
+/* ── 대시보드 ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+.stat{background:var(--card);border-radius:16px;padding:16px 18px}
+.stat small{color:var(--t2);font-size:12px;display:block;margin-bottom:6px}
+.stat b{font-size:20px;font-weight:800}
+.dash2{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
+.orow{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--div)}
+.orow:last-child{border-bottom:none}
+.orow .oimg{width:52px;height:73px;border-radius:6px;flex:none;background:var(--elev);object-fit:cover}
+.orow .obody{flex:1;min-width:0}
+.orow .otitle{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.orow .otitle b{font-size:14px}
+.ogauge{height:6px;border-radius:3px;background:var(--elev);overflow:hidden;margin:6px 0 4px}
+.ogauge i{display:block;height:100%;background:var(--blue);border-radius:3px}
+.ometa{display:flex;gap:14px;font-size:12px;color:var(--t2);flex-wrap:wrap}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block;animation:pl 1.4s infinite}
+@keyframes pl{0%,100%{box-shadow:0 0 0 0 rgba(255,204,0,.5)}50%{box-shadow:0 0 0 5px rgba(255,204,0,0)}}
+.feed{max-height:430px;overflow-y:auto}
+.frow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--div);animation:fin .5s}
+.frow:last-child{border-bottom:none}
+@keyframes fin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.frow .fb{flex:1;min-width:0;font-size:12.5px}
+.frow .fb small{color:var(--t2);display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.frow .fp{color:var(--gold);font-weight:700;font-size:12.5px;white-space:nowrap}
+
+/* ── 배송 ── */
+.filtab{display:flex;gap:8px;margin-bottom:16px}
+.filtab button{padding:8px 14px;border-radius:10px;background:var(--card);color:var(--t2);font-weight:700;font-size:13px}
+.filtab button.on{background:rgba(27,100,218,.14);color:var(--blueL)}
+.ordcard{background:var(--card);border-radius:16px;padding:18px;margin-bottom:12px}
+.ordhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap}
+.ordhead .oid{font-weight:800;font-size:14px}
+.ordhead .om{color:var(--t2);font-size:12.5px}
+.ordcards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.oc{display:flex;align-items:center;gap:8px;background:var(--elev);border-radius:10px;padding:6px 12px 6px 6px}
+.oc img{width:34px;height:47px;border-radius:4px;background:var(--card);object-fit:cover}
+.oc span{font-size:12px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trkline{color:var(--t2);font-size:12.5px;margin-top:4px}
+
+/* ── 정산 ── */
+.settlehero{background:var(--card);border-radius:16px;padding:22px;margin-bottom:16px}
+.settlehero small{color:var(--t2);font-size:13px;display:block;margin-bottom:6px}
+.settlehero b{font-size:30px;font-weight:800}
+.settlehero .cap{color:var(--t3);font-size:12px;margin-top:6px}
+.tblwrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
+th{color:var(--t2);font-weight:600;text-align:left;padding:8px 12px;border-bottom:1px solid var(--div);font-size:12px}
+td{padding:11px 12px;border-bottom:1px solid var(--div)}
+tr:last-child td{border-bottom:none}
+.amt{font-weight:700;text-align:right}
+td.r,th.r{text-align:right}
+.notice{display:flex;gap:12px;align-items:flex-start;background:rgba(27,100,218,.08);border-radius:16px;padding:18px 20px}
+.notice .ic{width:36px;height:36px;border-radius:12px;background:rgba(27,100,218,.2);display:flex;align-items:center;justify-content:center;flex:none;font-size:17px}
+.notice b{display:block;margin-bottom:3px;font-size:14px}
+.notice p{color:var(--t2);font-size:13px}
+
+/* ── 모달 / 토스트 ── */
+.ovl{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+.ovl.show{display:flex}
+.mdl{background:var(--card);border-radius:16px;padding:24px;width:100%;max-width:440px;max-height:88vh;overflow-y:auto}
+.mdl h3{font-size:16px;font-weight:800;margin-bottom:12px}
+.mdl .body{color:var(--t2);font-size:13.5px;margin-bottom:18px}
+.mdl .acts{display:flex;gap:10px;justify-content:flex-end}
+.lockbox{background:var(--elev);border-radius:12px;padding:14px;margin:12px 0}
+.lockbox li{list-style:none;padding:3px 0;font-size:13px;display:flex;align-items:center;gap:8px}
+.lockbox li::before{content:"🔒";font-size:11px}
+.okwrap{text-align:center;padding:14px 0 6px}
+.okcirc{width:56px;height:56px;border-radius:50%;background:rgba(5,192,114,.14);color:var(--green);font-size:26px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+.chk{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--elev);margin-bottom:8px;cursor:pointer}
+.chk input{width:16px;height:16px;accent-color:var(--green);flex:none}
+.chk img{width:30px;height:42px;border-radius:4px;object-fit:cover;background:var(--card)}
+.chk span{font-size:12.5px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.upbox{
+  border:1.5px dashed var(--t3);border-radius:12px;padding:18px;text-align:center;color:var(--t3);
+  font-size:12.5px;cursor:pointer;margin-bottom:14px;
+}
+.upbox:hover{border-color:var(--blueL);color:var(--t2)}
+.upbox img{max-width:120px;max-height:120px;border-radius:8px;display:block;margin:0 auto 8px}
+#toast{
+  position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--elev);border:1px solid var(--div);border-radius:12px;padding:12px 20px;
+  font-size:13.5px;font-weight:600;opacity:0;transition:.3s;z-index:60;pointer-events:none;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (max-width:1279px){
+  main{padding:20px 20px 60px}
+  .mk{grid-template-columns:1fr 320px}
+  .dash2{grid-template-columns:1fr 340px}
+  .stats{gap:10px}
+  .stat b{font-size:17px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- 사이드바 -->
+  <aside>
+    <div class="shop">
+      <div class="squircle">몬</div>
+      <div><b>몬스터카드 홍대점</b><small>판매자 콘솔</small></div>
+    </div>
+    <nav class="menu" id="menu">
+      <button class="mi" data-tab="dash">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>
+        대시보드</button>
+      <button class="mi on" data-tab="create">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+        오리파 만들기</button>
+      <button class="mi" data-tab="ship">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="4" width="8" height="7" rx="1"/><path d="M9.5 6.5h3l2 2.5v2h-5z"/><circle cx="4.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/></svg>
+        배송 관리</button>
+      <button class="mi" data-tab="settle">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v6M6 6.8h4M6 9.2h4"/></svg>
+        정산</button>
+    </nav>
+    <div class="partner"><span class="dot"></span>포켓폴리오 오리파 파트너</div>
+  </aside>
+
+  <main>
+    <!-- ═══ 탭: 대시보드 ═══ -->
+    <section class="tab" id="tab-dash">
+      <div class="pgtitle">대시보드</div>
+      <div class="pgcap">오늘의 판매 현황을 한눈에 확인하세요</div>
+      <div class="stats">
+        <div class="stat"><small>오늘 매출</small><b class="mono">₩755,000</b></div>
+        <div class="stat"><small>이번 주 매출</small><b class="mono">₩4,120,000</b></div>
+        <div class="stat"><small>배송 대기</small><b class="mono">3건</b></div>
+        <div class="stat"><small>보관중 카드</small><b class="mono">128장</b></div>
+      </div>
+      <div class="dash2">
+        <div class="cardbox">
+          <h3>판매중인 오리파</h3>
+          <div id="oripaList"></div>
+        </div>
+        <div class="cardbox">
+          <h3>최근 뽑기 피드 <span class="chip green" style="margin-left:4px">LIVE</span></h3>
+          <div class="feed" id="feed"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ 탭: 오리파 만들기 ═══ -->
+    <section class="tab on" id="tab-create">
+      <div class="pgtitle">오리파 만들기</div>
+      <div class="pgcap">카드를 담고 가격만 정하면 끝 — 결제·추첨·CS는 포켓폴리오가 처리합니다</div>
+      <div class="mk">
+        <!-- 좌측 폼 -->
+        <div>
+          <div class="cardbox">
+            <h3>기본 정보</h3>
+            <div class="field">
+              <label>오리파명</label>
+              <input id="fName" type="text" placeholder="블래키 초고가 오리파">
+            </div>
+            <div class="grid2">
+              <div class="field"><label>1구 가격</label>
+                <div class="suffix"><input id="fPrice" type="number" value="5000" min="100" step="100"><span>원</span></div></div>
+              <div class="field"><label>총 구수</label>
+                <div class="suffix"><input id="fSlots" type="number" value="100" min="1"><span>구</span></div></div>
+              <div class="field"><label>1인 구매 제한</label>
+                <div class="suffix"><input id="fLimit" type="number" value="20" min="1"><span>구</span></div></div>
+              <div class="field"><label>판매 시작</label>
+                <input id="fStart" type="datetime-local"></div>
+              <div class="field"><label>기본 배송비</label>
+                <div class="suffix"><input id="fShip" type="number" value="3500" step="500"><span>원</span></div></div>
+              <div class="field"><label>무료배송 기준</label>
+                <div class="suffix"><input id="fFree" type="number" value="50000" step="1000"><span>원</span></div></div>
+            </div>
+          </div>
+
+          <div class="cardbox">
+            <h3>카드 구성</h3>
+            <div class="srchwrap">
+              <input id="srch" type="text" placeholder="카드 이름/세트 검색 (예: 블래키, 리자몽)" autocomplete="off">
+              <div class="results" id="results"></div>
+            </div>
+            <div class="complist" id="complist"></div>
+          </div>
+        </div>
+
+        <!-- 우측 스티키: 요약 + 폰 미리보기 -->
+        <div class="mk-right">
+          <div class="cardbox" style="margin-bottom:0">
+            <div class="sumline"><span class="k">등록 카드</span><span class="v mono" id="sCount">0 / 100</span></div>
+            <div class="pbar"><i id="sBar" style="width:0%"></i></div>
+            <div style="font-size:12px;color:var(--t2);margin-bottom:6px" id="sTiers">메인 히트 0 · 서브 히트 0 · 일반 0</div>
+            <div class="divline"></div>
+            <div class="sumline"><span class="k">카드 예상가치 합계</span><span class="v mono" id="sValue">₩0</span></div>
+            <div class="sumline"><span class="k">총 판매 예정액</span><span class="v mono" id="sSales">₩0</span></div>
+            <div class="sumline"><span class="k">예상 환원율</span><span class="v mono" id="sReturn">0%</span></div>
+            <div class="divline"></div>
+            <div class="sumline"><span class="k">플랫폼 수수료 (10%)</span><span class="v mono" id="sFee">₩0</span></div>
+            <div class="sumline big"><span class="k">예상 정산액</span><span class="v mono" id="sNet" style="color:var(--green)">₩0</span></div>
+            <button class="btn" id="approveBtn" style="width:100%;margin-top:14px" disabled>판매 승인 요청</button>
+            <div class="approve-hint" id="approveHint">구성 카드 수가 총 구수와 일치해야 합니다</div>
+          </div>
+
+          <!-- 유저 앱 미리보기 -->
+          <div class="phone">
+            <div class="scr">
+              <div class="notch"></div>
+              <img class="ph-hero" id="phHero" alt="">
+              <div class="ph-name" id="phName">오리파명</div>
+              <div class="ph-price" id="phPrice">1구 5,000P</div>
+              <div class="ph-gauge"><i id="phGauge" style="width:100%"></i></div>
+              <div class="ph-gcap"><span id="phRemain">100구 남음</span><span id="phTotal">총 100구</span></div>
+              <div class="ph-badges">
+                <span class="chip green" id="phReturn">환원율 0%</span>
+                <span class="chip gold" id="phHitCnt">히트 0종</span>
+              </div>
+              <div class="ph-sec">히트 라인업</div>
+              <div class="ph-lineup" id="phLineup"></div>
+              <div class="ph-cta"><button>뽑기</button></div>
+            </div>
+          </div>
+          <div class="ph-cap">유저 앱 노출 미리보기</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ 탭: 배송 관리 ═══ -->
+    <section class="tab" id="tab-ship">
+      <div class="pgtitle">배송 관리</div>
+      <div class="pgcap">발송 처리하면 유저에게 자동으로 알림이 전송됩니다</div>
+      <div class="filtab" id="shipFil">
+        <button class="on" data-st="wait">배송 대기 <b id="cWait">3</b></button>
+        <button data-st="ship">배송 중 <b id="cShip">2</b></button>
+        <button data-st="done">완료 <b id="cDone">12</b></button>
+      </div>
+      <div id="orderList"></div>
+    </section>
+
+    <!-- ═══ 탭: 정산 ═══ -->
+    <section class="tab" id="tab-settle">
+      <div class="pgtitle">정산</div>
+      <div class="pgcap">판매·환원·수수료가 원장에 자동 기록됩니다</div>
+      <div class="settlehero">
+        <small>이번 주 정산 예정액</small>
+        <b class="mono">₩1,284,600</b>
+        <div class="cap">매주 수요일 자동 정산 · 배송 완료 건 기준</div>
+      </div>
+      <div class="cardbox">
+        <h3>정산 원장</h3>
+        <div class="tblwrap"><table>
+          <thead><tr><th>일자</th><th>구분</th><th>내용</th><th class="r">금액</th><th class="r">누계</th></tr></thead>
+          <tbody id="ledger"></tbody>
+        </table></div>
+      </div>
+      <div class="notice">
+        <div class="ic">🤝</div>
+        <div>
+          <b>추첨·결제·환불·CS는 포켓폴리오가 처리합니다</b>
+          <p>매장은 재고 준비와 발송만 담당합니다. 포인트 환원, 결제 분쟁, 고객 문의까지 모두 플랫폼이 책임집니다.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 모달 / 토스트 루트 -->
+<div class="ovl" id="ovl"><div class="mdl" id="mdl"></div></div>
+<div id="toast"></div>
+
+<script src="data.js"></script>
+<script>
+/* ═══════════ 유틸 ═══════════ */
+const $=s=>document.querySelector(s);
+const fmt=n=>Math.round(n).toLocaleString('ko-KR');
+const won=n=>'₩'+fmt(n);
+const img=c=>`${CDN}/${c.img}/${c.id}.png`;
+const esc=s=>String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2600);}
+function openModal(html){$('#mdl').innerHTML=html;$('#ovl').classList.add('show');}
+function closeModal(){$('#ovl').classList.remove('show');}
+$('#ovl').addEventListener('click',e=>{if(e.target.id==='ovl')closeModal();});
+
+/* 목표가에 가장 가까운 카드 pick (하드코딩 없이 데이터 기반) */
+function pickClosest(target,used,filter){
+  let best=null,bd=Infinity;
+  for(const c of CARDS){
+    if(used.has(c.id))continue;
+    if(filter&&!filter(c))continue;
+    const d=Math.abs(c.price-target);
+    if(d<bd){bd=d;best=c;}
+  }
+  if(best)used.add(best.id);
+  return best;
+}
+
+/* ═══════════ 탭 전환 (SPA) ═══════════ */
+$('#menu').addEventListener('click',e=>{
+  const b=e.target.closest('.mi');if(!b)return;
+  document.querySelectorAll('.mi').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.id==='tab-'+b.dataset.tab));
+});
+
+/* ═══════════ 탭1: 오리파 만들기 ═══════════ */
+// comp: [{card, qty, tier:'normal'|'sub'|'main', exch}]
+const state={comp:[]};
+const TIER_LABEL={main:'메인 히트',sub:'서브 히트',normal:'일반'};
+
+// 판매 시작 기본값 = 내일 10:00
+(()=>{const d=new Date(Date.now()+864e5);
+  $('#fStart').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T10:00`;})();
+
+/* 검색 (debounce 120ms, name+set includes, 최대 30) */
+let srchTimer=null;
+$('#srch').addEventListener('input',()=>{clearTimeout(srchTimer);srchTimer=setTimeout(runSearch,120);});
+$('#srch').addEventListener('focus',runSearch);
+document.addEventListener('click',e=>{if(!e.target.closest('.srchwrap'))$('#results').classList.remove('show');});
+function runSearch(){
+  const q=$('#srch').value.trim();
+  const box=$('#results');
+  if(!q){box.classList.remove('show');box.innerHTML='';return;}
+  const hits=[];
+  for(const c of CARDS){
+    if(c.name.includes(q)||(c.set&&c.set.includes(q))){hits.push(c);if(hits.length>=30)break;}
+  }
+  box.innerHTML=hits.length?hits.map(c=>`
+    <div class="rrow">
+      <img class="cimg" src="${img(c)}" width="40" height="56" loading="lazy" alt="">
+      <div class="nm"><b>${esc(c.name)}</b><small>${esc(c.set||'')}${c.num?' · '+esc(c.num):''}</small></div>
+      <span class="chip blue">${esc(c.rarity)}</span>
+      <span class="pr mono">${fmt(c.price)}원</span>
+      <button class="btn sm" data-add="${c.id}">담기</button>
+    </div>`).join('')
+    :'<div class="noresult">검색 결과가 없습니다</div>';
+  box.classList.add('show');
+}
+$('#results').addEventListener('click',e=>{
+  const b=e.target.closest('[data-add]');if(!b)return;
+  const c=CARDS.find(x=>x.id===b.dataset.add);
+  addCard(c);
+});
+function defaultExch(price){return Math.round(price*0.7/100)*100;} // 예상가의 70%, 100원 반올림
+function addCard(card,qty=1,tier='normal',exch=null){
+  const ex=state.comp.find(x=>x.card.id===card.id);
+  if(ex){ex.qty+=qty;}
+  else state.comp.push({card,qty,tier,exch:exch??defaultExch(card.price)});
+  renderComp();recalc();
+}
+
+/* 교환가 비율 → 색상 */
+function pctColor(p){return p>=60?'var(--green)':p>=40?'var(--gold)':'var(--red)';}
+
+/* 구성 리스트 렌더 */
+function renderComp(){
+  const el=$('#complist');
+  if(!state.comp.length){el.innerHTML='<div class="empty">위 검색창에서 카드를 검색해 담아보세요</div>';return;}
+  el.innerHTML=state.comp.map((it,i)=>{
+    const p=it.card.price?Math.round(it.exch/it.card.price*100):0;
+    return `<div class="crow" data-i="${i}">
+      <img class="cimg" src="${img(it.card)}" width="40" height="56" loading="lazy" alt="">
+      <div class="nm"><b>${esc(it.card.name)}</b><small>${esc(it.card.set||'')}${it.card.num?' · '+esc(it.card.num):''} · <span style="color:var(--gold)">${fmt(it.card.price)}원</span></small></div>
+      <div class="step"><button data-act="minus">−</button><b class="mono">${it.qty}</b><button data-act="plus">＋</button></div>
+      <select data-act="tier" style="color:${it.tier==='main'?'var(--gold)':it.tier==='sub'?'var(--blueL)':'var(--t2)'};font-weight:700">
+        <option value="normal"${it.tier==='normal'?' selected':''}>일반</option>
+        <option value="sub"${it.tier==='sub'?' selected':''}>서브 히트</option>
+        <option value="main"${it.tier==='main'?' selected':''}>메인 히트</option>
+      </select>
+      <div class="exwrap">
+        <div class="suffix"><input data-act="exch" type="number" value="${it.exch}" step="100" min="0"><span style="font-size:11px">P</span></div>
+        <div class="expct" style="color:${pctColor(p)}">참고가 대비 ${p}%</div>
+      </div>
+      <button class="delx" data-act="del">×</button>
+    </div>`;}).join('');
+}
+$('#complist').addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const row=e.target.closest('.crow');const it=state.comp[+row.dataset.i];
+  const act=b.dataset.act;
+  if(act==='minus'){if(it.qty>1){it.qty--;renderComp();recalc();}}
+  else if(act==='plus'){it.qty++;renderComp();recalc();}
+  else if(act==='del'){state.comp.splice(+row.dataset.i,1);renderComp();recalc();}
+});
+$('#complist').addEventListener('change',e=>{
+  const s=e.target.closest('select[data-act="tier"]');if(!s)return;
+  state.comp[+e.target.closest('.crow').dataset.i].tier=s.value;
+  renderComp();recalc();
+});
+$('#complist').addEventListener('input',e=>{
+  const inp=e.target.closest('input[data-act="exch"]');if(!inp)return;
+  const it=state.comp[+e.target.closest('.crow').dataset.i];
+  it.exch=+inp.value||0;
+  const p=it.card.price?Math.round(it.exch/it.card.price*100):0;
+  const pct=inp.closest('.exwrap').querySelector('.expct');
+  pct.textContent=`참고가 대비 ${p}%`;pct.style.color=pctColor(p);
+  recalc(); // 포커스 유지 위해 리스트 재렌더 없이 요약만 갱신
+});
+
+/* 기본 정보 입력 → 요약/미리보기 갱신 */
+['fName','fPrice','fSlots','fLimit','fShip','fFree','fStart'].forEach(id=>$('#'+id).addEventListener('input',recalc));
+
+/* 라이브 요약 + 폰 미리보기 재계산 */
+function recalc(){
+  const slots=+$('#fSlots').value||0;
+  const price=+$('#fPrice').value||0;
+  let n=0,val=0,exch=0;const tiers={main:0,sub:0,normal:0};
+  for(const it of state.comp){n+=it.qty;val+=it.card.price*it.qty;exch+=it.exch*it.qty;tiers[it.tier]+=it.qty;}
+  const sales=price*slots;
+  const ret=sales?exch/sales*100:0;
+  const fee=sales*0.10;
+  // 요약
+  $('#sCount').textContent=`${fmt(n)} / ${fmt(slots)}`;
+  const bar=$('#sBar');
+  bar.style.width=Math.min(100,slots?n/slots*100:0)+'%';
+  bar.style.background=n===slots&&n>0?'var(--green)':n>slots?'var(--red)':'var(--blue)';
+  $('#sTiers').textContent=`메인 히트 ${tiers.main} · 서브 히트 ${tiers.sub} · 일반 ${tiers.normal}`;
+  $('#sValue').textContent=won(val);
+  $('#sSales').textContent=won(sales);
+  $('#sReturn').textContent=ret.toFixed(1)+'%';
+  $('#sFee').textContent=won(fee);
+  $('#sNet').textContent=won(sales-fee);
+  const ok=n===slots&&n>0;
+  const btn=$('#approveBtn');
+  btn.disabled=!ok;
+  btn.title=ok?'':'구성 카드 수가 총 구수와 일치해야 합니다';
+  $('#approveHint').style.display=ok?'none':'block';
+  // 폰 미리보기
+  $('#phName').textContent=$('#fName').value.trim()||'오리파명을 입력하세요';
+  $('#phPrice').textContent=`1구 ${fmt(price)}P`;
+  $('#phRemain').textContent=`${fmt(slots)}구 남음`;
+  $('#phTotal').textContent=`총 ${fmt(slots)}구`;
+  $('#phGauge').style.width='100%';
+  $('#phReturn').textContent=`환원율 ${Math.round(ret)}%`;
+  const hits=state.comp.filter(x=>x.tier!=='normal');
+  const mains=state.comp.filter(x=>x.tier==='main');
+  $('#phHitCnt').textContent=`히트 ${hits.length}종`;
+  const hero=$('#phHero');
+  if(mains.length){hero.src=img(mains[0].card);hero.style.display='block';}
+  else if(hits.length){hero.src=img(hits[0].card);hero.style.display='block';}
+  else hero.style.display='none';
+  $('#phLineup').innerHTML=hits.length
+    ?[...mains,...hits.filter(x=>x.tier==='sub')].map(x=>`<img src="${img(x.card)}" loading="lazy" alt="">`).join('')
+    :'<div style="color:var(--t3);font-size:11px;padding:20px 0">히트 카드를 지정하면 노출됩니다</div>';
+}
+
+/* 판매 승인 요청 모달 */
+$('#approveBtn').addEventListener('click',()=>{
+  openModal(`
+    <h3>판매 승인 요청</h3>
+    <div class="body">판매 승인 시 아래 항목이 <b style="color:var(--t1)">동결</b>됩니다. 판매 중에는 변경할 수 없습니다.</div>
+    <div class="lockbox">
+      <li>1구 가격 · 총 구수</li>
+      <li>카드 구성 (종류·수량·구분)</li>
+      <li>포인트 교환가</li>
+    </div>
+    <div class="acts">
+      <button class="btn ghost" onclick="closeModal()">취소</button>
+      <button class="btn" id="doApprove">승인 요청</button>
+    </div>`);
+  $('#doApprove').addEventListener('click',submitApproval);
+});
+function submitApproval(){
+  const name=$('#fName').value.trim()||'이름 없는 오리파';
+  const slots=+$('#fSlots').value||0;
+  const mains=state.comp.filter(x=>x.tier==='main');
+  // 대시보드에 '승인 대기'로 추가
+  dashOripas.unshift({
+    name,total:slots,remain:slots,todayCnt:0,todaySales:0,
+    status:'승인 대기',hitRemain:true,
+    heroCard:mains.length?mains[0].card:(state.comp[0]&&state.comp[0].card)
+  });
+  renderOripas();
+  openModal(`
+    <div class="okwrap">
+      <div class="okcirc">✓</div>
+      <h3>승인 요청이 접수되었습니다</h3>
+      <div class="body">심사 후 판매가 시작됩니다.<br>진행 상황은 대시보드에서 확인할 수 있어요.</div>
+      <button class="btn" style="width:100%" onclick="closeModal()">확인</button>
+    </div>`);
+}
+
+/* ── 프리시드: 데이터 기반 동적 구성 (환원율 ~70%가 되도록 목표가 pick) ── */
+function preseed(){
+  const used=new Set();
+  const main=pickClosest(250000,used);                         // 메인 히트 1장
+  const sub1=pickClosest(80000,used);                          // 서브 히트 2장
+  const sub2=pickClosest(55000,used);
+  const cheapT=[1500,1200,900];                                // 일반 3종 (저가)
+  const cheaps=cheapT.map(t=>pickClosest(t,used,c=>c.price<10000));
+  const slots=+$('#fSlots').value||100;
+  let remain=slots-3;                                          // 히트 3장 제외 잔여 구수
+  const qtys=[Math.ceil(remain/3),Math.floor(remain/3),remain-Math.ceil(remain/3)-Math.floor(remain/3)];
+  if(main)addCard(main,1,'main');
+  if(sub1)addCard(sub1,1,'sub');
+  if(sub2)addCard(sub2,1,'sub');
+  cheaps.forEach((c,i)=>{if(c&&qtys[i]>0)addCard(c,qtys[i],'normal');});
+  $('#fName').value=main?`${main.name.split(' ')[0]} 초고가 오리파`:'초고가 오리파';
+  renderComp();recalc();
+}
+
+/* ═══════════ 탭2: 대시보드 ═══════════ */
+const dashOripas=[];
+(function seedDash(){
+  const used=new Set();
+  const h1=pickClosest(180000,used);
+  const h2=pickClosest(120000,used);
+  dashOripas.push(
+    {name:'이브이 히어로즈 오리파',total:500,remain:437,todayCnt:63,todaySales:315000,status:'판매중',hitRemain:true,heroCard:h1},
+    {name:'리자몽 레트로 스페셜 오리파',total:300,remain:12,todayCnt:88,todaySales:440000,status:'판매중',hitRemain:false,heroCard:h2}
+  );
+})();
+function renderOripas(){
+  $('#oripaList').innerHTML=dashOripas.map(o=>`
+    <div class="orow">
+      ${o.heroCard?`<img class="oimg" src="${img(o.heroCard)}" loading="lazy" alt="">`:'<div class="oimg"></div>'}
+      <div class="obody">
+        <div class="otitle">
+          <b>${esc(o.name)}</b>
+          <span class="chip ${o.status==='판매중'?'green':'gold'}">${o.status}</span>
+          ${o.hitRemain
+            ?'<span class="chip gold"><span class="pulse"></span>메인 히트 미출현</span>'
+            :'<span class="chip mut">메인 히트 출현 완료</span>'}
+        </div>
+        <div class="ogauge"><i style="width:${o.total?o.remain/o.total*100:0}%"></i></div>
+        <div class="ometa">
+          <span class="mono">남은 구수 ${fmt(o.remain)} / ${fmt(o.total)}</span>
+          <span>오늘 판매 <b class="mono" style="color:var(--t1)">${fmt(o.todayCnt)}구</b></span>
+          <span>매출 <b class="mono" style="color:var(--t1)">₩${fmt(o.todaySales)}</b></span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+/* 최근 뽑기 피드 — 4~7초 간격 가짜 라이브 */
+const NICKS=['김**','이**','박**','최**','정**','오**','한**','유**'];
+const CHEAPS=CARDS.filter(c=>c.price<15000);
+function feedTick(){
+  const nick=NICKS[Math.floor(Math.random()*NICKS.length)];
+  const live=dashOripas.filter(o=>o.status==='판매중');
+  const pack=live[Math.floor(Math.random()*live.length)];
+  // 저가 카드 가중 (85%)
+  const card=Math.random()<0.85
+    ?CHEAPS[Math.floor(Math.random()*CHEAPS.length)]
+    :CARDS[Math.floor(Math.random()*CARDS.length)];
+  const feed=$('#feed');
+  const row=document.createElement('div');
+  row.className='frow';
+  row.innerHTML=`
+    <img class="cimg" src="${img(card)}" width="30" height="42" loading="lazy" alt="">
+    <div class="fb"><b>${nick}</b> · ${esc(pack?pack.name:'오리파')}<small>${esc(card.name)}</small></div>
+    <span class="chip blue">${esc(card.rarity)}</span>
+    <span class="fp mono">${fmt(card.price)}원</span>`;
+  feed.prepend(row);
+  while(feed.children.length>8)feed.lastChild.remove();
+  setTimeout(feedTick,4000+Math.random()*3000);
+}
+
+/* ═══════════ 탭3: 배송 관리 ═══════════ */
+let orders=[];
+(function seedOrders(){
+  const used=new Set();
+  const pick3=t=>[pickClosest(t,used,c=>c.price<60000),pickClosest(t*0.6,used,c=>c.price<60000),pickClosest(t*0.3,used,c=>c.price<60000)].filter(Boolean);
+  orders=[
+    {id:'#ORP-000123',buyer:'김**',cards:pick3(45000),date:'07-05 09:12',status:'wait'},
+    {id:'#ORP-000124',buyer:'박**',cards:pick3(30000),date:'07-05 08:41',status:'wait'},
+    {id:'#ORP-000125',buyer:'정**',cards:pick3(18000),date:'07-04 22:03',status:'wait'},
+    {id:'#ORP-000119',buyer:'이**',cards:pick3(25000),date:'07-04 14:20',status:'ship',courier:'CJ대한통운',trk:'6882-4501-2231'},
+    {id:'#ORP-000117',buyer:'최**',cards:pick3(12000),date:'07-04 11:05',status:'ship',courier:'우체국',trk:'1120-3345-8890'},
+  ];
+  // 완료 12건
+  for(let i=0;i<12;i++){
+    orders.push({id:'#ORP-000'+(98+i),buyer:NICKS[i%NICKS.length],cards:pick3(8000+i*1500),
+      date:'07-0'+(1+i%3)+' '+(9+i%10)+':'+String(10+i*3%50).padStart(2,'0'),
+      status:'done',courier:i%2?'롯데':'CJ대한통운',trk:'55'+i+'0-11'+i+'2-90'+i+'7'});
+  }
+})();
+let shipFilter='wait';
+$('#shipFil').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  shipFilter=b.dataset.st;
+  document.querySelectorAll('#shipFil button').forEach(x=>x.classList.toggle('on',x===b));
+  renderOrders();
+});
+function renderOrders(){
+  const list=orders.filter(o=>o.status===shipFilter);
+  $('#cWait').textContent=orders.filter(o=>o.status==='wait').length;
+  $('#cShip').textContent=orders.filter(o=>o.status==='ship').length;
+  $('#cDone').textContent=orders.filter(o=>o.status==='done').length;
+  $('#orderList').innerHTML=list.length?list.map(o=>`
+    <div class="ordcard">
+      <div class="ordhead">
+        <div><span class="oid">${o.id}</span> <span class="om">구매자 ${o.buyer} · 신청일 ${o.date}</span></div>
+        ${o.status==='wait'
+          ?`<button class="btn sm" data-ship="${o.id}">발송 처리</button>`
+          :o.status==='ship'?'<span class="chip blue">배송 중</span>':'<span class="chip mut">배송 완료</span>'}
+      </div>
+      <div class="ordcards">
+        ${o.cards.map(c=>`<div class="oc"><img src="${img(c)}" loading="lazy" alt=""><span>${esc(c.name)}</span></div>`).join('')}
+      </div>
+      ${o.trk?`<div class="trkline">${esc(o.courier)} · 송장 <b class="mono" style="color:var(--t1)">${esc(o.trk)}</b></div>`:''}
+    </div>`).join('')
+    :'<div class="empty">해당 상태의 주문이 없습니다</div>';
+}
+$('#orderList').addEventListener('click',e=>{
+  const b=e.target.closest('[data-ship]');if(!b)return;
+  openShipModal(orders.find(o=>o.id===b.dataset.ship));
+});
+function openShipModal(o){
+  openModal(`
+    <h3>발송 처리 — ${o.id}</h3>
+    <div class="body" style="margin-bottom:10px">카드 확인 후 포장 사진과 송장 정보를 입력하세요.</div>
+    ${o.cards.map((c,i)=>`
+      <label class="chk"><input type="checkbox" class="shipchk">
+        <img src="${img(c)}" alt=""><span>${esc(c.name)}</span>
+        <span class="chip mut" style="flex:none">${esc(c.rarity)}</span></label>`).join('')}
+    <div class="upbox" id="upbox" style="margin-top:12px">
+      <input type="file" accept="image/*" id="upfile" hidden>
+      <div id="upinner">📷 포장 사진 업로드 (클릭)</div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>택배사</label>
+        <select id="courier"><option>CJ대한통운</option><option>우체국</option><option>롯데</option><option>한진</option></select></div>
+      <div class="field"><label>송장번호</label><input id="trkno" type="text" placeholder="0000-0000-0000"></div>
+    </div>
+    <div class="acts">
+      <button class="btn ghost" onclick="closeModal()">취소</button>
+      <button class="btn" id="doShip" disabled>발송 완료</button>
+    </div>`);
+  const validate=()=>{
+    const allChk=[...document.querySelectorAll('.shipchk')].every(c=>c.checked);
+    $('#doShip').disabled=!(allChk&&$('#trkno').value.trim());
+  };
+  document.querySelectorAll('.shipchk').forEach(c=>c.addEventListener('change',validate));
+  $('#trkno').addEventListener('input',validate);
+  $('#upbox').addEventListener('click',()=>$('#upfile').click());
+  $('#upfile').addEventListener('change',e=>{
+    const f=e.target.files[0];if(!f)return;
+    $('#upinner').innerHTML=`<img src="${URL.createObjectURL(f)}" alt=""><span style="color:var(--green)">✓ ${esc(f.name)}</span>`;
+  });
+  $('#doShip').addEventListener('click',()=>{
+    o.status='ship';o.courier=$('#courier').value;o.trk=$('#trkno').value.trim();
+    closeModal();renderOrders();
+    toast('유저에게 발송 알림이 전송되었습니다 🔔');
+  });
+}
+
+/* ═══════════ 탭4: 정산 원장 ═══════════ */
+(function renderLedger(){
+  // 과거→최신 순으로 정의 후 누계 계산, 화면엔 최신순
+  const rows=[
+    ['06-29','sale','이브이 히어로즈 오리파 판매 41구',205000],
+    ['06-29','fee','플랫폼 수수료 (10%)',-20500],
+    ['06-30','sale','이브이 히어로즈 오리파 판매 96구',480000],
+    ['06-30','redeem','포인트 환원 (카드 교환 9건)',-96400],
+    ['06-30','fee','플랫폼 수수료 (10%)',-48000],
+    ['07-01','sale','리자몽 레트로 스페셜 오리파 판매 120구',600000],
+    ['07-01','fee','플랫폼 수수료 (10%)',-60000],
+    ['07-02','redeem','포인트 환원 (카드 교환 14건)',-152300],
+    ['07-03','sale','이브이 히어로즈 오리파 판매 74구',370000],
+    ['07-03','fee','플랫폼 수수료 (10%)',-37000],
+    ['07-04','sale','리자몽 레트로 스페셜 오리파 판매 88구',440000],
+    ['07-04','redeem','포인트 환원 (카드 교환 6건)',-71200],
+  ];
+  const CHIP={sale:['blue','판매'],redeem:['red','포인트 환원'],fee:['mut','수수료']};
+  let cum=0;
+  const out=rows.map(([d,t,desc,amt])=>{cum+=amt;return{d,t,desc,amt,cum};}).reverse();
+  $('#ledger').innerHTML=out.map(r=>{
+    const[cls,label]=CHIP[r.t];
+    const color=r.t==='sale'?'var(--blueL)':r.t==='redeem'?'var(--red)':'var(--t2)';
+    return `<tr>
+      <td class="mono" style="color:var(--t2)">${r.d}</td>
+      <td><span class="chip ${cls}">${label}</span></td>
+      <td>${r.desc}</td>
+      <td class="amt mono" style="color:${color}">${r.amt>0?'+':'−'}₩${fmt(Math.abs(r.amt))}</td>
+      <td class="r mono" style="color:var(--t2)">₩${fmt(r.cum)}</td>
+    </tr>`;}).join('');
+})();
+
+/* ═══════════ 초기화 ═══════════ */
+preseed();
+renderOripas();
+renderOrders();
+feedTick();
+</script>
+</body>
+</html>
