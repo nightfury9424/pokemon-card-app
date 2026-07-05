@@ -14,7 +14,6 @@ import '../board/home_notice_banner.dart';
 import '../../core/utils/price_label.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/widgets/animated_counter.dart';
-import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/app_list_ui.dart' show AppSquircleIcon;
 import '../../core/widgets/card_image.dart'
     show CardImage, resolveCardImageUrl, precacheCardImage;
@@ -591,99 +590,8 @@ class _HomeScreenState extends State<HomeScreen> {
               key: const ValueKey('home-hero'),
               child: _buildHeroSection(),
             ),
-          // 3) 신기능 티저 — 준비 중 기능 예고(기능명 미노출). 탭 → 안내 토스트.
-          SliverToBoxAdapter(
-            key: const ValueKey('home-coming-soon'),
-            child: _buildComingSoonTeaser(),
-          ),
           const SliverToBoxAdapter(child: SizedBox(height: 48)),
         ],
-      ),
-    );
-  }
-
-  /// 하단 신기능 티저 — 준비 중 기능 예고(기능명 미노출). 카드/버튼 탭 → 안내 토스트.
-  Widget _buildComingSoonTeaser() {
-    void showTeaserToast() =>
-        AppInfoToast.show(context, '오픈 준비 중이에요. 소식으로 찾아뵐게요!');
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: showTeaserToast,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              const AppSquircleIcon(
-                icon: Icons.gavel_rounded,
-                color: AppColors.gold,
-                size: 34,
-              ),
-              const SizedBox(width: 8),
-              const AppSquircleIcon(
-                icon: Icons.card_giftcard_rounded,
-                color: AppColors.blueLight,
-                size: 34,
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '새로운 기능을 준비하고 있어요',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      '오픈 소식을 가장 먼저 알려드릴게요',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: showTeaserToast,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.blue.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: const Text(
-                    '기대돼요',
-                    style: TextStyle(
-                      color: AppColors.blueLight,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -1040,9 +948,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Map<String, dynamic>> _myCardCarouselItems() {
     if (_myAssets.isEmpty) {
-      // 오늘의 TOP fallback — 급상승 순위 뱃지(rank) 부여. 실제 보유 자산에는 미부여.
-      return _topGainerCards.take(10).toList().asMap().entries.map((e) {
-        final card = e.value;
+      return _topGainerCards.take(10).map((card) {
         final price =
             (card['koEstimatedPrice'] as num?)?.toInt() ??
             (card['latestPrice'] as num?)?.toInt();
@@ -1053,7 +959,6 @@ class _HomeScreenState extends State<HomeScreen> {
           'price': price,
           'changePct': pct,
           'changeLabel': '전일 대비',
-          'rank': e.key + 1,
         };
       }).toList();
     }
@@ -1088,9 +993,7 @@ class _HomeScreenState extends State<HomeScreen> {
       1 => _hotCards, // 인기
       _ => _topCards,
     };
-    // 시장 랭킹 = 순위 뱃지(rank) 부여 대상 (index+1).
-    return source.asMap().entries.map((e) {
-      final card = e.value;
+    return source.map((card) {
       final price =
           (card['koEstimatedPrice'] as num?)?.toInt() ??
           (card['latestPrice'] as num?)?.toInt();
@@ -1102,7 +1005,6 @@ class _HomeScreenState extends State<HomeScreen> {
         'price': price,
         'changePct': pct,
         'changeLabel': pct != null ? '전일 대비' : null,
-        'rank': e.key + 1,
       };
     }).toList();
   }
@@ -2081,8 +1983,6 @@ class _CarouselCardState extends State<_CarouselCard>
     final name = card['name'] as String? ?? cardId;
     final rarity = card['rarityCode'] as String? ?? '';
     final price = widget.item['price'] as int?;
-    // 시장/오늘의 TOP 순위 뱃지 (아이템 맵 optional — 내 자산 카드에는 없음).
-    final rank = widget.item['rank'] as int?;
     final imageUrl = resolveCardImageUrl(card);
     final centerFactor = (1 - widget.distFromCenter).clamp(0.0, 1.0);
     final scale = lerpDouble(0.88, 1.0, centerFactor)!;
@@ -2133,46 +2033,12 @@ class _CarouselCardState extends State<_CarouselCard>
                       ),
                     ],
                   ),
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: CardImage(
-                          imageUrl: imageUrl,
-                          width: double.infinity,
-                          height: double.infinity,
-                          fit: BoxFit.cover,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      // 시장/오늘의 TOP 순위 뱃지 — 1위 골드/2위 실버/3위 브론즈/이하 반투명 블랙. 글로우 없음.
-                      if (rank != null)
-                        Positioned(
-                          top: 6,
-                          left: 6,
-                          child: Container(
-                            width: 22,
-                            height: 22,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: switch (rank) {
-                                1 => AppColors.gold,
-                                2 => const Color(0xFFC0C4CC),
-                                3 => const Color(0xFFB08D57),
-                                _ => Colors.black54,
-                              },
-                              borderRadius: BorderRadius.circular(7),
-                            ),
-                            child: Text(
-                              '$rank',
-                              style: TextStyle(
-                                color: rank <= 2 ? Colors.black : Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
+                  child: CardImage(
+                    imageUrl: imageUrl,
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
