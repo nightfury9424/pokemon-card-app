@@ -1045,30 +1045,62 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   }
 
   // 안전/억제 배너 — 욕설·사기 경고 + 관리자 적극 협조. 채팅방 상단 상시 노출.
+  // ★Toss restyle: 기본 1줄 접힘 + '자세히' 토글(4줄 블록이 화면 지배 방지). 법적 억제 전문은 펼침에 보존.
+  bool _safetyExpanded = false;
+
   Widget _buildSafetyBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      color: AppColors.gold.withValues(alpha: 0.08),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.gavel_rounded, color: AppColors.gold, size: 14),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Text(
-              '포켓폴리오는 직거래 연결 서비스로 거래 당사자가 아닙니다.\n'
-              '거래 전 상대방·카드 상태를 직접 확인하세요.\n'
-              '욕설·사기·비매너 행위는 자동 차단되며, 수사기관 정보제공 등 가능한 모든 조치로 대응합니다. 외부 송금·개인정보 요구에 주의하세요.',
-              style: TextStyle(
-                color: AppColors.gold.withValues(alpha: 0.92),
-                fontSize: 11,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _safetyExpanded = !_safetyExpanded),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        alignment: Alignment.topCenter,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          color: AppColors.gold.withValues(alpha: 0.08),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.gavel_rounded, color: AppColors.gold, size: 14),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  _safetyExpanded
+                      ? '포켓폴리오는 직거래 연결 서비스로 거래 당사자가 아닙니다.\n'
+                          '거래 전 상대방·카드 상태를 직접 확인하세요.\n'
+                          '욕설·사기·비매너 행위는 자동 차단되며, 수사기관 정보제공 등 가능한 모든 조치로 대응합니다. 외부 송금·개인정보 요구에 주의하세요.'
+                      : '직거래 연결 서비스예요 — 외부 송금·개인정보 요구에 주의하세요.',
+                  maxLines: _safetyExpanded ? null : 1,
+                  overflow: _safetyExpanded ? null : TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.gold.withValues(alpha: 0.92),
+                    fontSize: 11,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 6),
+              Text(
+                _safetyExpanded ? '접기' : '자세히',
+                style: TextStyle(
+                  color: AppColors.gold.withValues(alpha: 0.75),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Icon(
+                _safetyExpanded
+                    ? Icons.expand_less_rounded
+                    : Icons.expand_more_rounded,
+                color: AppColors.gold.withValues(alpha: 0.75),
+                size: 14,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

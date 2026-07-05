@@ -975,8 +975,9 @@ class _AssetScreenState extends State<AssetScreen> {
                         TextSpan(
                           text: () {
                             final diff = totalCurrent - totalPurchase;
-                            final sign = isFlat ? '' : (isPos ? '+' : '');
-                            return '$sign${_formatPrice(diff)} ($sign${totalRate.toStringAsFixed(1)}%)';
+                            // ★_formatPrice는 가격용(p<=0 → '0원' 클램프) — 변동액은 절대값+부호 직접 조립.
+                            final sign = isFlat ? '' : (isPos ? '+' : '-');
+                            return '$sign${_formatPrice(diff.abs())} ($sign${totalRate.abs().toStringAsFixed(1)}%)';
                           }(),
                           // 색상 정책: >0 빨강, <0 파랑, =0 회색(변동 없음)
                           style: TextStyle(color: rateColor),
@@ -1469,7 +1470,8 @@ class _AssetScreenState extends State<AssetScreen> {
                         if (diff != null && rate != null) ...[
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            '${diff >= 0 ? '+' : ''}${_formatPrice(diff)} (${diff >= 0 ? '+' : ''}${rate.toStringAsFixed(1)}%)',
+                            // ★_formatPrice 음수 클램프('0원') 회피 — 절대값+부호 직접 조립.
+                            '${diff >= 0 ? '+' : '-'}${_formatPrice(diff.abs())} (${diff >= 0 ? '+' : '-'}${rate.abs().toStringAsFixed(1)}%)',
                             style: TextStyle(
                               // 색상 정책 (feedback_color_policy.md): 양=빨강, 음=파랑.
                               color: diff >= 0 ? AppColors.red : AppColors.blue,

@@ -360,7 +360,8 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
   }
 
   Widget _tabBar() {
-    // ★Toss restyle: borderless pill 탭 — 선택=blueDeep 채움·흰 텍스트 / 비선택=surfaceElevated·secondary.
+    // ★Toss restyle: borderless pill 탭 — 선택=blue 채움·흰 텍스트 / 비선택=surfaceElevated·secondary.
+    // (최상단 콘텐츠 스위처 필 = blue 통일 — 카드상세 탭·거래 정렬 탭과 동일 문법)
     Widget tab(BoardFilter f) {
       final sel = _filter == f;
       return Padding(
@@ -372,7 +373,7 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
             duration: const Duration(milliseconds: 140),
             padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
             decoration: BoxDecoration(
-              color: sel ? AppColors.blueDeep : AppColors.surfaceElevated,
+              color: sel ? AppColors.blue : AppColors.surfaceElevated,
               borderRadius: BorderRadius.circular(AppRadius.pill),
             ),
             child: Text(

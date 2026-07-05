@@ -329,7 +329,8 @@ class _TradeListScreenState extends State<TradeListScreen> {
                     duration: const Duration(milliseconds: 160),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                     decoration: BoxDecoration(
-                      color: sel ? AppColors.blueDeep : AppColors.surfaceElevated,
+                      // 최상단 콘텐츠 스위처 필 = blue 통일(카드상세 탭과 동일 문법).
+                      color: sel ? AppColors.blue : AppColors.surfaceElevated,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -368,7 +369,8 @@ class _TradeListScreenState extends State<TradeListScreen> {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.fromLTRB(14, 7, 10, 7),
         decoration: BoxDecoration(
-          color: selected ? AppColors.blueDeep : AppColors.surfaceElevated,
+          // 최상단 필 줄 소속 — 정렬 탭과 동일하게 blue.
+          color: selected ? AppColors.blue : AppColors.surfaceElevated,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -745,6 +747,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
                     ),
                     const SizedBox(height: 3),
                     // 거래 시그널 — 색 정책: 매도=blue(호가창 ASK 컨벤션), 매수=red(BID), 관심=neutral.
+                    // 0건은 회색(신호 없음에 색 강조 = 노이즈) — 1건 이상만 색 점등.
                     Text.rich(
                       TextSpan(
                         style: const TextStyle(
@@ -754,17 +757,22 @@ class _TradeListScreenState extends State<TradeListScreen> {
                         children: [
                           TextSpan(
                             text: '매도 $sell',
-                            style: const TextStyle(color: AppColors.blue),
+                            style: TextStyle(
+                                color: sell > 0 ? AppColors.blue : AppColors.textMuted),
                           ),
                           const TextSpan(text: '  ·  ', style: TextStyle(color: AppColors.textMuted)),
                           TextSpan(
                             text: '매수 $buy',
-                            style: const TextStyle(color: AppColors.red),
+                            style: TextStyle(
+                                color: buy > 0 ? AppColors.red : AppColors.textMuted),
                           ),
                           const TextSpan(text: '  ·  ', style: TextStyle(color: AppColors.textMuted)),
                           TextSpan(
                             text: '관심 $interest',
-                            style: const TextStyle(color: AppColors.textSecondary),
+                            style: TextStyle(
+                                color: interest > 0
+                                    ? AppColors.textSecondary
+                                    : AppColors.textMuted),
                           ),
                         ],
                       ),
