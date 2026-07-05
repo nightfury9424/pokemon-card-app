@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, X, Calculator, Copy, Check } from 'lucide-react'
+import { Search, X, Calculator, Copy, Check, ChevronDown } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import api from '../api'
-import { atLeastOne, unionIndependent, trialsToReach, kdrawNoReplace, kdrawWithReplace } from '../lib/pullMath'
+import { atLeastOne, unionIndependent, trialsToReach, perBoxProb } from '../lib/pullMath'
+
+// 카드 마스터 이미지 = public S3 (cards/v1/{lang}/{cardId}.png). jp→en→special 폴백.
+const CARD_CDN = 'https://pokefolio-beta-assets-759135635310-ap-northeast-2-an.s3.ap-northeast-2.amazonaws.com/cards/v1'
+const IMG_LANGS = ['jp', 'en', 'special']
 
 const S = {
   page:   { padding: '32px 36px', minHeight: '100%', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
@@ -14,9 +18,9 @@ const S = {
   section:{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 12 },
   fieldset:{ border: '1px solid #eef2f7', borderRadius: 12, padding: 14, background: '#fafbff', marginBottom: 14 },
   fsTitle:{ fontSize: 12, fontWeight: 700, color: '#4f46e5', marginBottom: 10 },
+  groupTitle:{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10, marginTop: 4 },
 }
 
-// 확률 표시 — 크기에 따라 유효자릿수 조절 (0.0001% 급도 읽히게)
 const fmtPct = (p) => {
   if (p == null || !isFinite(p)) return '—'
   const v = p * 100
@@ -48,7 +52,21 @@ function RarityBadge({ rarity }) {
   )
 }
 
-// 카드 검색 → 선택. 선택 시 시세를 카드값 기본값으로 넘김(onSelect 콜백에서 처리)
+// 카드 썸네일 — cardId로 S3 URL 구성, jp→en→special 순차 폴백 (key={cardId}로 카드 바뀌면 리셋)
+function CardThumb({ cardId, w = 40 }) {
+  const [idx, setIdx] = useState(0)
+  const h = Math.round(w * 1.4)
+  const failed = !cardId || idx >= IMG_LANGS.length
+  return (
+    <div style={{ width: w, height: h, borderRadius: 5, background: '#f1f5f9', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {failed
+        ? <span style={{ fontSize: 9, color: '#cbd5e1' }}>?</span>
+        : <img src={`${CARD_CDN}/${IMG_LANGS[idx]}/${cardId}.png`} onError={() => setIdx(i => i + 1)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+    </div>
+  )
+}
+
+// 카드 검색 → 선택 (이미지 포함)
 function CardPicker({ selected, onSelect }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
@@ -58,7 +76,7 @@ function CardPicker({ selected, onSelect }) {
   useEffect(() => {
     if (!query.trim()) return
     const t = setTimeout(() => {
-      api.get('/admin/cards', { params: { page: 0, size: 8, search: query.trim() } })
+      api.get('/admin/cards', { params: { page: 0, size: 10, search: query.trim() } })
         .then(r => { setResults(r.data?.data?.content ?? []); setOpen(true) })
         .catch(() => setResults([]))
     }, 300)
@@ -78,9 +96,10 @@ function CardPicker({ selected, onSelect }) {
 
   if (selected) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid #c7d2fe', background: '#eef2ff' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, border: '1px solid #c7d2fe', background: '#eef2ff' }}>
+        <CardThumb key={selected.id} cardId={selected.id} w={44} />
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.nameKo ?? selected.nameEn ?? '-'}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.nameKo ?? selected.nameEn ?? '-'}</div>
           <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.setName ?? '-'}</div>
         </div>
         <RarityBadge rarity={selected.rarity} />
@@ -94,22 +113,23 @@ function CardPicker({ selected, onSelect }) {
       <Search size={14} style={{ position: 'absolute', left: 12, top: 12, color: '#94a3b8' }} />
       <input
         style={{ ...S.inp, paddingLeft: 34 }}
-        placeholder="카드 검색 (선택사항 — 라벨·시세 자동)"
+        placeholder="카드 검색 (이름)"
         value={query}
         onChange={e => handleQueryChange(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}
       />
       {open && results.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 8px 24px rgba(0,0,0,0.1)', zIndex: 20, maxHeight: 280, overflow: 'auto' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 8px 24px rgba(0,0,0,0.1)', zIndex: 20, maxHeight: 340, overflow: 'auto' }}>
           {results.map(c => (
             <div key={c.id}
               onClick={() => { onSelect(c); setQuery(''); setOpen(false) }}
               onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid #f8fafc' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f8fafc' }}>
+              <CardThumb key={c.id} cardId={c.id} w={36} />
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nameKo ?? c.nameEn ?? '-'}</div>
-                <div style={{ fontSize: 10, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.setName ?? '-'}{c.koEstimatedPrice ? ` · ${fmtWon(c.koEstimatedPrice)}` : ''}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nameKo ?? c.nameEn ?? '-'}</div>
+                <div style={{ fontSize: 10, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.setName ?? '-'}</div>
               </div>
               <RarityBadge rarity={c.rarity} />
             </div>
@@ -120,14 +140,12 @@ function CardPicker({ selected, onSelect }) {
   )
 }
 
-function NumField({ label, value, onChange, hint, min = 0, step = 'any', suffix, disabled }) {
+function NumField({ label, value, onChange, hint, min = 0, step = 'any', suffix, badge }) {
   return (
     <div>
-      {label && <label style={S.lbl}>{label}{hint && <span style={{ color: '#94a3b8', fontWeight: 500 }}> · {hint}</span>}</label>}
+      {label && <label style={S.lbl}>{label}{badge && <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 700, color: '#16a34a', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 4, padding: '1px 4px' }}>{badge}</span>}{hint && <span style={{ color: '#94a3b8', fontWeight: 500 }}> · {hint}</span>}</label>}
       <div style={{ position: 'relative' }}>
-        <input type="number" min={min} step={step} disabled={disabled}
-          style={{ ...S.inp, paddingRight: suffix ? 42 : 12, background: disabled ? '#f1f5f9' : '#fff', color: disabled ? '#94a3b8' : '#1e293b' }}
-          value={value} onChange={e => onChange(e.target.value)} />
+        <input type="number" min={min} step={step} style={{ ...S.inp, paddingRight: suffix ? 42 : 12 }} value={value} onChange={e => onChange(e.target.value)} />
         {suffix && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#94a3b8' }}>{suffix}</span>}
       </div>
     </div>
@@ -146,71 +164,55 @@ function StatBox({ label, value, sub, accent }) {
 
 export default function PullRate() {
   const [card, setCard] = useState(null)
+  const [priceLoading, setPriceLoading] = useState(false)
 
-  // 제품 구조
+  // 제품 정보
   const [packsPerBox, setPacksPerBox] = useState('30')
   const [boxesPerCarton, setBoxesPerCarton] = useState('30')
-
-  // 대상 카드 풀 (출현율과 풀을 한 묶음으로 — 17종 함정 방지)
-  const [poolMode, setPoolMode] = useState('single')     // single | kdraw
-  const [poolName, setPoolName] = useState('')
-  const [freqBoxes, setFreqBoxes] = useState('')   // single: N박스당
-  const [freqCopies, setFreqCopies] = useState('1')// single: M장
-  const [poolSize, setPoolSize] = useState('')     // 풀 내 카드 수 (공용)
-  const [weightMode, setWeightMode] = useState('equal')  // single: equal | manual
-  const [manualWeight, setManualWeight] = useState('')   // %
-  const [drawK, setDrawK] = useState('')           // kdraw: 박스당 K장
-  const [drawReplace, setDrawReplace] = useState('no')   // kdraw: no(중복없음) | yes(중복가능)
-
-  // 가격 표기 (콘텐츠용) — 자동값은 예상가치, 수동 실거래는 사용자가 변경
+  const [boxPrice, setBoxPrice] = useState('')
+  const [cardPrice, setCardPrice] = useState('')
   const [priceLabel, setPriceLabel] = useState('포켓폴리오 예상가치')
 
-  // 팩 위치 균등 가정 (1팩 환산 조건)
-  const [packUniform, setPackUniform] = useState(true)
+  // 봉입률
+  const [poolName, setPoolName] = useState('')          // 기본=카드 rarity, 수정 가능
+  const [freqBoxes, setFreqBoxes] = useState('')        // N박스당
+  const [freqCopies, setFreqCopies] = useState('1')     // M장
+  const [poolSize, setPoolSize] = useState('')          // 풀 종수
+  const [weightMode, setWeightMode] = useState('equal') // equal | manual
+  const [manualWeight, setManualWeight] = useState('')  // %
 
-  // 갓팩 (선택 경로)
+  // 고급 (갓팩)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [godEnabled, setGodEnabled] = useState(false)
-  const [godRateBoxes, setGodRateBoxes] = useState('')   // N박스당 1갓팩
-  const [godTargetProb, setGodTargetProb] = useState('') // 갓팩 1개당 목표카드 %
-
-  // 가격
-  const [cardPrice, setCardPrice] = useState('')
-  const [boxPrice, setBoxPrice] = useState('')
-  const [packPrice, setPackPrice] = useState('')
+  const [godRateBoxes, setGodRateBoxes] = useState('')
+  const [godTargetProb, setGodTargetProb] = useState('')
 
   const [copied, setCopied] = useState(false)
 
-  // 카드 선택 시 시세를 카드값으로 매번 교체 (연속 카드 작업 — 이전 가격 잔존 방지)
-  const handleSelectCard = (c) => {
+  // 카드 선택 → 풀 이름=rarity 자동, 카드 가격=DB KO 환산치 자동
+  const handleSelectCard = async (c) => {
     setCard(c)
-    setCardPrice(c?.koEstimatedPrice ? String(c.koEstimatedPrice) : '')
+    if (!c) { setCardPrice(''); return }
+    setPoolName(c.rarity || '')
+    setPriceLoading(true)
+    try {
+      const r = await api.get(`/cards/${c.id}`, { params: { withPrice: true } })
+      const ko = r.data?.data?.koEstimatedPrice
+      setCardPrice(ko ? String(ko) : '')
+    } catch { setCardPrice('') }
+    finally { setPriceLoading(false) }
   }
 
   const calc = useMemo(() => {
-    // ── 일반 슬롯 경로: 풀 봉입 방식별 박스당 목표카드 확률 ──
-    let pBoxNormal
-    const pool = parseFloat(poolSize)
-    if (poolMode === 'single') {
-      const M = parseFloat(freqCopies), N = parseFloat(freqBoxes)
-      if (!(M > 0) || !(N > 0)) return null
-      const poolHitPerBox = M / N                     // 풀이 박스에 나올 확률
-      let weight
-      if (weightMode === 'equal') {
-        if (!(pool > 0)) return null
-        weight = 1 / pool
-      } else {
-        const w = parseFloat(manualWeight)
-        if (!(w > 0)) return null
-        weight = w / 100
-      }
-      pBoxNormal = Math.min(1, poolHitPerBox * weight)
-    } else {                                           // kdraw: 박스당 K장 추출
-      const K = parseFloat(drawK)
-      if (!(K > 0) || !(pool > 0)) return null
-      pBoxNormal = drawReplace === 'yes' ? kdrawWithReplace(pool, K) : kdrawNoReplace(pool, K)
-    }
+    const M = parseFloat(freqCopies), N = parseFloat(freqBoxes)
+    if (!(M > 0) || !(N > 0)) return null
+    const rate = M / N
+    const isEqual = weightMode === 'equal'
+    const pBoxNormal = isEqual
+      ? perBoxProb(rate, parseFloat(poolSize), null)
+      : perBoxProb(rate, null, parseFloat(manualWeight) / 100)
+    if (!(pBoxNormal > 0)) return null
 
-    // 갓팩 경로 — 독립 가정으로 결합
     let pBoxGod = 0
     if (godEnabled) {
       const gr = parseFloat(godRateBoxes), gp = parseFloat(godTargetProb)
@@ -220,14 +222,10 @@ export default function PullRate() {
     if (!(pBox > 0)) return null
 
     const packs = parseFloat(packsPerBox)
-    const pPack = (packUniform && packs > 0) ? pBox / packs : null   // 박스 내 1장·팩 위치 균등 가정에서만
-
+    const pPack = packs > 0 ? pBox / packs : null   // 박스 내 균등 위치 가정
     const cardW = parseFloat(cardPrice), boxW = parseFloat(boxPrice)
-    // 본전 = 카드값 이내로 살 수 있는 최대 박스 수 → floor. (ceil이면 카드값 초과)
     const breakevenBoxes = (cardW > 0 && boxW > 0) ? Math.floor(cardW / boxW) : null
     const hasBreakeven = breakevenBoxes != null && breakevenBoxes >= 1
-
-    const isEqual = poolMode === 'kdraw' || weightMode === 'equal'
 
     return {
       pBox, pPack, pBoxGod,
@@ -238,32 +236,27 @@ export default function PullRate() {
       box90: trialsToReach(pBox, 0.9),
       breakevenBoxes: hasBreakeven ? breakevenBoxes : null,
       pBreakeven: hasBreakeven ? atLeastOne(pBox, breakevenBoxes) : null,
-      belowBox: breakevenBoxes === 0,   // 카드값 < 박스값
+      belowBox: breakevenBoxes === 0,
       boxPrice: boxW > 0 ? boxW : null,
-      packPrice: parseFloat(packPrice) > 0 ? parseFloat(packPrice) : null,
       cardPrice: cardW > 0 ? cardW : null,
       expectedCost: boxW > 0 ? (1 / pBox) * boxW : null,
-      isEqual,
+      isEqual, rate,
     }
-  }, [poolMode, freqCopies, freqBoxes, weightMode, poolSize, manualWeight, drawK, drawReplace, godEnabled, godRateBoxes, godTargetProb, packsPerBox, boxesPerCarton, packUniform, cardPrice, boxPrice, packPrice])
+  }, [freqCopies, freqBoxes, weightMode, poolSize, manualWeight, godEnabled, godRateBoxes, godTargetProb, packsPerBox, boxesPerCarton, cardPrice, boxPrice])
 
-  // 구매 단위별 확률 표
   const rows = useMemo(() => {
     if (!calc) return []
     const out = []
     if (calc.pPack != null) {
-      out.push({ key: '1팩', n: 1, unit: 'pack', prob: atLeastOne(calc.pPack, 1), cost: calc.packPrice })
-      out.push({ key: '5팩', n: 5, unit: 'pack', prob: atLeastOne(calc.pPack, 5), cost: calc.packPrice ? 5 * calc.packPrice : null })
+      out.push({ key: '1팩', prob: atLeastOne(calc.pPack, 1) })
+      out.push({ key: '5팩', prob: atLeastOne(calc.pPack, 5) })
     }
-    const boxUnits = [
-      { key: '1박스', n: 1 }, { key: '3박스', n: 3 }, { key: '5박스', n: 5 }, { key: '10박스', n: 10 },
-    ]
-    if (calc.carton) boxUnits.push({ key: `${fmtNum(calc.carton)}박스 (1카톤 분량)`, n: calc.carton })
-    for (const b of boxUnits) out.push({ key: b.key, n: b.n, unit: 'box', prob: atLeastOne(calc.pBox, b.n), cost: calc.boxPrice ? b.n * calc.boxPrice : null })
+    const boxUnits = [{ key: '1박스', n: 1 }, { key: '3박스', n: 3 }, { key: '5박스', n: 5 }, { key: '10박스', n: 10 }]
+    if (calc.carton) boxUnits.push({ key: `${fmtNum(calc.carton)}박스 (1카톤 분량)`, n: calc.carton, boxN: calc.carton })
+    for (const b of boxUnits) out.push({ key: b.key, prob: atLeastOne(calc.pBox, b.n), cost: calc.boxPrice ? b.n * calc.boxPrice : null })
     return out
   }, [calc])
 
-  // 누적 확률 곡선 (박스 단위, 90% 도달 또는 카톤까지)
   const chart = useMemo(() => {
     if (!calc) return []
     const maxN = Math.max(calc.carton || 0, isFinite(calc.box90) ? calc.box90 : 0, calc.breakevenBoxes || 0, 10)
@@ -277,7 +270,6 @@ export default function PullRate() {
 
   const cardName = card ? `${card.nameKo ?? card.nameEn}${card.rarity ? ` ${card.rarity}` : ''}` : '이 카드'
 
-  // 인스타 콘텐츠용 복사 텍스트
   const contentText = useMemo(() => {
     if (!calc) return ''
     const L = []
@@ -291,7 +283,7 @@ export default function PullRate() {
     if (calc.breakevenBoxes) L.push(`✅ 카드값 기준 본전 ${fmtNum(calc.breakevenBoxes)}박스 → 그 안에 뽑을 확률 ${fmtPct(calc.pBreakeven)}`)
     const notes = []
     if (calc.isEqual) notes.push('풀 내 균등 봉입 가정 추정치')
-    notes.push('박스 독립 개봉 누적 (sealed carton 아님)')
+    notes.push('박스 독립 개봉 누적')
     L.push('')
     L.push(`※ ${notes.join(' · ')}`)
     L.push('')
@@ -301,32 +293,22 @@ export default function PullRate() {
 
   const doCopy = () => {
     if (!contentText) return
-    navigator.clipboard?.writeText(contentText).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    }).catch(() => {})
+    navigator.clipboard?.writeText(contentText).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) }).catch(() => {})
   }
 
-  const segBtn = (active, onClick, label, hint) => (
+  const seg = (active, onClick, label) => (
     <button onClick={onClick} style={{
-      flex: 1, padding: '7px 8px', borderRadius: 8, border: '1px solid', cursor: 'pointer',
-      fontSize: 12, fontWeight: active ? 700 : 500, fontFamily: 'inherit', lineHeight: 1.3,
-      background: active ? '#6366f1' : '#fff', color: active ? '#fff' : '#64748b',
-      borderColor: active ? '#6366f1' : '#e2e8f0',
-    }}>
-      {label}
-      {hint && <div style={{ fontSize: 9, fontWeight: 500, color: active ? 'rgba(255,255,255,0.75)' : '#94a3b8', marginTop: 2 }}>{hint}</div>}
-    </button>
+      flex: 1, padding: '8px 8px', borderRadius: 8, border: '1px solid', cursor: 'pointer',
+      fontSize: 12, fontWeight: active ? 700 : 500, fontFamily: 'inherit',
+      background: active ? '#6366f1' : '#fff', color: active ? '#fff' : '#64748b', borderColor: active ? '#6366f1' : '#e2e8f0',
+    }}>{label}</button>
   )
-  const wBtn = (key, label) => segBtn(weightMode === key, () => setWeightMode(key), label)
-  const pmBtn = (key, label, hint) => segBtn(poolMode === key, () => setPoolMode(key), label, hint)
-  const drBtn = (key, label, hint) => segBtn(drawReplace === key, () => setDrawReplace(key), label, hint)
 
   return (
     <div style={S.page}>
       <div style={{ marginBottom: 24 }}>
         <div style={S.h1}>확률 계산기</div>
-        <div style={S.sub}>카드 뽑기 확률 + 본전 계산 · 콘텐츠 제작용 · 봉입률은 조사해서 입력</div>
+        <div style={S.sub}>카드 고르고 봉입 정보만 넣으면 뽑기 확률·본전 계산 · 콘텐츠 제작용</div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 20, alignItems: 'start' }}>
@@ -334,121 +316,80 @@ export default function PullRate() {
         <div style={S.card}>
           <div style={S.section}><Calculator size={14} style={{ verticalAlign: -2, marginRight: 6 }} />입력</div>
 
-          <div style={{ marginBottom: 14 }}>
+          {/* 1. 대상 카드 */}
+          <div style={{ marginBottom: 16 }}>
             <label style={S.lbl}>대상 카드</label>
             <CardPicker selected={card} onSelect={handleSelectCard} />
           </div>
 
-          {/* 제품 구조 */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+          {/* 2. 제품 정보 */}
+          <div style={S.groupTitle}>제품 정보</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
             <NumField label="팩 / 박스" value={packsPerBox} onChange={setPacksPerBox} step="1" suffix="팩" />
             <NumField label="박스 / 카톤" value={boxesPerCarton} onChange={setBoxesPerCarton} step="1" suffix="박스" />
           </div>
-
-          {/* 대상 카드 풀 — 출현율과 풀을 한 묶음으로 */}
-          <div style={S.fieldset}>
-            <div style={S.fsTitle}>대상 카드 풀 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 출현율과 풀은 같은 묶음</span></div>
-
-            {/* 풀 봉입 방식 */}
-            <label style={S.lbl}>풀 봉입 방식</label>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-              {pmBtn('single', '단일 출현 슬롯', 'SAR N박스당 1장')}
-              {pmBtn('kdraw', '박스당 K장 추출', 'AR 1박스당 3장')}
-            </div>
-
-            <div style={{ marginBottom: 10 }}>
-              <label style={S.lbl}>카드 풀 이름</label>
-              <input style={S.inp} placeholder={poolMode === 'single' ? '예: 포켓몬 SAR' : '예: AR'} value={poolName} onChange={e => setPoolName(e.target.value)} />
-            </div>
-
-            {poolMode === 'single' ? (
-              <>
-                <label style={S.lbl}>출현 빈도 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 이 풀이 나오는 빈도</span></label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <input type="number" min="0" step="any" style={{ ...S.inp, width: 70 }} value={freqBoxes} onChange={e => setFreqBoxes(e.target.value)} />
-                  <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>박스당</span>
-                  <input type="number" min="0" step="any" style={{ ...S.inp, width: 60 }} value={freqCopies} onChange={e => setFreqCopies(e.target.value)} />
-                  <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>장</span>
-                </div>
-                <div style={{ marginBottom: 10 }}>
-                  <NumField label="풀 내 카드 수" value={poolSize} onChange={setPoolSize} step="1" suffix="종" disabled={weightMode !== 'equal'} />
-                </div>
-                <label style={S.lbl}>카드 선택 방식</label>
-                <div style={{ display: 'flex', gap: 6, marginBottom: weightMode === 'manual' ? 10 : 0 }}>
-                  {wBtn('equal', poolSize > 0 ? `균등 가정 (1/${fmtNum(parseFloat(poolSize))})` : '균등 가정')}
-                  {wBtn('manual', '직접 확률 입력')}
-                </div>
-                {weightMode === 'manual' && (
-                  <NumField label={null} value={manualWeight} onChange={setManualWeight} suffix="%" hint="풀 안에서 이 카드 비중" />
-                )}
-              </>
-            ) : (
-              <>
-                <label style={S.lbl}>박스당 추출 수 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 1박스에 이 풀이 나오는 장수</span></label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>1박스당</span>
-                  <input type="number" min="0" step="1" style={{ ...S.inp, width: 70 }} value={drawK} onChange={e => setDrawK(e.target.value)} />
-                  <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>장</span>
-                </div>
-                <div style={{ marginBottom: 10 }}>
-                  <NumField label="풀 내 카드 수" value={poolSize} onChange={setPoolSize} step="1" suffix="종" />
-                </div>
-                <label style={S.lbl}>추출 방식 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 균등 가정</span></label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {drBtn('no', '중복 없음', 'K/풀 (초기하)')}
-                  {drBtn('yes', '중복 가능', '1-(1-1/풀)^K')}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* 팩 환산 조건 */}
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14, cursor: 'pointer' }}>
-            <input type="checkbox" checked={packUniform} onChange={e => setPackUniform(e.target.checked)} style={{ marginTop: 2 }} />
-            <span style={{ fontSize: 12, color: '#475569', lineHeight: 1.4 }}>
-              박스 내 1장·팩 위치 균등 가정 <span style={{ color: '#94a3b8' }}>— 켜야 1팩/5팩 확률 산출 (p팩 = p박스 ÷ 팩수). 끄면 박스 단위부터 표시</span>
-            </span>
-          </label>
-
-          {/* 갓팩 (선택) */}
-          <div style={{ ...S.fieldset, background: godEnabled ? '#fffbeb' : '#fafbff', borderColor: godEnabled ? '#fde68a' : '#eef2f7' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: godEnabled ? 12 : 0 }}>
-              <input type="checkbox" checked={godEnabled} onChange={e => setGodEnabled(e.target.checked)} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>갓팩 경로 포함 <span style={{ fontWeight: 500, color: '#94a3b8' }}>· 독립 경로 가정</span></span>
-            </label>
-            {godEnabled && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <NumField label="갓팩 출현" value={godRateBoxes} onChange={setGodRateBoxes} step="1" suffix="박스당1" hint={null} />
-                <NumField label="갓팩당 목표" value={godTargetProb} onChange={setGodTargetProb} suffix="%" hint={null} />
-              </div>
-            )}
-          </div>
-
-          {/* 가격 */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
             <NumField label="박스 가격" value={boxPrice} onChange={setBoxPrice} suffix="원" />
-            <NumField label="팩 가격" value={packPrice} onChange={setPackPrice} suffix="원" />
+            <NumField label="카드 가격" value={cardPrice} onChange={setCardPrice} suffix="원"
+              badge={priceLoading ? '불러오는중' : (card && cardPrice ? 'DB 자동' : null)} />
           </div>
-          <div style={{ marginTop: 10 }}>
-            <NumField label="카드 가격" hint={card?.koEstimatedPrice ? '검색 시 자동' : '본전 계산용'} value={cardPrice} onChange={setCardPrice} suffix="원" />
+
+          {/* 3. 봉입률 */}
+          <div style={S.groupTitle}>봉입률 <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500, color: '#cbd5e1' }}>· 조사해서 입력</span></div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={S.lbl}>이 카드가 속한 등급/풀 <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 기본=카드 등급, 필요 시 수정</span></label>
+            <input style={S.inp} placeholder="예: SAR / 포켓몬 SAR" value={poolName} onChange={e => setPoolName(e.target.value)} />
           </div>
-          <div style={{ marginTop: 10 }}>
-            <label style={S.lbl}>가격 표기 (콘텐츠) <span style={{ color: '#94a3b8', fontWeight: 500 }}>· 자동값=예상가치. 실거래 수동입력 시 변경</span></label>
-            <select style={{ ...S.inp, background: '#fff' }} value={priceLabel} onChange={e => setPriceLabel(e.target.value)}>
-              <option value="포켓폴리오 예상가치">포켓폴리오 예상가치</option>
-              <option value="최근 거래가 기준">최근 거래가 기준</option>
-            </select>
+          <label style={S.lbl}>{poolName || '이 풀'} 봉입률</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <input type="number" min="0" step="any" style={{ ...S.inp, width: 70 }} value={freqBoxes} onChange={e => setFreqBoxes(e.target.value)} placeholder="3" />
+            <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>박스당</span>
+            <input type="number" min="0" step="any" style={{ ...S.inp, width: 60 }} value={freqCopies} onChange={e => setFreqCopies(e.target.value)} />
+            <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>장</span>
           </div>
+          {weightMode === 'equal' && (
+            <div style={{ marginBottom: 10 }}>
+              <NumField label="이 풀에 카드 몇 종" value={poolSize} onChange={setPoolSize} step="1" suffix="종" />
+            </div>
+          )}
+          <label style={S.lbl}>목표 카드 확률</label>
+          <div style={{ display: 'flex', gap: 6, marginBottom: weightMode === 'manual' ? 10 : 0 }}>
+            {seg(weightMode === 'equal', () => setWeightMode('equal'), poolSize > 0 ? `동일 확률 (1/${fmtNum(parseFloat(poolSize))})` : '동일 확률 가정')}
+            {seg(weightMode === 'manual', () => setWeightMode('manual'), '직접 확률 입력')}
+          </div>
+          {weightMode === 'manual' && (
+            <NumField label={null} value={manualWeight} onChange={setManualWeight} suffix="%" hint="이 풀 안에서 이 카드가 나올 비중" />
+          )}
+
+          {/* 4. 고급 (갓팩) */}
+          <button onClick={() => setShowAdvanced(v => !v)} style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 12, fontWeight: 600, fontFamily: 'inherit', padding: 0 }}>
+            <ChevronDown size={14} style={{ transform: showAdvanced ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+            고급 봉입 설정 (갓팩 등 특수 경로)
+          </button>
+          {showAdvanced && (
+            <div style={{ ...S.fieldset, marginTop: 10, background: godEnabled ? '#fffbeb' : '#fafbff', borderColor: godEnabled ? '#fde68a' : '#eef2f7' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: godEnabled ? 12 : 0 }}>
+                <input type="checkbox" checked={godEnabled} onChange={e => setGodEnabled(e.target.checked)} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>갓팩/특수팩 경로 포함</span>
+              </label>
+              {godEnabled && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={S.lbl}>갓팩 출현</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <input type="number" min="0" step="1" style={{ ...S.inp, width: 60 }} value={godRateBoxes} onChange={e => setGodRateBoxes(e.target.value)} />
+                      <span style={{ fontSize: 11, color: '#64748b' }}>박스당 1</span>
+                    </div>
+                  </div>
+                  <NumField label="갓팩당 목표카드" value={godTargetProb} onChange={setGodTargetProb} suffix="%" />
+                </div>
+              )}
+            </div>
+          )}
 
           {calc && (
-            <div style={{ marginTop: 14, padding: '10px 12px', borderRadius: 10, background: '#f8fafc', fontSize: 11, color: '#64748b', lineHeight: 1.6 }}>
-              1박스 목표카드 확률 = {
-                poolMode === 'single'
-                  ? <>{freqCopies}÷{freqBoxes}(풀 출현) × {calc.isEqual ? `1/${fmtNum(parseFloat(poolSize))}` : `${manualWeight}%`}(카드 비중)</>
-                  : (drawReplace === 'no'
-                      ? <>{drawK}÷{fmtNum(parseFloat(poolSize))} (중복없음 추출)</>
-                      : <>1-(1-1/{fmtNum(parseFloat(poolSize))})^{drawK} (중복가능 추출)</>)
-              }{calc.pBoxGod > 0 ? ' + 갓팩(독립결합)' : ''} = <b style={{ color: '#4f46e5' }}>{fmtPct(calc.pBox)}</b>
+            <div style={{ marginTop: 16, padding: '10px 12px', borderRadius: 10, background: '#f8fafc', fontSize: 11, color: '#64748b', lineHeight: 1.6 }}>
+              1박스 확률 = {freqCopies}÷{freqBoxes} {calc.isEqual ? <>÷ {fmtNum(parseFloat(poolSize))}종</> : <>× {manualWeight}%</>}{calc.pBoxGod > 0 ? ' + 갓팩(독립결합)' : ''} = <b style={{ color: '#4f46e5' }}>{fmtPct(calc.pBox)}</b>
             </div>
           )}
         </div>
@@ -457,15 +398,17 @@ export default function PullRate() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {!calc ? (
             <div style={{ ...S.card, textAlign: 'center', padding: '60px 20px', color: '#94a3b8', fontSize: 13 }}>
-              출현 빈도 + 카드 풀을 입력하면 결과가 표시됩니다
+              봉입률을 입력하면 결과가 표시됩니다
             </div>
           ) : (
             <>
-              {/* 요약 stat */}
               <div style={S.card}>
-                <div style={S.section}>
-                  {card ? cardName : '결과'}
-                  {calc.isEqual && <span style={{ fontSize: 11, fontWeight: 600, color: '#c2410c', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 99, padding: '2px 8px', marginLeft: 8 }}>균등 가정 추정치</span>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                  {card && <CardThumb key={card.id} cardId={card.id} w={44} />}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{card ? cardName : '결과'}</div>
+                    {calc.isEqual && <span style={{ fontSize: 11, fontWeight: 600, color: '#c2410c', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 99, padding: '2px 8px', display: 'inline-block', marginTop: 4 }}>균등 가정 추정치</span>}
+                  </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                   <StatBox accent label="1박스 확률" value={fmtPct(calc.pBox)} sub={`평균 ${fmtBoxes(calc.avgBoxes)}박스당 1장`} />
@@ -482,20 +425,17 @@ export default function PullRate() {
                 )}
                 {calc.belowBox && (
                   <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 12, color: '#c2410c' }}>
-                    카드값이 박스값보다 낮아 박스깡 본전이 성립하지 않음 (1박스도 카드값 초과)
+                    카드값이 박스값보다 낮아 박스깡 본전이 성립하지 않음
                   </div>
                 )}
               </div>
 
-              {/* 구매 단위별 확률 */}
               <div style={S.card}>
-                <div style={S.section}>구매 단위별 뽑을 확률 (최소 1장)
-                  {calc.pPack == null && <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}> · 팩 단위는 균등 가정 꺼져 있어 산출 안 함</span>}
-                </div>
+                <div style={S.section}>구매 단위별 뽑을 확률 (최소 1장)</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
-                      {['구매 단위', '확률', ...((calc.boxPrice || calc.packPrice) ? ['비용'] : [])].map(h => (
+                      {['구매 단위', '확률', ...(calc.boxPrice ? ['비용'] : [])].map(h => (
                         <th key={h} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.6, textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>{h}</th>
                       ))}
                     </tr>
@@ -510,17 +450,16 @@ export default function PullRate() {
                             <div style={{ height: '100%', borderRadius: 2, width: `${Math.min(100, r.prob * 100)}%`, background: 'linear-gradient(90deg,#6366f1,#4f46e5)' }} />
                           </div>
                         </td>
-                        {(calc.boxPrice || calc.packPrice) && <td style={{ padding: '10px 12px', fontSize: 13, color: '#475569', borderBottom: '1px solid #f8fafc', fontVariantNumeric: 'tabular-nums' }}>{r.cost != null ? fmtWon(r.cost) : '—'}</td>}
+                        {calc.boxPrice && <td style={{ padding: '10px 12px', fontSize: 13, color: '#475569', borderBottom: '1px solid #f8fafc', fontVariantNumeric: 'tabular-nums' }}>{r.cost != null ? fmtWon(r.cost) : '—'}</td>}
                       </tr>
                     ))}
                   </tbody>
                 </table>
                 <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, lineHeight: 1.5 }}>
-                  ※ 박스/카톤 확률 = 박스 독립 개봉 누적 (1−(1−p박스)^n). 실제 sealed carton collation 아님.
+                  ※ 박스/카톤 확률 = 박스 독립 개봉 누적. {calc.pPack != null && '팩 확률은 박스 내 균등 위치 가정.'}
                 </div>
               </div>
 
-              {/* 차트 */}
               {chart.length > 1 && (
                 <div style={S.card}>
                   <div style={S.section}>누적 확률 곡선 <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>· 박스 단위</span></div>
@@ -529,7 +468,7 @@ export default function PullRate() {
                       <XAxis dataKey="n" type="number" domain={[0, 'dataMax']} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={n => `${fmtNum(n)}박스`} />
                       <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} domain={[0, 100]} width={40} tickFormatter={v => `${v}%`} />
                       <Tooltip formatter={v => [`${v}%`, '최소 1장 확률']} labelFormatter={n => `${fmtNum(n)}박스 개봉`} contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 11 }} />
-                      {calc.breakevenBoxes <= (chart[chart.length - 1]?.n ?? 0) &&
+                      {calc.breakevenBoxes <= (chart[chart.length - 1]?.n ?? 0) && calc.breakevenBoxes > 0 &&
                         <ReferenceLine x={calc.breakevenBoxes} stroke="#16a34a" strokeDasharray="4 4" label={{ value: '본전', fontSize: 10, fill: '#16a34a', position: 'top' }} />}
                       {isFinite(calc.box50) && calc.box50 <= (chart[chart.length - 1]?.n ?? 0) &&
                         <ReferenceLine x={calc.box50} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: '50%', fontSize: 10, fill: '#f59e0b', position: 'top' }} />}
@@ -539,13 +478,18 @@ export default function PullRate() {
                 </div>
               )}
 
-              {/* 콘텐츠 복사 블록 */}
               <div style={S.card}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <div style={S.section}>📸 콘텐츠 요약 <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>· 게시물용 텍스트</span></div>
-                  <button onClick={doCopy} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', background: copied ? '#16a34a' : 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'inherit' }}>
-                    {copied ? <><Check size={14} /> 복사됨</> : <><Copy size={14} /> 복사</>}
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <select style={{ ...S.inp, width: 'auto', padding: '6px 8px', fontSize: 11, background: '#fff' }} value={priceLabel} onChange={e => setPriceLabel(e.target.value)}>
+                      <option value="포켓폴리오 예상가치">포켓폴리오 예상가치</option>
+                      <option value="최근 거래가 기준">최근 거래가 기준</option>
+                    </select>
+                    <button onClick={doCopy} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', background: copied ? '#16a34a' : 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'inherit' }}>
+                      {copied ? <><Check size={14} /> 복사됨</> : <><Copy size={14} /> 복사</>}
+                    </button>
+                  </div>
                 </div>
                 <pre style={{ margin: 0, padding: '14px 16px', borderRadius: 10, background: '#f8fafc', border: '1px solid #f1f5f9', fontSize: 13, color: '#1e293b', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{contentText}</pre>
               </div>

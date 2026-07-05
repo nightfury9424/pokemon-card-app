@@ -21,14 +21,15 @@ export const trialsToReach = (p, target) => {
   return Math.ceil(Math.log(1 - target) / Math.log(1 - p))
 }
 
-/** 박스당 K장을 풀(pool종)에서 균등·중복없이 추출 → 목표카드 포함 확률 = K/pool (초기하) */
-export const kdrawNoReplace = (pool, k) => {
-  if (!(pool > 0) || !(k > 0)) return 0
-  return Math.min(1, k / pool)
-}
-
-/** 박스당 K장을 풀(pool종)에서 균등·중복허용 독립추출 → 목표카드 ≥1 확률 = 1-(1-1/pool)^K */
-export const kdrawWithReplace = (pool, k) => {
-  if (!(pool > 0) || !(k > 0)) return 0
-  return 1 - Math.pow(1 - 1 / pool, k)
+/**
+ * 1박스에 목표 카드가 ≥1장 나올 확률 — 통일식.
+ *   rate = 박스당 풀 출현 장수(M/N),  poolSize = 풀 종수
+ *   동일확률: rate / poolSize   (단일슬롯 (M/N)×1/pool 와 K장추출 K/pool 이 동일하게 수렴)
+ *   직접확률: rate × weight      (weight = 풀 안에서 이 카드 비중, 0~1)
+ */
+export const perBoxProb = (rate, poolSize, weight) => {
+  if (!(rate > 0)) return 0
+  if (weight != null) return Math.min(1, rate * weight)
+  if (!(poolSize > 0)) return 0
+  return Math.min(1, rate / poolSize)
 }
