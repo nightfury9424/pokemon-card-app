@@ -132,7 +132,7 @@ class _ErrorToastBodyState extends State<_ErrorToastBody>
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: AppColors.red.withValues(alpha: 0.55),
           width: 1,
