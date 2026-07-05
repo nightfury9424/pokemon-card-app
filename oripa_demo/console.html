@@ -8,7 +8,7 @@
 /* ── 토큰 (PokeFolio 다크) ── */
 :root{
   --bg:#04080F; --surface:#090E18; --card:#0D1520; --elev:#111D2C;
-  --blue:#1B64DA; --blueL:#4D8FEA; --gold:#FFCC00; --green:#05C072; --red:#EF4444;
+  --blue:#1B64DA; --blueL:#4D8FEA; --gold:#FFCC00; --green:#05C072; --red:#EF4444; --orange:#FF9500;
   --t1:#FFFFFF; --t2:#7A93B0; --t3:#3A5470; --div:#1A2638;
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -40,14 +40,14 @@ aside{
   display:flex;flex-direction:column;padding:20px 12px;
 }
 main{flex:1;overflow-y:auto;padding:24px 28px 60px}
-.tab{display:none;max-width:1220px}
+.tab{display:none;max-width:1180px}
 .tab.on{display:block}
 
 /* ── 사이드바 ── */
 .shop{display:flex;align-items:center;gap:10px;padding:4px 8px 18px;border-bottom:1px solid var(--div);margin-bottom:14px}
 .squircle{
   width:40px;height:40px;flex:none;border-radius:13px;
-  background:linear-gradient(135deg,#1B64DA,#4D8FEA); /* 아이콘 스쿼클만 그라데이션 허용 */
+  background:linear-gradient(135deg,#1B64DA,#4D8FEA);
   display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;
 }
 .shop b{font-size:14px;display:block}
@@ -57,11 +57,11 @@ main{flex:1;overflow-y:auto;padding:24px 28px 60px}
   display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:10px;
   color:var(--t2);font-weight:600;font-size:13.5px;margin-bottom:2px;text-align:left;
 }
-.mi svg{flex:none}
+.mi .ic{width:18px;text-align:center;flex:none;font-size:14px;font-style:normal}
 .mi:hover{background:var(--card);color:var(--t1)}
 .mi.on{background:rgba(27,100,218,.14);color:var(--blueL)}
 .partner{
-  margin:0 4px;padding:10px 12px;border-radius:10px;background:var(--card);
+  margin:8px 4px 0;padding:10px 12px;border-radius:10px;background:var(--card);
   font-size:11.5px;color:var(--t2);display:flex;align-items:center;gap:8px;
 }
 .partner .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);flex:none}
@@ -76,6 +76,7 @@ main{flex:1;overflow-y:auto;padding:24px 28px 60px}
 .chip.gold{background:rgba(255,204,0,.14);color:var(--gold)}
 .chip.green{background:rgba(5,192,114,.14);color:var(--green)}
 .chip.red{background:rgba(239,68,68,.14);color:var(--red)}
+.chip.orange{background:rgba(255,149,0,.14);color:var(--orange)}
 .chip.mut{background:rgba(122,147,176,.14);color:var(--t2)}
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
@@ -85,136 +86,185 @@ main{flex:1;overflow-y:auto;padding:24px 28px 60px}
 .btn:hover{opacity:.88}
 .btn.ghost{background:var(--elev);color:var(--t2)}
 .btn.sm{padding:6px 12px;border-radius:8px;font-size:12.5px}
-.btn:disabled{background:var(--elev);color:var(--t3);cursor:not-allowed}
+.btn:disabled{background:var(--elev);color:var(--t3);cursor:not-allowed;opacity:1}
 .field{margin-bottom:14px}
 .field label{display:block;font-size:12px;color:var(--t2);font-weight:600;margin-bottom:6px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .suffix{position:relative}
 .suffix input{padding-right:36px}
 .suffix span{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:13px;pointer-events:none}
-.cimg{border-radius:4px;background:var(--elev);object-fit:cover;flex:none}
+.cimg{border-radius:6px;background:var(--elev);object-fit:cover;flex:none}
 .mono{font-variant-numeric:tabular-nums}
-
-/* ── 만들기 탭 ── */
-.mk{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
-.mk-right{position:sticky;top:0}
-.srchwrap{position:relative;margin-bottom:14px}
-.results{
-  background:var(--elev);border:1px solid var(--div);border-radius:12px;margin-top:8px;
-  max-height:320px;overflow-y:auto;display:none;
-}
-.results.show{display:block}
-.rrow{display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--div)}
-.rrow:last-child{border-bottom:none}
-.rrow .nm{flex:1;min-width:0}
-.rrow .nm b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rrow .nm small{color:var(--t2);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-.rrow .pr{color:var(--gold);font-weight:700;font-size:13px;white-space:nowrap}
-.noresult{padding:16px;color:var(--t3);text-align:center;font-size:13px}
-.complist{max-height:420px;overflow-y:auto;margin-top:4px}
-.crow{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--div)}
-.crow:last-child{border-bottom:none}
-.crow .nm{flex:1;min-width:0}
-.crow .nm b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.crow .nm small{color:var(--t2);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-.step{display:flex;align-items:center;gap:2px;background:var(--elev);border-radius:8px;padding:2px}
-.step button{width:24px;height:24px;border-radius:6px;color:var(--t2);font-weight:700}
-.step button:hover{background:var(--card);color:var(--t1)}
-.step b{min-width:26px;text-align:center;font-size:13px}
-.crow select{width:96px;padding:6px 26px 6px 10px;font-size:12.5px}
-.exwrap{width:118px}
-.exwrap input{padding:6px 10px;font-size:12.5px;text-align:right}
-.expct{font-size:10.5px;margin-top:3px;text-align:right;font-weight:700}
-.delx{width:26px;height:26px;border-radius:8px;color:var(--t3);font-size:15px;flex:none}
-.delx:hover{background:rgba(239,68,68,.14);color:var(--red)}
-.empty{padding:28px 0;text-align:center;color:var(--t3);font-size:13px}
-
-/* 요약 카드 */
-.sumline{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px}
-.sumline .k{color:var(--t2)}
-.sumline .v{font-weight:700}
-.sumline.big .v{font-size:16px}
-.pbar{height:6px;border-radius:3px;background:var(--elev);margin:8px 0 10px;overflow:hidden}
-.pbar i{display:block;height:100%;border-radius:3px;background:var(--blue);transition:width .25s,background .25s}
 .divline{height:1px;background:var(--div);margin:10px 0}
-.approve-hint{font-size:11.5px;color:var(--t3);margin-top:8px;text-align:center}
-
-/* 폰 미리보기 */
-.phone{
-  width:280px;margin:16px auto 0;border-radius:32px;background:#000;
-  border:6px solid #1c2431;box-shadow:0 12px 40px rgba(0,0,0,.5);overflow:hidden;
+.empty{padding:28px 0;text-align:center;color:var(--t3);font-size:13px}
+.sumline{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;gap:10px}
+.sumline .k{color:var(--t2);display:inline-flex;align-items:center;gap:6px}
+.sumline .v{font-weight:700}
+.sumline.big .v{font-size:17px}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block;animation:pl 1.4s infinite;flex:none}
+@keyframes pl{0%,100%{box-shadow:0 0 0 0 rgba(255,204,0,.5)}50%{box-shadow:0 0 0 5px rgba(255,204,0,0)}}
+.tip{position:relative;display:inline-flex;width:15px;height:15px;border-radius:50%;background:var(--elev);border:1px solid var(--div);color:var(--t2);font-size:10px;font-weight:700;align-items:center;justify-content:center;cursor:help;flex:none}
+.tip::after{
+  content:attr(data-tip);position:absolute;bottom:calc(100% + 9px);left:-10px;width:280px;
+  background:var(--elev);border:1px solid var(--div);border-radius:10px;padding:10px 12px;
+  font-size:12px;font-weight:400;color:var(--t2);line-height:1.55;opacity:0;pointer-events:none;
+  transition:opacity .15s;z-index:20;white-space:normal;text-align:left;
 }
-.phone .scr{background:var(--bg);height:470px;overflow-y:auto;padding:14px 14px 0;position:relative}
-.phone .notch{width:90px;height:18px;background:#000;border-radius:0 0 12px 12px;margin:-14px auto 10px}
-.ph-hero{width:130px;height:182px;border-radius:8px;display:block;margin:4px auto 12px;background:var(--elev);object-fit:cover;box-shadow:0 8px 24px rgba(27,100,218,.25)}
-.ph-name{font-size:15px;font-weight:800;text-align:center;margin-bottom:4px;word-break:keep-all}
-.ph-price{text-align:center;color:var(--gold);font-weight:800;font-size:14px;margin-bottom:10px}
-.ph-gauge{height:8px;border-radius:4px;background:var(--elev);overflow:hidden;margin-bottom:5px}
-.ph-gauge i{display:block;height:100%;background:var(--green);border-radius:4px}
-.ph-gcap{display:flex;justify-content:space-between;font-size:10.5px;color:var(--t2);margin-bottom:10px}
-.ph-badges{display:flex;gap:6px;justify-content:center;margin-bottom:12px;flex-wrap:wrap}
-.ph-sec{font-size:11px;color:var(--t2);font-weight:700;margin-bottom:6px}
-.ph-lineup{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px}
-.ph-lineup img{width:56px;height:78px;border-radius:5px;flex:none;background:var(--elev);object-fit:cover}
-.ph-cta{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 40%);padding:12px 0 14px}
-.ph-cta button{width:100%;padding:12px;border-radius:14px;background:var(--blue);color:#fff;font-weight:800;font-size:14px}
-.ph-cap{text-align:center;color:var(--t3);font-size:11.5px;margin-top:10px}
+.tip:hover::after{opacity:1}
 
-/* ── 대시보드 ── */
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+/* ── 홈: 오늘 할 일 ── */
+.todocard{background:var(--card);border-radius:16px;padding:20px;margin-bottom:16px}
+.todohead{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.todohead b{font-size:17px;font-weight:800}
+.todohead .cnt{font-size:24px;font-weight:800;color:var(--red)}
+.todorow{display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid var(--div)}
+.todorow:last-child{border-bottom:none}
+.tdot{width:9px;height:9px;border-radius:50%;flex:none}
+.todorow .tb{flex:1;min-width:0}
+.todorow .tb b{font-size:14px}
+.todorow .tb small{color:var(--t2);font-size:12px;display:block}
+.alldone{padding:22px 0;text-align:center;color:var(--green);font-size:14px;font-weight:700}
+.stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
 .stat{background:var(--card);border-radius:16px;padding:16px 18px}
 .stat small{color:var(--t2);font-size:12px;display:block;margin-bottom:6px}
 .stat b{font-size:20px;font-weight:800}
-.dash2{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
-.orow{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--div)}
+
+/* ── 오리파 목록 ── */
+.orow{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--div);align-items:center}
 .orow:last-child{border-bottom:none}
-.orow .oimg{width:52px;height:73px;border-radius:6px;flex:none;background:var(--elev);object-fit:cover}
+.orow .oimg{width:52px;height:52px;border-radius:10px;flex:none;background:var(--elev);object-fit:cover}
 .orow .obody{flex:1;min-width:0}
 .orow .otitle{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
 .orow .otitle b{font-size:14px}
 .ogauge{height:6px;border-radius:3px;background:var(--elev);overflow:hidden;margin:6px 0 4px}
 .ogauge i{display:block;height:100%;background:var(--blue);border-radius:3px}
 .ometa{display:flex;gap:14px;font-size:12px;color:var(--t2);flex-wrap:wrap}
-.pulse{width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block;animation:pl 1.4s infinite}
-@keyframes pl{0%,100%{box-shadow:0 0 0 0 rgba(255,204,0,.5)}50%{box-shadow:0 0 0 5px rgba(255,204,0,0)}}
-.feed{max-height:430px;overflow-y:auto}
-.frow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--div);animation:fin .5s}
-.frow:last-child{border-bottom:none}
-@keyframes fin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-.frow .fb{flex:1;min-width:0;font-size:12.5px}
-.frow .fb small{color:var(--t2);display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.frow .fp{color:var(--gold);font-weight:700;font-size:12.5px;white-space:nowrap}
+.orow.ended{opacity:.55}
 
-/* ── 배송 ── */
-.filtab{display:flex;gap:8px;margin-bottom:16px}
+/* ── 위저드 ── */
+.wsteps{display:flex;align-items:center;gap:8px;margin-bottom:22px;max-width:640px}
+.ws{display:flex;align-items:center;gap:8px;color:var(--t3);font-size:12.5px;font-weight:700;white-space:nowrap}
+.ws i{width:26px;height:26px;border-radius:50%;background:var(--elev);color:var(--t3);display:flex;align-items:center;justify-content:center;font-style:normal;font-size:12.5px;flex:none}
+.ws.on{color:var(--t1)}
+.ws.on i{background:var(--blue);color:#fff}
+.ws.done{color:var(--blueL)}
+.ws.done i{background:rgba(27,100,218,.18);color:var(--blueL)}
+.wline{flex:1;height:2px;background:var(--div);border-radius:1px;min-width:18px}
+.wline.done{background:rgba(27,100,218,.45)}
+.wstep{display:none}
+.wstep.on{display:block}
+.wnav{display:flex;justify-content:space-between;gap:10px;margin-top:4px}
+.polline{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--elev);border-radius:12px;
+  padding:12px 14px;font-size:12.5px;color:var(--t2);margin-top:2px;
+}
+.polline b{color:var(--t1)}
+.mk2{display:grid;grid-template-columns:1fr 330px;gap:20px;align-items:start}
+.mk2-right{position:sticky;top:0}
+.photobox{
+  border:1.5px dashed var(--t3);border-radius:12px;padding:22px;text-align:center;color:var(--t3);
+  font-size:13px;cursor:pointer;margin-bottom:14px;
+}
+.photobox:hover{border-color:var(--blueL);color:var(--t2)}
+.photobox img{max-width:110px;max-height:110px;border-radius:10px;display:block;margin:0 auto 8px;object-fit:cover}
+.stepper{display:flex;align-items:center;gap:2px;background:var(--elev);border:1px solid var(--div);border-radius:8px;padding:2px;width:fit-content}
+.stepper button{width:30px;height:30px;border-radius:6px;color:var(--t2);font-weight:700;font-size:15px}
+.stepper button:hover{background:var(--card);color:var(--t1)}
+.stepper b{min-width:42px;text-align:center;font-size:14px}
+.repline{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:4px}
+.ckbox{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap}
+.ckbox input{width:16px;height:16px;accent-color:var(--gold);flex:none}
+.gradehint{font-size:11.5px;color:var(--gold);margin-top:6px;display:none}
+.prow{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--div)}
+.prow:last-child{border-bottom:none}
+.prow .pimg{width:44px;height:44px;border-radius:8px;background:var(--elev);object-fit:cover;flex:none}
+.prow .pnm{flex:1;min-width:0}
+.prow .pnm b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .pnm small{color:var(--t2);font-size:11.5px}
+.prow .pex{color:var(--gold);font-weight:700;font-size:13px;white-space:nowrap}
+.delx{width:26px;height:26px;border-radius:8px;color:var(--t3);font-size:15px;flex:none}
+.delx:hover{background:rgba(239,68,68,.14);color:var(--red)}
+.heronum{font-size:42px;font-weight:800;letter-spacing:-1px;line-height:1.1}
+.heronum small{font-size:20px;color:var(--t2);font-weight:700}
+.pbar{height:8px;border-radius:4px;background:var(--elev);margin:10px 0 8px;overflow:hidden}
+.pbar i{display:block;height:100%;border-radius:4px;background:var(--blue);transition:width .25s,background .25s}
+.herocap{font-size:12px;color:var(--t3)}
+.warnbox{
+  display:flex;gap:8px;align-items:flex-start;background:rgba(239,68,68,.1);border-radius:10px;
+  padding:11px 13px;font-size:12.5px;color:var(--red);margin:8px 0 2px;line-height:1.5;
+}
+.skins{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+.skin{cursor:pointer;text-align:center}
+.skin .sw{height:58px;border-radius:12px;border:2px solid transparent;transition:border .15s;position:relative}
+.skin.on .sw{border-color:var(--blueL)}
+.skin.on .sw::after{content:"✓";position:absolute;right:6px;top:4px;font-size:12px;font-weight:800;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.skin small{display:block;margin-top:6px;font-size:11.5px;color:var(--t2);font-weight:600}
+.skin.on small{color:var(--blueL)}
+.repthumbs{display:flex;gap:8px;margin-top:4px}
+.repthumbs img{width:52px;height:52px;border-radius:8px;object-fit:cover;background:var(--elev)}
+.lockbox{background:var(--elev);border-radius:12px;padding:14px;margin:12px 0}
+.lockbox li{list-style:none;padding:3px 0;font-size:13px;display:flex;align-items:center;gap:8px}
+.lockbox li::before{content:"🔒";font-size:11px}
+.miniskin{display:inline-block;width:16px;height:16px;border-radius:5px;vertical-align:-3px;margin-right:6px}
+
+/* ── 카드 보관 ── */
+.sthead{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.sthead .pgtitle{margin-bottom:0}
+.sthead input{width:260px}
+.filtab{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
 .filtab button{padding:8px 14px;border-radius:10px;background:var(--card);color:var(--t2);font-weight:700;font-size:13px}
 .filtab button.on{background:rgba(27,100,218,.14);color:var(--blueL)}
+.tblwrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:680px}
+th{color:var(--t2);font-weight:600;text-align:left;padding:8px 12px;border-bottom:1px solid var(--div);font-size:12px}
+td{padding:10px 12px;border-bottom:1px solid var(--div)}
+tr:last-child td{border-bottom:none}
+td.r,th.r{text-align:right}
+.stitem{display:flex;align-items:center;gap:10px;min-width:0}
+.stitem img{width:36px;height:36px;border-radius:7px;object-fit:cover;background:var(--elev);flex:none}
+.stitem span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.loccap{display:flex;gap:8px;align-items:center;color:var(--t3);font-size:12.5px;margin-top:14px}
+.locgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.locgrid input{text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+.mprod{display:flex;align-items:center;gap:12px;background:var(--elev);border-radius:12px;padding:10px 12px;margin-bottom:16px}
+.mprod img{width:44px;height:44px;border-radius:8px;object-fit:cover;background:var(--card)}
+.mprod b{font-size:13.5px;display:block}
+.mprod small{color:var(--t2);font-size:12px}
+
+/* ── 발송 ── */
 .ordcard{background:var(--card);border-radius:16px;padding:18px;margin-bottom:12px}
 .ordhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap}
-.ordhead .oid{font-weight:800;font-size:14px}
+.ordhead .oid{font-weight:800;font-size:14.5px}
 .ordhead .om{color:var(--t2);font-size:12.5px}
-.ordcards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px}
-.oc{display:flex;align-items:center;gap:8px;background:var(--elev);border-radius:10px;padding:6px 12px 6px 6px}
-.oc img{width:34px;height:47px;border-radius:4px;background:var(--card);object-fit:cover}
-.oc span{font-size:12px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.trkline{color:var(--t2);font-size:12.5px;margin-top:4px}
+.shiprow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--div)}
+.shiprow:last-of-type{border-bottom:none}
+.shiprow img{width:36px;height:36px;border-radius:7px;object-fit:cover;background:var(--elev);flex:none}
+.shiprow span{flex:1;font-size:13px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ordfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+.paidok{color:var(--green);font-size:12.5px;font-weight:700}
+.trkline{color:var(--t2);font-size:12.5px;margin-top:6px}
+.mstep{display:flex;align-items:center;gap:6px;margin-bottom:14px}
+.mstep i{width:22px;height:22px;border-radius:50%;background:var(--elev);color:var(--t3);display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11.5px;font-weight:700}
+.mstep i.on{background:var(--blue);color:#fff}
+.mstep i.done{background:rgba(5,192,114,.16);color:var(--green)}
+.mstep .ml{width:16px;height:2px;background:var(--div)}
+.chk{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;background:var(--elev);margin-bottom:8px;cursor:pointer}
+.chk input{width:16px;height:16px;accent-color:var(--green);flex:none}
+.chk img{width:34px;height:34px;border-radius:6px;object-fit:cover;background:var(--card)}
+.chk span{font-size:12.5px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.upbox{
+  border:1.5px dashed var(--t3);border-radius:12px;padding:20px;text-align:center;color:var(--t3);
+  font-size:12.5px;cursor:pointer;margin-bottom:14px;
+}
+.upbox:hover{border-color:var(--blueL);color:var(--t2)}
+.upbox img{max-width:130px;max-height:130px;border-radius:8px;display:block;margin:0 auto 8px}
 
 /* ── 정산 ── */
 .settlehero{background:var(--card);border-radius:16px;padding:22px;margin-bottom:16px}
 .settlehero small{color:var(--t2);font-size:13px;display:block;margin-bottom:6px}
 .settlehero b{font-size:30px;font-weight:800}
 .settlehero .cap{color:var(--t3);font-size:12px;margin-top:6px}
-.tblwrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
-th{color:var(--t2);font-weight:600;text-align:left;padding:8px 12px;border-bottom:1px solid var(--div);font-size:12px}
-td{padding:11px 12px;border-bottom:1px solid var(--div)}
-tr:last-child td{border-bottom:none}
 .amt{font-weight:700;text-align:right}
-td.r,th.r{text-align:right}
-.notice{display:flex;gap:12px;align-items:flex-start;background:rgba(27,100,218,.08);border-radius:16px;padding:18px 20px}
-.notice .ic{width:36px;height:36px;border-radius:12px;background:rgba(27,100,218,.2);display:flex;align-items:center;justify-content:center;flex:none;font-size:17px}
-.notice b{display:block;margin-bottom:3px;font-size:14px}
-.notice p{color:var(--t2);font-size:13px}
 
 /* ── 모달 / 토스트 ── */
 .ovl{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
@@ -222,22 +272,9 @@ td.r,th.r{text-align:right}
 .mdl{background:var(--card);border-radius:16px;padding:24px;width:100%;max-width:440px;max-height:88vh;overflow-y:auto}
 .mdl h3{font-size:16px;font-weight:800;margin-bottom:12px}
 .mdl .body{color:var(--t2);font-size:13.5px;margin-bottom:18px}
-.mdl .acts{display:flex;gap:10px;justify-content:flex-end}
-.lockbox{background:var(--elev);border-radius:12px;padding:14px;margin:12px 0}
-.lockbox li{list-style:none;padding:3px 0;font-size:13px;display:flex;align-items:center;gap:8px}
-.lockbox li::before{content:"🔒";font-size:11px}
+.mdl .acts{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
 .okwrap{text-align:center;padding:14px 0 6px}
 .okcirc{width:56px;height:56px;border-radius:50%;background:rgba(5,192,114,.14);color:var(--green);font-size:26px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
-.chk{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--elev);margin-bottom:8px;cursor:pointer}
-.chk input{width:16px;height:16px;accent-color:var(--green);flex:none}
-.chk img{width:30px;height:42px;border-radius:4px;object-fit:cover;background:var(--card)}
-.chk span{font-size:12.5px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.upbox{
-  border:1.5px dashed var(--t3);border-radius:12px;padding:18px;text-align:center;color:var(--t3);
-  font-size:12.5px;cursor:pointer;margin-bottom:14px;
-}
-.upbox:hover{border-color:var(--blueL);color:var(--t2)}
-.upbox img{max-width:120px;max-height:120px;border-radius:8px;display:block;margin:0 auto 8px}
 #toast{
   position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);
   background:var(--elev);border:1px solid var(--div);border-radius:12px;padding:12px 20px;
@@ -247,10 +284,8 @@ td.r,th.r{text-align:right}
 
 @media (max-width:1279px){
   main{padding:20px 20px 60px}
-  .mk{grid-template-columns:1fr 320px}
-  .dash2{grid-template-columns:1fr 340px}
-  .stats{gap:10px}
-  .stat b{font-size:17px}
+  .mk2{grid-template-columns:1fr 300px}
+  .skins{grid-template-columns:repeat(3,1fr)}
 }
 </style>
 </head>
@@ -263,132 +298,205 @@ td.r,th.r{text-align:right}
       <div><b>몬스터카드 홍대점</b><small>판매자 콘솔</small></div>
     </div>
     <nav class="menu" id="menu">
-      <button class="mi" data-tab="dash">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>
-        대시보드</button>
-      <button class="mi on" data-tab="create">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
-        오리파 만들기</button>
-      <button class="mi" data-tab="ship">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="4" width="8" height="7" rx="1"/><path d="M9.5 6.5h3l2 2.5v2h-5z"/><circle cx="4.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/></svg>
-        배송 관리</button>
-      <button class="mi" data-tab="settle">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v6M6 6.8h4M6 9.2h4"/></svg>
-        정산</button>
+      <button class="mi on" data-tab="home"><i class="ic">🏠</i>홈</button>
+      <button class="mi" data-tab="oripa"><i class="ic">🎴</i>오리파</button>
+      <button class="mi" data-tab="storage"><i class="ic">📦</i>카드 보관</button>
+      <button class="mi" data-tab="ship"><i class="ic">🚚</i>발송</button>
+      <button class="mi" data-tab="settle"><i class="ic" style="font-weight:800">₩</i>정산</button>
     </nav>
+    <button class="mi" id="settingsBtn"><i class="ic">⚙</i>매장 설정</button>
     <div class="partner"><span class="dot"></span>포켓폴리오 오리파 파트너</div>
   </aside>
 
   <main>
-    <!-- ═══ 탭: 대시보드 ═══ -->
-    <section class="tab" id="tab-dash">
-      <div class="pgtitle">대시보드</div>
-      <div class="pgcap">오늘의 판매 현황을 한눈에 확인하세요</div>
-      <div class="stats">
-        <div class="stat"><small>오늘 매출</small><b class="mono">₩755,000</b></div>
-        <div class="stat"><small>이번 주 매출</small><b class="mono">₩4,120,000</b></div>
-        <div class="stat"><small>배송 대기</small><b class="mono">3건</b></div>
+    <!-- ═══ 탭: 홈 ═══ -->
+    <section class="tab on" id="tab-home">
+      <div class="pgtitle">홈</div>
+      <div class="pgcap">오늘 처리할 매장 업무부터 확인하세요</div>
+      <div class="todocard">
+        <div class="todohead"><b>오늘 할 일</b><span class="cnt mono" id="todoCnt">8건</span></div>
+        <div id="todoList"></div>
+      </div>
+      <div class="stats3">
+        <div class="stat"><small>오늘 판매</small><b class="mono">₩755,000</b></div>
+        <div class="stat"><small>이번 주 정산 예정</small><b class="mono">₩1,284,600</b></div>
         <div class="stat"><small>보관중 카드</small><b class="mono">128장</b></div>
       </div>
-      <div class="dash2">
-        <div class="cardbox">
-          <h3>판매중인 오리파</h3>
-          <div id="oripaList"></div>
-        </div>
-        <div class="cardbox">
-          <h3>최근 뽑기 피드 <span class="chip green" style="margin-left:4px">LIVE</span></h3>
-          <div class="feed" id="feed"></div>
-        </div>
+      <div class="cardbox">
+        <h3>내 오리파</h3>
+        <div id="homeOripas"></div>
       </div>
     </section>
 
-    <!-- ═══ 탭: 오리파 만들기 ═══ -->
-    <section class="tab on" id="tab-create">
-      <div class="pgtitle">오리파 만들기</div>
-      <div class="pgcap">카드를 담고 가격만 정하면 끝 — 결제·추첨·CS는 포켓폴리오가 처리합니다</div>
-      <div class="mk">
-        <!-- 좌측 폼 -->
-        <div>
-          <div class="cardbox">
-            <h3>기본 정보</h3>
-            <div class="field">
-              <label>오리파명</label>
-              <input id="fName" type="text" placeholder="블래키 초고가 오리파">
-            </div>
+    <!-- ═══ 탭: 오리파 ═══ -->
+    <section class="tab" id="tab-oripa">
+      <!-- 목록 뷰 -->
+      <div id="oripaListView">
+        <div class="sthead">
+          <div>
+            <div class="pgtitle">오리파</div>
+            <div class="pgcap" style="margin-bottom:0" id="oripaCnts">판매중 2 · 승인 대기 0 · 종료 1</div>
+          </div>
+          <button class="btn" id="newOripaBtn">＋ 새 오리파 만들기</button>
+        </div>
+        <div class="cardbox" style="margin-top:16px"><div id="oripaList"></div></div>
+      </div>
+
+      <!-- 위저드 뷰 -->
+      <div id="wizView" style="display:none">
+        <div class="sthead">
+          <div class="pgtitle">새 오리파 만들기</div>
+          <button class="btn ghost sm" id="wizClose">× 목록으로</button>
+        </div>
+        <div class="wsteps" id="wsteps">
+          <div class="ws on" data-s="1"><i>1</i>기본 설정</div><span class="wline"></span>
+          <div class="ws" data-s="2"><i>2</i>상품 담기</div><span class="wline"></span>
+          <div class="ws" data-s="3"><i>3</i>구성 확인</div><span class="wline"></span>
+          <div class="ws" data-s="4"><i>4</i>등록 요청</div>
+        </div>
+
+        <!-- Step 1 : 기본 설정 -->
+        <div class="wstep on" id="wstep1">
+          <div class="cardbox" style="max-width:640px">
+            <h3>기본 설정</h3>
+            <div class="field"><label>오리파 이름</label>
+              <input id="fName" type="text" value="7월 리자몽 잭팟 오리파" placeholder="예: 7월 리자몽 잭팟 오리파"></div>
             <div class="grid2">
-              <div class="field"><label>1구 가격</label>
-                <div class="suffix"><input id="fPrice" type="number" value="5000" min="100" step="100"><span>원</span></div></div>
-              <div class="field"><label>총 구수</label>
+              <div class="field"><label>1회 가격</label>
+                <div class="suffix"><input id="fPrice" type="number" value="50000" min="100" step="100"><span>P</span></div></div>
+              <div class="field"><label>총 수량</label>
                 <div class="suffix"><input id="fSlots" type="number" value="100" min="1"><span>구</span></div></div>
               <div class="field"><label>1인 구매 제한</label>
                 <div class="suffix"><input id="fLimit" type="number" value="20" min="1"><span>구</span></div></div>
               <div class="field"><label>판매 시작</label>
                 <input id="fStart" type="datetime-local"></div>
-              <div class="field"><label>기본 배송비</label>
-                <div class="suffix"><input id="fShip" type="number" value="3500" step="500"><span>원</span></div></div>
-              <div class="field"><label>무료배송 기준</label>
-                <div class="suffix"><input id="fFree" type="number" value="50000" step="1000"><span>원</span></div></div>
+            </div>
+            <div class="polline" id="polLine"></div>
+            <div id="polCustom" style="display:none;margin-top:12px">
+              <div class="grid2">
+                <div class="field" style="margin-bottom:0"><label>이 오리파 배송비</label>
+                  <div class="suffix"><input id="fShip" type="number" step="500"><span>원</span></div></div>
+                <div class="field" style="margin-bottom:0"><label>이 오리파 무료배송 기준</label>
+                  <div class="suffix"><input id="fFree" type="number" step="1000"><span>P</span></div></div>
+              </div>
             </div>
           </div>
+          <div class="wnav" style="max-width:640px"><span></span><button class="btn" id="w1next">다음</button></div>
+        </div>
 
-          <div class="cardbox">
-            <h3>카드 구성</h3>
-            <div class="srchwrap">
-              <input id="srch" type="text" placeholder="카드 이름/세트 검색 (예: 블래키, 리자몽)" autocomplete="off">
-              <div class="results" id="results"></div>
+        <!-- Step 2 : 상품 담기 -->
+        <div class="wstep" id="wstep2">
+          <div class="mk2">
+            <div>
+              <div class="cardbox">
+                <h3>상품 등록</h3>
+                <div class="photobox" id="photoBox">
+                  <input type="file" accept="image/*" id="photoFile" hidden>
+                  <div id="photoInner">📷 상품 사진 등록 (클릭)<br><small style="font-size:11px;color:var(--t3)">슬랩 · 박스 · 굿즈 등 실물 사진</small></div>
+                </div>
+                <div class="field"><label>상품명</label>
+                  <input id="pName" type="text" placeholder="예: PSA10 리자몽 ex / 151 미개봉 박스"></div>
+                <div class="grid2">
+                  <div class="field"><label>수량</label>
+                    <div class="stepper"><button id="qMinus">−</button><b class="mono" id="qVal">1</b><button id="qPlus">＋</button></div></div>
+                  <div class="field"><label>교환 포인트 <span style="color:var(--t3);font-weight:400">(사장님이 정하는 가치)</span></label>
+                    <div class="suffix"><input id="pExch" type="number" min="0" step="1000" placeholder="예: 50000"><span>P</span></div></div>
+                </div>
+                <div class="repline">
+                  <label class="ckbox"><input type="checkbox" id="pRep">대표 상품으로 표시</label>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <label style="font-size:12px;color:var(--t2);font-weight:600;white-space:nowrap">연출 등급</label>
+                    <select id="pGrade" style="width:110px">
+                      <option>일반</option><option>찬스</option><option>슈퍼</option><option>울트라</option><option>잭팟</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="gradehint" id="gradeHint">대표 상품은 연출 등급 ‘슈퍼’ 이상을 권장해요 — ‘슈퍼’로 바꿔뒀어요</div>
+                <button class="btn" id="pAdd" style="width:100%;margin-top:14px">상품 추가</button>
+              </div>
+              <div class="cardbox">
+                <h3 id="plistTitle">담은 상품</h3>
+                <div id="plist"></div>
+              </div>
             </div>
-            <div class="complist" id="complist"></div>
+            <div class="mk2-right">
+              <div class="cardbox">
+                <div style="font-size:12px;color:var(--t2);font-weight:600;margin-bottom:4px">상품 수량 합계 / 총 구수</div>
+                <div class="heronum mono" id="heroCnt">0 <small>/ 100</small></div>
+                <div class="pbar"><i id="heroBar" style="width:0%"></i></div>
+                <div class="herocap" id="heroCap">총 구수와 상품 수량 합계가 일치해야 다음으로 넘어갈 수 있어요</div>
+                <div class="divline"></div>
+                <div class="sumline"><span class="k">대표 상품</span><span class="v mono" id="heroRep">0개</span></div>
+                <div class="sumline"><span class="k">모든 슬롯 = 실물 상품 · 꽝 없음</span><span class="v" style="color:var(--green)">✓</span></div>
+                <div class="wnav" style="margin-top:14px">
+                  <button class="btn ghost" data-wgo="1">이전</button>
+                  <button class="btn" id="w2next" disabled>다음</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- 우측 스티키: 요약 + 폰 미리보기 -->
-        <div class="mk-right">
-          <div class="cardbox" style="margin-bottom:0">
-            <div class="sumline"><span class="k">등록 카드</span><span class="v mono" id="sCount">0 / 100</span></div>
-            <div class="pbar"><i id="sBar" style="width:0%"></i></div>
-            <div style="font-size:12px;color:var(--t2);margin-bottom:6px" id="sTiers">메인 히트 0 · 서브 히트 0 · 일반 0</div>
-            <div class="divline"></div>
-            <div class="sumline"><span class="k">카드 예상가치 합계</span><span class="v mono" id="sValue">₩0</span></div>
-            <div class="sumline"><span class="k">총 판매 예정액</span><span class="v mono" id="sSales">₩0</span></div>
-            <div class="sumline"><span class="k">예상 환원율</span><span class="v mono" id="sReturn">0%</span></div>
-            <div class="divline"></div>
-            <div class="sumline"><span class="k">플랫폼 수수료 (10%)</span><span class="v mono" id="sFee">₩0</span></div>
-            <div class="sumline big"><span class="k">예상 정산액</span><span class="v mono" id="sNet" style="color:var(--green)">₩0</span></div>
-            <button class="btn" id="approveBtn" style="width:100%;margin-top:14px" disabled>판매 승인 요청</button>
-            <div class="approve-hint" id="approveHint">구성 카드 수가 총 구수와 일치해야 합니다</div>
-          </div>
-
-          <!-- 유저 앱 미리보기 -->
-          <div class="phone">
-            <div class="scr">
-              <div class="notch"></div>
-              <img class="ph-hero" id="phHero" alt="">
-              <div class="ph-name" id="phName">오리파명</div>
-              <div class="ph-price" id="phPrice">1구 5,000P</div>
-              <div class="ph-gauge"><i id="phGauge" style="width:100%"></i></div>
-              <div class="ph-gcap"><span id="phRemain">100구 남음</span><span id="phTotal">총 100구</span></div>
-              <div class="ph-badges">
-                <span class="chip green" id="phReturn">환원율 0%</span>
-                <span class="chip gold" id="phHitCnt">히트 0종</span>
-              </div>
-              <div class="ph-sec">히트 라인업</div>
-              <div class="ph-lineup" id="phLineup"></div>
-              <div class="ph-cta"><button>뽑기</button></div>
+        <!-- Step 3 : 구성 확인 -->
+        <div class="wstep" id="wstep3">
+          <div style="max-width:640px">
+            <div class="cardbox"><h3>판매 구성</h3><div id="w3sum"></div></div>
+            <div class="cardbox">
+              <h3>스킨 선택 <span style="color:var(--t3);font-size:12px;font-weight:400">— 유저 앱에서 보이는 오리파 연출 테마</span></h3>
+              <div class="skins" id="skins"></div>
+            </div>
+            <div class="wnav">
+              <button class="btn ghost" data-wgo="2">이전</button>
+              <button class="btn" data-wgo="4">다음</button>
             </div>
           </div>
-          <div class="ph-cap">유저 앱 노출 미리보기</div>
+        </div>
+
+        <!-- Step 4 : 등록 요청 -->
+        <div class="wstep" id="wstep4">
+          <div style="max-width:640px">
+            <div class="cardbox"><h3>등록 내용 확인</h3><div id="w4sum"></div></div>
+            <div class="wnav">
+              <button class="btn ghost" data-wgo="3">이전</button>
+              <button class="btn" id="wSubmit">오리파 등록 요청</button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- ═══ 탭: 배송 관리 ═══ -->
+    <!-- ═══ 탭: 카드 보관 ═══ -->
+    <section class="tab" id="tab-storage">
+      <div class="sthead">
+        <div>
+          <div class="pgtitle">카드 보관</div>
+          <div class="pgcap" style="margin-bottom:0">유저가 보관을 선택한 카드의 실물 위치를 관리합니다 — 보관 카드 128장</div>
+        </div>
+        <input id="stSearch" type="text" placeholder="상품명·관리번호 검색">
+      </div>
+      <div class="filtab" id="stFil" style="margin-top:16px">
+        <button class="on" data-f="all">전체 <b class="mono">128</b></button>
+        <button data-f="stored">보관중 <b class="mono" id="cStored">92</b></button>
+        <button data-f="shipreq">발송대기 <b class="mono">14</b></button>
+        <button data-f="noloc">위치미등록 <b class="mono" id="cNoloc">4</b></button>
+      </div>
+      <div class="cardbox">
+        <div class="tblwrap"><table>
+          <thead><tr><th>상품</th><th>관리번호</th><th>상태</th><th>보관 위치</th><th class="r"></th></tr></thead>
+          <tbody id="stBody"></tbody>
+        </table></div>
+        <div class="loccap">💡 카드에 관리번호 스티커를 붙이고 위치만 등록하세요 — 발송할 때 위치가 그대로 표시됩니다</div>
+      </div>
+    </section>
+
+    <!-- ═══ 탭: 발송 ═══ -->
     <section class="tab" id="tab-ship">
-      <div class="pgtitle">배송 관리</div>
-      <div class="pgcap">발송 처리하면 유저에게 자동으로 알림이 전송됩니다</div>
+      <div class="pgtitle">발송</div>
+      <div class="pgcap" id="shipHead">오늘 발송해야 할 주문 3건 — 보관 위치대로 꺼내서 포장하면 끝</div>
       <div class="filtab" id="shipFil">
-        <button class="on" data-st="wait">배송 대기 <b id="cWait">3</b></button>
-        <button data-st="ship">배송 중 <b id="cShip">2</b></button>
-        <button data-st="done">완료 <b id="cDone">12</b></button>
+        <button class="on" data-st="wait">발송 대기 <b class="mono" id="cWait">3</b></button>
+        <button data-st="ship">배송 중 <b class="mono" id="cShip">2</b></button>
+        <button data-st="done">완료 <b class="mono" id="cDone">12</b></button>
       </div>
       <div id="orderList"></div>
     </section>
@@ -396,25 +504,30 @@ td.r,th.r{text-align:right}
     <!-- ═══ 탭: 정산 ═══ -->
     <section class="tab" id="tab-settle">
       <div class="pgtitle">정산</div>
-      <div class="pgcap">판매·환원·수수료가 원장에 자동 기록됩니다</div>
+      <div class="pgcap">이번 주 받을 금액과 구성을 확인하세요</div>
       <div class="settlehero">
-        <small>이번 주 정산 예정액</small>
-        <b class="mono">₩1,284,600</b>
+        <small>이번 주 받을 금액</small>
+        <b class="mono">1,284,600원</b>
         <div class="cap">매주 수요일 자동 정산 · 배송 완료 건 기준</div>
       </div>
-      <div class="cardbox">
-        <h3>정산 원장</h3>
+      <div class="cardbox" style="max-width:640px">
+        <h3>이번 주 구성</h3>
+        <div class="sumline"><span class="k">오리파 판매</span><span class="v mono" style="color:var(--red)">+2,100,000</span></div>
+        <div class="sumline"><span class="k">포인트 교환
+          <span class="tip" data-tip="유저가 배송 대신 포인트를 선택한 카드의 교환 포인트가 정산에 반영됩니다. 카드는 매장 재고로 돌아갑니다.">?</span></span>
+          <span class="v mono" style="color:var(--blueL)">−520,400</span></div>
+        <div class="sumline"><span class="k">플랫폼 이용료 (10%)</span><span class="v mono" style="color:var(--blueL)">−210,000</span></div>
+        <div class="sumline"><span class="k">기타 조정</span><span class="v mono" style="color:var(--blueL)">−85,000</span></div>
+        <div class="divline"></div>
+        <div class="sumline big"><span class="k">합계</span><span class="v mono" style="color:var(--green)">1,284,600원</span></div>
+        <button class="btn ghost" id="ledgerBtn" style="width:100%;margin-top:14px">정산 상세 내역 ▾</button>
+      </div>
+      <div class="cardbox" id="ledgerWrap" style="display:none;max-width:860px">
+        <h3>정산 상세 내역</h3>
         <div class="tblwrap"><table>
           <thead><tr><th>일자</th><th>구분</th><th>내용</th><th class="r">금액</th><th class="r">누계</th></tr></thead>
           <tbody id="ledger"></tbody>
         </table></div>
-      </div>
-      <div class="notice">
-        <div class="ic">🤝</div>
-        <div>
-          <b>추첨·결제·환불·CS는 포켓폴리오가 처리합니다</b>
-          <p>매장은 재고 준비와 발송만 담당합니다. 포인트 환원, 결제 분쟁, 고객 문의까지 모두 플랫폼이 책임집니다.</p>
-        </div>
       </div>
     </section>
   </main>
@@ -429,306 +542,441 @@ td.r,th.r{text-align:right}
 /* ═══════════ 유틸 ═══════════ */
 const $=s=>document.querySelector(s);
 const fmt=n=>Math.round(n).toLocaleString('ko-KR');
-const won=n=>'₩'+fmt(n);
-const img=c=>`${CDN}/${c.img}/${c.id}.png`;
 const esc=s=>String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2600);}
 function openModal(html){$('#mdl').innerHTML=html;$('#ovl').classList.add('show');}
 function closeModal(){$('#ovl').classList.remove('show');}
 $('#ovl').addEventListener('click',e=>{if(e.target.id==='ovl')closeModal();});
 
-/* 목표가에 가장 가까운 카드 pick (하드코딩 없이 데이터 기반) */
-function pickClosest(target,used,filter){
-  let best=null,bd=Infinity;
-  for(const c of CARDS){
-    if(used.has(c.id))continue;
-    if(filter&&!filter(c))continue;
-    const d=Math.abs(c.price-target);
-    if(d<bd){bd=d;best=c;}
-  }
-  if(best)used.add(best.id);
-  return best;
+/* data.js는 목업 상품 사진 소스로만 사용 — 사장님이 직접 올린 사진인 것처럼 */
+const imgOf=c=>`${CDN}/${c.img}/${c.id}.png`;
+const _photoUsed=new Set();
+function photo(kw){
+  let c=CARDS.find(x=>x.name.includes(kw)&&!_photoUsed.has(x.id))||CARDS.find(x=>x.name.includes(kw));
+  if(!c)c=CARDS[0];
+  _photoUsed.add(c.id);
+  return imgOf(c);
+}
+function photoRarity(r){
+  const c=CARDS.find(x=>x.rarity===r&&!_photoUsed.has(x.id))||CARDS[0];
+  _photoUsed.add(c.id);return imgOf(c);
 }
 
-/* ═══════════ 탭 전환 (SPA) ═══════════ */
-$('#menu').addEventListener('click',e=>{
-  const b=e.target.closest('.mi');if(!b)return;
-  document.querySelectorAll('.mi').forEach(x=>x.classList.toggle('on',x===b));
-  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.id==='tab-'+b.dataset.tab));
-});
+/* ═══════════ 매장 설정 (상태) ═══════════ */
+const store={shipFee:3500,freeShip:50000};
 
-/* ═══════════ 탭1: 오리파 만들기 ═══════════ */
-// comp: [{card, qty, tier:'normal'|'sub'|'main', exch}]
-const state={comp:[]};
-const TIER_LABEL={main:'메인 히트',sub:'서브 히트',normal:'일반'};
+/* ═══════════ 탭 전환 ═══════════ */
+function goTab(name){
+  document.querySelectorAll('.mi[data-tab]').forEach(x=>x.classList.toggle('on',x.dataset.tab===name));
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.id==='tab-'+name));
+}
+$('#menu').addEventListener('click',e=>{const b=e.target.closest('.mi');if(b)goTab(b.dataset.tab);});
 
-// 판매 시작 기본값 = 내일 10:00
+/* ═══════════ 데이터 시드 ═══════════ */
+/* 오리파 목록 */
+const oripas=[
+  {name:'이브이 히어로즈 오리파',status:'판매중',total:500,remain:437,price:5000,hero:photo('블래키 VMAX'),repRemain:true},
+  {name:'리자몽 레트로 오리파',status:'판매중',total:300,remain:12,price:10000,hero:photo('리자몽 ex'),repRemain:false},
+  {name:'6월 피카츄 프로모 오리파',status:'종료',total:200,remain:0,price:3000,hero:photo('판초를 입은 피카츄'),repRemain:false},
+];
+
+/* 카드 보관 (mock 12행) */
+const stRows=[
+  {name:'PSA10 리자몽 ex',code:'PF-H001283',holder:'김**',st:'stored', loc:'A-01-03',photo:photo('리자몽 ex')},
+  {name:'블래키 SAR',      code:'PF-H001284',holder:'김**',st:'shipreq',loc:'B-01-02',photo:photo('블래키 ex')},
+  {name:'뮤츠 VSTAR',      code:'PF-H001285',holder:'이**',st:'noloc',  loc:'',       photo:photo('뮤츠 VSTAR')},
+  {name:'피카츄 프로모',    code:'PF-H001286',holder:'이**',st:'stored', loc:'A-02-07',photo:photo('포켓몬 카드 페스타 피카츄')},
+  {name:'뮤 ex SAR',       code:'PF-H001287',holder:'박**',st:'noloc',  loc:'',       photo:photo('뮤 ex')},
+  {name:'이브이&잠만보 GX', code:'PF-H001288',holder:'김**',st:'stored', loc:'A-03-07',photo:photo('이브이&잠만보')},
+  {name:'판초를 입은 피카츄',code:'PF-H001289',holder:'최**',st:'shipreq',loc:'A-02-11',photo:photo('판초를 입은 피카츄')},
+  {name:'리자몽 ex UR',    code:'PF-H001290',holder:'박**',st:'stored', loc:'C-01-05',photo:photo('리자몽 ex')},
+  {name:'블래키 VMAX',     code:'PF-H001291',holder:'정**',st:'noloc',  loc:'',       photo:photo('블래키 VMAX')},
+  {name:'잉어킹 AR',       code:'PF-H001292',holder:'최**',st:'stored', loc:'B-03-01',photo:photo('잉어킹')},
+  {name:'뮤츠 GX 프로모',   code:'PF-H001293',holder:'오**',st:'shipreq',loc:'B-01-02',photo:photo('뮤츠 GX')},
+  {name:'두빅굴 AR',       code:'PF-H001294',holder:'한**',st:'noloc',  loc:'',       photo:photoRarity('AR')},
+];
+const nolocCount=()=>stRows.filter(r=>r.st==='noloc').length;
+const NOLOC_SEED=nolocCount(); // 4
+
+/* 발송 주문 */
+const orders=[
+  {id:'#ORP-000123',buyer:'김**',age:'18시간 전',urgent:true,status:'wait',
+   items:[{name:'아머드 뮤츠 프로모',loc:'A-01-03',photo:photo('뮤츠')},
+          {name:'판초를 입은 피카츄',loc:'A-02-11',photo:photo('판초를 입은 피카츄')},
+          {name:'블래키 SAR',loc:'B-01-02',photo:photo('블래키 GX')}]},
+  {id:'#ORP-000124',buyer:'최**',age:'12시간 전',urgent:false,status:'wait',
+   items:[{name:'뮤 ex SAR',loc:'B-02-04',photo:photo('뮤 ex')},
+          {name:'이브이 프로모',loc:'A-03-02',photo:photo('판초를 입은 이브이')}]},
+  {id:'#ORP-000125',buyer:'정**',age:'5시간 전',urgent:false,status:'wait',
+   items:[{name:'리자몽 ex SAR',loc:'C-01-08',photo:photo('리자몽')}]},
+  {id:'#ORP-000119',buyer:'이**',age:'',urgent:false,status:'ship',courier:'CJ대한통운',trk:'6882-4501-2231',
+   items:[{name:'뮤츠 VSTAR',loc:'A-01-09',photo:photo('뮤츠 V')},{name:'피카츄 AR',loc:'B-03-05',photo:photo('피카츄')}]},
+  {id:'#ORP-000117',buyer:'박**',age:'',urgent:false,status:'ship',courier:'우체국',trk:'1120-3345-8890',
+   items:[{name:'잉어킹 AR',loc:'B-03-01',photo:photo('잉어킹')}]},
+];
+const NICKS=['김**','이**','박**','최**','정**','오**','한**','유**'];
+for(let i=0;i<12;i++){
+  orders.push({id:'#ORP-000'+(98+i),buyer:NICKS[i%NICKS.length],age:'',urgent:false,status:'done',
+    courier:i%2?'롯데':'CJ대한통운',trk:'55'+i+'0-11'+i+'2-90'+i+'7',
+    items:[{name:'카드 '+(1+i%3)+'장',loc:'',photo:''}]});
+}
+
+/* 오늘 할 일 — 재고 확인 */
+let stockTodo=1;
+
+/* ═══════════ 홈 ═══════════ */
+function renderHome(){
+  const shipN=orders.filter(o=>o.status==='wait').length;
+  const locN=nolocCount();
+  const total=shipN+locN+stockTodo;
+  $('#todoCnt').textContent=total+'건';
+  $('#todoCnt').style.color=total?'var(--red)':'var(--green)';
+  const rows=[];
+  if(shipN)rows.push(`
+    <div class="todorow"><span class="tdot" style="background:var(--red)"></span>
+      <div class="tb"><b>발송 요청 ${shipN}건</b><small>가장 오래된 요청 18시간 전 — 오늘 안에 발송해주세요</small></div>
+      <button class="btn sm" onclick="goTab('ship')">발송 처리</button></div>`);
+  if(locN)rows.push(`
+    <div class="todorow"><span class="tdot" style="background:var(--gold)"></span>
+      <div class="tb"><b>보관 위치 미등록 ${locN}장</b><small>스티커를 붙이고 위치만 입력하면 됩니다</small></div>
+      <button class="btn sm ghost" onclick="goStorage('noloc')">위치 등록</button></div>`);
+  if(stockTodo)rows.push(`
+    <div class="todorow"><span class="tdot" style="background:var(--orange)"></span>
+      <div class="tb"><b>재고 확인 필요 1건</b><small>리자몽 레트로 오리파 · 남은 12구 — 실물 수량과 맞는지 확인</small></div>
+      <button class="btn sm ghost" onclick="stockCheck()">확인하기</button></div>`);
+  $('#todoList').innerHTML=rows.length?rows.join(''):'<div class="alldone">오늘 할 일을 모두 마쳤어요 🎉</div>';
+  /* 내 오리파 요약 (판매중만) */
+  $('#homeOripas').innerHTML=oripas.filter(o=>o.status==='판매중').map(oripaRow).join('');
+}
+function oripaRow(o){
+  const st=o.status==='판매중'?'green':o.status==='승인 대기'?'gold':'mut';
+  return `<div class="orow${o.status==='종료'?' ended':''}">
+    <img class="oimg" src="${o.hero}" loading="lazy" alt="">
+    <div class="obody">
+      <div class="otitle"><b>${esc(o.name)}</b><span class="chip ${st}">${o.status}</span>
+        ${o.status==='판매중'?(o.repRemain
+          ?'<span class="chip gold"><span class="pulse"></span>대표 상품 미출현</span>'
+          :'<span class="chip mut">대표 상품 출현 완료</span>'):''}
+      </div>
+      <div class="ogauge"><i style="width:${o.total?o.remain/o.total*100:0}%"></i></div>
+      <div class="ometa">
+        <span class="mono">남은 구수 ${fmt(o.remain)} / ${fmt(o.total)}</span>
+        <span class="mono">1회 ${fmt(o.price)}P</span>
+      </div>
+    </div>
+  </div>`;
+}
+function stockCheck(){
+  openModal(`
+    <h3>재고 확인 — 리자몽 레트로 오리파</h3>
+    <div class="body">남은 <b style="color:var(--t1)">12구</b>의 실물 상품 수량이 콘솔과 일치하는지 확인해주세요.<br>
+    불일치 시 판매를 일시 중지하고 파트너 센터로 문의해주세요.</div>
+    <div class="acts">
+      <button class="btn ghost" onclick="closeModal()">나중에</button>
+      <button class="btn" onclick="stockOk()">재고 일치 확인</button>
+    </div>`);
+}
+function stockOk(){stockTodo=0;closeModal();renderHome();toast('재고 확인이 완료되었습니다');}
+
+/* ═══════════ 오리파: 목록 ═══════════ */
+function renderOripaList(){
+  const c=s=>oripas.filter(o=>o.status===s).length;
+  $('#oripaCnts').textContent=`판매중 ${c('판매중')} · 승인 대기 ${c('승인 대기')} · 종료 ${c('종료')}`;
+  $('#oripaList').innerHTML=oripas.map(oripaRow).join('');
+}
+$('#newOripaBtn').addEventListener('click',()=>{showWiz(true);});
+$('#wizClose').addEventListener('click',()=>{showWiz(false);});
+function showWiz(on){
+  $('#oripaListView').style.display=on?'none':'block';
+  $('#wizView').style.display=on?'block':'none';
+  if(on)wizGo(1);
+}
+
+/* ═══════════ 오리파: 4단계 위저드 ═══════════ */
+const GRADES=['일반','찬스','슈퍼','울트라','잭팟'];
+const GRADE_CLS={'일반':'mut','찬스':'blue','슈퍼':'green','울트라':'gold','잭팟':'red'};
+const SKINS=[
+  ['다크 프리즘','linear-gradient(135deg,#101A2C,#1B64DA 55%,#8B5CF6)'],
+  ['골드','linear-gradient(135deg,#2A2100,#FFCC00)'],
+  ['네온','linear-gradient(135deg,#05C072,#00D4FF)'],
+  ['화염','linear-gradient(135deg,#7F1D1D,#EF4444 60%,#FF9500)'],
+  ['아이스','linear-gradient(135deg,#1E3A5F,#4D8FEA 60%,#BFE3FF)'],
+  ['레트로','linear-gradient(135deg,#4A3421,#C89B5C)'],
+];
+const wiz={step:1,products:[],skin:0,qty:1,photo:null,polCustom:false};
+
+/* 프리시드 — 사장님이 미리 등록해 둔 상품 5종 (사진은 data.js 목업, 합계 100개) */
+function seedWiz(){
+  wiz.products=[
+    {photo:photo('리자몽 ex'),name:'PSA10 리자몽 ex',qty:1, exch:1500000,rep:true, grade:'잭팟'},
+    {photo:photo('블래키 ex'),name:'블래키 SAR',     qty:2, exch:300000, rep:true, grade:'울트라'},
+    {photo:photo('피카츄'),   name:'피카츄 프로모',   qty:7, exch:100000, rep:true, grade:'슈퍼'},
+    {photo:photo('뮤 ex'),    name:'뮤 ex',          qty:30,exch:15000,  rep:false,grade:'일반'},
+    {photo:photoRarity('AR'), name:'랜덤 AR 카드',   qty:60,exch:5000,   rep:false,grade:'일반'},
+  ];
+  wiz.skin=0;wiz.qty=1;wiz.photo=null;wiz.polCustom=false;
+}
+/* 판매 시작 기본값 = 내일 10:00 */
 (()=>{const d=new Date(Date.now()+864e5);
   $('#fStart').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T10:00`;})();
 
-/* 검색 (debounce 120ms, name+set includes, 최대 30) */
-let srchTimer=null;
-$('#srch').addEventListener('input',()=>{clearTimeout(srchTimer);srchTimer=setTimeout(runSearch,120);});
-$('#srch').addEventListener('focus',runSearch);
-document.addEventListener('click',e=>{if(!e.target.closest('.srchwrap'))$('#results').classList.remove('show');});
-function runSearch(){
-  const q=$('#srch').value.trim();
-  const box=$('#results');
-  if(!q){box.classList.remove('show');box.innerHTML='';return;}
-  const hits=[];
-  for(const c of CARDS){
-    if(c.name.includes(q)||(c.set&&c.set.includes(q))){hits.push(c);if(hits.length>=30)break;}
-  }
-  box.innerHTML=hits.length?hits.map(c=>`
-    <div class="rrow">
-      <img class="cimg" src="${img(c)}" width="40" height="56" loading="lazy" alt="">
-      <div class="nm"><b>${esc(c.name)}</b><small>${esc(c.set||'')}${c.num?' · '+esc(c.num):''}</small></div>
-      <span class="chip blue">${esc(c.rarity)}</span>
-      <span class="pr mono">${fmt(c.price)}원</span>
-      <button class="btn sm" data-add="${c.id}">담기</button>
-    </div>`).join('')
-    :'<div class="noresult">검색 결과가 없습니다</div>';
-  box.classList.add('show');
-}
-$('#results').addEventListener('click',e=>{
-  const b=e.target.closest('[data-add]');if(!b)return;
-  const c=CARDS.find(x=>x.id===b.dataset.add);
-  addCard(c);
-});
-function defaultExch(price){return Math.round(price*0.7/100)*100;} // 예상가의 70%, 100원 반올림
-function addCard(card,qty=1,tier='normal',exch=null){
-  const ex=state.comp.find(x=>x.card.id===card.id);
-  if(ex){ex.qty+=qty;}
-  else state.comp.push({card,qty,tier,exch:exch??defaultExch(card.price)});
-  renderComp();recalc();
+function renderPolLine(){
+  $('#polLine').innerHTML=wiz.polCustom
+    ?`🚚 배송 정책: <b>이 오리파만 별도 설정</b> <button class="btn ghost sm" id="polBtn">매장 설정으로 되돌리기</button>`
+    :`🚚 배송 정책: 매장 설정 상속 (<b>배송비 ${fmt(store.shipFee)}원 · 무료배송 ${fmt(store.freeShip)}P</b>) <button class="btn ghost sm" id="polBtn">이 오리파만 변경</button>`;
+  $('#polCustom').style.display=wiz.polCustom?'block':'none';
+  $('#polBtn').addEventListener('click',()=>{
+    wiz.polCustom=!wiz.polCustom;
+    if(wiz.polCustom){$('#fShip').value=store.shipFee;$('#fFree').value=store.freeShip;}
+    renderPolLine();
+  });
 }
 
-/* 교환가 비율 → 색상 */
-function pctColor(p){return p>=60?'var(--green)':p>=40?'var(--gold)':'var(--red)';}
-
-/* 구성 리스트 렌더 */
-function renderComp(){
-  const el=$('#complist');
-  if(!state.comp.length){el.innerHTML='<div class="empty">위 검색창에서 카드를 검색해 담아보세요</div>';return;}
-  el.innerHTML=state.comp.map((it,i)=>{
-    const p=it.card.price?Math.round(it.exch/it.card.price*100):0;
-    return `<div class="crow" data-i="${i}">
-      <img class="cimg" src="${img(it.card)}" width="40" height="56" loading="lazy" alt="">
-      <div class="nm"><b>${esc(it.card.name)}</b><small>${esc(it.card.set||'')}${it.card.num?' · '+esc(it.card.num):''} · <span style="color:var(--gold)">${fmt(it.card.price)}원</span></small></div>
-      <div class="step"><button data-act="minus">−</button><b class="mono">${it.qty}</b><button data-act="plus">＋</button></div>
-      <select data-act="tier" style="color:${it.tier==='main'?'var(--gold)':it.tier==='sub'?'var(--blueL)':'var(--t2)'};font-weight:700">
-        <option value="normal"${it.tier==='normal'?' selected':''}>일반</option>
-        <option value="sub"${it.tier==='sub'?' selected':''}>서브 히트</option>
-        <option value="main"${it.tier==='main'?' selected':''}>메인 히트</option>
-      </select>
-      <div class="exwrap">
-        <div class="suffix"><input data-act="exch" type="number" value="${it.exch}" step="100" min="0"><span style="font-size:11px">P</span></div>
-        <div class="expct" style="color:${pctColor(p)}">참고가 대비 ${p}%</div>
-      </div>
-      <button class="delx" data-act="del">×</button>
-    </div>`;}).join('');
+function wizGo(n){
+  wiz.step=n;
+  document.querySelectorAll('#wsteps .ws').forEach(w=>{
+    const s=+w.dataset.s;
+    w.classList.toggle('on',s===n);w.classList.toggle('done',s<n);
+  });
+  document.querySelectorAll('#wsteps .wline').forEach((l,i)=>l.classList.toggle('done',i+1<n));
+  document.querySelectorAll('.wstep').forEach(w=>w.classList.toggle('on',w.id==='wstep'+n));
+  if(n===1)renderPolLine();
+  if(n===2)renderProducts();
+  if(n===3)renderStep3();
+  if(n===4)renderStep4();
 }
-$('#complist').addEventListener('click',e=>{
-  const b=e.target.closest('[data-act]');if(!b)return;
-  const row=e.target.closest('.crow');const it=state.comp[+row.dataset.i];
-  const act=b.dataset.act;
-  if(act==='minus'){if(it.qty>1){it.qty--;renderComp();recalc();}}
-  else if(act==='plus'){it.qty++;renderComp();recalc();}
-  else if(act==='del'){state.comp.splice(+row.dataset.i,1);renderComp();recalc();}
+document.querySelectorAll('[data-wgo]').forEach(b=>b.addEventListener('click',()=>wizGo(+b.dataset.wgo)));
+$('#w1next').addEventListener('click',()=>{
+  if(!$('#fName').value.trim()){toast('오리파 이름을 입력해주세요');return;}
+  wizGo(2);
 });
-$('#complist').addEventListener('change',e=>{
-  const s=e.target.closest('select[data-act="tier"]');if(!s)return;
-  state.comp[+e.target.closest('.crow').dataset.i].tier=s.value;
-  renderComp();recalc();
+$('#w2next').addEventListener('click',()=>wizGo(3));
+
+/* Step2: 상품 등록 폼 */
+$('#photoBox').addEventListener('click',()=>$('#photoFile').click());
+$('#photoFile').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  wiz.photo=URL.createObjectURL(f);
+  $('#photoInner').innerHTML=`<img src="${wiz.photo}" alt=""><span style="color:var(--green);font-size:12px">✓ ${esc(f.name)}</span>`;
 });
-$('#complist').addEventListener('input',e=>{
-  const inp=e.target.closest('input[data-act="exch"]');if(!inp)return;
-  const it=state.comp[+e.target.closest('.crow').dataset.i];
-  it.exch=+inp.value||0;
-  const p=it.card.price?Math.round(it.exch/it.card.price*100):0;
-  const pct=inp.closest('.exwrap').querySelector('.expct');
-  pct.textContent=`참고가 대비 ${p}%`;pct.style.color=pctColor(p);
-  recalc(); // 포커스 유지 위해 리스트 재렌더 없이 요약만 갱신
+$('#qMinus').addEventListener('click',()=>{if(wiz.qty>1){wiz.qty--;$('#qVal').textContent=wiz.qty;}});
+$('#qPlus').addEventListener('click',()=>{wiz.qty++;$('#qVal').textContent=wiz.qty;});
+$('#pRep').addEventListener('change',e=>{
+  if(e.target.checked&&$('#pGrade').value==='일반'){
+    $('#pGrade').value='슈퍼';$('#gradeHint').style.display='block';
+  }else $('#gradeHint').style.display='none';
+});
+$('#pGrade').addEventListener('change',()=>$('#gradeHint').style.display='none');
+$('#pAdd').addEventListener('click',()=>{
+  const name=$('#pName').value.trim();
+  const exch=+$('#pExch').value||0;
+  if(!wiz.photo){toast('상품 사진을 먼저 등록해주세요');return;}
+  if(!name){toast('상품명을 입력해주세요');return;}
+  if(exch<=0){toast('교환 포인트를 입력해주세요');return;}
+  wiz.products.push({photo:wiz.photo,name,qty:wiz.qty,exch,rep:$('#pRep').checked,grade:$('#pGrade').value});
+  /* 폼 리셋 */
+  wiz.photo=null;wiz.qty=1;
+  $('#photoInner').innerHTML='📷 상품 사진 등록 (클릭)<br><small style="font-size:11px;color:var(--t3)">슬랩 · 박스 · 굿즈 등 실물 사진</small>';
+  $('#photoFile').value='';$('#pName').value='';$('#pExch').value='';$('#qVal').textContent='1';
+  $('#pRep').checked=false;$('#pGrade').value='일반';$('#gradeHint').style.display='none';
+  renderProducts();
+  toast('상품이 추가되었습니다');
 });
 
-/* 기본 정보 입력 → 요약/미리보기 갱신 */
-['fName','fPrice','fSlots','fLimit','fShip','fFree','fStart'].forEach(id=>$('#'+id).addEventListener('input',recalc));
-
-/* 라이브 요약 + 폰 미리보기 재계산 */
-function recalc(){
+function renderProducts(){
   const slots=+$('#fSlots').value||0;
-  const price=+$('#fPrice').value||0;
-  let n=0,val=0,exch=0;const tiers={main:0,sub:0,normal:0};
-  for(const it of state.comp){n+=it.qty;val+=it.card.price*it.qty;exch+=it.exch*it.qty;tiers[it.tier]+=it.qty;}
-  const sales=price*slots;
-  const ret=sales?exch/sales*100:0;
-  const fee=sales*0.10;
-  // 요약
-  $('#sCount').textContent=`${fmt(n)} / ${fmt(slots)}`;
-  const bar=$('#sBar');
+  const n=wiz.products.reduce((a,p)=>a+p.qty,0);
+  const reps=wiz.products.filter(p=>p.rep).length;
+  $('#plistTitle').textContent=`담은 상품 ${wiz.products.length}종`;
+  $('#plist').innerHTML=wiz.products.length?wiz.products.map((p,i)=>`
+    <div class="prow">
+      <img class="pimg" src="${p.photo}" loading="lazy" alt="">
+      <div class="pnm"><b>${esc(p.name)}</b><small class="mono">수량 ${fmt(p.qty)}개</small></div>
+      ${p.rep?'<span class="chip gold">대표</span>':''}
+      <span class="chip ${GRADE_CLS[p.grade]}">${p.grade}</span>
+      <span class="pex mono">${fmt(p.exch)}P</span>
+      <button class="delx" data-del="${i}">×</button>
+    </div>`).join('')
+    :'<div class="empty">위에서 상품 사진과 정보를 입력해 담아보세요</div>';
+  $('#heroCnt').innerHTML=`${fmt(n)} <small>/ ${fmt(slots)}</small>`;
+  const bar=$('#heroBar');
   bar.style.width=Math.min(100,slots?n/slots*100:0)+'%';
   bar.style.background=n===slots&&n>0?'var(--green)':n>slots?'var(--red)':'var(--blue)';
-  $('#sTiers').textContent=`메인 히트 ${tiers.main} · 서브 히트 ${tiers.sub} · 일반 ${tiers.normal}`;
-  $('#sValue').textContent=won(val);
-  $('#sSales').textContent=won(sales);
-  $('#sReturn').textContent=ret.toFixed(1)+'%';
-  $('#sFee').textContent=won(fee);
-  $('#sNet').textContent=won(sales-fee);
-  const ok=n===slots&&n>0;
-  const btn=$('#approveBtn');
-  btn.disabled=!ok;
-  btn.title=ok?'':'구성 카드 수가 총 구수와 일치해야 합니다';
-  $('#approveHint').style.display=ok?'none':'block';
-  // 폰 미리보기
-  $('#phName').textContent=$('#fName').value.trim()||'오리파명을 입력하세요';
-  $('#phPrice').textContent=`1구 ${fmt(price)}P`;
-  $('#phRemain').textContent=`${fmt(slots)}구 남음`;
-  $('#phTotal').textContent=`총 ${fmt(slots)}구`;
-  $('#phGauge').style.width='100%';
-  $('#phReturn').textContent=`환원율 ${Math.round(ret)}%`;
-  const hits=state.comp.filter(x=>x.tier!=='normal');
-  const mains=state.comp.filter(x=>x.tier==='main');
-  $('#phHitCnt').textContent=`히트 ${hits.length}종`;
-  const hero=$('#phHero');
-  if(mains.length){hero.src=img(mains[0].card);hero.style.display='block';}
-  else if(hits.length){hero.src=img(hits[0].card);hero.style.display='block';}
-  else hero.style.display='none';
-  $('#phLineup').innerHTML=hits.length
-    ?[...mains,...hits.filter(x=>x.tier==='sub')].map(x=>`<img src="${img(x.card)}" loading="lazy" alt="">`).join('')
-    :'<div style="color:var(--t3);font-size:11px;padding:20px 0">히트 카드를 지정하면 노출됩니다</div>';
+  $('#heroCnt').style.color=n>slots?'var(--red)':n===slots&&n>0?'var(--green)':'var(--t1)';
+  $('#heroCap').textContent=n===slots&&n>0?'✓ 총 구수와 일치 — 다음 단계로 진행할 수 있어요'
+    :n>slots?`총 구수보다 ${fmt(n-slots)}개 많아요 — 수량을 줄여주세요`
+    :'총 구수와 상품 수량 합계가 일치해야 다음으로 넘어갈 수 있어요';
+  $('#heroCap').style.color=n===slots&&n>0?'var(--green)':n>slots?'var(--red)':'var(--t3)';
+  $('#heroRep').textContent=reps+'개';
+  $('#w2next').disabled=!(n===slots&&n>0);
 }
+$('#plist').addEventListener('click',e=>{
+  const b=e.target.closest('[data-del]');if(!b)return;
+  wiz.products.splice(+b.dataset.del,1);renderProducts();
+});
+$('#fSlots').addEventListener('input',()=>{if(wiz.step===2)renderProducts();});
 
-/* 판매 승인 요청 모달 */
-$('#approveBtn').addEventListener('click',()=>{
+/* Step3: 구성 확인 */
+function wizTotals(){
+  const slots=+$('#fSlots').value||0;
+  const price=+$('#fPrice').value||0;
+  const sales=slots*price;
+  const exchSum=wiz.products.reduce((a,p)=>a+p.exch*p.qty,0);
+  const pct=sales?exchSum/sales*100:0;
+  const fee=sales*0.10;
+  return{slots,price,sales,exchSum,pct,fee,net:sales-fee};
+}
+function renderStep3(){
+  const t=wizTotals();
+  $('#w3sum').innerHTML=`
+    <div class="sumline"><span class="k">판매 수량</span><span class="v mono">${fmt(t.slots)}구</span></div>
+    <div class="sumline"><span class="k">1회 가격</span><span class="v mono">${fmt(t.price)}P</span></div>
+    <div class="sumline big"><span class="k">모두 판매 시</span><span class="v mono">${fmt(t.sales)}P</span></div>
+    <div class="divline"></div>
+    <div class="sumline"><span class="k">등록 상품 교환 포인트 합계</span><span class="v mono">${fmt(t.exchSum)}P</span></div>
+    <div class="sumline"><span class="k">전체 상품 교환 시</span><span class="v mono" style="color:${t.pct>100?'var(--red)':'var(--t1)'}">${t.pct.toFixed(1)}%</span></div>
+    ${t.pct>100?`<div class="warnbox">⚠ <span>모든 상품이 교환될 경우 <b class="mono">${fmt(t.exchSum-t.sales)}P</b>를 추가 부담할 수 있습니다. 통상 일부만 교환되지만, 교환 포인트 합계를 다시 확인해주세요.</span></div>`:''}
+    <div class="divline"></div>
+    <div class="sumline"><span class="k">플랫폼 수수료 (10%)</span><span class="v mono" style="color:var(--blueL)">−${fmt(t.fee)}P</span></div>
+    <div class="sumline big"><span class="k">정산 기준액</span><span class="v mono" style="color:var(--green)">${fmt(t.net)}P</span></div>`;
+  $('#skins').innerHTML=SKINS.map(([nm,g],i)=>`
+    <div class="skin${i===wiz.skin?' on':''}" data-skin="${i}"><div class="sw" style="background:${g}"></div><small>${nm}</small></div>`).join('');
+}
+$('#skins').addEventListener('click',e=>{
+  const s=e.target.closest('[data-skin]');if(!s)return;
+  wiz.skin=+s.dataset.skin;
+  document.querySelectorAll('#skins .skin').forEach(x=>x.classList.toggle('on',x===s));
+});
+
+/* Step4: 등록 요청 */
+function renderStep4(){
+  const t=wizTotals();
+  const reps=wiz.products.filter(p=>p.rep);
+  const kinds=wiz.products.length;
+  const totalQty=wiz.products.reduce((a,p)=>a+p.qty,0);
+  const start=$('#fStart').value.replace('T',' ');
+  $('#w4sum').innerHTML=`
+    <div class="sumline"><span class="k">오리파 이름</span><span class="v">${esc($('#fName').value.trim())}</span></div>
+    <div class="sumline"><span class="k">총 수량 · 1회 가격</span><span class="v mono">${fmt(t.slots)}구 · ${fmt(t.price)}P</span></div>
+    <div class="sumline"><span class="k">등록 상품</span><span class="v mono">${kinds}종 · ${fmt(totalQty)}개</span></div>
+    <div class="sumline"><span class="k">판매 시작</span><span class="v mono">${esc(start)}</span></div>
+    <div class="sumline"><span class="k">배송 정책</span><span class="v">${wiz.polCustom
+      ?`별도 (배송비 ${fmt(+$('#fShip').value||0)}원 · 무료 ${fmt(+$('#fFree').value||0)}P)`
+      :`매장 설정 상속 (배송비 ${fmt(store.shipFee)}원 · 무료 ${fmt(store.freeShip)}P)`}</span></div>
+    <div class="sumline"><span class="k">스킨</span><span class="v"><span class="miniskin" style="background:${SKINS[wiz.skin][1]}"></span>${SKINS[wiz.skin][0]}</span></div>
+    <div class="divline"></div>
+    <div style="font-size:12px;color:var(--t2);font-weight:600;margin:4px 0 6px">대표 상품 ${reps.length}장</div>
+    <div class="repthumbs">${reps.map(p=>`<img src="${p.photo}" title="${esc(p.name)}" alt="">`).join('')||'<span style="color:var(--t3);font-size:12px">대표 상품 없음</span>'}</div>`;
+}
+$('#wSubmit').addEventListener('click',()=>{
   openModal(`
-    <h3>판매 승인 요청</h3>
-    <div class="body">판매 승인 시 아래 항목이 <b style="color:var(--t1)">동결</b>됩니다. 판매 중에는 변경할 수 없습니다.</div>
+    <h3>오리파 등록 요청</h3>
+    <div class="body"><b style="color:var(--t1)">등록 후 가격·구성·교환 포인트는 변경할 수 없습니다.</b><br>승인 완료 후 판매가 자동으로 시작됩니다.</div>
     <div class="lockbox">
-      <li>1구 가격 · 총 구수</li>
-      <li>카드 구성 (종류·수량·구분)</li>
-      <li>포인트 교환가</li>
+      <li>1회 가격 · 총 수량</li>
+      <li>상품 구성 · 수량</li>
+      <li>교환 포인트</li>
     </div>
     <div class="acts">
       <button class="btn ghost" onclick="closeModal()">취소</button>
-      <button class="btn" id="doApprove">승인 요청</button>
+      <button class="btn" id="doSubmit">등록 요청</button>
     </div>`);
-  $('#doApprove').addEventListener('click',submitApproval);
+  $('#doSubmit').addEventListener('click',submitWiz);
 });
-function submitApproval(){
-  const name=$('#fName').value.trim()||'이름 없는 오리파';
-  const slots=+$('#fSlots').value||0;
-  const mains=state.comp.filter(x=>x.tier==='main');
-  // 대시보드에 '승인 대기'로 추가
-  dashOripas.unshift({
-    name,total:slots,remain:slots,todayCnt:0,todaySales:0,
-    status:'승인 대기',hitRemain:true,
-    heroCard:mains.length?mains[0].card:(state.comp[0]&&state.comp[0].card)
+function submitWiz(){
+  const t=wizTotals();
+  const reps=wiz.products.filter(p=>p.rep);
+  oripas.unshift({
+    name:$('#fName').value.trim()||'이름 없는 오리파',
+    status:'승인 대기',total:t.slots,remain:t.slots,price:t.price,
+    hero:(reps[0]||wiz.products[0]||{photo:''}).photo,repRemain:true,
   });
-  renderOripas();
+  renderOripaList();renderHome();
   openModal(`
     <div class="okwrap">
       <div class="okcirc">✓</div>
-      <h3>승인 요청이 접수되었습니다</h3>
-      <div class="body">심사 후 판매가 시작됩니다.<br>진행 상황은 대시보드에서 확인할 수 있어요.</div>
-      <button class="btn" style="width:100%" onclick="closeModal()">확인</button>
+      <h3>등록 요청이 접수되었습니다</h3>
+      <div class="body">심사 후 판매가 시작됩니다.<br>진행 상황은 오리파 목록에서 확인할 수 있어요.</div>
+      <button class="btn" style="width:100%" onclick="closeModal();showWiz(false)">확인</button>
     </div>`);
+  seedWiz();
 }
 
-/* ── 프리시드: 데이터 기반 동적 구성 (환원율 ~70%가 되도록 목표가 pick) ── */
-function preseed(){
-  const used=new Set();
-  const main=pickClosest(250000,used);                         // 메인 히트 1장
-  const sub1=pickClosest(80000,used);                          // 서브 히트 2장
-  const sub2=pickClosest(55000,used);
-  const cheapT=[1500,1200,900];                                // 일반 3종 (저가)
-  const cheaps=cheapT.map(t=>pickClosest(t,used,c=>c.price<10000));
-  const slots=+$('#fSlots').value||100;
-  let remain=slots-3;                                          // 히트 3장 제외 잔여 구수
-  const qtys=[Math.ceil(remain/3),Math.floor(remain/3),remain-Math.ceil(remain/3)-Math.floor(remain/3)];
-  if(main)addCard(main,1,'main');
-  if(sub1)addCard(sub1,1,'sub');
-  if(sub2)addCard(sub2,1,'sub');
-  cheaps.forEach((c,i)=>{if(c&&qtys[i]>0)addCard(c,qtys[i],'normal');});
-  $('#fName').value=main?`${main.name.split(' ')[0]} 초고가 오리파`:'초고가 오리파';
-  renderComp();recalc();
+/* ═══════════ 카드 보관 ═══════════ */
+let stFilter='all',stQuery='';
+const ST_LABEL={stored:h=>`${h} 보관`,shipreq:()=> '발송 요청',noloc:()=>'⚠ 위치 미등록'};
+function goStorage(f){
+  stFilter=f;goTab('storage');
+  document.querySelectorAll('#stFil button').forEach(x=>x.classList.toggle('on',x.dataset.f===f));
+  renderStorage();
+}
+$('#stFil').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  stFilter=b.dataset.f;
+  document.querySelectorAll('#stFil button').forEach(x=>x.classList.toggle('on',x===b));
+  renderStorage();
+});
+$('#stSearch').addEventListener('input',()=>{stQuery=$('#stSearch').value.trim();renderStorage();});
+function renderStorage(){
+  const reg=NOLOC_SEED-nolocCount();
+  $('#cStored').textContent=92+reg;
+  $('#cNoloc').textContent=nolocCount();
+  let rows=stRows.map((r,i)=>({...r,i}));
+  if(stFilter!=='all')rows=rows.filter(r=>r.st===stFilter);
+  if(stQuery)rows=rows.filter(r=>r.name.includes(stQuery)||r.code.includes(stQuery.toUpperCase()));
+  $('#stBody').innerHTML=rows.length?rows.map(r=>`
+    <tr>
+      <td><div class="stitem"><img src="${r.photo}" loading="lazy" alt=""><span>${esc(r.name)}</span></div></td>
+      <td class="mono" style="color:var(--t2)">${r.code}</td>
+      <td>${r.st==='noloc'?'<span class="chip red">⚠ 위치 미등록</span>'
+          :r.st==='shipreq'?'<span class="chip blue">발송 요청</span>'
+          :`<span class="chip mut">${esc(r.holder)} 보관</span>`}</td>
+      <td>${r.loc?`<span class="chip mut mono">${r.loc}</span>`:'<span style="color:var(--t3)">—</span>'}</td>
+      <td class="r">${r.st==='noloc'
+        ?`<button class="btn sm" data-loc="${r.i}">위치 등록</button>`
+        :`<button class="btn sm ghost" data-view="${r.i}">보기</button>`}</td>
+    </tr>`).join('')
+    :'<tr><td colspan="5"><div class="empty">조건에 맞는 카드가 없습니다</div></td></tr>';
+}
+$('#stBody').addEventListener('click',e=>{
+  const l=e.target.closest('[data-loc]');
+  const v=e.target.closest('[data-view]');
+  if(l)openLocModal(stRows[+l.dataset.loc]);
+  else if(v)openViewModal(stRows[+v.dataset.view]);
+});
+function openLocModal(r){
+  openModal(`
+    <h3>보관 위치 등록</h3>
+    <div class="mprod"><img src="${r.photo}" alt=""><div><b>${esc(r.name)}</b><small class="mono">${r.code} · ${esc(r.holder)} 보관</small></div></div>
+    <div class="field"><label>보관 위치 (구역 - 선반 - 칸)</label>
+      <div class="locgrid">
+        <input id="locA" type="text" maxlength="2" placeholder="A">
+        <input id="locB" type="text" maxlength="2" placeholder="01">
+        <input id="locC" type="text" maxlength="2" placeholder="03">
+      </div></div>
+    <div class="acts">
+      <button class="btn ghost" onclick="closeModal()">취소</button>
+      <button class="btn" id="locSave">저장</button>
+    </div>`);
+  $('#locSave').addEventListener('click',()=>{
+    const a=$('#locA').value.trim().toUpperCase(),b=$('#locB').value.trim(),c=$('#locC').value.trim();
+    if(!a||!b||!c){toast('위치 세 칸을 모두 입력해주세요');return;}
+    r.loc=`${a}-${b.padStart(2,'0')}-${c.padStart(2,'0')}`;
+    r.st='stored';
+    closeModal();renderStorage();renderHome();
+    toast(`보관 위치가 등록되었습니다 (${r.loc})`);
+  });
+}
+function openViewModal(r){
+  openModal(`
+    <h3>보관 카드 상세</h3>
+    <div class="mprod"><img src="${r.photo}" alt=""><div><b>${esc(r.name)}</b><small class="mono">${r.code}</small></div></div>
+    <div class="sumline"><span class="k">상태</span><span class="v">${r.st==='shipreq'?'발송 요청':esc(r.holder)+' 보관'}</span></div>
+    <div class="sumline"><span class="k">보관 위치</span><span class="v mono">${r.loc||'—'}</span></div>
+    <div class="acts"><button class="btn ghost" onclick="closeModal()">닫기</button></div>`);
 }
 
-/* ═══════════ 탭2: 대시보드 ═══════════ */
-const dashOripas=[];
-(function seedDash(){
-  const used=new Set();
-  const h1=pickClosest(180000,used);
-  const h2=pickClosest(120000,used);
-  dashOripas.push(
-    {name:'이브이 히어로즈 오리파',total:500,remain:437,todayCnt:63,todaySales:315000,status:'판매중',hitRemain:true,heroCard:h1},
-    {name:'리자몽 레트로 스페셜 오리파',total:300,remain:12,todayCnt:88,todaySales:440000,status:'판매중',hitRemain:false,heroCard:h2}
-  );
-})();
-function renderOripas(){
-  $('#oripaList').innerHTML=dashOripas.map(o=>`
-    <div class="orow">
-      ${o.heroCard?`<img class="oimg" src="${img(o.heroCard)}" loading="lazy" alt="">`:'<div class="oimg"></div>'}
-      <div class="obody">
-        <div class="otitle">
-          <b>${esc(o.name)}</b>
-          <span class="chip ${o.status==='판매중'?'green':'gold'}">${o.status}</span>
-          ${o.hitRemain
-            ?'<span class="chip gold"><span class="pulse"></span>메인 히트 미출현</span>'
-            :'<span class="chip mut">메인 히트 출현 완료</span>'}
-        </div>
-        <div class="ogauge"><i style="width:${o.total?o.remain/o.total*100:0}%"></i></div>
-        <div class="ometa">
-          <span class="mono">남은 구수 ${fmt(o.remain)} / ${fmt(o.total)}</span>
-          <span>오늘 판매 <b class="mono" style="color:var(--t1)">${fmt(o.todayCnt)}구</b></span>
-          <span>매출 <b class="mono" style="color:var(--t1)">₩${fmt(o.todaySales)}</b></span>
-        </div>
-      </div>
-    </div>`).join('');
-}
-
-/* 최근 뽑기 피드 — 4~7초 간격 가짜 라이브 */
-const NICKS=['김**','이**','박**','최**','정**','오**','한**','유**'];
-const CHEAPS=CARDS.filter(c=>c.price<15000);
-function feedTick(){
-  const nick=NICKS[Math.floor(Math.random()*NICKS.length)];
-  const live=dashOripas.filter(o=>o.status==='판매중');
-  const pack=live[Math.floor(Math.random()*live.length)];
-  // 저가 카드 가중 (85%)
-  const card=Math.random()<0.85
-    ?CHEAPS[Math.floor(Math.random()*CHEAPS.length)]
-    :CARDS[Math.floor(Math.random()*CARDS.length)];
-  const feed=$('#feed');
-  const row=document.createElement('div');
-  row.className='frow';
-  row.innerHTML=`
-    <img class="cimg" src="${img(card)}" width="30" height="42" loading="lazy" alt="">
-    <div class="fb"><b>${nick}</b> · ${esc(pack?pack.name:'오리파')}<small>${esc(card.name)}</small></div>
-    <span class="chip blue">${esc(card.rarity)}</span>
-    <span class="fp mono">${fmt(card.price)}원</span>`;
-  feed.prepend(row);
-  while(feed.children.length>8)feed.lastChild.remove();
-  setTimeout(feedTick,4000+Math.random()*3000);
-}
-
-/* ═══════════ 탭3: 배송 관리 ═══════════ */
-let orders=[];
-(function seedOrders(){
-  const used=new Set();
-  const pick3=t=>[pickClosest(t,used,c=>c.price<60000),pickClosest(t*0.6,used,c=>c.price<60000),pickClosest(t*0.3,used,c=>c.price<60000)].filter(Boolean);
-  orders=[
-    {id:'#ORP-000123',buyer:'김**',cards:pick3(45000),date:'07-05 09:12',status:'wait'},
-    {id:'#ORP-000124',buyer:'박**',cards:pick3(30000),date:'07-05 08:41',status:'wait'},
-    {id:'#ORP-000125',buyer:'정**',cards:pick3(18000),date:'07-04 22:03',status:'wait'},
-    {id:'#ORP-000119',buyer:'이**',cards:pick3(25000),date:'07-04 14:20',status:'ship',courier:'CJ대한통운',trk:'6882-4501-2231'},
-    {id:'#ORP-000117',buyer:'최**',cards:pick3(12000),date:'07-04 11:05',status:'ship',courier:'우체국',trk:'1120-3345-8890'},
-  ];
-  // 완료 12건
-  for(let i=0;i<12;i++){
-    orders.push({id:'#ORP-000'+(98+i),buyer:NICKS[i%NICKS.length],cards:pick3(8000+i*1500),
-      date:'07-0'+(1+i%3)+' '+(9+i%10)+':'+String(10+i*3%50).padStart(2,'0'),
-      status:'done',courier:i%2?'롯데':'CJ대한통운',trk:'55'+i+'0-11'+i+'2-90'+i+'7'});
-  }
-})();
+/* ═══════════ 발송 ═══════════ */
 let shipFilter='wait';
 $('#shipFil').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
@@ -737,105 +985,197 @@ $('#shipFil').addEventListener('click',e=>{
   renderOrders();
 });
 function renderOrders(){
-  const list=orders.filter(o=>o.status===shipFilter);
-  $('#cWait').textContent=orders.filter(o=>o.status==='wait').length;
+  const waitN=orders.filter(o=>o.status==='wait').length;
+  $('#cWait').textContent=waitN;
   $('#cShip').textContent=orders.filter(o=>o.status==='ship').length;
   $('#cDone').textContent=orders.filter(o=>o.status==='done').length;
-  $('#orderList').innerHTML=list.length?list.map(o=>`
-    <div class="ordcard">
-      <div class="ordhead">
-        <div><span class="oid">${o.id}</span> <span class="om">구매자 ${o.buyer} · 신청일 ${o.date}</span></div>
-        ${o.status==='wait'
-          ?`<button class="btn sm" data-ship="${o.id}">발송 처리</button>`
-          :o.status==='ship'?'<span class="chip blue">배송 중</span>':'<span class="chip mut">배송 완료</span>'}
-      </div>
-      <div class="ordcards">
-        ${o.cards.map(c=>`<div class="oc"><img src="${img(c)}" loading="lazy" alt=""><span>${esc(c.name)}</span></div>`).join('')}
-      </div>
-      ${o.trk?`<div class="trkline">${esc(o.courier)} · 송장 <b class="mono" style="color:var(--t1)">${esc(o.trk)}</b></div>`:''}
-    </div>`).join('')
-    :'<div class="empty">해당 상태의 주문이 없습니다</div>';
+  $('#shipHead').textContent=waitN
+    ?`오늘 발송해야 할 주문 ${waitN}건 — 보관 위치대로 꺼내서 포장하면 끝`
+    :'오늘 발송할 주문을 모두 처리했어요 🎉';
+  const list=orders.filter(o=>o.status===shipFilter);
+  $('#orderList').innerHTML=list.length?list.map(o=>{
+    if(o.status==='wait')return `
+      <div class="ordcard">
+        <div class="ordhead">
+          <div><span class="oid">${esc(o.buyer)} 님</span> <span class="om">${o.id} · 요청 ${esc(o.age)}</span>
+            ${o.urgent?'<span class="chip red">오늘 발송 권장</span>':''}</div>
+          <button class="btn sm" data-pack="${o.id}">포장 시작</button>
+        </div>
+        ${o.items.map(it=>`
+          <div class="shiprow"><img src="${it.photo}" loading="lazy" alt="">
+            <span>${esc(it.name)}</span><span class="chip mut mono" style="flex:none">📦 ${it.loc}</span></div>`).join('')}
+        <div class="ordfoot">
+          <span class="paidok">✓ 배송비 결제 완료 ${fmt(store.shipFee)}원</span>
+          <span class="om mono">카드 ${o.items.length}장</span>
+        </div>
+      </div>`;
+    return `
+      <div class="ordcard">
+        <div class="ordhead">
+          <div><span class="oid">${esc(o.buyer)} 님</span> <span class="om">${o.id}</span></div>
+          ${o.status==='ship'?'<span class="chip blue">배송 중</span>':'<span class="chip mut">배송 완료</span>'}
+        </div>
+        <div class="trkline">${esc(o.courier)} · 송장 <b class="mono" style="color:var(--t1)">${esc(o.trk)}</b>${o.items[0]&&o.items[0].name?` · ${esc(o.items.map(i=>i.name).join(', '))}`:''}</div>
+      </div>`;
+  }).join('')
+  :'<div class="empty">해당 상태의 주문이 없습니다</div>';
 }
 $('#orderList').addEventListener('click',e=>{
-  const b=e.target.closest('[data-ship]');if(!b)return;
-  openShipModal(orders.find(o=>o.id===b.dataset.ship));
+  const b=e.target.closest('[data-pack]');if(!b)return;
+  packM={order:orders.find(o=>o.id===b.dataset.pack),step:1,photo:null,checked:new Set()};
+  renderPackModal();
 });
-function openShipModal(o){
-  openModal(`
-    <h3>발송 처리 — ${o.id}</h3>
-    <div class="body" style="margin-bottom:10px">카드 확인 후 포장 사진과 송장 정보를 입력하세요.</div>
-    ${o.cards.map((c,i)=>`
-      <label class="chk"><input type="checkbox" class="shipchk">
-        <img src="${img(c)}" alt=""><span>${esc(c.name)}</span>
-        <span class="chip mut" style="flex:none">${esc(c.rarity)}</span></label>`).join('')}
-    <div class="upbox" id="upbox" style="margin-top:12px">
-      <input type="file" accept="image/*" id="upfile" hidden>
-      <div id="upinner">📷 포장 사진 업로드 (클릭)</div>
-    </div>
-    <div class="grid2">
-      <div class="field"><label>택배사</label>
-        <select id="courier"><option>CJ대한통운</option><option>우체국</option><option>롯데</option><option>한진</option></select></div>
-      <div class="field"><label>송장번호</label><input id="trkno" type="text" placeholder="0000-0000-0000"></div>
-    </div>
-    <div class="acts">
-      <button class="btn ghost" onclick="closeModal()">취소</button>
-      <button class="btn" id="doShip" disabled>발송 완료</button>
-    </div>`);
-  const validate=()=>{
-    const allChk=[...document.querySelectorAll('.shipchk')].every(c=>c.checked);
-    $('#doShip').disabled=!(allChk&&$('#trkno').value.trim());
-  };
-  document.querySelectorAll('.shipchk').forEach(c=>c.addEventListener('change',validate));
-  $('#trkno').addEventListener('input',validate);
-  $('#upbox').addEventListener('click',()=>$('#upfile').click());
-  $('#upfile').addEventListener('change',e=>{
-    const f=e.target.files[0];if(!f)return;
-    $('#upinner').innerHTML=`<img src="${URL.createObjectURL(f)}" alt=""><span style="color:var(--green)">✓ ${esc(f.name)}</span>`;
-  });
-  $('#doShip').addEventListener('click',()=>{
-    o.status='ship';o.courier=$('#courier').value;o.trk=$('#trkno').value.trim();
-    closeModal();renderOrders();
-    toast('유저에게 발송 알림이 전송되었습니다 🔔');
-  });
+
+/* 포장 3단계 모달 */
+let packM=null;
+function packSteps(){
+  return `<div class="mstep">
+    ${[1,2,3].map(s=>`<i class="${packM.step===s?'on':packM.step>s?'done':''}">${packM.step>s?'✓':s}</i>${s<3?'<span class="ml"></span>':''}`).join('')}
+    <span style="font-size:12px;color:var(--t2);margin-left:8px;font-weight:600">${['카드 확인','포장 사진','송장 입력'][packM.step-1]}</span>
+  </div>`;
+}
+function renderPackModal(){
+  const o=packM.order;
+  if(packM.step===1){
+    openModal(`
+      <h3>포장 시작 — ${esc(o.buyer)} 님</h3>
+      ${packSteps()}
+      <div class="body" style="margin-bottom:10px">보관 위치에서 카드를 꺼내며 하나씩 확인해주세요.</div>
+      ${o.items.map((it,i)=>`
+        <label class="chk"><input type="checkbox" class="packchk" data-i="${i}" ${packM.checked.has(i)?'checked':''}>
+          <img src="${it.photo}" alt=""><span>${esc(it.name)}</span>
+          <span class="chip mut mono" style="flex:none">📦 ${it.loc}</span></label>`).join('')}
+      <div class="acts">
+        <button class="btn ghost" onclick="closeModal()">취소</button>
+        <button class="btn" id="pk1next" disabled>다음</button>
+      </div>`);
+    const upd=()=>{$('#pk1next').disabled=packM.checked.size!==o.items.length;};
+    document.querySelectorAll('.packchk').forEach(c=>c.addEventListener('change',()=>{
+      c.checked?packM.checked.add(+c.dataset.i):packM.checked.delete(+c.dataset.i);upd();
+    }));
+    upd();
+    $('#pk1next').addEventListener('click',()=>{packM.step=2;renderPackModal();});
+  }
+  else if(packM.step===2){
+    openModal(`
+      <h3>포장 시작 — ${esc(o.buyer)} 님</h3>
+      ${packSteps()}
+      <div class="body" style="margin-bottom:10px">포장 완료 사진을 등록해주세요. 분쟁 발생 시 증빙으로 사용됩니다.</div>
+      <div class="upbox" id="upbox">
+        <input type="file" accept="image/*" id="upfile" hidden>
+        <div id="upinner">${packM.photo
+          ?`<img src="${packM.photo}" alt=""><span style="color:var(--green)">✓ 등록 완료</span>`
+          :'📷 포장 사진 등록 (클릭)'}</div>
+      </div>
+      <div class="acts">
+        <button class="btn ghost" id="pk2prev">이전</button>
+        <button class="btn" id="pk2next" ${packM.photo?'':'disabled'}>다음</button>
+      </div>`);
+    $('#upbox').addEventListener('click',()=>$('#upfile').click());
+    $('#upfile').addEventListener('change',e=>{
+      const f=e.target.files[0];if(!f)return;
+      packM.photo=URL.createObjectURL(f);
+      $('#upinner').innerHTML=`<img src="${packM.photo}" alt=""><span style="color:var(--green)">✓ ${esc(f.name)}</span>`;
+      $('#pk2next').disabled=false;
+    });
+    $('#pk2prev').addEventListener('click',()=>{packM.step=1;renderPackModal();});
+    $('#pk2next').addEventListener('click',()=>{packM.step=3;renderPackModal();});
+  }
+  else{
+    openModal(`
+      <h3>포장 시작 — ${esc(o.buyer)} 님</h3>
+      ${packSteps()}
+      <div class="grid2">
+        <div class="field"><label>택배사</label>
+          <select id="courier"><option>CJ대한통운</option><option>우체국</option><option>롯데</option><option>한진</option></select></div>
+        <div class="field"><label>송장번호</label><input id="trkno" type="text" placeholder="0000-0000-0000"></div>
+      </div>
+      <div class="acts">
+        <button class="btn ghost" id="pk3prev">이전</button>
+        <button class="btn" id="pkDone" disabled>발송 완료</button>
+      </div>`);
+    $('#trkno').addEventListener('input',()=>{$('#pkDone').disabled=!$('#trkno').value.trim();});
+    $('#pk3prev').addEventListener('click',()=>{packM.step=2;renderPackModal();});
+    $('#pkDone').addEventListener('click',()=>{
+      o.status='ship';o.courier=$('#courier').value;o.trk=$('#trkno').value.trim();
+      closeModal();renderOrders();renderHome();
+      toast('유저에게 발송 알림이 전송되었습니다 🔔');
+    });
+  }
 }
 
-/* ═══════════ 탭4: 정산 원장 ═══════════ */
+/* ═══════════ 정산 ═══════════ */
+$('#ledgerBtn').addEventListener('click',()=>{
+  const w=$('#ledgerWrap');
+  const open=w.style.display==='none';
+  w.style.display=open?'block':'none';
+  $('#ledgerBtn').textContent=open?'정산 상세 내역 ▴':'정산 상세 내역 ▾';
+});
 (function renderLedger(){
-  // 과거→최신 순으로 정의 후 누계 계산, 화면엔 최신순
+  /* 과거→최신 정의 후 누계, 화면엔 최신순 · 합계 = 1,284,600원 */
   const rows=[
-    ['06-29','sale','이브이 히어로즈 오리파 판매 41구',205000],
-    ['06-29','fee','플랫폼 수수료 (10%)',-20500],
-    ['06-30','sale','이브이 히어로즈 오리파 판매 96구',480000],
-    ['06-30','redeem','포인트 환원 (카드 교환 9건)',-96400],
-    ['06-30','fee','플랫폼 수수료 (10%)',-48000],
-    ['07-01','sale','리자몽 레트로 스페셜 오리파 판매 120구',600000],
-    ['07-01','fee','플랫폼 수수료 (10%)',-60000],
-    ['07-02','redeem','포인트 환원 (카드 교환 14건)',-152300],
+    ['07-01','sale','이브이 히어로즈 오리파 판매 96구',480000],
+    ['07-01','fee','플랫폼 이용료 (10%)',-48000],
+    ['07-02','sale','리자몽 레트로 오리파 판매 120구',600000],
+    ['07-02','fee','플랫폼 이용료 (10%)',-60000],
+    ['07-02','redeem','포인트 교환 (카드 9건 재고 복귀)',-152300],
     ['07-03','sale','이브이 히어로즈 오리파 판매 74구',370000],
-    ['07-03','fee','플랫폼 수수료 (10%)',-37000],
-    ['07-04','sale','리자몽 레트로 스페셜 오리파 판매 88구',440000],
-    ['07-04','redeem','포인트 환원 (카드 교환 6건)',-71200],
+    ['07-03','fee','플랫폼 이용료 (10%)',-37000],
+    ['07-03','redeem','포인트 교환 (카드 6건 재고 복귀)',-96900],
+    ['07-04','sale','리자몽 레트로 오리파 판매 88구',440000],
+    ['07-04','fee','플랫폼 이용료 (10%)',-44000],
+    ['07-04','redeem','포인트 교환 (카드 11건 재고 복귀)',-180000],
+    ['07-04','adj','기타 조정 (배송 파손 보상 차감)',-85000],
+    ['07-05','sale','이브이 히어로즈 오리파 판매 42구',210000],
+    ['07-05','fee','플랫폼 이용료 (10%)',-21000],
+    ['07-05','redeem','포인트 교환 (카드 4건 재고 복귀)',-91200],
   ];
-  const CHIP={sale:['blue','판매'],redeem:['red','포인트 환원'],fee:['mut','수수료']};
+  const CHIP={sale:['blue','판매'],redeem:['gold','포인트 교환'],fee:['mut','이용료'],adj:['mut','조정']};
   let cum=0;
   const out=rows.map(([d,t,desc,amt])=>{cum+=amt;return{d,t,desc,amt,cum};}).reverse();
   $('#ledger').innerHTML=out.map(r=>{
     const[cls,label]=CHIP[r.t];
-    const color=r.t==='sale'?'var(--blueL)':r.t==='redeem'?'var(--red)':'var(--t2)';
     return `<tr>
       <td class="mono" style="color:var(--t2)">${r.d}</td>
       <td><span class="chip ${cls}">${label}</span></td>
       <td>${r.desc}</td>
-      <td class="amt mono" style="color:${color}">${r.amt>0?'+':'−'}₩${fmt(Math.abs(r.amt))}</td>
-      <td class="r mono" style="color:var(--t2)">₩${fmt(r.cum)}</td>
+      <td class="amt mono" style="color:${r.amt>0?'var(--red)':'var(--blueL)'}">${r.amt>0?'+':'−'}${fmt(Math.abs(r.amt))}</td>
+      <td class="r mono" style="color:var(--t2)">${fmt(r.cum)}</td>
     </tr>`;}).join('');
 })();
 
+/* ═══════════ 매장 설정 모달 ═══════════ */
+$('#settingsBtn').addEventListener('click',()=>{
+  openModal(`
+    <h3>매장 설정</h3>
+    <div class="body" style="margin-bottom:14px">새 오리파를 만들 때 이 배송 정책이 기본으로 적용됩니다.</div>
+    <div class="grid2">
+      <div class="field"><label>기본 배송비</label>
+        <div class="suffix"><input id="setShip" type="number" step="500" value="${store.shipFee}"><span>원</span></div></div>
+      <div class="field"><label>무료배송 기준 (교환 포인트 합계)</label>
+        <div class="suffix"><input id="setFree" type="number" step="1000" value="${store.freeShip}"><span>P</span></div></div>
+    </div>
+    <div class="acts">
+      <button class="btn ghost" onclick="closeModal()">취소</button>
+      <button class="btn" id="setSave">저장</button>
+    </div>`);
+  $('#setSave').addEventListener('click',()=>{
+    store.shipFee=+$('#setShip').value||store.shipFee;
+    store.freeShip=+$('#setFree').value||store.freeShip;
+    closeModal();renderOrders();
+    if(wiz.step===1&&!wiz.polCustom)renderPolLine();
+    toast('매장 설정이 저장되었습니다');
+  });
+});
+
 /* ═══════════ 초기화 ═══════════ */
-preseed();
-renderOripas();
+seedWiz();
+renderProducts();
+renderHome();
+renderOripaList();
+renderStorage();
 renderOrders();
-feedTick();
+renderPolLine();
 </script>
 </body>
 </html>

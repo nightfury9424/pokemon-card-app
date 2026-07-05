@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>oripa — REVEAL 데모</title>
+<style>
+/* ============================================================
+   oripa REVEAL 데모 — 씰 뜯기 → 슬라이드 아웃 → 티어 공개
+   디자인 기준 390×844 (모바일 퍼스트), 데스크톱은 폰 스테이지 센터링
+   ============================================================ */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:#010203;
+  display:flex;align-items:center;justify-content:center;
+  font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR",sans-serif;
+  color:var(--txt);
+  overflow:hidden;
+}
+:root{
+  --bg:#04080F;
+  --txt:#E8EEF7;
+  --sub:#8B98AC;
+  --surf:#101826;
+  --surfEl:#1A2436;
+  --line:rgba(255,255,255,.08);
+  --accent:#4D8FEA;      /* 테마 포인트 (다크 프리즘 = 블루) */
+  --accent2:#9D5CFF;     /* 보조 (바이올렛) */
+  --tier:#E8EEF7;        /* 현재 추첨 티어 색 — JS가 주입 */
+  --glowMax:.55;
+}
+#stage[data-theme="flame"]{
+  --accent:#FF6B35;      /* 화염 스킨 — 엠버 오렌지 */
+  --accent2:#FFB35C;
+}
+
+/* ---------- 스테이지 (폰 프레임) ---------- */
+#stage{
+  position:relative;
+  width:min(100vw,390px);
+  height:min(100dvh,844px);
+  background:var(--bg);
+  overflow:hidden;
+  touch-action:none;               /* 드래그 제스처 전용 */
+  user-select:none;-webkit-user-select:none;
+}
+@media (min-width:500px) and (min-height:900px){
+  #stage{border-radius:38px;box-shadow:0 0 0 8px #14181f,0 30px 90px rgba(0,0,0,.8)}
+}
+/* 비네트 + 테마 앰비언트 */
+#vignette{
+  position:absolute;inset:0;pointer-events:none;z-index:1;
+  background:
+    radial-gradient(120% 90% at 50% 38%, transparent 40%, rgba(0,0,0,.55) 100%),
+    radial-gradient(80% 55% at 50% 30%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%);
+}
+
+/* ---------- 상단 진행 dot 1-2-3 ---------- */
+#dots{
+  position:absolute;top:calc(14px + env(safe-area-inset-top));left:0;right:0;z-index:20;
+  display:flex;justify-content:center;gap:22px;pointer-events:none;
+  opacity:0;transition:opacity .4s;
+}
+#dots.show{opacity:1}
+#dots .dot{
+  width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;color:var(--sub);
+  background:rgba(255,255,255,.05);border:1px solid var(--line);
+  transition:all .35s;
+}
+#dots .dot.on{color:#04080F;background:var(--tier);border-color:var(--tier);box-shadow:0 0 14px color-mix(in srgb,var(--tier) 60%,transparent)}
+#dots .dot.past{color:var(--tier);border-color:color-mix(in srgb,var(--tier) 50%,transparent)}
+
+/* ---------- 스킵 버튼 ---------- */
+#skipBtn{
+  position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;z-index:50;
+  background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--sub);
+  font-size:12px;padding:7px 13px;border-radius:99px;cursor:pointer;
+  backdrop-filter:blur(4px);display:none;
+}
+#skipBtn.show{display:block}
+#skipBtn:active{background:rgba(255,255,255,.12)}
+
+/* ---------- 티어 글로우 (팩 뒤 광원) ---------- */
+#glow{
+  position:absolute;left:50%;top:44%;z-index:5;pointer-events:none;
+  width:420px;height:520px;transform:translate(-50%,-50%);
+  background:radial-gradient(50% 50% at 50% 50%, var(--tier), transparent 70%);
+  opacity:0;transition:opacity .8s;will-change:opacity;
+  filter:blur(6px);
+}
+
+/* ---------- 팩 (슬리브 + 카드백 + 티켓 + 씰) ---------- */
+#packWrap{
+  position:absolute;left:50%;top:44%;z-index:10;
+  transform:translate(-50%,-50%);
+  will-change:transform;
+}
+#packWrap.shake{animation:shake .14s linear}
+@keyframes shake{
+  0%{transform:translate(calc(-50% - 2px),-50%)}
+  50%{transform:translate(calc(-50% + 2px),calc(-50% + 1px))}
+  100%{transform:translate(-50%,-50%)}
+}
+#pack{
+  position:relative;width:264px;height:396px;
+  opacity:0;
+  will-change:transform,opacity;
+}
+#pack.drop{animation:packDrop .48s cubic-bezier(.2,.9,.3,1) forwards}
+@keyframes packDrop{ /* 등장: 낙하 + 미세 바운스 */
+  0%{opacity:0;transform:translateY(-480px) scale(.94)}
+  70%{opacity:1;transform:translateY(10px) scale(1.005)}
+  85%{transform:translateY(-5px)}
+  100%{opacity:1;transform:translateY(0)}
+}
+#pack.dropAway{animation:packAway .55s ease-in forwards}
+@keyframes packAway{to{opacity:0;transform:translateY(90px) rotate(2deg)}}
+
+/* 슬리브 뒷판 */
+.sleeveBack{
+  position:absolute;inset:0;border-radius:18px;
+  background:linear-gradient(170deg,#0D1522,#070B13);
+  box-shadow:0 18px 50px rgba(0,0,0,.65);
+}
+/* 안쪽 카드백 2장 (겹침, ±4°) — 실물 카드가 아닌 범용 다크 카드백 */
+.backCard{
+  position:absolute;left:50%;top:26px;width:224px;height:313px;border-radius:12px;
+  background:
+    radial-gradient(60% 40% at 50% 38%, rgba(77,143,234,.16), transparent 70%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.025) 0 2px, transparent 2px 9px),
+    linear-gradient(155deg,#1B2436,#0C1220 60%,#141C2E);
+  border:1px solid rgba(255,255,255,.09);
+  display:flex;align-items:center;justify-content:center;
+}
+.backCard::after{ /* 카드백 로고 */
+  content:"oripa";font-size:20px;font-weight:800;letter-spacing:.14em;
+  color:rgba(232,238,247,.18);
+}
+.backCard.a{transform:translateX(-50%) rotate(-4deg)}
+.backCard.b{transform:translateX(calc(-50% + 6px)) rotate(4deg)}
+
+/* 결과 카드 (실카드 이미지, Phase2에 등장) */
+#resultCard{
+  position:absolute;left:50%;top:-14px;               /* 윗변만 살짝 노출 */
+  width:236px;height:330px;border-radius:12px;
+  transform:translateX(-50%);
+  opacity:0;transition:opacity .4s;
+  will-change:transform;
+  overflow:hidden;
+  box-shadow:0 6px 26px rgba(0,0,0,.55);
+}
+#resultCard img{width:100%;height:100%;object-fit:cover;display:block;border-radius:12px}
+#resultCard .gloss{ /* 노출부를 훑는 스펙큘러 밴드 */
+  position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.18) 50%,transparent 60%);
+  background-size:250% 250%;
+  animation:glossSweep 2.1s ease-in-out infinite;
+  will-change:background-position;
+}
+@keyframes glossSweep{
+  0%{background-position:140% 0}
+  55%{background-position:-40% 0}
+  100%{background-position:-40% 0}
+}
+#resultCard.show{opacity:1}
+
+/* 티켓 스트립 (씰이 뜯길수록 단계 공개) */
+#ticket{
+  position:absolute;left:50%;top:60px;transform:translateX(-50%);
+  width:46px;height:230px;border-radius:6px;
+  background:linear-gradient(180deg,#0B0B10,#050508);
+  border:1px solid rgba(255,255,255,.1);
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+  padding:14px 0;opacity:.5;transition:opacity .5s;
+}
+#ticket .q{font-size:22px;font-weight:800;color:rgba(232,238,247,.75)}
+#ticket .vert{writing-mode:vertical-rl;font-size:10px;letter-spacing:.35em;color:var(--sub)}
+#ticket .num{
+  font-size:12px;font-weight:800;color:var(--tier);letter-spacing:.02em;
+  min-height:15px;opacity:0;transition:opacity .4s;white-space:nowrap;
+}
+#ticket .barcode{
+  width:30px;height:26px;border-radius:2px;opacity:0;transition:opacity .4s;
+  background:repeating-linear-gradient(90deg,#E8EEF7 0 2px,#0B0B10 2px 4px);
+}
+#pack.ts2 #ticket,#pack.ts3 #ticket,#pack.ts4 #ticket{opacity:.85}
+#pack.ts2 #ticket .num{opacity:1}
+#pack.ts3 #ticket .barcode,#pack.ts4 #ticket .barcode{opacity:1}
+
+/* 슬리브 앞판 (반투명 + 스펙큘러) */
+.sleeveFront{
+  position:absolute;inset:0;border-radius:18px;z-index:4;
+  background:linear-gradient(160deg, rgba(22,32,52,.74), rgba(8,12,22,.82) 70%);
+  border:1px solid rgba(255,255,255,.12);
+  pointer-events:none;
+  will-change:transform;
+  overflow:hidden;
+}
+.sleeveFront::before{ /* 대각 스펙큘러 */
+  content:"";position:absolute;inset:-40%;
+  background:linear-gradient(115deg,transparent 42%,rgba(255,255,255,.07) 50%,transparent 58%);
+}
+.sleeveFront::after{ /* 상단 개구부 라인 */
+  content:"";position:absolute;left:14px;right:14px;top:0;height:2px;
+  background:rgba(255,255,255,.14);border-radius:2px;
+}
+#pack.ts4 .sleeveFront{animation:loosen .55s ease-out} /* 4번째 씰 → 모서리 느슨 */
+@keyframes loosen{
+  0%{transform:scale(1)}
+  40%{transform:scale(1.02) rotate(.5deg)}
+  70%{transform:scale(1.008) rotate(-.3deg)}
+  100%{transform:scale(1)}
+}
+/* 슬라이드 중 슬리브 내부 홀로 시머 (울트라 전용) */
+.sleeveFront .holo{
+  position:absolute;inset:0;opacity:0;transition:opacity .6s;
+  background:linear-gradient(120deg,rgba(255,204,0,.14),rgba(157,92,255,.12),rgba(77,143,234,.12),rgba(255,204,0,.14));
+  background-size:300% 300%;
+  animation:holoShift 2.4s linear infinite;
+}
+@keyframes holoShift{0%{background-position:0 0}100%{background-position:300% 0}}
+#pack.holoOn .sleeveFront .holo{opacity:1}
+/* 잭팟: 림 점화 */
+#pack .rim{
+  position:absolute;inset:-3px;border-radius:21px;z-index:6;pointer-events:none;
+  border:2px solid transparent;opacity:0;transition:opacity .5s;
+}
+#pack.rimGold .rim{
+  opacity:1;border-color:#FFD700;
+  box-shadow:0 0 18px rgba(255,215,0,.7),inset 0 0 14px rgba(255,215,0,.35);
+  animation:rimPulse 1.1s ease-in-out infinite;
+}
+#pack.rimEdge .rim{ /* 슈퍼: 엣지 라이트 */
+  opacity:1;border-color:color-mix(in srgb,var(--tier) 80%,transparent);
+  box-shadow:0 0 14px color-mix(in srgb,var(--tier) 55%,transparent);
+}
+@keyframes rimPulse{50%{box-shadow:0 0 30px rgba(255,215,0,.95),inset 0 0 20px rgba(255,215,0,.5)}}
+
+/* ---------- 씰 스티커 (4방향) ---------- */
+.sealPos{position:absolute;z-index:8;width:66px;height:66px;touch-action:none}
+.sealPos.top{left:50%;top:0;transform:translate(-50%,-50%)}
+.sealPos.bottom{left:50%;bottom:0;transform:translate(-50%,50%)}
+.sealPos.left{left:0;top:50%;transform:translate(-50%,-50%) rotate(90deg)}
+.sealPos.right{right:0;top:50%;transform:translate(50%,-50%) rotate(90deg)}
+.seal{position:relative;width:100%;height:100%;cursor:grab;will-change:transform}
+.seal:active{cursor:grabbing}
+.sealFace,.sealFlap{
+  position:absolute;left:6px;top:6px;width:54px;height:54px;border-radius:50%;
+  will-change:clip-path,transform;
+}
+.sealFace{
+  background:radial-gradient(circle at 35% 28%, #2E4160, #131B2B 70%);
+  border:1px solid rgba(255,255,255,.28);
+  box-shadow:0 3px 8px rgba(0,0,0,.55), inset 0 1px 2px rgba(255,255,255,.2); /* 가장자리 들뜸 그림자 */
+}
+.sealFlap{ /* 뜯겨 말리는 반쪽 (접착면 = 어둡게) */
+  background:radial-gradient(circle at 60% 60%, #1A2334, #0A0F19 75%);
+  border:1px solid rgba(255,255,255,.12);
+  transform-origin:left center;
+  opacity:0;
+  filter:drop-shadow(3px 4px 5px rgba(0,0,0,.6));
+}
+.sealFace svg{width:100%;height:100%;display:block}
+.sealFace text{fill:rgba(232,238,247,.55);font-size:7.5px;font-weight:700;letter-spacing:.18em}
+.seal .flash{ /* 완료 "틱" 플래시 */
+  position:absolute;left:50%;top:50%;width:70px;height:70px;border-radius:50%;
+  transform:translate(-50%,-50%) scale(.3);opacity:0;pointer-events:none;
+  background:radial-gradient(circle, var(--tier), transparent 70%);
+}
+.seal.done{animation:sealOff .38s ease-in forwards;pointer-events:none}
+.seal.done .flash{animation:tick .38s ease-out}
+@keyframes sealOff{to{opacity:0;transform:translate(-34px,-40px) rotate(-50deg) scale(.7)}}
+@keyframes tick{0%{opacity:.9;transform:translate(-50%,-50%) scale(.3)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.6)}}
+
+/* 씰 1개째부터 새어나오는 글로우 리크 (티어 컬러) */
+#leak{
+  position:absolute;inset:8px;border-radius:16px;z-index:3;pointer-events:none;
+  box-shadow:0 0 0 rgba(0,0,0,0);opacity:0;transition:opacity .7s;
+  background:radial-gradient(70% 60% at 50% 45%, color-mix(in srgb,var(--tier) 22%,transparent), transparent 75%);
+}
+#pack.ts1 #leak{opacity:.6}
+#pack.ts2 #leak{opacity:.75}
+#pack.ts3 #leak,#pack.ts4 #leak{opacity:1}
+
+/* ---------- 잭팟 인터루드 ---------- */
+#dimmer{
+  position:absolute;inset:0;background:#000;z-index:30;pointer-events:none;
+  opacity:0;transition:opacity .5s;will-change:opacity;
+}
+#lightline{
+  position:absolute;left:-20%;right:-20%;top:44%;height:2px;z-index:35;pointer-events:none;
+  background:linear-gradient(90deg,transparent,#FFD700 30%,#FFF8DC 50%,#FFD700 70%,transparent);
+  box-shadow:0 0 22px rgba(255,215,0,.9);
+  transform:scaleX(0);opacity:0;will-change:transform,opacity;
+}
+#lightline.sweep{animation:lineSweep .55s cubic-bezier(.3,0,.2,1) forwards}
+@keyframes lineSweep{
+  0%{opacity:0;transform:scaleX(0)}
+  30%{opacity:1}
+  100%{opacity:0;transform:scaleX(1.15)}
+}
+
+/* ---------- Phase 3: 카드 스테이지 ---------- */
+#cardStage{
+  position:absolute;inset:0;z-index:40;display:none;
+  align-items:center;justify-content:center;
+  perspective:900px;
+}
+#cardStage.show{display:flex}
+#floatWrap{will-change:transform}
+#floatWrap.floating{animation:idleFloat 3.6s ease-in-out infinite}
+@keyframes idleFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+#tiltWrap{
+  transform-style:preserve-3d;will-change:transform;
+  transition:transform .12s ease-out;
+}
+#bigCard{
+  position:relative;width:300px;height:419px;border-radius:16px;overflow:hidden;
+  box-shadow:0 24px 70px rgba(0,0,0,.7), 0 0 44px color-mix(in srgb,var(--tier) 32%,transparent);
+  opacity:0;transform:translateY(70px) scale(.72);
+  will-change:transform,opacity;
+}
+#bigCard.rise{transition:transform .6s cubic-bezier(.2,.85,.3,1),opacity .5s;opacity:1;transform:translateY(0) scale(1)}
+#bigCard.zoomSlow{animation:zoomSlow 5s ease-out forwards} /* 잭팟 슬로 줌 */
+@keyframes zoomSlow{from{scale:1}to{scale:1.06}}
+#bigCard img{width:100%;height:100%;object-fit:cover;display:block}
+#bigCard .gloss2{ /* 포인터 카운터 스윕 글로스 */
+  position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.22) 50%,transparent 70%);
+  background-size:240% 240%;background-position:50% 50%;
+  will-change:background-position;
+}
+#jackBanner{
+  position:absolute;top:16%;left:0;right:0;z-index:45;text-align:center;pointer-events:none;
+  font-size:34px;font-weight:900;letter-spacing:.32em;color:#FFD700;
+  text-shadow:0 0 26px rgba(255,215,0,.8),0 2px 6px rgba(0,0,0,.6);
+  opacity:0;transform:scale(1.4);
+}
+#jackBanner.show{transition:all .7s cubic-bezier(.2,.9,.3,1);opacity:1;transform:scale(1)}
+
+/* 시머 파티클 (CSS only, 절제된 상승 입자) */
+#particles{position:absolute;inset:0;z-index:42;pointer-events:none;overflow:hidden}
+#particles i{
+  position:absolute;bottom:-12px;width:5px;height:5px;border-radius:50%;
+  background:var(--pcol,#FFD700);
+  opacity:0;
+  animation:rise var(--dur,4s) linear var(--del,0s) infinite;
+  will-change:transform,opacity;
+  box-shadow:0 0 8px var(--pcol,#FFD700);
+}
+@keyframes rise{
+  0%{opacity:0;transform:translateY(0) scale(.6)}
+  12%{opacity:.85}
+  85%{opacity:.4}
+  100%{opacity:0;transform:translateY(-92vh) translateX(var(--dx,0px)) scale(1)}
+}
+
+/* ---------- 힌트 / 캡션 ---------- */
+#hint{
+  position:absolute;left:0;right:0;bottom:150px;z-index:20;text-align:center;pointer-events:none;
+  color:var(--sub);font-size:14px;letter-spacing:.02em;
+  opacity:0;transition:opacity .5s;
+}
+#hint.show{opacity:1}
+#hint .finger{display:block;font-size:22px;margin-top:8px;opacity:.55;animation:fingerNudge 1.6s ease-in-out infinite}
+@keyframes fingerNudge{0%,100%{transform:translateX(-9px)}50%{transform:translateX(9px)}}
+#caption{
+  position:absolute;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));z-index:20;
+  text-align:center;font-size:10px;color:var(--sub);opacity:.45;pointer-events:none;
+}
+
+/* ---------- 시작 오버레이 ---------- */
+#startOverlay{
+  position:absolute;inset:0;z-index:55;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  transition:opacity .4s;
+}
+#startOverlay.hide{opacity:0;pointer-events:none}
+#startOverlay .logo{font-size:44px;font-weight:900;letter-spacing:.06em;
+  background:linear-gradient(120deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+#startOverlay .sub{font-size:13px;color:var(--sub);margin-bottom:22px}
+#drawBtn{
+  background:linear-gradient(120deg,var(--accent),color-mix(in srgb,var(--accent2) 70%,var(--accent)));
+  color:#fff;border:0;border-radius:16px;font-size:17px;font-weight:800;
+  padding:16px 64px;cursor:pointer;letter-spacing:.04em;
+  box-shadow:0 8px 30px color-mix(in srgb,var(--accent) 40%,transparent);
+}
+#drawBtn:active{transform:scale(.97)}
+
+/* ---------- 결과 바텀시트 ---------- */
+#sheet{
+  position:absolute;left:0;right:0;bottom:0;z-index:60;
+  background:linear-gradient(180deg,rgba(20,28,44,.97),rgba(10,15,26,.99));
+  border-radius:24px 24px 0 0;border-top:1px solid var(--line);
+  padding:20px 20px calc(96px + env(safe-area-inset-bottom));
+  transform:translateY(105%);transition:transform .5s cubic-bezier(.2,.9,.3,1);
+  will-change:transform;
+}
+#sheet.show{transform:translateY(0)}
+#sheet .grab{width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,.18);margin:0 auto 16px}
+#sheet .row1{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+#tierChip{
+  font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px;
+  color:#04080F;background:var(--tier);letter-spacing:.06em;white-space:nowrap;
+}
+#rName{font-size:17px;font-weight:800;line-height:1.35;flex:1}
+#rSet{font-size:12px;color:var(--sub);margin-bottom:12px}
+#rPts{font-size:24px;font-weight:900;color:var(--tier);margin-bottom:16px;letter-spacing:.01em}
+#rPts small{font-size:12px;font-weight:600;color:var(--sub);margin-left:6px}
+#sheet .btns{display:flex;gap:10px}
+#sheet .btns button{
+  flex:1;border:0;border-radius:14px;padding:15px 0;font-size:15px;font-weight:800;cursor:pointer;
+}
+#keepBtn{background:var(--surfEl);color:var(--txt);border:1px solid var(--line)}
+#exchBtn{background:var(--accent);color:#fff}
+#againBtn{
+  display:none;width:100%;margin-top:10px;border:0;border-radius:14px;padding:15px 0;
+  font-size:15px;font-weight:800;cursor:pointer;
+  background:linear-gradient(120deg,var(--accent),var(--accent2));color:#fff;
+}
+#againBtn.show{display:block}
+#sheet .btns button:active,#againBtn:active{transform:scale(.98)}
+
+/* ---------- 토스트 ---------- */
+#toast{
+  position:absolute;left:50%;bottom:calc(180px + env(safe-area-inset-bottom));z-index:80;
+  transform:translate(-50%,12px);background:rgba(232,238,247,.94);color:#0B1220;
+  font-size:13px;font-weight:700;padding:11px 20px;border-radius:99px;
+  opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ---------- 데모 모드 바 (영업 시연용) ---------- */
+#demobar{
+  position:absolute;left:0;right:0;bottom:0;z-index:70;
+  display:flex;align-items:center;gap:6px;
+  padding:9px 10px calc(9px + env(safe-area-inset-bottom));
+  background:rgba(6,10,18,.9);border-top:1px solid var(--line);
+  backdrop-filter:blur(8px);
+}
+#demobar .chip{
+  border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--sub);
+  font-size:11px;font-weight:700;padding:7px 0;border-radius:99px;cursor:pointer;flex:1;
+  text-align:center;transition:all .2s;
+}
+#demobar .chip.on{color:#04080F;background:var(--txt);border-color:var(--txt)}
+#demobar .chip[data-tier="jackpot"].on{background:#FFD700;border-color:#FFD700}
+#themeSel{
+  background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--sub);
+  font-size:11px;font-weight:700;padding:7px 4px;border-radius:10px;max-width:104px;
+  appearance:none;-webkit-appearance:none;text-align:center;
+}
+</style>
+</head>
+<body>
+<div id="stage" data-theme="prism">
+  <div id="vignette"></div>
+  <div id="glow"></div>
+
+  <div id="dots">
+    <div class="dot" data-p="1">1</div>
+    <div class="dot" data-p="2">2</div>
+    <div class="dot" data-p="3">3</div>
+  </div>
+  <button id="skipBtn">연출 스킵</button>
+
+  <!-- 팩: 내용은 매 드로우마다 JS가 재생성 -->
+  <div id="packWrap"><div id="pack"></div></div>
+
+  <div id="lightline"></div>
+  <div id="dimmer"></div>
+
+  <!-- Phase3 카드 스테이지 -->
+  <div id="cardStage">
+    <div id="floatWrap"><div id="tiltWrap">
+      <div id="bigCard"><img id="bigImg" alt=""><div class="gloss2"></div></div>
+    </div></div>
+  </div>
+  <div id="jackBanner">JACKPOT</div>
+  <div id="particles"></div>
+
+  <div id="hint"></div>
+  <div id="caption">결과는 이미 서버에서 확정되었습니다 · 연출 스킵 가능</div>
+
+  <!-- 결과 바텀시트 -->
+  <div id="sheet">
+    <div class="grab"></div>
+    <div class="row1"><span id="tierChip">일반</span><span id="rName">—</span></div>
+    <div id="rSet">—</div>
+    <div id="rPts">0P<small>교환 포인트</small></div>
+    <div class="btns">
+      <button id="keepBtn">보관하기</button>
+      <button id="exchBtn">P로 교환</button>
+    </div>
+    <button id="againBtn">다시 뽑기</button>
+  </div>
+  <div id="toast"></div>
+
+  <!-- 데모 모드 바 -->
+  <div id="demobar">
+    <div class="chip" data-tier="normal">일반</div>
+    <div class="chip" data-tier="chance">찬스</div>
+    <div class="chip" data-tier="super">슈퍼</div>
+    <div class="chip" data-tier="ultra">울트라</div>
+    <div class="chip" data-tier="jackpot">잭팟</div>
+    <select id="themeSel">
+      <option value="prism">테마: 다크 프리즘</option>
+      <option value="flame">테마: 화염</option>
+    </select>
+  </div>
+
+  <!-- 시작 오버레이 -->
+  <div id="startOverlay">
+    <div class="logo">oripa</div>
+    <div class="sub">씰을 뜯고, 카드를 꺼내는 손맛 — REVEAL 데모</div>
+    <button id="drawBtn">뽑기 시작</button>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+// ===JS===
+/* ============================================================
+   oripa REVEAL 로직
+   핵심 원칙: 추첨(결과)은 [뽑기 시작] 시점에 즉시 확정(서버 모사),
+   이후의 모든 연출은 "연극". 스킵은 언제나 동일 결과로 점프.
+   ============================================================ */
+'use strict';
+const $=id=>document.getElementById(id);
+const stage=$('stage'),packWrap=$('packWrap'),pack=$('pack'),glow=$('glow'),
+      hint=$('hint'),dots=$('dots'),skipBtn=$('skipBtn'),dimmer=$('dimmer'),
+      lightline=$('lightline'),cardStage=$('cardStage'),bigCard=$('bigCard'),
+      bigImg=$('bigImg'),gloss2=document.querySelector('#bigCard .gloss2'),
+      floatWrap=$('floatWrap'),tiltWrap=$('tiltWrap'),jackBanner=$('jackBanner'),
+      particles=$('particles'),sheet=$('sheet'),toastEl=$('toast');
+
+// ---------- 티어 정의 (가격 밴드 = 데모 모드 매칭 기준) ----------
+const TIERS={
+  normal :{label:'일반',    color:'#E8EEF7', band:[0,3000],           dim:0,   weight:.55},
+  chance :{label:'찬스',    color:'#4D8FEA', band:[3000,20000],       dim:0,   weight:.25},
+  super  :{label:'슈퍼',    color:'#9D5CFF', band:[20000,100000],     dim:.20, weight:.12},
+  ultra  :{label:'울트라',  color:'#FFCC00', band:[100000,500000],    dim:.35, weight:.06},
+  jackpot:{label:'JACKPOT', color:'#FFD700', band:[500000,Infinity],  dim:.35, weight:.02},
+};
+// 가격 밴드별 카드 풀 사전 구성
+const POOLS={};
+for(const k in TIERS){
+  const[lo,hi]=TIERS[k].band;
+  POOLS[k]=CARDS.filter(c=>c.price>=Math.max(lo,100)&&c.price<hi&&c.id&&c.img);
+}
+const imgUrl=c=>`${CDN}/${c.img}/${c.id}.png`;
+const fmt=n=>n.toLocaleString('ko-KR');
+const vib=ms=>{try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
+
+// ---------- 전역 상태 ----------
+let _phase=-1;
+Object.defineProperty(window,'__phase',{get:()=>_phase});           // -1 대기 / 0 등장 / 1 씰 / 2 슬라이드 / 3 공개
+let result=null;        // {tier, card, num} — 뽑기 시작 시 확정
+let forcedTier=null;    // 데모바 강제 티어
+let timers=[];
+const after=(ms,fn)=>{const t=setTimeout(fn,ms);timers.push(t);return t};
+const clearTimers=()=>{timers.forEach(clearTimeout);timers=[]};
+
+function setDots(p){
+  dots.classList.toggle('show',p>=1&&p<=3);
+  dots.querySelectorAll('.dot').forEach(d=>{
+    const n=+d.dataset.p;
+    d.classList.toggle('on',n===p);
+    d.classList.toggle('past',n<p);
+  });
+}
+function setHint(txt,finger){
+  if(!txt){hint.classList.remove('show');return}
+  hint.innerHTML=txt+(finger?'<span class="finger">👆</span>':'');
+  hint.classList.add('show');
+}
+function toast(msg){
+  toastEl.textContent=msg;
+  toastEl.classList.add('show');
+  after(2200,()=>toastEl.classList.remove('show'));
+}
+
+// ============================================================
+// 뽑기 시작 — "서버 추첨" 모사: 결과를 연출 전에 확정 + 이미지 프리로드
+// ============================================================
+function startDraw(){
+  clearTimers();
+  const tier=forcedTier||weightedTier();
+  let pool=POOLS[tier];
+  if(!pool.length)pool=CARDS.filter(c=>c.price>100); // 밴드 공백 대비
+  const card=pool[Math.floor(Math.random()*pool.length)];
+  result={tier,card,num:1+Math.floor(Math.random()*100)};
+  new Image().src=imgUrl(card);                 // ★ 슬라이드 전 프리로드
+  stage.style.setProperty('--tier',TIERS[tier].color);
+  buildPack();
+  enterPhase0();
+}
+function weightedTier(){
+  let r=Math.random();
+  for(const k in TIERS){r-=TIERS[k].weight;if(r<=0)return k}
+  return 'normal';
+}
+
+// ============================================================
+// 팩 DOM 재생성 (매 드로우마다 씰/티켓 상태 리셋)
+// ============================================================
+const SEAL_DEFS=[
+  {pos:'top',axis:'h'},{pos:'bottom',axis:'h'},
+  {pos:'left',axis:'v'},{pos:'right',axis:'v'},
+];
+let seals=[];
+function buildPack(){
+  pack.className='';
+  pack.innerHTML=`
+    <div class="sleeveBack"></div>
+    <div id="leak"></div>
+    <div class="backCard a"></div>
+    <div class="backCard b"></div>
+    <div id="ticket">
+      <div class="q">?</div>
+      <div class="num"></div>
+      <div class="vert">TICKET</div>
+      <div class="barcode"></div>
+    </div>
+    <div id="resultCard"><img alt=""><div class="gloss"></div></div>
+    <div class="sleeveFront"><div class="holo"></div></div>
+    <div class="rim"></div>`;
+  seals=[];
+  SEAL_DEFS.forEach((def,i)=>{
+    const posEl=document.createElement('div');
+    posEl.className='sealPos '+def.pos;
+    // 링 텍스트 씰: 원형 패스 위 "ORIPA · SEAL" (SVG textPath)
+    posEl.innerHTML=`<div class="seal">
+      <div class="sealFace">
+        <svg viewBox="0 0 54 54">
+          <defs><path id="sp${i}" d="M27 27 m -18 0 a 18 18 0 1 1 36 0 a 18 18 0 1 1 -36 0"/></defs>
+          <circle cx="27" cy="27" r="22" fill="none" stroke="rgba(232,238,247,.22)" stroke-width="1" stroke-dasharray="3 3"/>
+          <text><textPath href="#sp${i}">ORIPA · SEAL · ORIPA · SEAL ·</textPath></text>
+          <circle cx="27" cy="27" r="5" fill="rgba(232,238,247,.3)"/>
+        </svg>
+      </div>
+      <div class="sealFlap"></div>
+      <div class="flash"></div>
+    </div>`;
+    pack.appendChild(posEl);
+    const s={
+      el:posEl.querySelector('.seal'),
+      faceEl:posEl.querySelector('.sealFace'),
+      flapEl:posEl.querySelector('.sealFlap'),
+      axis:def.axis,
+      prog:0,done:false,stroke:0,px:0,py:0,
+      z:Array.from({length:7},()=>Math.random()*9), // 톱니 지그재그 오프셋
+    };
+    wireSeal(s);
+    seals.push(s);
+  });
+  pack.querySelector('#resultCard img').src=imgUrl(result.card);
+}
+
+// ============================================================
+// Phase 0 — 등장 (낙하 + 바운스)
+// ============================================================
+function enterPhase0(){
+  _phase=0,stage.dataset.phase=0;
+  setDots(0);setHint('');
+  skipBtn.classList.add('show');
+  glow.style.opacity=0;
+  pack.classList.add('drop');
+  after(560,()=>{if(_phase===0)enterPhase1()});
+}
+
+// ============================================================
+// Phase 1 — 씰 뜯기 (4방향, 드래그 저항 progress = dragPx * 0.4)
+// ============================================================
+const SEAL_NEED=140;     // 유효 픽셀 요구량 → 약 2 스트로크
+let sealsDone=0;
+function enterPhase1(){
+  _phase=1,stage.dataset.phase=1;sealsDone=0;
+  setDots(1);
+  setHint('스티커를 살짝살짝 뜯어보세요',true);
+}
+function wireSeal(s){
+  s.el.addEventListener('pointerdown',e=>{
+    if(_phase!==1||s.done)return;
+    try{s.el.setPointerCapture(e.pointerId)}catch(_){}
+    s.active=true;s.px=e.clientX;s.py=e.clientY;s.stroke=0;
+    e.preventDefault();
+  });
+  const end=()=>{s.active=false};
+  s.el.addEventListener('pointerup',end);
+  s.el.addEventListener('pointercancel',end);
+  s.el.addEventListener('pointermove',e=>{
+    if(_phase!==1||s.done||!s.active)return;
+    // 축 방향 이동량만 적산 (top/bottom=가로, left/right=세로)
+    const d=s.axis==='h'?Math.abs(e.clientX-s.px):Math.abs(e.clientY-s.py);
+    s.px=e.clientX;s.py=e.clientY;
+    if(d<0.5)return;
+    s.prog+=d*0.4;                       // ★ 저항 계수 0.4
+    s.stroke+=d;
+    if(s.stroke>26){                     // 스트로크마다 미세 흔들림 + 햅틱
+      s.stroke=0;
+      packWrap.classList.remove('shake');void packWrap.offsetWidth;
+      packWrap.classList.add('shake');
+      vib(8);
+    }
+    renderSeal(s);
+    if(s.prog>=SEAL_NEED)completeSeal(s);
+  });
+}
+// 톱니형 찢김 렌더 — clip-path polygon, 지그재그 프런트가 드래그를 따라 전진
+function renderSeal(s){
+  const p=Math.min(1,s.prog/SEAL_NEED);
+  const t=p*118-6,z=s.z;
+  // 남은 반쪽 (오른쪽): 왼쪽 변이 지그재그 찢김선
+  const face=[`${t+z[0]}% -4%`,'106% -4%','106% 106%',`${t+z[6]}% 106%`];
+  for(let i=5;i>=1;i--)face.push(`${(t+z[i]).toFixed(1)}% ${(i*16.7).toFixed(1)}%`);
+  s.faceEl.style.clipPath=`polygon(${face.join(',')})`;
+  // 뜯긴 반쪽 (왼쪽): 말림(컬) — 회전 + 이동 + 그림자
+  const flap=['-6% -6%',`${t+z[0]}% -4%`];
+  for(let i=1;i<=5;i++)flap.push(`${(t+z[i]).toFixed(1)}% ${(i*16.7).toFixed(1)}%`);
+  flap.push(`${t+z[6]}% 106%`,'-6% 106%');
+  s.flapEl.style.clipPath=`polygon(${flap.join(',')})`;
+  s.flapEl.style.opacity=p>0.03?1:0;
+  s.flapEl.style.transform=`translate(${-p*15}px,${-p*9}px) rotate(${-p*24}deg) scaleX(${1-p*.22})`;
+}
+function completeSeal(s){
+  if(s.done)return;
+  s.done=true;
+  s.el.classList.add('done');            // 플라이오프 + "틱" 플래시
+  vib(14);
+  sealsDone++;
+  ticketStage(sealsDone);
+  if(sealsDone>=4){
+    // 4번째 → 슬리브 모서리 느슨 → (잭팟이면 인터루드) → Phase 2
+    setHint('');
+    after(600,()=>{
+      if(result.tier==='jackpot')jackpotInterlude();
+      else enterPhase2();
+    });
+  }
+}
+// 씰 진행에 따른 티켓 단계 공개
+function ticketStage(n){
+  pack.classList.add('ts'+n);
+  const numEl=pack.querySelector('#ticket .num');
+  if(n===1){glow.style.opacity=.22}      // 1장: 티어색 빛 새어나옴
+  if(n===2){                              // 2장: 부분 번호 "2▓/100"
+    const s=String(result.num);
+    numEl.textContent=(s.length>1?s[0]:'')+'▓/100';
+  }
+  if(n===3){numEl.textContent=`${result.num} / 100`;glow.style.opacity=.3}
+  if(n===4){glow.style.opacity=.4}
+}
+
+// ============================================================
+// 잭팟 인터루드 — 0.7초 완전 암전 → 수평 광선 → 강진동 → 림 점화
+// ============================================================
+function jackpotInterlude(){
+  dimmer.style.transition='opacity .35s';
+  dimmer.style.opacity=1;                 // 완전 암전
+  after(700,()=>{
+    lightline.classList.add('sweep');     // 단 한 줄의 수평 광선
+    after(300,()=>vib(40));
+    after(560,()=>{
+      dimmer.style.opacity=0;
+      lightline.classList.remove('sweep');
+      pack.classList.add('rimGold');      // 슬리브 림 골드 점화
+      glow.style.opacity=.6;
+      after(650,enterPhase2);
+    });
+  });
+}
+
+// ============================================================
+// Phase 2 — 슬라이드 아웃 (저항 0.35×, 30% 미만 릴리즈 → 스프링 복귀)
+// ============================================================
+const SLIDE={
+  RESIST:0.35,        // 손가락 대비 카드 이동 비율
+  RELEASE_TH:0.30,    // 미만 릴리즈 → 스프링 백
+  DONE_TH:0.85,       // 자동 완료 지점
+  FULL:304,           // 완전 인출 거리(px) ≈ 카드높이*0.92
+  K:0.12,DAMP:0.82,   // 스프링 상수 / 감쇠
+};
+let sl={y:0,target:0,v:0,dragging:false,spring:false,baseY:0,startY:0,pid:null};
+let resultCardEl=null;
+function enterPhase2(){
+  _phase=2,stage.dataset.phase=2;
+  setDots(2);
+  sl={y:0,target:0,v:0,dragging:false,spring:false,baseY:0,startY:0,pid:null};
+  resultCardEl=pack.querySelector('#resultCard');
+  // 카드백 → 실카드 스왑 (윗변만 노출된 상태)
+  pack.querySelector('.backCard.b').style.opacity=0;
+  resultCardEl.classList.add('show');
+  if(result.tier==='ultra')pack.classList.add('holoOn');   // 울트라: 슬리브 홀로 시머
+  if(result.tier==='jackpot')glow.style.opacity=.75;       // 잭팟: 강한 빛 스필
+  setHint('카드를 천천히 밀어 올려보세요',false);
+}
+// 팩 영역 어디서든 위로 드래그 (터치+마우스, Pointer Events)
+packWrap.addEventListener('pointerdown',e=>{
+  if(_phase!==2)return;
+  try{packWrap.setPointerCapture(e.pointerId)}catch(_){}
+  sl.pid=e.pointerId;sl.dragging=true;sl.spring=false;
+  sl.startY=e.clientY;sl.baseY=sl.y;
+  hint.classList.remove('show');
+  e.preventDefault();
+});
+packWrap.addEventListener('pointermove',e=>{
+  if(_phase!==2||!sl.dragging||e.pointerId!==sl.pid)return;
+  const dy=e.clientY-sl.startY;                       // 위 = 음수
+  sl.target=Math.max(-SLIDE.FULL,Math.min(0,sl.baseY+dy*SLIDE.RESIST));
+});
+function slideRelease(e){
+  if(_phase!==2||!sl.dragging||e.pointerId!==sl.pid)return;
+  sl.dragging=false;
+  const p=-sl.y/SLIDE.FULL;
+  if(p<SLIDE.RELEASE_TH){sl.spring=true;sl.v=0}       // 스프링 백
+  // p>=TH: 그 자리에 고정(stick) — 다음 드래그에서 이어감
+}
+packWrap.addEventListener('pointerup',slideRelease);
+packWrap.addEventListener('pointercancel',slideRelease);
+
+// 단일 rAF 루프 — 슬라이드 물리 전담 (transform/opacity만 변경)
+function tick(){
+  if(_phase===2&&resultCardEl){
+    if(sl.dragging){
+      sl.y+=(sl.target-sl.y)*0.4;                     // 팔로우 스무딩
+    }else if(sl.spring){
+      sl.v+=(0-sl.y)*SLIDE.K;
+      sl.v*=SLIDE.DAMP;
+      sl.y+=sl.v;
+      if(Math.abs(sl.y)<.4&&Math.abs(sl.v)<.4){sl.y=0;sl.spring=false}
+    }
+    const p=Math.max(0,-sl.y/SLIDE.FULL);
+    resultCardEl.style.transform=`translateX(-50%) translateY(${sl.y}px)`;
+    glow.style.opacity=(.35+p*.55).toFixed(3);        // 나올수록 티어 글로우 증폭
+    if(result.tier==='super'&&p>.6)pack.classList.add('rimEdge'); // 슈퍼: 엣지 라이트
+    if(p>=SLIDE.DONE_TH)completeSlide();
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function completeSlide(){
+  if(_phase!==2)return;
+  _phase=2.5,stage.dataset.phase=2.5;
+  setHint('');
+  // 카드 팝 아웃 + 슬리브 낙하 페이드
+  resultCardEl.style.transition='transform .4s cubic-bezier(.2,.8,.3,1), opacity .3s';
+  resultCardEl.style.transform=`translateX(-50%) translateY(${-SLIDE.FULL-46}px) scale(1.06)`;
+  pack.classList.add('dropAway');
+  after(380,()=>{resultCardEl.style.opacity=0});
+  after(430,()=>revealSequence(false));
+}
+
+// ============================================================
+// Phase 3 — 공개 + 티어별 연출
+// ============================================================
+function revealSequence(instant){
+  _phase=3,stage.dataset.phase=3;
+  setDots(3);
+  const t=result.tier,T=TIERS[t];
+  packWrap.style.opacity=0;
+  bigImg.src=imgUrl(result.card);
+  cardStage.classList.add('show');
+  dimmer.style.transition='opacity .8s';
+  dimmer.style.opacity=T.dim;                          // 슈퍼 20% / 울트라·잭팟 35%
+  glow.style.opacity=t==='normal'?.3:.65;
+
+  // 티어별 사전 비트 (스킵 시 0)
+  let beat=0;
+  if(!instant){
+    if(t==='chance')beat=300;                          // 찬스: 한 박자 지연
+    if(t==='super')beat=400;                           // 슈퍼: 무음 "정지" 0.4s
+    if(t==='ultra')beat=800;                           // 울트라: 2비트 포즈
+    if(t==='jackpot')beat=500;
+  }
+  after(beat,()=>{
+    // 카드 라이즈 (600ms) → 유휴 플로트 + 포인터 틸트
+    bigCard.classList.add('rise');
+    if(t==='jackpot'){
+      bigCard.classList.add('zoomSlow');
+      jackBanner.classList.add('show');
+      spawnParticles();
+      vib(instant?0:40);
+    }
+    after(instant?50:650,()=>{
+      floatWrap.classList.add('floating');
+      tiltOn=true;
+      after(instant?100:450,showSheet);
+    });
+  });
+}
+
+// 시머 파티클 (CSS only — 절제된 상승 입자, 테마 색 반영)
+function spawnParticles(){
+  particles.innerHTML='';
+  const col=stage.dataset.theme==='flame'?'#FF8C55':'#FFD700';
+  for(let i=0;i<26;i++){
+    const p=document.createElement('i');
+    p.style.left=(4+Math.random()*92)+'%';
+    p.style.setProperty('--dur',(3.4+Math.random()*2.6)+'s');
+    p.style.setProperty('--del',(Math.random()*3)+'s');
+    p.style.setProperty('--dx',((Math.random()-.5)*70)+'px');
+    p.style.setProperty('--pcol',col);
+    p.style.width=p.style.height=(3+Math.random()*4)+'px';
+    particles.appendChild(p);
+  }
+}
+
+// ---------- 포인터 틸트 + 글로스 카운터 스윕 (±0.09rad ≈ 5.16°) ----------
+let tiltOn=false;
+stage.addEventListener('pointermove',e=>{
+  if(!tiltOn||_phase!==3)return;
+  const r=stage.getBoundingClientRect();
+  const nx=(e.clientX-r.left)/r.width-.5;   // -0.5 ~ 0.5
+  const ny=(e.clientY-r.top)/r.height-.5;
+  const MAX=5.16;                            // 0.09rad
+  tiltWrap.style.transform=`rotateY(${(nx*2*MAX).toFixed(2)}deg) rotateX(${(-ny*2*MAX).toFixed(2)}deg)`;
+  // 글로스는 반대 방향으로 흐름 (카운터 스윕)
+  gloss2.style.backgroundPosition=`${50-nx*120}% ${50-ny*120}%`;
+});
+stage.addEventListener('pointerleave',()=>{
+  if(tiltOn)tiltWrap.style.transform='rotateY(0deg) rotateX(0deg)';
+});
+
+// ---------- 결과 바텀시트 ----------
+function showSheet(){
+  const T=TIERS[result.tier],c=result.card;
+  $('tierChip').textContent=T.label;
+  $('rName').textContent=c.name;
+  $('rSet').textContent=`${c.set||''} · ${c.num||''} · ${c.rarity||''}`;
+  $('rPts').innerHTML=`${fmt(c.price)}P<small>교환 포인트</small>`;
+  $('exchBtn').textContent=`${fmt(c.price)}P로 교환`;
+  $('againBtn').classList.remove('show');
+  sheet.classList.add('show');
+  skipBtn.classList.remove('show');
+}
+$('keepBtn').addEventListener('click',()=>{
+  toast('보관함에 담겼어요');
+  $('againBtn').classList.add('show');
+});
+$('exchBtn').addEventListener('click',()=>{
+  toast(`${fmt(result.card.price)}P가 지급되었어요`);
+  $('againBtn').classList.add('show');
+});
+$('againBtn').addEventListener('click',()=>{resetAll();startDraw()});
+
+// ---------- 연출 스킵 (결과는 이미 확정 → 즉시 공개로 점프) ----------
+skipBtn.addEventListener('click',()=>{
+  if(!result||_phase>=3)return;
+  clearTimers();
+  packWrap.style.opacity=0;
+  pack.classList.remove('rimGold','rimEdge','holoOn');
+  lightline.classList.remove('sweep');
+  revealSequence(true);
+});
+
+// ---------- 리셋 ----------
+function resetAll(){
+  clearTimers();
+  _phase=-1,stage.dataset.phase=-1;tiltOn=false;
+  sheet.classList.remove('show');
+  cardStage.classList.remove('show');
+  bigCard.classList.remove('rise','zoomSlow');
+  floatWrap.classList.remove('floating');
+  tiltWrap.style.transform='';
+  jackBanner.classList.remove('show');
+  particles.innerHTML='';
+  dimmer.style.opacity=0;
+  glow.style.opacity=0;
+  packWrap.style.opacity=1;
+  setDots(0);setHint('');
+}
+
+// ---------- 데모 모드 바 ----------
+document.querySelectorAll('#demobar .chip').forEach(chip=>{
+  chip.addEventListener('click',()=>{
+    const t=chip.dataset.tier;
+    if(forcedTier===t){forcedTier=null;chip.classList.remove('on')}  // 재탭 = 랜덤 복귀
+    else{
+      forcedTier=t;
+      document.querySelectorAll('#demobar .chip').forEach(c=>c.classList.remove('on'));
+      chip.classList.add('on');
+    }
+    toast(forcedTier?`다음 뽑기: ${TIERS[t].label}`:'다음 뽑기: 랜덤');
+  });
+});
+$('themeSel').addEventListener('change',e=>{
+  stage.dataset.theme=e.target.value;
+});
+
+// ---------- 시작 ----------
+$('drawBtn').addEventListener('click',()=>{
+  $('startOverlay').classList.add('hide');
+  startDraw();
+});
+
+// 스모크 체크용 플래그
+document.documentElement.dataset.ok='1';
+</script>
+</body>
+</html>
