@@ -6,6 +6,7 @@ import '../../core/widgets/app_error_toast.dart';
 import '../../core/network/api_client.dart';
 import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/user_avatar.dart';
 
@@ -175,17 +176,21 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: Text(otherNickname,
                             style: TextStyle(
                               color: AppColors.textPrimary,
+                              // ★Toss restyle: kit-row 리듬(15 w600) + 안읽음 강조는 w700 유지.
                               fontWeight: unread > 0
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
                               fontSize: 15,
+                              letterSpacing: -0.2,
                             ),
                             overflow: TextOverflow.ellipsis),
                       ),
                       Text(
                         _timeAgo(room['lastMessageAt'] ?? room['createdAt']),
                         style: const TextStyle(
-                            color: AppColors.textMuted, fontSize: 11),
+                            color: AppColors.textMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
@@ -197,6 +202,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           ? AppColors.textSecondary
                           : AppColors.textMuted,
                       fontSize: 13,
+                      fontWeight: FontWeight.w500,
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
@@ -248,19 +254,22 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             if (unread > 0) ...[
               const SizedBox(width: 8),
+              // ★Toss restyle: AppMenuRow 배지와 동일 규격(minWidth20 h20 r10 11 w700).
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                constraints: const BoxConstraints(minWidth: 20),
+                height: 20,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
                   color: AppColors.blue,
                   borderRadius: BorderRadius.circular(10),
                 ),
+                alignment: Alignment.center,
                 child: Text(
                   unread > 99 ? '99+' : '$unread',
                   style: const TextStyle(
                       color: Colors.white,
                       fontSize: 11,
-                      fontWeight: FontWeight.bold),
+                      fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -357,23 +366,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildContextLabelInline({required bool isBuy}) {
     final color = isBuy ? AppColors.red : AppColors.blue;
     final label = isBuy ? '구매' : '판매';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.2,
-        ),
-      ),
-    );
+    // ★Toss restyle: borderless tonal 칩 통일 (색 정책 유지 — ASK 파랑/BID 빨강).
+    return AppTagChip(label: label, color: color, fontSize: 9);
   }
 
   String _timeAgo(dynamic ts) {

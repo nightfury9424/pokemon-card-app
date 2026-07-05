@@ -5,6 +5,7 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
 import '../../core/utils/price_label.dart';
+import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import 'trade_search_screen.dart';
@@ -258,10 +259,9 @@ class _TradeListScreenState extends State<TradeListScreen> {
                     onTap: _openSearch,
                     child: Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
+                      decoration: const BoxDecoration(
+                        color: AppColors.surfaceElevated,
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.divider),
                       ),
                       child: const Icon(
                         Icons.search_rounded,
@@ -329,9 +329,8 @@ class _TradeListScreenState extends State<TradeListScreen> {
                     duration: const Duration(milliseconds: 160),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                     decoration: BoxDecoration(
-                      color: sel ? AppColors.blue : AppColors.surface,
+                      color: sel ? AppColors.blueDeep : AppColors.surfaceElevated,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
                     ),
                     child: Text(
                       tabs[i],
@@ -369,9 +368,8 @@ class _TradeListScreenState extends State<TradeListScreen> {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.fromLTRB(14, 7, 10, 7),
         decoration: BoxDecoration(
-          color: selected ? AppColors.blue : AppColors.surface,
+          color: selected ? AppColors.blueDeep : AppColors.surfaceElevated,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? AppColors.blue : AppColors.divider),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -800,8 +798,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
         decoration: BoxDecoration(
           color: AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.divider, width: 0.5),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           code,
@@ -930,8 +927,6 @@ class _TradeListScreenState extends State<TradeListScreen> {
     final conditionScore = condition != null
         ? double.tryParse(condition)
         : null;
-    final glowColor = AppColors.rarityGlow(rarity);
-    final hasGlow = rarity.isNotEmpty && glowColor != Colors.transparent;
 
     return GestureDetector(
       onTap: () async {
@@ -942,12 +937,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: hasGlow
-                ? glowColor.withValues(alpha: 0.2)
-                : AppColors.divider,
-          ),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           children: [
@@ -955,7 +945,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
               children: [
                 ClipRRect(
                   borderRadius: const BorderRadius.horizontal(
-                    left: Radius.circular(14),
+                    left: Radius.circular(16),
                   ),
                   child: tradeUploadUrl != null
                       ? AuthImage(
@@ -976,7 +966,7 @@ class _TradeListScreenState extends State<TradeListScreen> {
                   Positioned.fill(
                     child: ClipRRect(
                       borderRadius: const BorderRadius.horizontal(
-                        left: Radius.circular(14),
+                        left: Radius.circular(16),
                       ),
                       child: Container(
                         color: Colors.black.withValues(alpha: 0.55),
@@ -1020,26 +1010,13 @@ class _TradeListScreenState extends State<TradeListScreen> {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        if (rarity.isNotEmpty) _RarityTag(rarity: rarity),
+                        if (rarity.isNotEmpty) AppRarityBadge(rarity),
                         if (conditionScore != null) ...[
                           const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.green.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              '앱분석 ${conditionScore.toStringAsFixed(1)}점',
-                              style: const TextStyle(
-                                color: AppColors.green,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                          AppTagChip(
+                            label: '앱분석 ${conditionScore.toStringAsFixed(1)}점',
+                            color: AppColors.green,
+                            fontSize: 10,
                           ),
                         ],
                       ],
@@ -1058,81 +1035,21 @@ class _TradeListScreenState extends State<TradeListScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        if (sellerNickname.isNotEmpty) ...[
-                          Text(
-                            sellerNickname,
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 11,
-                            ),
-                          ),
-                          const Text(
-                            ' · ',
-                            style: TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                        Text(
-                          _timeAgo(createdAt),
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 11,
-                          ),
-                        ),
-                        // 조회수는 판매자 관리 화면(내 판매 항목)에만 표시.
-                        // 일반 거래 리스트(다른 사용자 글)는 채팅·관심만 표시.
-                        if (widget.filterSellerId != null &&
-                            (trade['viewCount'] as num? ?? 0) > 0) ...[
-                          const Text(
-                            ' · ',
-                            style: TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 11,
-                            ),
-                          ),
-                          const Icon(
-                            Icons.visibility_outlined,
-                            color: AppColors.textMuted,
-                            size: 11,
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            '${trade['viewCount']}',
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                        // 채팅 수 / 관심 수 — 0이면 숨김.
-                        if ((trade['chatCount'] as num? ?? 0) > 0) ...[
-                          const Text(' · ',
-                              style: TextStyle(
-                                  color: AppColors.textMuted, fontSize: 11)),
-                          const Icon(Icons.chat_bubble_outline_rounded,
-                              color: AppColors.textMuted, size: 11),
-                          const SizedBox(width: 2),
-                          Text('${trade['chatCount']}',
-                              style: const TextStyle(
-                                  color: AppColors.textMuted, fontSize: 11)),
-                        ],
-                        if ((trade['favoriteCount'] as num? ?? 0) > 0) ...[
-                          const Text(' · ',
-                              style: TextStyle(
-                                  color: AppColors.textMuted, fontSize: 11)),
-                          const Icon(Icons.favorite_border_rounded,
-                              color: AppColors.textMuted, size: 11),
-                          const SizedBox(width: 2),
-                          Text('${trade['favoriteCount']}',
-                              style: const TextStyle(
-                                  color: AppColors.textMuted, fontSize: 11)),
-                        ],
-                      ],
-                    ),
+                    // 메타 dot 행 — 공용 AppMetaDotRow (textMuted 11 통일).
+                    // 조회수는 판매자 관리 화면(내 판매 항목)에만 표시.
+                    // 일반 거래 리스트(다른 사용자 글)는 채팅·관심만 표시.
+                    AppMetaDotRow([
+                      if (sellerNickname.isNotEmpty) sellerNickname,
+                      if (_timeAgo(createdAt).isNotEmpty) _timeAgo(createdAt),
+                      if (widget.filterSellerId != null &&
+                          (trade['viewCount'] as num? ?? 0) > 0)
+                        '조회 ${trade['viewCount']}',
+                      // 채팅 수 / 관심 수 — 0이면 숨김.
+                      if ((trade['chatCount'] as num? ?? 0) > 0)
+                        '채팅 ${trade['chatCount']}',
+                      if ((trade['favoriteCount'] as num? ?? 0) > 0)
+                        '관심 ${trade['favoriteCount']}',
+                    ]),
                   ],
                 ),
               ),
@@ -1165,31 +1082,6 @@ class MarketSevenDayNote extends StatelessWidget {
       padding: EdgeInsets.only(top: 8, left: 2),
       child: Text('최근 7일 가격 변동 기준',
           style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
-    );
-  }
-}
-
-class _RarityTag extends StatelessWidget {
-  final String rarity;
-  const _RarityTag({required this.rarity});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = AppColors.rarityColor(rarity);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        rarity,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
     );
   }
 }

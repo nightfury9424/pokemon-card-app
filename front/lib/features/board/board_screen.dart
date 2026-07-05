@@ -7,6 +7,7 @@ import 'data/board_repository.dart';
 import 'board_detail_screen.dart';
 import 'board_compose_screen.dart';
 import 'models/board_filter.dart';
+import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/auth_image.dart';
 
 /// 재조회한 페이지들을 순서대로 병합 + postId 중복 제거(핀 이동으로 페이지 간 옮겨진 글 중복 방지). 테스트 가능.
@@ -274,7 +275,7 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
         // 검색 모드: 좌측 ← 가 검색 종료(_exitSearch). 우측 닫기 X 제거 → 검색창 X 중복 해소.
         leading: _searchMode
             ? IconButton(
-                icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
                 onPressed: _exitSearch,
                 tooltip: '검색 닫기',
               )
@@ -330,7 +331,7 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
             ? const []
             : [
                 IconButton(
-                  icon: const Icon(Icons.search, color: AppColors.textPrimary, size: 22),
+                  icon: const Icon(Icons.search_rounded, color: AppColors.textPrimary, size: 22),
                   onPressed: _startSearch,
                   tooltip: '제목 검색',
                 ),
@@ -359,7 +360,7 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
   }
 
   Widget _tabBar() {
-    // 목업 pill 탭 — 선택=파란 외곽선·파란 텍스트·옅은 파란 배경 / 비선택=어두운 배경·약한 테두리.
+    // ★Toss restyle: borderless pill 탭 — 선택=blueDeep 채움·흰 텍스트 / 비선택=surfaceElevated·secondary.
     Widget tab(BoardFilter f) {
       final sel = _filter == f;
       return Padding(
@@ -371,21 +372,15 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
             duration: const Duration(milliseconds: 140),
             padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
             decoration: BoxDecoration(
-              color: sel
-                  ? AppColors.blueDeep.withValues(alpha: 0.30)
-                  : AppColors.surfaceCard,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: sel ? AppColors.blue : AppColors.divider,
-                width: sel ? 1.4 : 1,
-              ),
+              color: sel ? AppColors.blueDeep : AppColors.surfaceElevated,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
             ),
             child: Text(
               f.label,
               style: TextStyle(
-                color: sel ? AppColors.blueLight : AppColors.textSecondary,
-                fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 13.5,
+                color: sel ? Colors.white : AppColors.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
               ),
             ),
           ),
@@ -535,8 +530,9 @@ class PostRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AppColors.textPrimary,
-                fontSize: 15.5,
+                fontSize: 15,
                 fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
               ),
             ),
             const SizedBox(height: 4),
@@ -547,6 +543,7 @@ class PostRow extends StatelessWidget {
               style: const TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 13,
+                fontWeight: FontWeight.w500,
                 height: 1.35,
               ),
             ),
@@ -561,7 +558,7 @@ class PostRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 11.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -569,20 +566,20 @@ class PostRow extends StatelessWidget {
                 const _Dot(),
                 Text(
                   boardRelativeTime(post.createdAt),
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11.5),
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 3),
-            Text(
-              '좋아요 ${post.likeCount} · 댓글 ${post.commentCount} · 조회 ${post.viewCount}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: AppColors.textSecondary.withValues(alpha: 0.7),
-                fontSize: 12,
-              ),
-            ),
+            AppMetaDotRow([
+              '좋아요 ${post.likeCount}',
+              '댓글 ${post.commentCount}',
+              '조회 ${post.viewCount}',
+            ]),
           ],
                 ),
               ),
@@ -603,7 +600,7 @@ class PostRow extends StatelessWidget {
       child: Stack(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             child: AuthImage(
               url: post.thumbnailUrl!,
               width: 80,
@@ -644,48 +641,14 @@ class PostRow extends StatelessWidget {
     );
   }
 
+  // ★Toss restyle: borderless tonal 칩 — 색 매핑은 기존 type.color 그대로.
   Widget _typeChip(BoardType type) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: type.color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (type.isAdmin) ...[
-            Icon(type.icon, size: 11.5, color: type.color),
-            const SizedBox(width: 4),
-          ],
-          Text(
-            type.label,
-            style: TextStyle(
-              color: type.color,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
+    return AppTagChip(label: type.label, color: type.color);
   }
 
-  // ★고정 표시 — 노란 압정 대신 절제된 파란 '고정' 배지(상세와 동일 규칙).
+  // ★고정 표시 — 절제된 파란 '고정' 배지(상세와 동일 규칙). Toss restyle: AppTagChip 톤.
   Widget _pinBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: AppColors.blue.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: const Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.push_pin, size: 10, color: AppColors.blueLight),
-        SizedBox(width: 3),
-        Text('고정',
-            style: TextStyle(color: AppColors.blueLight, fontSize: 9.5, fontWeight: FontWeight.w800)),
-      ]),
-    );
+    return const AppTagChip(label: '고정', color: AppColors.blueLight, fontSize: 10);
   }
 }
 
@@ -696,7 +659,7 @@ class _Dot extends StatelessWidget {
     padding: EdgeInsets.symmetric(horizontal: 6),
     child: Text(
       '·',
-      style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
+      style: TextStyle(color: AppColors.textMuted, fontSize: 12),
     ),
   );
 }

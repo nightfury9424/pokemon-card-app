@@ -90,6 +90,146 @@ class AppSquircleIcon extends StatelessWidget {
   }
 }
 
+/// 톤 태그 칩 — borderless tonal (bg 색 .14 + 색 텍스트). 기존 "fill+Border.all" 칩 대체.
+class AppTagChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final double fontSize;
+  const AppTagChip({
+    super.key,
+    required this.label,
+    required this.color,
+    this.fontSize = 11,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.1,
+        ),
+      ),
+    );
+  }
+}
+
+/// 레어도 배지 — AppColors.rarityColor 단일 소스 + AppTagChip 과 동일한 tonal 스타일.
+/// 빈 레어도는 렌더 안 함.
+class AppRarityBadge extends StatelessWidget {
+  final String rarity;
+  final double fontSize;
+  const AppRarityBadge(this.rarity, {super.key, this.fontSize = 10});
+
+  @override
+  Widget build(BuildContext context) {
+    if (rarity.isEmpty) return const SizedBox.shrink();
+    final color = AppColors.rarityColor(rarity);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Text(
+        rarity,
+        style: TextStyle(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
+/// 블랙-골드 실카드 인증 배지 — 단일 진실원 (asset 그리드 / card_detail 중복 제거).
+/// 기본 = 원형(체크만), label 지정 시 = 골드 텍스트 pill. glow 없음(Toss restyle에서 제거).
+/// 접근성: Tooltip 만 사용 — Tooltip.message 가 자체 Semantics 제공 (외부 Semantics 중복 금지).
+class AppVerifiedGoldBadge extends StatelessWidget {
+  static const _bg = Color(0xFF15110A);
+  static const _gold = Color(0xFFD4AF37);
+  static const _goldLight = Color(0xFFFFD86B);
+
+  final String? tooltip;
+  final String? label;
+  final double size;
+  const AppVerifiedGoldBadge({super.key, this.tooltip, this.label, this.size = 20});
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget badge = label == null
+        ? Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: _bg,
+              shape: BoxShape.circle,
+              border: Border.all(color: _gold, width: 1.2),
+            ),
+            child: Icon(Icons.check_rounded, size: size * 0.6, color: _goldLight),
+          )
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: _bg,
+              borderRadius: BorderRadius.circular(size),
+              border: Border.all(color: _gold, width: 1.2),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_rounded, size: size * 0.6, color: _goldLight),
+                const SizedBox(width: 3),
+                Text(
+                  label!,
+                  style: TextStyle(
+                    color: _goldLight,
+                    fontSize: size * 0.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          );
+    if (tooltip == null) return badge;
+    return Tooltip(message: tooltip!, child: badge);
+  }
+}
+
+/// 메타 dot 행 — "좋아요 3 · 댓글 1 · 조회 12" 류. 빈 항목은 join 전에 걸러서 전달.
+class AppMetaDotRow extends StatelessWidget {
+  final List<String> parts;
+  final TextStyle? style;
+  const AppMetaDotRow(this.parts, {super.key, this.style});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      parts.join(' · '),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: style ??
+          const TextStyle(
+            color: AppColors.textMuted,
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+          ),
+    );
+  }
+}
+
 /// 메뉴 행 — [입체 아이콘] 라벨 (서브타이틀) ··· (값/배지) chevron. 행 높이 ~56.
 class AppMenuRow extends StatelessWidget {
   final IconData icon;
@@ -182,7 +322,7 @@ class AppMenuRow extends StatelessWidget {
               ),
               const SizedBox(width: 8),
             ],
-            if (trailing != null) trailing!,
+            ?trailing,
             if (showChevron)
               const Icon(Icons.chevron_right_rounded,
                   color: AppColors.textMuted, size: 20),

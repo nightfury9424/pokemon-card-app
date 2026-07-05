@@ -15,6 +15,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_info_toast.dart';
+import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/app_success_toast.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
@@ -887,14 +888,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     }
   }
 
-  // 신고 시 자동 차단 안내 + 욕설/사기 억제 문구.
+  // 신고 시 자동 차단 안내 + 욕설/사기 억제 문구. ★Toss restyle: borderless tonal(gold α.12, r12).
   Widget _buildReportNotice() {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+        color: AppColors.gold.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1177,23 +1177,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   Widget _buildContextLabelChip({required bool isBuy}) {
     final color = isBuy ? AppColors.red : AppColors.blue;
     final label = isBuy ? '구매' : '판매';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.2,
-        ),
-      ),
-    );
+    // ★Toss restyle: borderless tonal 칩 통일 (색 정책 유지 — ASK 파랑/BID 빨강).
+    return AppTagChip(label: label, color: color, fontSize: 10);
   }
 
   /// 2026-05-28: BuyOrder 상태 chip — OPEN/RESERVED/COMPLETED/CANCELED 매핑.
@@ -1210,15 +1195,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     };
     // 작성자 본인 + active(OPEN/RESERVED)일 때만 변경 가능 (SALE 대칭).
     final canChange = _isBuyOrderOwner && (status == 'OPEN' || status == 'RESERVED');
-    final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
-      ),
-      child: canChange
-          ? Row(
+    // ★Toss restyle: borderless tonal — 변경 가능 시에만 ▼ affordance 포함 커스텀(AppTagChip 동일 톤).
+    final chip = canChange
+        ? Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
@@ -1236,16 +1221,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                   color: color,
                 ),
               ],
-            )
-          : Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
             ),
-    );
+          )
+        : AppTagChip(label: label, color: color);
     if (canChange) {
       return GestureDetector(
         onTap: _showBuyOrderStatusSheet,
@@ -1464,15 +1442,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     };
     // 판매자 + active(OPEN/RESERVED)일 때만 chip 클릭으로 상태 변경 sheet.
     final canChange = _isSeller && (status == 'OPEN' || status == 'RESERVED');
-    final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
-      ),
-      child: canChange
-          ? Row(
+    // ★Toss restyle: borderless tonal — 변경 가능 시에만 ▼ affordance 포함 커스텀(AppTagChip 동일 톤).
+    final chip = canChange
+        ? Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
@@ -1491,16 +1469,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                   color: color,
                 ),
               ],
-            )
-          : Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
             ),
-    );
+          )
+        : AppTagChip(label: label, color: color);
     if (canChange) {
       return GestureDetector(
         onTap: _showSellerStatusSheet,
@@ -1881,7 +1852,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                 color: _canSendMessage
                     ? AppColors.surfaceElevated
                     : AppColors.divider,
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: TextField(
                 controller: _inputController,
@@ -1929,18 +1900,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   /// Phase 1B: 차단 안내 sticky banner — AppBar 아래, 거래 미니카드 위.
   /// 문구는 짧게 (입력 placeholder가 보조).
   Widget _buildBlockBanner(String notice) {
+    // ★Toss restyle: 하드코딩 골드톤 → AppColors.gold 파생 tonal(α.12 bg). 문구/의미 동일.
     return Container(
       width: double.infinity,
-      color: const Color(0xFF332B1A),
+      color: AppColors.gold.withValues(alpha: 0.12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          const Icon(Icons.info_outline, color: Color(0xFFFDE68A), size: 16),
+          const Icon(Icons.info_outline, color: AppColors.gold, size: 16),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               notice,
-              style: const TextStyle(color: Color(0xFFFDE68A), fontSize: 12),
+              style: const TextStyle(color: AppColors.gold, fontSize: 12),
             ),
           ),
         ],
@@ -1978,7 +1950,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       child: Hero(
         tag: heroTag,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           child: AuthImage(
             url: url,
             width: width,
@@ -2104,7 +2076,7 @@ class _ImagePickerOption extends StatelessWidget {
               height: 40,
               decoration: BoxDecoration(
                 color: AppColors.surfaceElevated,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: AppColors.blueLight, size: 22),
             ),
@@ -2174,7 +2146,7 @@ class _FullscreenImageViewer extends StatelessWidget {
               right: 12,
               child: IconButton(
                 onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close, color: Colors.white, size: 26),
+                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 26),
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.black.withValues(alpha: 0.4),
                 ),
