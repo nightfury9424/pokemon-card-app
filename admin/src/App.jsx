@@ -13,6 +13,7 @@ import Inquiries from './pages/Inquiries'
 import Notices from './pages/Notices'
 import Appeals from './pages/Appeals'
 import AdminActions from './pages/AdminActions'
+import PullRate from './pages/PullRate'
 
 function RequireAuth({ children }) {
   const token = localStorage.getItem('admin_token')
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="notices" element={<Notices />} />
           <Route path="appeals" element={<Appeals />} />
           <Route path="admin-actions" element={<AdminActions />} />
+          <Route path="pull-rate" element={<PullRate />} />
         </Route>
       </Routes>
     </BrowserRouter>
