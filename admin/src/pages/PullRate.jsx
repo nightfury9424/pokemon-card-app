@@ -276,13 +276,13 @@ export default function PullRate() {
     L.push(`🔥 ${cardName} — 몇 박스 안에 뽑아야 본전?`)
     L.push('')
     if (calc.cardPrice) L.push(`💰 ${priceLabel} ${fmtWon(calc.cardPrice)}${calc.boxPrice ? ` / 박스 ${fmtWon(calc.boxPrice)}` : ''}`)
-    L.push(`🎴 1박스 확률 ${fmtPct(calc.pBox)}`)
-    L.push(`📦 10박스 확률 ${fmtPct(atLeastOne(calc.pBox, 10))}`)
-    if (calc.carton) L.push(`🏷️ ${fmtNum(calc.carton)}박스 누적 확률 ${fmtPct(atLeastOne(calc.pBox, calc.carton))}`)
+    L.push(`🎴 1박스 예상 확률 ${fmtPct(calc.pBox)}`)
+    L.push(`📦 10박스 예상 확률 ${fmtPct(atLeastOne(calc.pBox, 10))}`)
+    if (calc.carton) L.push(`🏷️ ${fmtNum(calc.carton)}박스 누적 예상 확률 ${fmtPct(atLeastOne(calc.pBox, calc.carton))}`)
     L.push(`📊 평균 약 ${fmtBoxes(calc.avgBoxes)}박스당 1장`)
     if (calc.breakevenBoxes) L.push(`✅ 카드값 기준 본전 ${fmtNum(calc.breakevenBoxes)}박스 → 그 안에 뽑을 확률 ${fmtPct(calc.pBreakeven)}`)
-    const notes = []
-    if (calc.isEqual) notes.push('풀 내 균등 봉입 가정 추정치')
+    const notes = ['공식 봉입률 아님 · 대량 개봉 데이터 기반 예상 확률']
+    if (calc.isEqual) notes.push('풀 내 동일확률 가정')
     notes.push('박스 독립 개봉 누적')
     L.push('')
     L.push(`※ ${notes.join(' · ')}`)
@@ -308,7 +308,7 @@ export default function PullRate() {
     <div style={S.page}>
       <div style={{ marginBottom: 24 }}>
         <div style={S.h1}>확률 계산기</div>
-        <div style={S.sub}>카드 고르고 봉입 정보만 넣으면 뽑기 확률·본전 계산 · 콘텐츠 제작용</div>
+        <div style={S.sub}>카드 고르고 봉입 정보만 넣으면 예상 뽑기 확률·본전 계산 · 콘텐츠 제작용 (공식 봉입률 아님)</div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 20, alignItems: 'start' }}>
@@ -407,11 +407,11 @@ export default function PullRate() {
                   {card && <CardThumb key={card.id} cardId={card.id} w={44} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{card ? cardName : '결과'}</div>
-                    {calc.isEqual && <span style={{ fontSize: 11, fontWeight: 600, color: '#c2410c', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 99, padding: '2px 8px', display: 'inline-block', marginTop: 4 }}>균등 가정 추정치</span>}
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#c2410c', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 99, padding: '2px 8px', display: 'inline-block', marginTop: 4 }}>예상 확률 · 공식 봉입률 아님{calc.isEqual ? ' · 동일확률 가정' : ''}</span>
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-                  <StatBox accent label="1박스 확률" value={fmtPct(calc.pBox)} sub={`평균 ${fmtBoxes(calc.avgBoxes)}박스당 1장`} />
+                  <StatBox accent label="1박스 예상 확률" value={fmtPct(calc.pBox)} sub={`평균 ${fmtBoxes(calc.avgBoxes)}박스당 1장`} />
                   <StatBox label="50% 도달" value={isFinite(calc.box50) ? `${fmtNum(calc.box50)}박스` : '—'} sub="절반 확률" />
                   <StatBox label="90% 도달" value={isFinite(calc.box90) ? `${fmtNum(calc.box90)}박스` : '—'} sub="거의 확정" />
                   <StatBox label="기대 비용" value={calc.expectedCost ? fmtWon(calc.expectedCost) : '—'} sub={calc.boxPrice ? '첫 획득까지' : '박스 가격 입력 시'} />
