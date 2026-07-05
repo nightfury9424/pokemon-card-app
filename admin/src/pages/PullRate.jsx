@@ -189,11 +189,17 @@ export default function PullRate() {
 
   const [copied, setCopied] = useState(false)
 
-  // 카드 선택 → 풀 이름=rarity 자동, 카드 가격=DB KO 환산치 자동
+  // 카드 선택 → 풀 이름=rarity 자동, 종수=(제품×등급) DB count 자동, 카드 가격=DB KO 환산치 자동
   const handleSelectCard = async (c) => {
     setCard(c)
     if (!c) { setCardPrice(''); return }
     setPoolName(c.rarity || '')
+    // 이 등급 카드 수 = 같은 제품(productId=setName) + 같은 등급 DB count (수정 가능)
+    if (c.setName && c.rarity) {
+      api.get('/admin/cards', { params: { productId: c.setName, rarity: c.rarity, size: 1 } })
+        .then(r => { const n = r.data?.data?.totalElements; if (n != null) setPoolSize(String(n)) })
+        .catch(() => {})
+    }
     setPriceLoading(true)
     try {
       const r = await api.get(`/cards/${c.id}`, { params: { withPrice: true } })

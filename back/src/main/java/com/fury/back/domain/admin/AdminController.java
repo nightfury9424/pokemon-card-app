@@ -724,11 +724,14 @@ public class AdminController {
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "15") int size,
             @RequestParam(required = false)    String search,
-            @RequestParam(required = false)    String rarity
+            @RequestParam(required = false)    String rarity,
+            @RequestParam(required = false)    String productId
     ) {
         StringBuilder where = new StringBuilder(" WHERE c.language = 'KO'");
         if (search != null && !search.isBlank()) where.append(" AND c.name LIKE :search");
         if (rarity != null && !rarity.isBlank()) where.append(" AND c.rarityCode = :rarity");
+        // 확률 계산기: 선택 카드의 (제품×등급) 종수 count용 read-only 필터. 스키마 변경 없음.
+        if (productId != null && !productId.isBlank()) where.append(" AND c.productId = :productId");
 
         var countQ = em.createQuery("SELECT COUNT(c) FROM Card c" + where);
         var listQ  = em.createQuery("SELECT c FROM Card c" + where + " ORDER BY c.createdAt DESC");
@@ -740,6 +743,10 @@ public class AdminController {
         if (rarity != null && !rarity.isBlank()) {
             countQ.setParameter("rarity", rarity);
             listQ .setParameter("rarity", rarity);
+        }
+        if (productId != null && !productId.isBlank()) {
+            countQ.setParameter("productId", productId);
+            listQ .setParameter("productId", productId);
         }
 
         long total = ((Number) countQ.getSingleResult()).longValue();
