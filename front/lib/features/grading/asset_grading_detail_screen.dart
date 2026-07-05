@@ -87,7 +87,7 @@ class _AssetGradingDetailScreenState extends State<AssetGradingDetailScreen> {
         backgroundColor: AppColors.bg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
         title: const Text('AI 컨디션 분석',
@@ -167,20 +167,16 @@ class _AssetGradingDetailScreenState extends State<AssetGradingDetailScreen> {
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF1A3A6A), Color(0xFF0D2040)],
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-            ),
+            // ★Toss restyle: 그라데이션 hero → flat tonal blue (외곽선 없음).
+            color: AppColors.blue.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.blue.withValues(alpha: 0.3)),
           ),
           child: Column(children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.06),
+                color: Colors.white.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
               ),
               child: const Text('PokeFolio AI 컨디션 분석',
                   style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
@@ -200,7 +196,6 @@ class _AssetGradingDetailScreenState extends State<AssetGradingDetailScreen> {
             decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.divider),
             ),
             child: Column(children: [
               _row('센터링', centering, sub: centeringRatio),
@@ -235,9 +230,8 @@ class _AssetGradingDetailScreenState extends State<AssetGradingDetailScreen> {
           child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.bg,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.divider),
+              color: AppColors.surfaceCard,
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (analyzedAt != null) ...[
@@ -256,9 +250,8 @@ class _AssetGradingDetailScreenState extends State<AssetGradingDetailScreen> {
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.blue.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.blue.withValues(alpha: 0.2)),
+              color: AppColors.blue.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: const Row(children: [
               Icon(Icons.info_outline_rounded, color: AppColors.blue, size: 16),
@@ -282,7 +275,7 @@ class _AssetGradingDetailScreenState extends State<AssetGradingDetailScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.blue,
               minimumSize: const Size(double.infinity, 52),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ),

@@ -264,7 +264,7 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back,
+                  icon: const Icon(Icons.arrow_back_rounded,
                       color: AppColors.textPrimary),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
@@ -273,9 +273,8 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
                     height: 38,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(19),
-                      border: Border.all(color: AppColors.divider),
+                      color: AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
                     ),
                     child: Row(
                       children: [
@@ -489,9 +488,8 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.divider),
+              color: AppColors.surfaceCard,
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -534,9 +532,8 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -544,7 +541,7 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
             Text(
               query,
               style: const TextStyle(
-                color: AppColors.textPrimary,
+                color: AppColors.textSecondary,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -573,8 +570,7 @@ class _TradeSearchScreenState extends State<TradeSearchScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
         decoration: BoxDecoration(
           color: AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.divider, width: 0.5),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           code,

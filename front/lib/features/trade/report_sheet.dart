@@ -180,7 +180,7 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
                 // 배경탭·드래그 닫기를 막았으므로 명시적 닫기 버튼 제공. 제출 중엔 비활성(닫기 차단), 제출 전엔 취소(false).
                 IconButton(
                   onPressed: _submitting ? null : () => Navigator.of(context).pop(false),
-                  icon: const Icon(Icons.close, color: AppColors.textMuted, size: 22),
+                  icon: const Icon(Icons.close_rounded, color: AppColors.textMuted, size: 22),
                   splashRadius: 20,
                   tooltip: '닫기',
                 ),
@@ -189,10 +189,10 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
+              // ★Toss restyle: 골드 경고 = borderless tonal(α.12) r12 — 외곽선 제거.
               decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                color: AppColors.gold.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -231,15 +231,12 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
                     _reasonCode = r['code'];
                   }),
                   behavior: HitTestBehavior.opaque,
+                  // ★Toss restyle: 선택형 행 = 선택 blueDeep / 비선택 surfaceElevated, 외곽선 없음(전역 칩 문법).
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
-                      color: selected ? AppColors.blue.withValues(alpha: 0.12) : AppColors.surface,
+                      color: selected ? AppColors.blueDeep : AppColors.surfaceElevated,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: selected ? AppColors.blue : AppColors.divider,
-                        width: selected ? 1.4 : 1,
-                      ),
                     ),
                     child: Row(children: [
                       Expanded(
@@ -247,19 +244,23 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(r['label']!,
-                                style: TextStyle(
-                                    color: selected ? AppColors.blue : AppColors.textPrimary,
-                                    fontSize: 14,
+                                style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.w600)),
                             const SizedBox(height: 2),
                             Text(r['desc']!,
-                                style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                                style: TextStyle(
+                                    color: selected
+                                        ? AppColors.textSecondary
+                                        : AppColors.textMuted,
+                                    fontSize: 12)),
                           ],
                         ),
                       ),
                       Icon(
                         selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                        color: selected ? AppColors.blue : AppColors.textMuted,
+                        color: selected ? AppColors.textPrimary : AppColors.textMuted,
                         size: 20,
                       ),
                     ]),
@@ -279,17 +280,14 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
               decoration: InputDecoration(
                 hintText: isOther ? '신고 사유를 입력해 주세요 (필수)' : '상세 내용을 입력해 주세요 (선택)',
                 hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                // ★Toss restyle: 입력 필드 = filled surfaceElevated · borderless r12(전역 필드 문법).
                 filled: true,
-                fillColor: AppColors.surface,
+                fillColor: AppColors.surfaceElevated,
                 counterStyle: const TextStyle(color: AppColors.textMuted, fontSize: 11),
                 contentPadding: const EdgeInsets.all(14),
-                enabledBorder: OutlineInputBorder(
+                border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.divider),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.blue),
+                  borderSide: BorderSide.none,
                 ),
               ),
             ),
@@ -301,10 +299,10 @@ class _ReportSheetBodyState extends State<_ReportSheetBody> {
                 onPressed: (_reasonCode == null || _submitting || detailMissing) ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.red,
-                  disabledBackgroundColor: AppColors.surface,
+                  disabledBackgroundColor: AppColors.surfaceElevated,
                   disabledForegroundColor: AppColors.textMuted,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
                 child: _submitting
                     ? const SizedBox(

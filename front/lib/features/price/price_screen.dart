@@ -334,8 +334,6 @@ class _PriceScreenState extends State<PriceScreen> {
         ?? (card['latestPrice'] as num?)?.toInt();
     final priceLabel = _priceLabel(card);
     final imageUrl = resolveCardImageUrl(card);
-    final glowColor = AppColors.rarityGlow(rarity);
-    final hasGlow = rarity.isNotEmpty && glowColor != Colors.transparent;
 
     return GestureDetector(
       onTap: () => context.push('/card/$cardId', extra: card),
@@ -344,10 +342,7 @@ class _PriceScreenState extends State<PriceScreen> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: hasGlow ? glowColor.withValues(alpha: 0.25) : AppColors.divider,
-          ),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           children: [

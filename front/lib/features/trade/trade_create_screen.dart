@@ -330,7 +330,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
               context: context,
               builder: (ctx) => AlertDialog(
                 backgroundColor: AppColors.surfaceCard,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 title: const Text('등록할 수 없는 가격',
                     style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w800)),
                 content: Text(msg,
@@ -478,8 +478,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: AppColors.red.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.red.withValues(alpha: 0.35)),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
@@ -505,8 +504,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.surfaceCard,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.divider),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
                 children: [
@@ -546,8 +544,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
                                 color: AppColors.surfaceElevated,
-                                borderRadius: BorderRadius.circular(5),
-                                border: Border.all(color: AppColors.divider, width: 0.5),
+                                borderRadius: BorderRadius.circular(7),
                               ),
                               child: Text(
                                 widget.language == 'JP'
@@ -770,9 +767,8 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.gold.withOpacity(0.15),
+          color: AppColors.gold.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.gold.withOpacity(0.4)),
         ),
         child: Text(
           '${widget.gradingCompany} ${widget.gradeValue}',
@@ -800,9 +796,8 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: color.withOpacity(0.4)),
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               '앱분석 ${grade.toStringAsFixed(1)}점',
@@ -825,13 +820,13 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white10,
-        borderRadius: BorderRadius.circular(6),
+        color: AppColors.surfaceElevated,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: const Text(
         'RAW',
         style: TextStyle(
-          color: Colors.white54,
+          color: AppColors.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
         ),
@@ -855,7 +850,7 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
         child: Stack(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               child: Image.file(
                 photo.file,
                 width: 80,
@@ -920,9 +915,8 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
         width: 80,
         height: 80,
         decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.divider),
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(12),
         ),
         child: const Icon(
           Icons.add_photo_alternate_rounded,
@@ -953,18 +947,18 @@ class _TradeCreateScreenState extends State<TradeCreateScreen> {
         suffixText: suffix,
         suffixStyle: const TextStyle(color: AppColors.textSecondary),
         filled: true,
-        fillColor: AppColors.surfaceCard,
+        fillColor: AppColors.surfaceElevated,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.divider),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.divider),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.blue),
+          borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,

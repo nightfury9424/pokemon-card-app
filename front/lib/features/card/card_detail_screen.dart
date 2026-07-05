@@ -2749,7 +2749,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       'RAW NM',
                       lastRaw,
                       '\$',
-                      const Color(0xFF2196F3),
+                      AppColors.blue,
                       selected: _selectedGlobalGrade == 'RAW',
                       onTap: () => setState(() { _selectedGlobalGrade = 'RAW'; _gradeManuallyPicked = true; }),
                     ),
@@ -2760,7 +2760,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       'PSA 10',
                       activePsa10,
                       '\$',
-                      const Color(0xFFFFD700),
+                      AppColors.gold,
                       selected: _selectedGlobalGrade == 'PSA10',
                       onTap: () => setState(() {
                         _selectedGlobalGrade = 'PSA10';
@@ -2773,7 +2773,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       'PSA 9',
                       activePsa9,
                       '\$',
-                      const Color(0xFF90CAF9),
+                      AppColors.blueLight,
                       selected: _selectedGlobalGrade == 'PSA9',
                       onTap: () => setState(() {
                         _selectedGlobalGrade = 'PSA9';
@@ -2846,10 +2846,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     VoidCallback? onTap,
   }) {
     final color = label == 'RAW'
-        ? const Color(0xFF4CAF50)
+        ? AppColors.green
         : label == 'PSA 10'
-        ? const Color(0xFFFFD700)
-        : const Color(0xFF90CAF9);
+        ? AppColors.gold
+        : AppColors.blueLight;
     final hasPrice = low != null && high != null;
     return GestureDetector(
       onTap: onTap,
@@ -2942,13 +2942,13 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           const SizedBox(width: 8),
         ],
         if (psa10Krw != null)
-          _buildPriceChip('PSA 10', psa10Krw, '', const Color(0xFFFFD700),
+          _buildPriceChip('PSA 10', psa10Krw, '', AppColors.gold,
               selected: _selectedGlobalGrade == 'PSA10',
               onTap: () => setState(() { _selectedGlobalGrade = 'PSA10'; _gradeManuallyPicked = true; }),
               isWon: true),
         if (psa9Krw != null) ...[
           const SizedBox(width: 8),
-          _buildPriceChip('PSA 9', psa9Krw, '', const Color(0xFF90CAF9),
+          _buildPriceChip('PSA 9', psa9Krw, '', AppColors.blueLight,
               selected: _selectedGlobalGrade == 'PSA9',
               onTap: () => setState(() { _selectedGlobalGrade = 'PSA9'; _gradeManuallyPicked = true; }),
               isWon: true),
@@ -3166,14 +3166,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     }
 
     final activeColor = isKrw
-        ? const Color(0xFF4CAF50)
+        ? AppColors.green
         : _selectedGlobalGrade == 'PSA10'
-        ? const Color(0xFFFFD700)
+        ? AppColors.gold
         : _selectedGlobalGrade == 'PSA9'
-        ? const Color(0xFF90CAF9)
+        ? AppColors.blueLight
         : (_selectedMarket == 'JP'
-              ? const Color(0xFFFFB74D)
-              : const Color(0xFF2196F3));
+              // JP RAW 라인: gold 파생 오렌지 — PSA10 gold 칩과 구분 유지
+              ? Color.lerp(AppColors.gold, AppColors.red, 0.4)!
+              : AppColors.blue);
 
     if (rawData == null || rawData.isEmpty) {
       return const Padding(
@@ -3456,8 +3457,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         .clamp(1.0, double.infinity);
     final xInterval = (lastX / 4).ceilToDouble().clamp(1.0, double.infinity);
 
-    const lineColor = Color(0xFF4CAF50);
-    const pointColor = Color(0xFFFFC107);
+    const lineColor = AppColors.green;
+    const pointColor = AppColors.gold;
 
     final bars = <LineChartBarData>[
       if (lineSpots.length >= 2)
@@ -3579,7 +3580,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         Container(
           width: 18,
           height: 2,
-          color: const Color(0xFF4CAF50).withOpacity(0.7),
+          color: AppColors.green.withOpacity(0.7),
         ),
         const SizedBox(width: 5),
         const Text(
@@ -3689,7 +3690,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     Text(
                       _formatPrice(price),
                       style: const TextStyle(
-                        color: Color(0xFFEF5350),
+                        color: AppColors.red,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -3859,7 +3860,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                             Text(
                               _formatPrice(price.toInt()),
                               style: const TextStyle(
-                                color: Color(0xFF4CAF50),
+                                color: AppColors.green,
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                               ),

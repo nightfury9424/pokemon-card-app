@@ -404,7 +404,7 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 child: Text(
@@ -438,7 +438,7 @@ class _PreOrderMatchBodyState extends State<_PreOrderMatchBody> {
                   color: (_isBuy ? AppColors.red : AppColors.blue)
                       .withValues(alpha: 0.55)),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
             child: Text(

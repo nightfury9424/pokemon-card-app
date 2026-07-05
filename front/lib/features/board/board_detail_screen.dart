@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
+import '../../core/widgets/app_list_ui.dart';
 import 'models/board_post.dart';
 import 'data/board_repository.dart';
 import 'board_compose_screen.dart';
@@ -249,14 +250,14 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
                 Container(
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                      color: AppColors.surfaceCard, borderRadius: BorderRadius.circular(14)),
+                      color: AppColors.surfaceCard, borderRadius: BorderRadius.circular(16)),
                   child: Column(mainAxisSize: MainAxisSize.min, children: items),
                 ),
                 const SizedBox(height: 8),
                 Container(
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                      color: AppColors.surfaceCard, borderRadius: BorderRadius.circular(14)),
+                      color: AppColors.surfaceCard, borderRadius: BorderRadius.circular(16)),
                   child: _sheetItem(ctx, null, null, '닫기', AppColors.textPrimary, center: true),
                 ),
               ],
@@ -302,7 +303,8 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
     );
   }
 
-  Widget _sheetDivider() => const Divider(height: 1, thickness: 1, color: AppColors.divider);
+  Widget _sheetDivider() =>
+      const Divider(height: 1, thickness: 1, color: AppColors.dividerSoft);
 
   // 게시글 신고 — 공용 ReportSheet 재사용(BOARD_POST). autoBlock=차단 가능 글만(=커뮤니티 비본인).
   // ★공식글(운영팀, canBlock=false)은 작성자 차단 없이 신고만 → 글 유지·토스트. 차단형은 글이 사라지므로 pop('changed').
@@ -508,22 +510,8 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(
-              color: post.type.color.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(7),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              if (post.type.isAdmin) ...[
-                Icon(post.type.icon, size: 12.5, color: post.type.color),
-                const SizedBox(width: 5),
-              ],
-              Text(post.type.label,
-                  style: TextStyle(
-                      color: post.type.color, fontSize: 11.5, fontWeight: FontWeight.w700)),
-            ]),
-          ),
+          // ★Toss restyle: 카테고리 칩 = AppTagChip(목록과 동일 문법·색 매핑 유지, 아이콘 없는 톤 칩).
+          AppTagChip(label: post.type.label, color: post.type.color),
           if (post.isPinned) ...[
             const SizedBox(width: 7),
             _pinBadge(),
@@ -552,13 +540,15 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                    color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
           ),
           if (post.isAdmin) ...[const SizedBox(width: 6), _adminBadge()],
         ]),
+        // ★Toss restyle: 메타 = 목록(board_screen) 메타 dot 문법과 동일 토큰(12 w500 textMuted).
         Text(
           '· ${boardRelativeTime(post.createdAt)} · 조회 ${_viewCountOverride ?? post.viewCount}',
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5),
+          style: const TextStyle(
+              color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w500),
         ),
       ],
     );
@@ -600,7 +590,10 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
                   if (c.isAdmin) ...[const SizedBox(width: 5), _adminBadge()],
                   const SizedBox(width: 8),
                   Text(boardRelativeTime(c.createdAt),
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
+                      style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500)),
                 ]),
                 const SizedBox(height: 6),
                 Text(c.body,
@@ -616,33 +609,14 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
     );
   }
 
+  // ★Toss restyle: '운영' 배지 = AppTagChip 톤(blueLight 계열) — 커스텀 칩 조립 제거.
   Widget _adminBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-      decoration: BoxDecoration(
-        color: AppColors.blue.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: const Text('운영',
-          style: TextStyle(color: AppColors.blueLight, fontSize: 9.5, fontWeight: FontWeight.w800)),
-    );
+    return const AppTagChip(label: '운영', color: AppColors.blueLight, fontSize: 9.5);
   }
 
-  // ★고정 표시 — 노란 압정 대신 절제된 파란 '고정' 배지(앱 배지 체계 재사용).
+  // ★고정 표시 — 절제된 파란 '고정' 배지. Toss restyle: 목록(board_screen)과 동일 AppTagChip 톤.
   Widget _pinBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: AppColors.blue.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: const Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.push_pin, size: 10, color: AppColors.blueLight),
-        SizedBox(width: 3),
-        Text('고정',
-            style: TextStyle(color: AppColors.blueLight, fontSize: 9.5, fontWeight: FontWeight.w800)),
-      ]),
-    );
+    return const AppTagChip(label: '고정', color: AppColors.blueLight, fontSize: 10);
   }
 
   // 본문 아래 인게이지먼트: 좋아요(토글) + 댓글 수. ★1.0.4 공식글 포함 모든 노출글에 노출. 활성 좋아요=파란색.
@@ -898,7 +872,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
           onTap: _cancelReply,
           child: const Padding(
             padding: EdgeInsets.all(4),
-            child: Icon(Icons.close, size: 16, color: AppColors.textMuted),
+            child: Icon(Icons.close_rounded, size: 16, color: AppColors.textMuted),
           ),
         ),
       ]),
@@ -924,11 +898,12 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
+                    // ★Toss restyle: 입력 필드 = filled surfaceElevated · borderless(채팅 입력바 문법), r20.
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceCard,
-                        borderRadius: BorderRadius.circular(22),
+                        color: AppColors.surfaceElevated,
+                        borderRadius: BorderRadius.circular(20),
                       ),
                       child: TextField(
                         controller: _commentCtrl,
@@ -954,19 +929,19 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: canSend ? _sendComment : null,
+                    // ★Toss restyle: 전송 버튼 = 채팅 입력바와 동일(활성 blue / 비활성 textMuted, 흰 아이콘).
                     child: Container(
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: canSend ? AppColors.blue : AppColors.surfaceElevated,
+                        color: canSend ? AppColors.blue : AppColors.textMuted,
                         shape: BoxShape.circle,
                       ),
                       child: _sending
                           ? const Padding(
                               padding: EdgeInsets.all(11),
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : Icon(Icons.send_rounded,
-                              color: canSend ? Colors.white : AppColors.textMuted, size: 18),
+                          : const Icon(Icons.send_rounded, color: Colors.white, size: 18),
                     ),
                   ),
                 ],
@@ -1075,7 +1050,7 @@ class _BoardGalleryViewerState extends State<_BoardGalleryViewer> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
+                      icon: const Icon(Icons.close_rounded, color: Colors.white),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                     if (widget.images.length > 1)

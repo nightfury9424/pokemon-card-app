@@ -12,6 +12,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_error_toast.dart';
+import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/app_segmented_toggle.dart';
 import 'grading_models.dart';
 
@@ -212,7 +213,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.bg, elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
         title: const Text('분석 결과', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
@@ -263,7 +264,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
             const SizedBox(height: 28),
             ElevatedButton.icon(
               onPressed: () => context.pop('retake'),
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(Icons.refresh_rounded),
               label: const Text('다시 촬영하기'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.blue,
@@ -286,14 +287,13 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(children: [
         Container(
           width: 88, height: 88,
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(14)),
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(16)),
           alignment: Alignment.center,
           child: Text(p.grade,
               style: const TextStyle(
@@ -342,17 +342,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
     return [
       const SizedBox(height: 6),
       Row(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE67E22).withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: const Color(0xFFE67E22), width: 1),
-          ),
-          child: const Text('강등',
-              style: TextStyle(
-                  color: Color(0xFFE67E22), fontSize: 10, fontWeight: FontWeight.w700)),
-        ),
+        const AppTagChip(label: '강등', color: AppColors.gold, fontSize: 10),
         const SizedBox(width: 6),
         if (rawGrade.isNotEmpty)
           Text('가중 $rawGrade → 최종 ${p.grade}',
@@ -391,24 +381,23 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7E6),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFFFC76A)),
+        color: AppColors.gold.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(children: [
-        const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 18),
+        const Icon(Icons.warning_amber_rounded, color: AppColors.gold, size: 18),
         const SizedBox(width: 10),
         Expanded(
           child: Text(msg,
               style: const TextStyle(
-                  color: Color(0xFF92400E), fontSize: 12, fontWeight: FontWeight.w600)),
+                  color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
         ),
         const SizedBox(width: 6),
         GestureDetector(
           onTap: () => context.pop(),
           child: const Text('다시 찍기',
               style: TextStyle(
-                  color: Color(0xFFD97706),
+                  color: AppColors.gold,
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   decoration: TextDecoration.underline)),
@@ -419,27 +408,19 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
 
   Color _severityColor(String severity) {
     switch (severity) {
-      case 'major':    return const Color(0xFFDC2626);
-      case 'moderate': return const Color(0xFFD97706);
-      default:         return const Color(0xFF6B7280);
+      case 'major':    return AppColors.red;
+      case 'moderate': return AppColors.gold;
+      default:         return AppColors.textSecondary;
     }
   }
 
   Widget _severityChip(String severity) {
     final (label, color) = switch (severity) {
-      'major' => ('심함', const Color(0xFFDC2626)),
-      'moderate' => ('보통', const Color(0xFFD97706)),
-      _ => ('경미', const Color(0xFF6B7280)),
+      'major' => ('심함', AppColors.red),
+      'moderate' => ('보통', AppColors.gold),
+      _ => ('경미', AppColors.textSecondary),
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(label,
-          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
-    );
+    return AppTagChip(label: label, color: color);
   }
 
   void _retryAnalyze() {
@@ -503,12 +484,9 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 16),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF1A3A6A), Color(0xFF0D2040)],
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-            ),
+            // ★Toss restyle: 그라데이션 hero → flat tonal blue (외곽선 없음).
+            color: AppColors.blue.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.blue.withValues(alpha: 0.3)),
           ),
           child: Column(children: [
             // 두 줄 neutral grey 배지 — 56pt 숫자 위에 맥락 먼저 인식시킴.
@@ -516,9 +494,8 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.06),
+                color: Colors.white.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
               ),
               child: const Text('PokeFolio AI 컨디션 분석',
                   style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
@@ -542,7 +519,6 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           decoration: BoxDecoration(
             color: AppColors.surfaceCard,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.divider),
           ),
           child: Column(children: [
             _buildScoreRow('센터링', r['centeringScore'], r['centeringDetail'],
@@ -564,9 +540,11 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
               _showGradeRegisterSheet(total, preselectedCardId: widget.cardId, preselectedCardName: widget.cardName);
             },
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppColors.gold),
+              // ★Toss restyle: 외곽선 버튼 → tonal gold 필 (외곽선 없음).
+              backgroundColor: AppColors.gold.withValues(alpha: 0.12),
+              side: BorderSide.none,
               minimumSize: const Size(double.infinity, 52),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -584,7 +562,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.blue,
             minimumSize: const Size(double.infinity, 52),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: const Text('돌아가기', style: TextStyle(color: Colors.white, fontSize: 15)),
         ),
@@ -803,9 +781,9 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
-                                color: sel ? AppColors.blue : AppColors.surfaceElevated,
+                                // ★Toss restyle: 선택형 칩 = 선택 blueDeep / 비선택 surfaceElevated, 외곽선 없음.
+                                color: sel ? AppColors.blueDeep : AppColors.surfaceElevated,
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: sel ? AppColors.blue : AppColors.divider),
                               ),
                               child: Text(
                                 lang,
@@ -837,10 +815,10 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                         fillColor: AppColors.surfaceElevated,
                         prefixIcon: _searching
                             ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: AppColors.blue, strokeWidth: 2)))
-                            : const Icon(Icons.search, color: AppColors.textMuted, size: 20),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.divider)),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.divider)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.blue)),
+                            : const Icon(Icons.search_rounded, color: AppColors.textMuted, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                       onChanged: (v) => searchCards(v),
@@ -852,7 +830,6 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                         decoration: BoxDecoration(
                           color: AppColors.surfaceElevated,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.divider),
                         ),
                         child: ListView.separated(
                           shrinkWrap: true,
@@ -879,9 +856,8 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
-                          color: AppColors.blue.withOpacity(0.1),
+                          color: AppColors.blue.withValues(alpha: 0.10),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.blue.withOpacity(0.4)),
                         ),
                         child: Row(
                           children: [
@@ -892,7 +868,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                                 Text(_selectedCard!['rarityCode'] ?? '', style: const TextStyle(color: AppColors.blue, fontSize: 12)),
                               ],
                             )),
-                            const Icon(Icons.close, color: AppColors.textMuted, size: 18),
+                            const Icon(Icons.close_rounded, color: AppColors.textMuted, size: 18),
                           ],
                         ),
                       ),
@@ -907,7 +883,6 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.surfaceElevated,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.divider),
                     ),
                     child: Text(appAnalysisId,
                         style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
@@ -923,7 +898,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                         backgroundColor: AppColors.gold,
                         disabledBackgroundColor: AppColors.divider,
                         minimumSize: const Size(double.infinity, 52),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       child: const Text('앱 분석 결과 저장',
                           style: TextStyle(color: Colors.black87, fontSize: 15, fontWeight: FontWeight.bold)),
@@ -984,7 +959,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           Text(score.toStringAsFixed(1), style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold)),
           if (tappable) ...[
             const SizedBox(width: 6),
-            const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 18),
           ],
         ]),
         if (sub != null && sub.isNotEmpty) ...[
@@ -1139,8 +1114,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: AppColors.bg,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.divider),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   // hotfix 9: 평균 신뢰도 % 제거. 사용자 화면 = 감점 후보 / 총 감점 만.
                   // 디버그 metric (신뢰도 33%) 같은 숫자 노출 X.
@@ -1177,8 +1151,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: AppColors.bg,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.divider),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         alignment: Alignment.center,
                         child: const Text(
@@ -1205,15 +1178,14 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 color: AppColors.bg,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: AppColors.divider),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(children: [
                                 Container(
                                   width: 22, height: 22,
                                   decoration: BoxDecoration(
                                     color: AppColors.blue.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(6),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                   alignment: Alignment.center,
                                   child: Text('${i + 1}',
@@ -1412,8 +1384,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.bg,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.divider),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(children: [
         const Icon(Icons.science_outlined, size: 12, color: AppColors.textMuted),
@@ -1518,8 +1489,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.bg,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.divider),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Text(msg,
             style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
@@ -1542,7 +1512,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
               child: AspectRatio(
                 aspectRatio: 1.0,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
                   child: LayoutBuilder(
                     builder: (_, c) {
                       return Stack(fit: StackFit.expand, children: [
@@ -1635,8 +1605,8 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: AppColors.blue.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(6),
+              color: AppColors.blue.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Text(ratio,
                 style: const TextStyle(
@@ -1647,17 +1617,16 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFC107).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: const Color(0xFFFFC107), width: 1),
+              color: AppColors.gold.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               const Icon(Icons.warning_amber_rounded,
-                  size: 11, color: Color(0xFFFFC107)),
+                  size: 11, color: AppColors.gold),
               const SizedBox(width: 3),
               Text('추정 (신뢰도 ${(conf * 100).round()}%)',
                   style: const TextStyle(
-                      color: Color(0xFFFFC107), fontSize: 10, fontWeight: FontWeight.w600)),
+                      color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.w600)),
             ]),
           ),
       ]),
@@ -1684,8 +1653,7 @@ class _GradingResultScreenState extends State<GradingResultScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.bg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.divider),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('영역별 요약',
@@ -1879,7 +1847,7 @@ class _CornerCropPainter extends StatelessWidget {
   Widget build(BuildContext context) {
     final w = region['w'] ?? 0;
     final h = region['h'] ?? 0;
-    if (w <= 0 || h <= 0) return Container(color: const Color(0xFF333333));
+    if (w <= 0 || h <= 0) return Container(color: AppColors.divider);
     return LayoutBuilder(builder: (_, c) {
       final fullW = c.maxWidth / w;
       final fullH = c.maxHeight / h;
@@ -1894,7 +1862,7 @@ class _CornerCropPainter extends StatelessWidget {
               width: fullW,
               height: fullH,
               child: Image.file(file, fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(color: const Color(0xFF333333))),
+                  errorBuilder: (_, _, _) => Container(color: AppColors.divider)),
             ),
           ),
         ),
@@ -1919,14 +1887,14 @@ class _FullscreenImageViewer extends StatelessWidget {
             maxScale: 4.0,
             child: Image.file(file,
                 errorBuilder: (_, _, _) =>
-                    const Center(child: Icon(Icons.error, color: Colors.white))),
+                    const Center(child: Icon(Icons.error_rounded, color: Colors.white))),
           ),
         ),
         Positioned(
           top: MediaQuery.of(context).padding.top + 8,
           right: 8,
           child: IconButton(
-            icon: const Icon(Icons.close, color: Colors.white, size: 28),
+            icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),

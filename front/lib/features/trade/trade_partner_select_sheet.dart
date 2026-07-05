@@ -111,7 +111,7 @@ class _TradePartnerSelectSheetBodyState
                   shrinkWrap: true,
                   itemCount: _partners.length,
                   separatorBuilder: (_, _) =>
-                      const Divider(color: AppColors.divider, height: 1),
+                      const Divider(color: AppColors.dividerSoft, height: 1),
                   itemBuilder: (context, i) {
                     final p = _partners[i];
                     final chatRoomId = p['chatRoomId']?.toString();

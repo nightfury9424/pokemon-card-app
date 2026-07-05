@@ -58,7 +58,7 @@ class _PriceDisclaimerDialogState extends State<_PriceDisclaimerDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: AppColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 32),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(22, 22, 22, 14),
@@ -143,7 +143,7 @@ class _PriceDisclaimerDialogState extends State<_PriceDisclaimerDialog> {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 28),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(11)),
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                     child: const Text('확인',
                         style: TextStyle(

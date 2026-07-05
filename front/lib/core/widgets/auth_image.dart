@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../network/api_client.dart';
+import '../theme/app_colors.dart';
 
 /// 프사/업로드 이미지 세션 메모리 LRU 캐시 (2026-06-05).
 /// AuthImage 가 매 렌더마다 JWT 프록시로 재다운로드하던 문제 fix — 동일 URL 은 세션 내 1회만
@@ -160,7 +161,7 @@ class _AuthImageState extends State<AuthImage> {
           return Container(
             width: widget.width,
             height: widget.height,
-            color: const Color(0xFF1B2230),
+            color: AppColors.surfaceElevated,
           );
         }
         final bytes = snap.data;

@@ -466,13 +466,12 @@ class _AskThumbnail extends StatelessWidget {
         ? (tradeImageUrl!.startsWith('http') ? tradeImageUrl! : '$base$tradeImageUrl')
         : null;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         width: 56, height: 56,
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: Border.all(color: borderColor.withValues(alpha: 0.4)),
-          borderRadius: BorderRadius.circular(8),
+          color: borderColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: url != null
             // AuthImage: 호가 row → trade 썸네일 (사용자 업로드)

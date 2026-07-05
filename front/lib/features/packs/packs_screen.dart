@@ -176,8 +176,7 @@ class _PacksScreenState extends State<PacksScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           children: [

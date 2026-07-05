@@ -708,7 +708,7 @@ class _ScannerScreenState extends State<ScannerScreen>
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1A2035),
+      backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1382,7 +1382,7 @@ class _ScannerScreenState extends State<ScannerScreen>
             children: [
               const Icon(
                 Icons.warning_amber_rounded,
-                color: Color(0xFFEF4444),
+                color: AppColors.red,
                 size: 56,
               ),
               const SizedBox(height: 16),

@@ -578,7 +578,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.error_outline, color: Colors.white, size: 48),
+          const Icon(Icons.error_outline_rounded, color: Colors.white, size: 48),
           const SizedBox(height: 16),
           const Text('카메라를 열 수 없어요',
               style: TextStyle(color: Colors.white, fontSize: 16)),
@@ -632,7 +632,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
                       width: 64, height: 64,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFFFD700), width: 2),
+                        border: Border.all(color: AppColors.gold, width: 2),
                       ),
                     ),
                   ),
@@ -651,7 +651,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
             onPressed: () => context.pop(),
           ),
           Expanded(
@@ -714,7 +714,7 @@ class _GradingCaptureScreenState extends State<GradingCaptureScreen>
                         child: CircularProgressIndicator(
                             color: AppColors.blue, strokeWidth: 3),
                       )
-                    : const Icon(Icons.camera_alt,
+                    : const Icon(Icons.camera_alt_rounded,
                         size: 32, color: AppColors.blue),
               ),
             ),
@@ -737,18 +737,18 @@ class _FrameOverlayPainter extends CustomPainter {
 
   Color get _strokeColor {
     switch (state) {
-      case _FrameState.focusing:  return const Color(0xFFFFD700);
-      case _FrameState.capturing: return const Color(0xFF60A5FA);
-      case _FrameState.complete:  return const Color(0xFF10B981);
+      case _FrameState.focusing:  return AppColors.gold;
+      case _FrameState.capturing: return AppColors.blueLight;
+      case _FrameState.complete:  return AppColors.green;
       case _FrameState.basic:     return Colors.white;
     }
   }
 
   Color get _markerColor {
     switch (state) {
-      case _FrameState.focusing:  return const Color(0xFFFFD700);
-      case _FrameState.capturing: return const Color(0xFF60A5FA);
-      case _FrameState.complete:  return const Color(0xFF10B981);
+      case _FrameState.focusing:  return AppColors.gold;
+      case _FrameState.capturing: return AppColors.blueLight;
+      case _FrameState.complete:  return AppColors.green;
       case _FrameState.basic:     return AppColors.blue;
     }
   }
@@ -773,7 +773,7 @@ class _FrameOverlayPainter extends CustomPainter {
     final dim = Paint()..color = Colors.black.withValues(alpha: 0.45);
     final outer = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
     final inner = Path()
-      ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(14)));
+      ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(16)));
     canvas.drawPath(Path.combine(PathOperation.difference, outer, inner), dim);
 
     if (_glowAlpha > 0) {
@@ -783,7 +783,7 @@ class _FrameOverlayPainter extends CustomPainter {
         ..strokeWidth = 10
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
       canvas.drawRRect(
-          RRect.fromRectAndRadius(rect, const Radius.circular(14)), glow);
+          RRect.fromRectAndRadius(rect, const Radius.circular(16)), glow);
     }
 
     final framePaint = Paint()
@@ -791,7 +791,7 @@ class _FrameOverlayPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = state == _FrameState.basic ? 2 : 3;
     canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(14)), framePaint);
+        RRect.fromRectAndRadius(rect, const Radius.circular(16)), framePaint);
 
     final markerPaint = Paint()
       ..color = _markerColor

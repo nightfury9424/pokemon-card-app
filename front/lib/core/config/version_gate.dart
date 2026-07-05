@@ -336,7 +336,7 @@ class _ForceUpdateOverlay extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(20),
                   child: Image.asset('assets/app_icon/logo.png',
                       width: 88, height: 88),
                 ),
@@ -365,7 +365,7 @@ class _ForceUpdateOverlay extends StatelessWidget {
                       backgroundColor: AppColors.blue,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
+                          borderRadius: BorderRadius.circular(16)),
                       textStyle: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.w800),
                     ),
@@ -410,7 +410,6 @@ class _SoftUpdateBanner extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surfaceElevated,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
           boxShadow: const [
             BoxShadow(color: Colors.black26, blurRadius: 16, offset: Offset(0, 4)),
           ],
@@ -459,7 +458,7 @@ class _SoftUpdateBanner extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(12)),
                 textStyle:
                     const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
               ),
