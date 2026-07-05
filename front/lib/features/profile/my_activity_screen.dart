@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/empty_state.dart';
 import '../board/board_detail_screen.dart';
 import '../board/board_screen.dart' show PostRow;
 import '../board/data/board_repository.dart';
@@ -166,21 +167,8 @@ class _ActivityTabState extends State<_ActivityTab>
               color: AppColors.blue, strokeWidth: 2.4));
     }
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('불러오지 못했어요.',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _load,
-              child: const Text('다시 시도',
-                  style: TextStyle(color: AppColors.blue, fontWeight: FontWeight.w700)),
-            ),
-          ],
-        ),
-      );
+      // 에러 branch(로드 실패) — 빈 상태와 구분 유지, 기존 _load 재시도 그대로.
+      return EmptyState.networkError(onRetry: _load);
     }
     if (_posts.isEmpty) {
       return RefreshIndicator(
@@ -191,10 +179,10 @@ class _ActivityTabState extends State<_ActivityTab>
           children: [
             SizedBox(
               height: MediaQuery.sizeOf(context).height * 0.5,
-              child: Center(
-                child: Text(widget.emptyMessage,
-                    style: const TextStyle(color: AppColors.textMuted),
-                    textAlign: TextAlign.center),
+              child: EmptyState(
+                icon: Icons.history_rounded,
+                title: widget.emptyMessage,
+                description: '게시판에 글이나 댓글을 남겨보세요',
               ),
             ),
           ],

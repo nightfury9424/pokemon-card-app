@@ -8,6 +8,8 @@ import '../../core/notifiers/chat_unread_notifier.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/pressable.dart';
 import '../../core/widgets/user_avatar.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -79,21 +81,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildEmpty() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.chat_bubble_outline_rounded,
-              color: AppColors.textMuted, size: 56),
-          SizedBox(height: 16),
-          Text('진행 중인 채팅이 없습니다',
-              style:
-                  TextStyle(color: AppColors.textSecondary, fontSize: 15)),
-          SizedBox(height: 8),
-          Text('판매 중인 카드에 채팅을 걸어보세요',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-        ],
-      ),
+    // ★Toss restyle: 빈 상태 = 공용 EmptyState(입체 스쿼클 아이콘 문법 통일).
+    return const EmptyState(
+      icon: Icons.chat_bubble_rounded,
+      title: '아직 채팅이 없어요',
+      description: '거래를 시작하면 채팅방이 열려요',
     );
   }
 
@@ -155,8 +147,12 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
-      child: InkWell(
+      // ★Toss restyle: 탭 시 0.98 스케일 미세 반응(햅틱 없음). Pressable 은 tap 계열 제스처만
+      //   등록 — Slidable 의 horizontal drag 는 arena 에서 그대로 승리(드래그 시작 시 tapCancel 로 복원).
+      child: Pressable(
       onTap: () => context.push('/chat/${room['chatRoomId']}', extra: room),
+      pressedScale: 0.98,
+      haptic: false,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(

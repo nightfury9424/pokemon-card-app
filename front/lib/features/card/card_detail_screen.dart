@@ -3,7 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:dio/dio.dart' show DioException;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show TextInputFormatter, TextEditingValue, TextSelection;
+import 'package:flutter/services.dart' show TextInputFormatter, TextEditingValue, TextSelection, HapticFeedback;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -15,11 +15,13 @@ import '../../core/widgets/trade_safety_notice.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/constants/feature_flags.dart';
 import '../../core/notifiers/asset_notifier.dart';
+import '../../core/widgets/animated_counter.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/holographic_card_viewer.dart';
+import '../../core/widgets/pressable.dart';
 import '../../core/widgets/rarity_aura.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/price_display_policy.dart';
@@ -1081,24 +1083,27 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 ),
                 child: Hero(
                   tag: 'card-${widget.cardId}',
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.55),
-                          blurRadius: 28,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: CardImage(
-                      imageUrl: imageUrl,
-                      width: cardWidth,
-                      height: cardHeight,
-                      borderRadius: BorderRadius.circular(16),
-                      // 데이터(_cardDetail/cardData) 도착 전엔 '이미지 없음' 대신 skeleton.
-                      isLoading: _loading && data == null,
+                  child: _TiltableCard(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.55),
+                            blurRadius: 28,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: CardImage(
+                        imageUrl: imageUrl,
+                        width: cardWidth,
+                        height: cardHeight,
+                        borderRadius: BorderRadius.circular(16),
+                        // 데이터(_cardDetail/cardData) 도착 전엔 '이미지 없음' 대신 skeleton.
+                        isLoading: _loading && data == null,
+                      ),
                     ),
                   ),
                 ),
@@ -2623,8 +2628,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
-                    Text(
-                      _formatPrice(koLow),
+                    TweenedCounter(
+                      value: koLow,
+                      formatter: (v) => _formatPrice(v.round()),
+                      duration: const Duration(milliseconds: 700),
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 24,
@@ -2643,8 +2650,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                         ),
                       ),
                     ),
-                    Text(
-                      _formatPrice(koHigh),
+                    TweenedCounter(
+                      value: koHigh,
+                      formatter: (v) => _formatPrice(v.round()),
+                      duration: const Duration(milliseconds: 700),
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 24,
@@ -3102,6 +3111,23 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     );
   }
 
+  // 차트 스크럽 햅틱 — 터치 중인 spot index가 바뀔 때만 selectionClick.
+  // KO/시장 차트는 chartType에 따라 동시에 하나만 렌더되므로 index 하나로 공유 안전.
+  int? _lastScrubSpotIndex;
+
+  void _onChartScrub(FlTouchEvent event, LineTouchResponse? response) {
+    final spots = response?.lineBarSpots;
+    if (!event.isInterestedForInteractions || spots == null || spots.isEmpty) {
+      _lastScrubSpotIndex = null; // 터치 종료 → 다음 스크럽 첫 spot에서 다시 틱
+      return;
+    }
+    final idx = spots.first.spotIndex;
+    if (idx != _lastScrubSpotIndex) {
+      _lastScrubSpotIndex = idx;
+      HapticFeedback.selectionClick();
+    }
+  }
+
   Widget _buildMarketChart(Map<String, dynamic>? charts) {
     final bool isKrw = _selectedMarket == 'KO';
 
@@ -3292,6 +3318,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           maxX: lastX,
           clipData: const FlClipData.all(),
           lineTouchData: LineTouchData(
+            handleBuiltInTouches: true,
+            touchCallback: _onChartScrub,
             touchTooltipData: LineTouchTooltipData(
               getTooltipColor: (_) => AppColors.surfaceElevated,
               tooltipRoundedRadius: 10,
@@ -3492,6 +3520,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           maxX: lastX,
           clipData: const FlClipData.all(),
           lineTouchData: LineTouchData(
+            handleBuiltInTouches: true,
+            touchCallback: _onChartScrub,
             touchTooltipData: LineTouchTooltipData(
               getTooltipColor: (_) => AppColors.surfaceElevated,
               tooltipRoundedRadius: 10,
@@ -3949,43 +3979,55 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: Row(
           children: [
+            // CTA 눌림 반응 (Toss restyle): ElevatedButton → Pressable+Container.
+            // 색/높이 48/radius 12/라벨/onTap(가드 포함) 동일 — 눌림 scale 0.97만 추가.
             Expanded(
-              child: SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () => _onSellTap(cardName, rarity, imageUrl),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.blue,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+              child: Pressable(
+                pressedScale: 0.97,
+                onTap: () => _onSellTap(cardName, rarity, imageUrl),
+                child: Container(
+                  height: 48,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.blue,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   // 매수 대기 인원 배지 — "사려는 사람 N명" 신호로 판매 유도.
                   child: Text(
                     (_hogaBidCount != null && _hogaBidCount! > 0)
                         ? '판매하기 ($_hogaBidCount)'
                         : '판매하기',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _onBuyTap,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.red,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+              child: Pressable(
+                pressedScale: 0.97,
+                onTap: _onBuyTap,
+                child: Container(
+                  height: 48,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.red,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   // 판매글 수 배지 — "파는 사람 N건" 신호로 구매 유도.
                   child: Text(
                     (_hogaAskCount != null && _hogaAskCount! > 0)
                         ? '구매하기 ($_hogaAskCount)'
                         : '구매하기',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ),
@@ -5408,6 +5450,156 @@ class _ThousandsCommaFormatter extends TextInputFormatter {
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+/// 히어로 카드 터치 틸트 + 광택 (Toss restyle 시그니처 인터랙션).
+///
+/// 제스처 안전성: NestedScrollView 헤더 안에 살기 때문에 제스처 아레나에
+/// 참여하는 GestureDetector 드래그를 쓰면 세로 스크롤이 죽는다.
+/// → Listener(passive, 아레나 비참여)로 포인터만 관찰: 스크롤/탭(홀로그램 뷰어)
+///   제스처는 그대로 동작하고, 틸트는 순수 시각 효과로만 얹힌다.
+///
+/// 60fps: 포인터 이동은 `ValueNotifier<Offset>`만 갱신 →
+/// ValueListenableBuilder가 Transform+광택 오버레이만 리빌드 (setState 없음).
+class _TiltableCard extends StatefulWidget {
+  final Widget child;
+  final BorderRadius borderRadius;
+
+  const _TiltableCard({
+    required this.child,
+    required this.borderRadius,
+  });
+
+  @override
+  State<_TiltableCard> createState() => _TiltableCardState();
+}
+
+class _TiltableCardState extends State<_TiltableCard>
+    with SingleTickerProviderStateMixin {
+  /// (dx, dy) ∈ [-1, 1]² — 카드 중심 대비 포인터 위치 비율.
+  final ValueNotifier<Offset> _tilt = ValueNotifier<Offset>(Offset.zero);
+
+  late final AnimationController _resetController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 350),
+  );
+  Animation<Offset>? _resetAnim;
+
+  static const double _maxTiltRad = 0.10;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetController.addListener(() {
+      final anim = _resetAnim;
+      if (anim != null) _tilt.value = anim.value;
+    });
+  }
+
+  @override
+  void dispose() {
+    _resetController.dispose();
+    _tilt.dispose();
+    super.dispose();
+  }
+
+  void _updateFromPointer(Offset localPosition) {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final size = box.size;
+    if (size.width <= 0 || size.height <= 0) return;
+    final dx = ((localPosition.dx - size.width / 2) / (size.width / 2))
+        .clamp(-1.0, 1.0);
+    final dy = ((localPosition.dy - size.height / 2) / (size.height / 2))
+        .clamp(-1.0, 1.0);
+    _tilt.value = Offset(dx, dy);
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    _resetController.stop();
+    _resetAnim = null;
+    HapticFeedback.selectionClick();
+    _updateFromPointer(event.localPosition);
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    _updateFromPointer(event.localPosition);
+  }
+
+  void _onPointerEnd(PointerEvent event) {
+    if (_tilt.value == Offset.zero) return;
+    // 손 뗄 때 살짝 오버슈트하며 평평하게 복귀 (spring 느낌).
+    _resetAnim = Tween<Offset>(begin: _tilt.value, end: Offset.zero).animate(
+      CurvedAnimation(parent: _resetController, curve: Curves.easeOutBack),
+    );
+    _resetController
+      ..reset()
+      ..forward();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      // Listener는 제스처 아레나에 참여하지 않는 passive 관찰자 —
+      // NestedScrollView 스크롤/탭 제스처를 절대 가로채지 않는다.
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerEnd,
+      onPointerCancel: _onPointerEnd,
+      child: ValueListenableBuilder<Offset>(
+        valueListenable: _tilt,
+        builder: (context, tilt, child) {
+          final rotateX = -tilt.dy * _maxTiltRad;
+          final rotateY = tilt.dx * _maxTiltRad;
+          final glossOpacity = tilt.distance.clamp(0.0, 1.0);
+          return Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.0012)
+              ..rotateX(rotateX)
+              ..rotateY(rotateY),
+            child: Stack(
+              children: [
+                child!,
+                // 광택: 틸트 반대 방향으로 흐르는 좁은 흰색 sheen 밴드 (광원 착시).
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: glossOpacity,
+                      child: ClipRRect(
+                        borderRadius: widget.borderRadius,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment(
+                                (-tilt.dx - 0.7).clamp(-2.0, 2.0),
+                                (-tilt.dy - 0.7).clamp(-2.0, 2.0),
+                              ),
+                              end: Alignment(
+                                (-tilt.dx + 0.7).clamp(-2.0, 2.0),
+                                (-tilt.dy + 0.7).clamp(-2.0, 2.0),
+                              ),
+                              colors: const [
+                                Color(0x00FFFFFF),
+                                Color(0x2EFFFFFF),
+                                Color(0x00FFFFFF),
+                              ],
+                              stops: const [0.35, 0.5, 0.65],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+        child: widget.child,
+      ),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/constants/feature_flags.dart';
@@ -321,6 +322,7 @@ class _AssetScreenState extends State<AssetScreen> {
               final tradeId = (data is Map ? data['tradeId'] : null) as String?;
               if (!mounted || !ctx.mounted) return;
               created = true;
+              HapticFeedback.mediumImpact(); // 판매 등록 성공
               Navigator.pop(ctx);
               setState(() {
                 asset['isSelling'] = true;
@@ -463,6 +465,7 @@ class _AssetScreenState extends State<AssetScreen> {
     try {
       await ApiClient.delete('/api/trades/$tradeId');
       if (!mounted) return;
+      HapticFeedback.mediumImpact(); // 판매 내리기 성공
       setState(() {
         asset['isSelling'] = false;
         asset['activeTradeId'] = null;
@@ -545,6 +548,7 @@ class _AssetScreenState extends State<AssetScreen> {
                         as String?;
                 if (!mounted || !ctx.mounted) return;
                 created = true;
+                HapticFeedback.mediumImpact(); // 등급 카드 판매 등록 성공
                 Navigator.pop(ctx);
                 setState(() {
                   asset['gradingCompany'] = gradingCompany;
@@ -831,15 +835,10 @@ class _AssetScreenState extends State<AssetScreen> {
                     if (_myBuyOrders.isEmpty)
                       const SliverFillRemaining(
                         hasScrollBody: false,
-                        child: Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(32),
-                            child: Text(
-                              '등록한 매수 호가가 없습니다.\n카드 상세에서 등록할 수 있습니다.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.5),
-                            ),
-                          ),
+                        child: EmptyState(
+                          icon: Icons.shopping_cart_rounded,
+                          title: '등록한 매수 호가가 없어요',
+                          description: '카드 상세의 구매하기에서 등록할 수 있어요',
                         ),
                       )
                     else
@@ -1224,6 +1223,7 @@ class _AssetScreenState extends State<AssetScreen> {
     final selected = _sortMode == mode;
     return InkWell(
       onTap: () {
+        HapticFeedback.lightImpact(); // 정렬 선택 확정 1회
         _onSortTap(mode);
         Navigator.pop(ctx);
       },
@@ -1531,6 +1531,8 @@ class _AssetScreenState extends State<AssetScreen> {
         : null;
 
     return Pressable(
+      pressedScale: 0.97,
+      haptic: false,
       onTap: () async {
         final changed = await context.push<bool>(
           '/card/$cardId',

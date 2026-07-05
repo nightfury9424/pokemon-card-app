@@ -19,6 +19,7 @@ import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/app_success_toast.dart';
 import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/pressable.dart';
 import '../../core/widgets/user_avatar.dart';
 import '../trade/trade_settlement_sheet.dart';
 
@@ -412,6 +413,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     final text = _inputController.text.trim();
     if (text.isEmpty || !_connected) return;
 
+    HapticFeedback.lightImpact(); // ★Toss restyle: 전송 트리거 미세 햅틱(가드 통과 시)
     _stompClient?.send(
       destination: '/app/room/${widget.roomId}',
       body: '{"message":"${text.replaceAll('"', '\\"')}","senderUserId":"${_myUserId ?? ''}"}',
@@ -505,6 +507,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       const maxBatch = 5;
       final over = picked.length > maxBatch;
       final files = over ? picked.sublist(0, maxBatch) : picked;
+      HapticFeedback.lightImpact(); // ★Toss restyle: 이미지 전송 시작 미세 햅틱
       setState(() => _uploadingImage = true);
       int ok = 0;
       int fail = 0;
@@ -566,6 +569,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
         return;
       }
 
+      HapticFeedback.lightImpact(); // ★Toss restyle: 이미지 전송 시작 미세 햅틱
       setState(() => _uploadingImage = true);
       try {
         await ApiClient.uploadFile(
@@ -1851,10 +1855,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       child: Row(
         children: [
           // 2026-05-28 이미지 메시지 — 좌측 + 버튼. canSend && _connected && !uploading.
-          GestureDetector(
+          // ★Toss restyle: 탭 시 0.95 스케일 미세 반응(햅틱 없음) — 동작·활성 조건 기존 그대로.
+          Pressable(
             onTap: (_canSendMessage && _connected && !_uploadingImage)
                 ? _showImagePickerSheet
                 : null,
+            pressedScale: 0.95,
+            haptic: false,
             child: Container(
               width: 36,
               height: 36,

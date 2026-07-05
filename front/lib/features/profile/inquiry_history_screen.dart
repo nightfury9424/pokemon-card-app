@@ -3,6 +3,8 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/auth_image.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/pressable.dart';
 
 /// 내 문의 내역 — GET /api/inquiries/me. 관리자 답변(adminReply) 상태 노출.
 class InquiryHistoryScreen extends StatefulWidget {
@@ -81,12 +83,11 @@ class _InquiryHistoryScreenState extends State<InquiryHistoryScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.blue))
+          // 로드 실패 시 에러 토스트 후 _items가 빈 채로 남음(에러 상태 미분리) — 분기 유지, 표현만 교체.
           : _items.isEmpty
-              ? const Center(
-                  child: Text(
-                    '문의 내역이 없습니다',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
+              ? const EmptyState(
+                  icon: Icons.inbox_rounded,
+                  title: '문의 내역이 없어요',
                 )
               : RefreshIndicator(
                   color: AppColors.blue,
@@ -115,9 +116,10 @@ class _InquiryHistoryScreenState extends State<InquiryHistoryScreen> {
     final hasReply = adminReply.isNotEmpty;
 
     // 답변은 길어질 수 있어 인라인 X → 카드는 요약만, 탭하면 상세 시트.
-    return GestureDetector(
+    return Pressable(
+      pressedScale: 0.98,
+      haptic: false,
       onTap: () => _showDetail(item),
-      behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(

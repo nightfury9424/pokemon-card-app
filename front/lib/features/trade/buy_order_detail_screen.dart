@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
@@ -7,6 +8,7 @@ import '../../core/widgets/card_image.dart';
 import '../../core/widgets/app_confirm_dialog.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_success_toast.dart';
+import '../../core/widgets/pressable.dart';
 import '../auth/phone_verify_sheet.dart';
 import 'report_sheet.dart';
 
@@ -155,6 +157,7 @@ class _BuyOrderDetailScreenState extends State<BuyOrderDetailScreen> {
         AppErrorToast.show(context, res['message']?.toString() ?? '수정에 실패했어요.');
         return;
       }
+      HapticFeedback.lightImpact(); // 가격 수정 성공 촉각 피드백
       setState(() {
         _order!['bidPrice'] = newPrice;
         _modified = true;
@@ -384,17 +387,26 @@ class _BuyOrderDetailScreenState extends State<BuyOrderDetailScreen> {
               ? null
               : SafeArea(
                   minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: SizedBox(
-                    height: 54,
-                    child: ElevatedButton.icon(
-                      onPressed: _chatLoading ? null : _startChat,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.blue,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  // Toss restyle: ElevatedButton → Pressable CTA (게이트 식 동일 —
+                  // _chatLoading이면 onTap null = Pressable 비활성, scale/haptic 없음).
+                  child: Pressable(
+                    pressedScale: 0.97,
+                    onTap: _chatLoading ? null : _startChat,
+                    child: Container(
+                      height: 54,
+                      decoration: BoxDecoration(
+                        color: AppColors.blue,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      icon: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 18),
-                      label: const Text('채팅하기',
-                          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.chat_bubble_outline, color: Colors.white, size: 18),
+                          SizedBox(width: 8),
+                          Text('채팅하기',
+                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -422,9 +434,9 @@ class _CardLinkRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Pressable(
+      pressedScale: 0.98,
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(

@@ -4,6 +4,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/app_success_toast.dart';
+import '../../core/widgets/empty_state.dart';
 
 class BlockedUsersScreen extends StatefulWidget {
   const BlockedUsersScreen({super.key});
@@ -72,12 +73,11 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.blue))
+          // 로드 실패 시 에러 토스트 후 _items가 빈 채로 남음(에러 상태 미분리) — 분기 유지, 표현만 교체.
           : _items.isEmpty
-              ? const Center(
-                  child: Text(
-                    '차단한 사용자가 없습니다',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
+              ? const EmptyState(
+                  icon: Icons.person_off_rounded,
+                  title: '차단한 사용자가 없어요',
                 )
               : ListView(
                   padding: const EdgeInsets.all(16),

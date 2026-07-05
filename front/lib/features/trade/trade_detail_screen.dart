@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'trade_partner_select_sheet.dart';
 import 'trade_settlement_sheet.dart';
@@ -13,6 +14,7 @@ import '../../core/widgets/auth_image.dart';
 import '../../core/widgets/card_image.dart';
 import '../../core/widgets/app_error_toast.dart';
 import '../../core/widgets/app_info_toast.dart';
+import '../../core/widgets/pressable.dart';
 import '../auth/phone_verify_sheet.dart';
 import '../../core/notifiers/asset_notifier.dart';
 import 'report_sheet.dart';
@@ -156,6 +158,7 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
 
   Future<void> _toggleLike() async {
     if (_likeLoading) return;
+    HapticFeedback.lightImpact(); // 찜 토글 촉각 피드백
     setState(() => _likeLoading = true);
     try {
       final res = await ApiClient.post(
@@ -574,7 +577,8 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                     setState(() => _currentImageIndex = index);
                   },
                   itemBuilder: (context, index) {
-                    return GestureDetector(
+                    return Pressable(
+                      pressedScale: 0.97,
                       onTap: () => _showFullscreenImages(index),
                       // AuthImage: /api/images/secure/** JWT 부착 (사용자 업로드 trade 이미지)
                       child: AuthImage(
@@ -850,8 +854,10 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
             )
           : Row(
               children: [
-                // 관심 버튼
-                GestureDetector(
+                // 관심 버튼 — Pressable scale + 햅틱은 _toggleLike 내부(중복 방지 haptic:false).
+                Pressable(
+                  pressedScale: 0.97,
+                  haptic: false,
                   onTap: _toggleLike,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
@@ -878,9 +884,10 @@ class _TradeDetailScreenState extends State<TradeDetailScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // 채팅하기 버튼
+                // 채팅하기 버튼 — canChat 게이트 로직 그대로 (null이면 Pressable 비활성=scale/haptic 없음).
                 Expanded(
-                  child: GestureDetector(
+                  child: Pressable(
+                    pressedScale: 0.98,
                     onTap: canChat ? _startChat : null,
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),

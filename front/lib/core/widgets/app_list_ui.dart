@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import 'pressable.dart';
 
 /// ★Toss restyle 공용 UI 킷 (2026-07-04) — MY 화면에서 검증된 디자인 언어.
 /// 전 화면 통일의 단일 진실원: 그룹 카드 + 메뉴 행 + 입체 스쿼클 아이콘 + 섹션 라벨.
@@ -258,8 +259,11 @@ class AppMenuRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final showBadge = (badgeCount ?? 0) > 0;
-    return InkWell(
+    return Pressable(
       onTap: onTap,
+      pressedScale: 0.98,
+      duration: const Duration(milliseconds: 120),
+      haptic: false,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(

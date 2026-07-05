@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import 'models/board_post.dart';
@@ -9,6 +10,8 @@ import 'board_compose_screen.dart';
 import 'models/board_filter.dart';
 import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/auth_image.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/pressable.dart';
 
 /// 재조회한 페이지들을 순서대로 병합 + postId 중복 제거(핀 이동으로 페이지 간 옮겨진 글 중복 방지). 테스트 가능.
 List<BoardPost> mergeBoardPages(List<List<BoardPost>> pages) {
@@ -341,7 +344,11 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
       floatingActionButton: _filter.canWrite
           ? FloatingActionButton.extended(
               backgroundColor: AppColors.blue,
-              onPressed: _openCompose,
+              // Toss restyle: FAB 자체 머티리얼 반응 유지(Pressable 미적용) — 탭 시 가벼운 햅틱만 추가.
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                _openCompose();
+              },
               elevation: 2,
               icon: const Icon(Icons.edit_rounded, size: 19, color: Colors.white),
               label: const Text('글쓰기',
@@ -421,17 +428,20 @@ class _BoardScreenState extends State<BoardScreen> with WidgetsBindingObserver {
           children: [
             SizedBox(
               height: MediaQuery.sizeOf(context).height * 0.5,
-              child: Center(
-                child: Text(
-                  _query.isNotEmpty
-                      ? "'$_query' 검색 결과가 없어요"
-                      : _filter == BoardFilter.all
+              // ★Toss restyle: 빈 상태 = 공용 EmptyState. 글쓰기 가능 탭은 FAB 이 CTA 라 버튼 미노출.
+              child: _query.isNotEmpty
+                  ? EmptyState(
+                      icon: Icons.search_off_rounded,
+                      title: "'$_query' 검색 결과가 없어요",
+                      description: '다른 검색어로 다시 시도해보세요.',
+                    )
+                  : EmptyState(
+                      icon: Icons.forum_rounded,
+                      title: _filter == BoardFilter.all
                           ? '아직 글이 없어요'
-                          : '등록된 ${_filter.label} 게시글이 없어요',
-                  style: const TextStyle(color: AppColors.textMuted),
-                  textAlign: TextAlign.center,
-                ),
-              ),
+                          : '아직 ${_filter.label} 글이 없어요',
+                      description: _filter.canWrite ? '첫 글을 남겨보세요' : null,
+                    ),
             ),
           ],
         ),
@@ -503,9 +513,11 @@ class PostRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    // ★Toss restyle: 탭 시 0.98 스케일 미세 반응(햅틱 없음) — onTap 동작은 기존 그대로.
+    return Pressable(
       onTap: onTap,
+      pressedScale: 0.98,
+      haptic: false,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Row(

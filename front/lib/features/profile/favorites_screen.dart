@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/card_image.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/pressable.dart';
 
 /// 관심 목록 — 2탭: 게시물(저장한 거래글) + 관심 카드(하트 찜한 카드).
 /// 게시물 = GET /api/interests/my (PostInterest), 카드 = GET /api/card-interests/me (CardInterest).
@@ -127,10 +129,11 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       return const Center(child: CircularProgressIndicator(color: AppColors.blue));
     }
     if (_posts.isEmpty) {
-      return _empty(
-        icon: Icons.bookmark_border_rounded,
-        title: '저장한 게시물이 없습니다',
-        sub: '거래글 상세에서 하트를 눌러 저장해보세요',
+      // 로드 실패 시에도 _posts가 빈 채로 남음(에러 상태 미분리) — 기존 분기 유지, 표현만 교체.
+      return const EmptyState(
+        icon: Icons.bookmark_rounded,
+        title: '저장한 게시물이 없어요',
+        description: '거래글 상세에서 하트를 눌러 저장해보세요',
       );
     }
     return RefreshIndicator(
@@ -166,7 +169,9 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       _ => ('판매중', AppColors.green),
     };
 
-    return InkWell(
+    return Pressable(
+      pressedScale: 0.98,
+      haptic: false,
       onTap: () async {
         await context.push<bool>('/trades/$tradeId');
         if (mounted) _loadPosts();
@@ -238,10 +243,11 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       return const Center(child: CircularProgressIndicator(color: AppColors.blue));
     }
     if (_cards.isEmpty) {
-      return _empty(
-        icon: Icons.favorite_border_rounded,
-        title: '관심 카드가 없습니다',
-        sub: '거래 리스트에서 하트를 눌러 추가해보세요',
+      // 로드 실패 시에도 _cards가 빈 채로 남음(에러 상태 미분리) — 기존 분기 유지, 표현만 교체.
+      return const EmptyState(
+        icon: Icons.favorite_rounded,
+        title: '관심 카드가 없어요',
+        description: '마음에 드는 카드에 하트를 눌러보세요',
       );
     }
     return RefreshIndicator(
@@ -268,7 +274,9 @@ class _FavoritesScreenState extends State<FavoritesScreen>
     final language = item['language'] as String? ?? '';
     final imageUrl = resolveCardImageUrl(item);
 
-    return InkWell(
+    return Pressable(
+      pressedScale: 0.98,
+      haptic: false,
       onTap: () => context.push('/card/$cardId', extra: {'cardData': item}),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -327,21 +335,6 @@ class _FavoritesScreenState extends State<FavoritesScreen>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _empty({required IconData icon, required String title, required String sub}) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: AppColors.textMuted, size: 56),
-          const SizedBox(height: 16),
-          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 15)),
-          const SizedBox(height: 8),
-          Text(sub, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
-        ],
       ),
     );
   }

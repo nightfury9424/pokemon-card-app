@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/rendering.dart' show RenderAbstractViewport;
+import 'package:flutter/services.dart' show HapticFeedback;
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_info_toast.dart';
 import '../../core/widgets/auth_image.dart';
@@ -652,6 +653,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
   // 낙관적 좋아요 토글: 즉시 반영 → 서버 응답으로 보정 / 실패 시 정확 롤백. 진행 중 재탭 차단.
   Future<void> _toggleLike() async {
     if (_likeBusy) return;
+    HapticFeedback.lightImpact(); // ★Toss restyle: 좋아요 토글 미세 햅틱
     final wasLiked = _liked;
     final wasCount = _likeCount;
     setState(() {
@@ -786,6 +788,7 @@ class _BoardDetailScreenState extends State<BoardDetailScreen> with WidgetsBindi
   Future<void> _sendComment() async {
     final text = _commentCtrl.text.trim();
     if (text.isEmpty || _sending) return; // 빈/공백·연타 가드
+    HapticFeedback.lightImpact(); // ★Toss restyle: 전송 트리거 미세 햅틱(가드 통과 시)
     setState(() => _sending = true);
     final parentId = _replyTo?.replyTargetCommentId; // 답글이면 최상위 댓글 id(서버 재검증)
     try {
