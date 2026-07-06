@@ -106,6 +106,19 @@ body{
   opacity:0;transition:opacity .3s;will-change:opacity;
   filter:blur(6px);
 }
+/* 오픈형 스포트라이트 (진열장 조명 — 티어 무관 웜, 잭팟은 강함) */
+#spotlight{
+  position:absolute;inset:0;z-index:33;pointer-events:none;opacity:0;transition:opacity .55s ease;
+  background:
+    radial-gradient(circle 120px at var(--sx,50%) var(--sy,42%), rgba(255,226,180,.20), transparent 58%),
+    radial-gradient(circle 150px at var(--sx,50%) var(--sy,42%), transparent 40%, rgba(0,0,0,.32) 66%, rgba(0,0,0,.62) 86%);
+}
+#spotlight.show{opacity:1}
+#spotlight.strong{
+  background:
+    radial-gradient(circle 130px at var(--sx,50%) var(--sy,42%), rgba(255,224,150,.30), transparent 60%),
+    radial-gradient(circle 150px at var(--sx,50%) var(--sy,42%), transparent 38%, rgba(0,0,0,.4) 64%, rgba(0,0,0,.72) 88%);
+}
 
 /* ============================================================
    보드 공통 (봉인판 / 오픈 전시판)
@@ -178,16 +191,69 @@ body{
 }
 #gridA.picking .mpack:not(.sel):not(.gone) .stk{opacity:.5;transition:opacity .2s}
 
-/* --- 오픈 전시판 셀 = FACE-UP 실제 상품 + 번호 / 뽑힘 = 검은 빈칸 --- */
-.ocell{aspect-ratio:63/88;position:relative;border-radius:4px;overflow:hidden;
-  background:#0B1220;border:1px solid rgba(255,255,255,.08)}
-.ocell img{width:100%;height:100%;object-fit:cover;display:block}
-.ocell .ntag{position:absolute;top:1px;left:3px;font-size:7px;font-weight:800;color:rgba(255,255,255,.9);text-shadow:0 1px 2px #000}
-.ocell.gap{background:radial-gradient(120% 120% at 50% 28%, #000, #04060B);
-  border:1px solid rgba(255,255,255,.05);box-shadow:inset 0 2px 7px rgba(0,0,0,.85)}
-.ocell.gap img,.ocell.gap .ntag{display:none}
-.ocell.mine{border-color:rgba(232,238,247,.9);z-index:2;animation:cellPulse 1s ease-in-out infinite}
-@keyframes cellPulse{0%,100%{box-shadow:0 0 4px rgba(232,238,247,.45)}50%{box-shadow:0 0 17px rgba(232,238,247,.95)}}
+/* --- 오픈 전시판 = 실물 유리 진열장 (카드샵 쇼케이스) --- */
+#caseWrap{
+  position:relative;flex:1;min-height:0;margin-bottom:10px;border-radius:12px;overflow:hidden;
+  /* 진열장 프레임(우드/메탈 엣지) + 내부 깊이 */
+  box-shadow:inset 0 0 0 2px #37291a, inset 0 0 0 4px rgba(0,0,0,.6),
+             inset 0 0 60px rgba(0,0,0,.55), 0 12px 34px rgba(0,0,0,.6);
+}
+#caseInner{
+  min-height:100%;padding:12px 9px 6px;
+  /* 상단 웜 조명 → 하단 어둠 (진열장 back panel + 오버헤드 라이트) */
+  background:
+    radial-gradient(120% 60% at 50% -8%, rgba(255,214,150,.20), transparent 60%),
+    linear-gradient(180deg,#2c2418 0%,#201a11 26%,#161009 66%,#100b06 100%);
+}
+.caseGrid{display:flex;flex-direction:column;gap:8px}
+.caseRow{position:relative;display:grid;grid-template-columns:repeat(10,1fr);gap:5px;padding-bottom:5px}
+.caseRow::after{ /* 유리 선반 라인 + 립 (카드가 얹힌 선반) */
+  content:"";position:absolute;left:-5px;right:-5px;bottom:0;height:3px;border-radius:2px;
+  background:linear-gradient(180deg, rgba(255,224,170,.28), rgba(120,86,40,.25) 45%, rgba(0,0,0,.6));
+  box-shadow:0 3px 6px rgba(0,0,0,.55);
+}
+/* 카드 = 토플로더 슬리브에 든 실물 카드 (face-up, 손으로 꽂아 미세 회전) */
+.ocell{position:relative;aspect-ratio:63/88}
+.ocell .card{
+  position:absolute;inset:0;border-radius:3px;overflow:hidden;
+  transform:rotate(var(--r,0deg));background:#0B1220;
+  box-shadow:0 2px 5px rgba(0,0,0,.6), 0 4px 9px rgba(0,0,0,.4);
+}
+.ocell .card img{width:100%;height:100%;object-fit:cover;display:block}
+.ocell .card::after{ /* 투명 슬리브: 테두리 하이라이트 + 대각 글레어 */
+  content:"";position:absolute;inset:0;border-radius:3px;pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.2), inset 0 1px 2px rgba(255,255,255,.28);
+  background:linear-gradient(148deg, rgba(255,255,255,.22) 0%, transparent 20%, transparent 76%, rgba(255,255,255,.07) 100%);
+}
+.ocell .lab{ /* 하단 흰 번호 라벨 (가격표) — 살짝 비뚤 */
+  position:absolute;left:50%;bottom:-3px;transform:translateX(-50%) rotate(var(--lr,-2deg));
+  min-width:13px;height:8px;line-height:8px;padding:0 2px;border-radius:1px;z-index:3;
+  background:linear-gradient(180deg,#FBF9F2,#E9E6DA);color:#20262F;
+  font-size:6px;font-weight:800;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.55);
+}
+/* 뽑힌 자리 = 카드가 빠진 검은 빈칸 (실물이 사라진 홈) */
+.ocell.gap .card,.ocell.gap .lab{display:none}
+.ocell.gap{border-radius:3px;background:#000;
+  box-shadow:inset 0 3px 8px rgba(0,0,0,.95), inset 0 0 0 1px rgba(0,0,0,.9), inset 0 -1px 2px rgba(60,44,24,.35)}
+/* 내 번호 대기: 은은한 웜 펄스 */
+.ocell.mine .card{animation:cellPulse 1s ease-in-out infinite}
+@keyframes cellPulse{
+  0%,100%{box-shadow:0 2px 5px rgba(0,0,0,.6),0 0 6px rgba(255,214,150,.4)}
+  50%{box-shadow:0 2px 5px rgba(0,0,0,.6),0 0 18px rgba(255,214,150,.95)}
+}
+/* 스포트라이트 받은 셀 (물리적 조명) */
+.ocell.lit .card{filter:brightness(1.18) saturate(1.08);box-shadow:0 3px 8px rgba(0,0,0,.6),0 0 22px rgba(255,220,160,.75)}
+.ocell.lit.jack .card{box-shadow:0 3px 8px rgba(0,0,0,.6),0 0 26px rgba(255,205,90,.95),inset 0 0 0 1px rgba(255,215,120,.6)}
+/* 진열장 앞유리 반사 (줌과 무관하게 고정) */
+#glassGlare{
+  position:absolute;inset:0;pointer-events:none;z-index:2;border-radius:12px;overflow:hidden;
+  background:
+    linear-gradient(180deg, rgba(255,240,214,.12) 0%, transparent 26%),
+    linear-gradient(116deg, transparent 16%, rgba(255,255,255,.11) 27%, transparent 40%),
+    linear-gradient(116deg, transparent 54%, rgba(255,255,255,.06) 62%, transparent 71%),
+    radial-gradient(90% 50% at 78% 4%, rgba(255,255,255,.10), transparent 60%);
+  mix-blend-mode:screen;
+}
 
 /* 확정 바 (봉인판 픽) */
 #confirmBar{
@@ -342,6 +408,12 @@ body{
 #bigCard.rise{transition:transform .6s cubic-bezier(.2,.85,.3,1),opacity .5s;opacity:1;transform:translateY(0) scale(1)}
 #bigCard.zoomSlow{animation:zoomSlow 5s ease-out forwards}
 @keyframes zoomSlow{from{scale:1}to{scale:1.06}}
+/* 오픈형 잭팟: 슬리브 골드 글린트 (그라운디드, 풀스크린 폭발 없음) */
+#bigCard.goldGlint{box-shadow:0 24px 70px rgba(0,0,0,.7), 0 0 46px rgba(255,201,74,.6), inset 0 0 0 2px rgba(255,214,110,.55)}
+#bigCard.goldGlint::before{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:linear-gradient(120deg,transparent 38%,rgba(255,231,150,.5) 50%,transparent 62%);
+  background-size:250% 250%;animation:glint 2.6s ease-in-out infinite}
+@keyframes glint{0%{background-position:150% 0}60%,100%{background-position:-50% 0}}
 #bigCard img{width:100%;height:100%;object-fit:cover;display:block}
 #bigCard .gloss2{
   position:absolute;inset:0;pointer-events:none;
@@ -453,6 +525,7 @@ body{
 <div id="stage" data-theme="prism">
   <div id="vignette"></div>
   <div id="glow"></div>
+  <div id="spotlight"></div>
 
   <!-- 까기: 카드 스택 -->
   <div id="packWrap"><div id="pack"></div></div>
@@ -466,13 +539,16 @@ body{
     <div class="bGrid" id="gridA"></div>
   </div>
 
-  <!-- 오픈 전시판 (오픈형 전용: 상품 전량 공개 + 모프 타깃) -->
+  <!-- 오픈 전시판 (오픈형 전용: 유리 진열장 · 상품 전량 공개 + 모프 타깃) -->
   <div id="boardC" class="board">
     <div class="bHeadC">
       <div class="bTitle" id="cTitle">이 오리파 구성</div>
-      <div class="bMeta2" id="cMeta" style="font-size:12px;color:var(--sub);margin-bottom:12px">남은 — / 100 · 상품 전량 공개</div>
+      <div class="bMeta2" id="cMeta" style="font-size:12px;color:var(--sub);margin-bottom:10px">남은 — / 100 · 상품 전량 공개</div>
     </div>
-    <div id="zoomC" style="transform-origin:0 0;will-change:transform"><div class="bGrid" id="gridC"></div></div>
+    <div id="caseWrap">
+      <div id="zoomC" style="transform-origin:0 0;will-change:transform"><div id="caseInner"><div id="gridC" class="caseGrid"></div></div></div>
+      <div id="glassGlare"></div>
+    </div>
   </div>
 
   <div id="lightline"></div>
@@ -698,19 +774,26 @@ gridA.addEventListener('click',e=>{
 });
 $('confirmBtn').addEventListener('click',()=>{if(_phase==='A'&&selPos!=null)doDraw()});
 
-// --- 오픈 전시판 렌더 (FACE-UP + 검은 빈칸) ---
+// --- 오픈 전시판 렌더 (유리 진열장: 슬리브 카드 FACE-UP + 번호라벨 / 뽑힘=검은 빈칸) ---
 function buildOpenBoard(withMine){
-  gridC.innerHTML='';
-  for(let n=1;n<=ORIPA.total;n++){
-    const el=document.createElement('div');
-    el.className='ocell';el.dataset.num=n;
-    if(board.drawn.has(n)){el.classList.add('gap')}
-    else{
-      const c=board.prize.get(n);
-      el.innerHTML=`<img src="${imgUrl(c)}" alt="" loading="lazy"><span class="ntag">${n}</span>`;
-      if(withMine&&result&&n===result.num)el.classList.add('mine');
+  gridC.className='caseGrid';gridC.innerHTML='';
+  let n=1;
+  for(let row=0;row<10;row++){
+    const rowEl=document.createElement('div');rowEl.className='caseRow';
+    for(let col=0;col<10&&n<=ORIPA.total;col++,n++){
+      const el=document.createElement('div');
+      el.className='ocell';el.dataset.num=n;
+      if(board.drawn.has(n)){el.classList.add('gap')}
+      else{
+        const c=board.prize.get(n);
+        el.style.setProperty('--r',(JIT[(n*7)%JIT.length]*0.9).toFixed(2)+'deg');   // 손으로 꽂은 미세 회전
+        el.style.setProperty('--lr',(-3+((n*3)%5))+'deg');                          // 라벨 비뚤림
+        el.innerHTML=`<div class="card"><img src="${imgUrl(c)}" alt="" loading="lazy"></div><div class="lab">${n}</div>`;
+        if(withMine&&result&&n===result.num)el.classList.add('mine');
+      }
+      rowEl.appendChild(el);
     }
-    gridC.appendChild(el);
+    gridC.appendChild(rowEl);
   }
 }
 
@@ -914,7 +997,10 @@ function stickerMorph(){
 }
 
 // ============================================================
-// 오픈형 공개 — 셀 줌 → 티어 스테이징(셀 발화) → 상품이 셀에서 들려 센터로 (플립 아님)
+// 오픈형 공개 — 물리적 진열장 회수감:
+//   셀 줌 → 웜 스포트라이트가 셀에 떨어지고 주변은 은은히 어두워짐 →
+//   슬리브 카드가 케이스에서 앞으로 들려 나와 센터로 (플립/블랙아웃/파티클 없음).
+//   잭팟은 더 강한 스포트라이트 + 슬리브 골드 글린트, 하지만 여전히 그라운디드.
 // ============================================================
 function openReveal(){
   _phase=2.7;stage.dataset.phase=2.7;
@@ -922,16 +1008,26 @@ function openReveal(){
   after(380,()=>{
     zoomTo(mineCell);
     after(880,()=>{
-      const lift=()=>{
+      openStage(mineCell);                         // 스포트라이트 점등 (블랙아웃 아님)
+      const ob=result.tier==='jackpot'?820:(TIERS[result.tier].beat+140);
+      after(ob,()=>{
         mineCell.classList.remove('mine');
         const img=mineCell.querySelector('img');
         const r=(img||mineCell).getBoundingClientRect();
-        liftToCenter(r,mineCell,()=>settleCenter(true));
-      };
-      if(result.tier==='jackpot')jackpotInterlude(lift);
-      else after(TIERS[result.tier].beat,lift);
+        liftToCenter(r,mineCell,()=>settleCenter(true));  // 케이스에서 앞으로 들려 나옴
+      });
     });
   });
+}
+// 진열장 조명: 셀 위에 웜 스포트라이트, 주변 은은히 어두워짐 (풀스크린 암전 아님)
+function openStage(cell){
+  const sp=$('spotlight');
+  sp.style.setProperty('--sx','50%');sp.style.setProperty('--sy','42%');   // 줌으로 셀은 이미 화면 중앙(42%)
+  sp.classList.add('show');
+  if(result.tier==='jackpot')sp.classList.add('strong');
+  cell.classList.remove('mine');cell.classList.add('lit');
+  if(result.tier==='jackpot')cell.classList.add('jack');
+  vib(12);
 }
 // 카메라 줌: 대상 셀이 화면 중앙(높이 42%)에 오도록 scale+translate (transform only)
 function zoomTo(el){
@@ -964,8 +1060,8 @@ function liftToCenter(rect,cell,done){
   clone.style.width=rect.width+'px';clone.style.height=rect.height+'px';
   clone.innerHTML=`<img src="${imgUrl(result.card)}" alt="">`;
   stage.appendChild(clone);
-  if(cell){cell.classList.add('gap')}              // 카드가 빠져나감 → 검은 빈칸
-  glow.style.opacity=result.tier==='normal'?.4:.85;  // ★ 여기서부터 티어 글로우
+  if(cell){cell.classList.add('lit');cell.classList.add('gap')}   // 카드가 빠져나감 → 검은 빈칸
+  glow.style.opacity = mode==='open' ? 0 : (result.tier==='normal'?.4:.85);  // 오픈=스포트라이트 사용 / 비공개=티어 글로우
   const scale=300/rect.width;
   const fw=rect.width*scale, fh=rect.height*scale;
   const dx=sr.width/2 - fw/2 - (rect.left-sr.left);
@@ -983,16 +1079,20 @@ function liftToCenter(rect,cell,done){
 // ============================================================
 function settleCenter(fromLift){
   _phase=3;stage.dataset.phase=3;setDots(3);
-  const t=result.tier,T=TIERS[t];
+  const t=result.tier,T=TIERS[t],openMode=mode==='open';
   packWrap.style.opacity=0;
-  if(mode==='open')boardC.classList.add('dimmed');   // 헤더만 dim, 전시판 그리드는 뒤에 계속 보임
+  if(openMode){boardC.classList.add('dimmed');$('spotlight').classList.remove('show','strong')}  // 스포트라이트 정리, 전시판은 뒤에 계속 보임
   bigImg.src=imgUrl(result.card);
   cardStage.classList.add('show');
-  dimmer.style.transition='opacity .8s';dimmer.style.opacity=t==='normal'?0:T.dim;
-  glow.style.opacity=t==='normal'?.3:.65;
+  dimmer.style.transition='opacity .8s';
+  dimmer.style.opacity = openMode ? (t==='normal'?0:.26) : (t==='normal'?0:T.dim);   // 오픈=은은한 dim(풀 암전 아님)
+  glow.style.opacity = openMode ? 0 : (t==='normal'?.3:.65);
   if(fromLift){bigCard.classList.remove('rise');bigCard.style.transition='opacity .28s ease';bigCard.style.opacity=1;bigCard.style.transform='none'}
   else{bigCard.classList.add('rise')}
-  if(t==='jackpot'){bigCard.classList.add('zoomSlow');jackBanner.classList.add('show');spawnParticles();vib(40)}
+  if(t==='jackpot'){
+    if(openMode){bigCard.classList.add('goldGlint');vib(24)}                 // 그라운디드: 슬리브 골드 글린트만
+    else{bigCard.classList.add('zoomSlow');jackBanner.classList.add('show');spawnParticles();vib(40)}  // 비공개: 가차 연출
+  }
   after(fromLift?70:650,()=>{
     floatWrap.classList.add('floating');tiltOn=true;
     after(fromLift?130:450,showSheet);
@@ -1074,7 +1174,8 @@ function resetAll(){
   _phase=-1;stage.dataset.phase=-1;tiltOn=false;
   ['flySticker','flyPack','flyPrize'].forEach(id=>{const e=$(id);if(e)e.remove()});
   sheet.classList.remove('show');cardStage.classList.remove('show');
-  bigCard.classList.remove('rise','zoomSlow');bigCard.style.transition='';bigCard.style.opacity='';bigCard.style.transform='';
+  $('spotlight').classList.remove('show','strong');
+  bigCard.classList.remove('rise','zoomSlow','goldGlint');bigCard.style.transition='';bigCard.style.opacity='';bigCard.style.transform='';
   floatWrap.classList.remove('floating');tiltWrap.style.transform='';
   jackBanner.classList.remove('show');particles.innerHTML='';
   dimmer.style.opacity=0;glow.style.opacity=0;
