@@ -106,7 +106,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildProfileHeader(),
                         const SizedBox(height: 20),
                         _buildSummaryCard(),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 24),
+                        // 오리파 1.2.0 진입 — 독립 서비스 프로모 행(별도 그룹으로 노출).
+                        AppGroupCard(children: [
+                          AppMenuRow(
+                            icon: Icons.card_giftcard_rounded,
+                            color: AppColors.blue,
+                            label: '오리파',
+                            subtitle: '포인트와 보관 상품을 확인해 보세요',
+                            onTap: () => context.push('/oripa'),
+                          ),
+                        ]),
+                        const SizedBox(height: 24),
                         const AppSectionLabel('내 거래'),
                         const SizedBox(height: 8),
                         AppGroupCard(children: [

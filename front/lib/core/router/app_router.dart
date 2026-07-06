@@ -39,6 +39,10 @@ import '../../features/trade/trade_list_screen.dart';
 import '../../features/trade/trade_detail_screen.dart';
 import '../../features/trade/trade_create_screen.dart';
 import '../../features/trade/buy_order_detail_screen.dart';
+import '../../features/oripa/oripa_home_screen.dart';
+import '../../features/oripa/shop_list_screen.dart';
+import '../../features/oripa/shop_detail_screen.dart';
+import '../../features/oripa/oripa_detail_screen.dart';
 import '../auth/auth_state.dart';
 
 // 인앱 푸시 배너 OverlayEntry 주입 등 BuildContext 없는 전역 접근용으로 공개.
@@ -354,6 +358,20 @@ final appRouter = GoRouter(
               : null,
         );
       },
+    ),
+    // ── 오리파 1.2.0 (STEP 1 mock) — ShellRoute 밖 최상위 GoRoute.
+    //    포켓폴리오 바텀탭을 벗어난 별도 서비스 존(그레이딩/카드상세와 동일 패턴).
+    GoRoute(path: '/oripa', builder: (_, _) => const OripaHomeScreen()),
+    GoRoute(path: '/oripa/shops', builder: (_, _) => const ShopListScreen()),
+    GoRoute(
+      path: '/oripa/shop/:shopId',
+      builder: (_, state) =>
+          ShopDetailScreen(shopId: state.pathParameters['shopId']!),
+    ),
+    GoRoute(
+      path: '/oripa/detail/:oripaId',
+      builder: (_, state) =>
+          OripaDetailScreen(oripaId: state.pathParameters['oripaId']!),
     ),
     ShellRoute(
       navigatorKey: _shellNavigatorKey,
