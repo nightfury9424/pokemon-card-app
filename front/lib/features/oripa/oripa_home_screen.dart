@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/pressable.dart';
+import 'oripa_common.dart';
 import 'data/oripa_mock.dart';
 
 /// 오리파 독립 홈 (STEP 1 mock).
@@ -10,12 +11,6 @@ import 'data/oripa_mock.dart';
 /// 포인트 중심 hero + 매장별 보관함 요약 + [오리파 하러가기] CTA.
 class OripaHomeScreen extends StatelessWidget {
   const OripaHomeScreen({super.key});
-
-  void _todo(BuildContext context, String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +79,10 @@ class OripaHomeScreen extends StatelessWidget {
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: () {
+              ScaffoldMessenger.of(context).clearSnackBars();
+              Navigator.of(context).maybePop();
+            },
           ),
           const Text('오리파', style: AppText.h1),
           const SizedBox(width: 8),
@@ -110,7 +108,7 @@ class OripaHomeScreen extends StatelessWidget {
           Text(formatPoint(OripaMock.pointBalance), style: AppText.display),
           const SizedBox(height: 16),
           Pressable(
-            onTap: () => _todo(context, '포인트 충전은 준비 중입니다'),
+            onTap: () => oripaComingSoon(context, '포인트 충전은 준비 중입니다'),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 11),
               alignment: Alignment.center,
@@ -135,7 +133,10 @@ class OripaHomeScreen extends StatelessWidget {
 
   Widget _goCta(BuildContext context) {
     return Pressable(
-      onTap: () => context.push('/oripa/shops'),
+      onTap: () {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        context.push('/oripa/shops');
+      },
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16),

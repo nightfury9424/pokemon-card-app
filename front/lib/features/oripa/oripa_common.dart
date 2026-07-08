@@ -2,6 +2,21 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/pressable.dart';
 
+/// 준비 중 mock 안내 토스트 — 라우트 이동 시 잔존 방지.
+/// 앱 레벨 ScaffoldMessenger의 floating SnackBar는 Navigator 위라 push해도 안 사라짐 →
+/// 기존 것 즉시 해제 + 짧게 표시해서 다음 화면까지 안 따라오게 한다.
+void oripaComingSoon(BuildContext context, String msg) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1600),
+      ),
+    );
+}
+
 /// 오리파 전용 상단바 — 뒤로가기(자동) + 타이틀. 독립 서비스 톤 유지.
 AppBar oripaAppBar(String title) {
   return AppBar(

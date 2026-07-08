@@ -93,12 +93,8 @@ class OripaDetailScreen extends StatelessWidget {
         minimum: const EdgeInsets.fromLTRB(20, 0, 20, 12),
         child: OripaPrimaryButton(
           label: '1구 뽑기 · ${formatPoint(o.pricePerDraw)}',
-          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('개봉 기능은 다음 단계에서 연결됩니다'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          ),
+          onTap: () =>
+              oripaComingSoon(context, '개봉 기능은 다음 단계에서 연결됩니다'),
         ),
       ),
     );
