@@ -4,12 +4,13 @@
 
 ---
 
-## 📍 현재 상태 (2026-07-05 갱신 — 1.0.7 심사 제출 후)
-- **App Store 라이브**: **1.0.6** (7/4 출시).
-- **심사 중**: **1.0.7** — 빌드 `202607052009` (**토스 디자인 전면 개선**, 신기능 0). 제출 소스 = `main` @ 머지커밋 `6a993b8b` (origin 푸시됨).
+## 📍 현재 상태 (2026-07-06 갱신 — 1.0.7 출시 완료 / 1.2.0 오리파 개발 착수)
+- **출시/배포 완료 (App Store)**: **1.0.7** — 빌드 `202607052009` (**토스 디자인 전면 개선**, 신기능 0), main @ `6a993b8b`. **릴리즈 트랙 CLOSED.** (1.0.6은 이전 릴리즈)
+- **현재 개발 트랙**: **1.2.0 오리파 플랫폼** — `feat/oripa-1.2.0` 워크트리(`/Users/fury/pokemon-card-app-oripa`), main에서 분기. STEP 1 = Flutter mock(MY→오리파홈→매장목록→매장상세→오리파상세) TestFlight 실기기 확인 중. 백엔드 0.
+  - ⚠️ "1.0.7 심사 중/심사 충돌" 류는 **historical** — 현재상태 추론에 쓰지 말 것. App Review 분석은 사용자 명시 요청 시만.
   - 1.0.7 = feat/toss-restyle 13커밋 머지: 전 화면 토스 문법 통일(공용 킷 `app_list_ui.dart`) + 모션/햅틱 레이어 + 카드 틸트·차트 스크럽 + 엠티스테이트 시스템. 아카이브 태그 `arch/toss-restyle-1.0.7-20260705`.
   - ★정식 릴리즈 IPA는 **CloudFront dart-define 2종 필수** (`BASE_URL=https://d33b273n14t3ne.cloudfront.net` / `CARD_CDN_BASE=https://d3shjhylvfe40j.cloudfront.net/cards/v1`) — 평가용(TestFlight 확인용) 빌드와 구분. 빌드 후 App.framework strings로 URL 박힘 검증.
-- **★1.0.7 출시 버튼 누르는 시점에 할 일**: S3 `app-config/version.json` minBuild 상향 → **업데이트 게이트 첫 발동** (현재 dormant 0/0 확인됨). 사용자와 함께 진행.
+- **업데이트 게이트**: 과거 계획 = 1.0.7 출시 시 S3 `app-config/version.json` minBuild 상향(첫 발동). **1.0.7 출시됨 — 실제 게이트 발동 여부는 미확인(내가 단정 안 함), 필요 시 사용자 확인.**
 - **브랜치**: `main` 단일 트렁크 + `capture/prod-20260703`(서버 배포 트리) 2개만. 새 개발은 main에서 분기.
 - **prod 백엔드**: LIVE (Lightsail). 서버 트리 = capture/prod-20260703 @ 7a8a8892. ★리빌드 전 class-diff 게이트 + 기능 스모크(게시판·me 2종·이미지·시세) 필수.
 - **Android**: 1.0.6 vc5 비공개 알파 LIVE(구글로그인 검증 완료). 테스터 12+ × 14일 클록 진행 중. 1.0.7 디자인 반영 AAB는 iOS 통과 후.
