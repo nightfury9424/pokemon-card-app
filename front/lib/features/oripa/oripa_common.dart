@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/pressable.dart';
-import '../../core/widgets/app_list_ui.dart';
 import 'data/oripa_prizes.dart';
 
 /// 준비 중 mock 안내 토스트 — 라우트 이동 시 잔존 방지.
@@ -94,47 +93,28 @@ class OripaSlotBar extends StatelessWidget {
   }
 }
 
-/// 오리파 상품 mock 타일 — 이름+레어도를 렌더. **카드 도메인/CDN 무관.**
-/// 이름↔이미지 일치가 구조적으로 보장(타일이 상품명을 그대로 렌더). 상품판·결과시트가
-/// 동일 소스로 이 타일을 쓴다. 미래엔 사장님 업로드 이미지로 교체될 자리.
+/// 오리파 상품 mock 타일 — 상품의 image(오리파 전용 asset)를 표시. **카드 도메인/CDN 무관.**
+/// 상품판·결과시트가 동일 image source로 이 타일을 쓴다(같은 prize=같은 이미지=일관성 보장).
+/// 미래엔 prize.image가 사장님 업로드 S3 URL로 바뀌면 여기서 Image.network로 교체.
 class OripaPrizeTile extends StatelessWidget {
   final OripaPrize prize;
-  final double nameSize;
-  const OripaPrizeTile({super.key, required this.prize, this.nameSize = 10});
+  const OripaPrizeTile({super.key, required this.prize});
 
   @override
   Widget build(BuildContext context) {
-    final rc = AppColors.rarityColor(prize.rarity);
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      padding: const EdgeInsets.all(6),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.auto_awesome_rounded, color: rc, size: nameSize * 2.0),
-          SizedBox(height: nameSize * 0.5),
-          Flexible(
-            child: Text(
-              prize.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: nameSize,
-                fontWeight: FontWeight.w700,
-                height: 1.15,
-              ),
-            ),
-          ),
-          SizedBox(height: nameSize * 0.3),
-          AppRarityBadge(prize.rarity, fontSize: nameSize * 0.8),
-        ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.asset(
+        prize.image,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, _, _) => Container(
+          color: AppColors.surfaceElevated,
+          alignment: Alignment.center,
+          child: const Icon(Icons.inventory_2_rounded,
+              color: AppColors.textMuted, size: 24),
+        ),
       ),
     );
   }

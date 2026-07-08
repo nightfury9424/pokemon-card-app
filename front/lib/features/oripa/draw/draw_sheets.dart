@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/pressable.dart';
 import '../oripa_common.dart';
-import '../../../core/widgets/app_list_ui.dart';
 import '../data/oripa_mock.dart';
 import '../data/oripa_session.dart';
 
@@ -119,22 +118,17 @@ class _ResultSheetState extends State<_ResultSheet> {
               SizedBox(
                 width: 76,
                 height: 106,
-                child: OripaPrizeTile(prize: p, nameSize: 12),
+                child: OripaPrizeTile(prize: p),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('${widget.result.number}번 상품', style: AppText.caption),
                   const SizedBox(height: 4),
-                  Row(children: [
-                    AppRarityBadge(p.rarity),
-                    const SizedBox(width: 6),
-                    Flexible(
-                        child: Text(p.name,
-                            style: AppText.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis)),
-                  ]),
+                  Text(p.name,
+                      style: AppText.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 6),
                   Text('교환 ${formatPoint(p.exchangePoints)}', style: AppText.bodyStrong),
                 ]),

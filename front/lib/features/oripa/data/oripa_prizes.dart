@@ -1,17 +1,18 @@
 /// STEP 2 오리파 상품(prize) mock — **포켓폴리오 카드 도메인과 완전 분리.**
 /// 오리파 상품은 매장 사장님이 직접 등록/업로드하는 물건이다(미래엔 사장님 업로드 S3 URL).
 /// 따라서 cards.card_id / card CDN / 카드 DB lookup / 시세·예상가 / naver 데이터 **전부 무관.**
-/// STEP 2 mock은 독립 static 데이터로만 구성. 이미지는 렌더 타일(OripaPrizeTile)로 표현
-/// — 이름↔이미지 일치가 구조적으로 보장(타일이 이름을 그대로 렌더). 실제 사진은 사장님 업로드로 교체.
+/// STEP 2 mock은 독립 static 데이터. 상품 이미지 = 오리파 전용 local asset(assets/mock/oripa/*).
+/// 미래엔 이 image 자리가 파트너센터 사장님 업로드 S3 URL로 교체. rarity 등 카드 도메인 필드 없음
+/// (오리파 상품은 카드뿐 아니라 슬랩/박스/팩/굿즈까지 가능).
 class OripaPrize {
   final String id;
   final String name;
-  final String rarity;
-  final int exchangePoints; // 교환 포인트 = 사장님이 정하는 mock 값(플랫폼은 심사/보정 안 함)
+  final String image; // 오리파 전용 mock asset path (미래: 사장님 업로드 S3 URL). 카드 CDN/card_id 아님.
+  final int exchangePoints; // 사장님이 정하는 mock 값(플랫폼은 심사/보정 안 함)
   const OripaPrize({
     required this.id,
     required this.name,
-    required this.rarity,
+    required this.image,
     required this.exchangePoints,
   });
 }
@@ -22,14 +23,14 @@ class OripaDraw {
 
   /// 8개 mock 상품 catalog — 여러 번호가 반복 매핑(사장님이 수량 넣듯).
   static const List<OripaPrize> catalog = [
-    OripaPrize(id: 'charizard', name: '리자몽 ex SAR', rarity: 'SAR', exchangePoints: 280000),
-    OripaPrize(id: 'pikachu', name: '피카츄 마스터볼', rarity: 'CHR', exchangePoints: 45000),
-    OripaPrize(id: 'mew', name: '뮤 ex', rarity: 'UR', exchangePoints: 18000),
-    OripaPrize(id: 'paozen', name: '파오젠 ex', rarity: 'SR', exchangePoints: 8000),
-    OripaPrize(id: 'koraidon', name: '코라이돈 ex', rarity: 'AR', exchangePoints: 5000),
-    OripaPrize(id: 'rr_a', name: 'RR 세레나', rarity: 'RR', exchangePoints: 2000),
-    OripaPrize(id: 'rr_b', name: 'RR 마리', rarity: 'RR', exchangePoints: 1500),
-    OripaPrize(id: 'rr_c', name: 'RR 아이리스', rarity: 'RR', exchangePoints: 1000),
+    OripaPrize(id: 'charizard', name: '리자몽 ex SAR', image: 'assets/mock/oripa/item_01.png', exchangePoints: 280000),
+    OripaPrize(id: 'pikachu', name: '피카츄 마스터볼', image: 'assets/mock/oripa/item_02.png', exchangePoints: 45000),
+    OripaPrize(id: 'mew', name: '뮤 ex', image: 'assets/mock/oripa/item_03.png', exchangePoints: 18000),
+    OripaPrize(id: 'paozen', name: '파오젠 ex', image: 'assets/mock/oripa/item_04.png', exchangePoints: 8000),
+    OripaPrize(id: 'koraidon', name: '코라이돈 ex', image: 'assets/mock/oripa/item_05.png', exchangePoints: 5000),
+    OripaPrize(id: 'rr_a', name: 'RR 세레나', image: 'assets/mock/oripa/item_06.png', exchangePoints: 2000),
+    OripaPrize(id: 'rr_b', name: 'RR 마리', image: 'assets/mock/oripa/item_07.png', exchangePoints: 1500),
+    OripaPrize(id: 'rr_c', name: 'RR 아이리스', image: 'assets/mock/oripa/item_08.png', exchangePoints: 1000),
   ];
 
   /// o1(151 마스터볼) 초기 획득 37개 — 사용자 확정 흩뿌림 set.

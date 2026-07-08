@@ -53,8 +53,8 @@
 
 ## 5. 상품 이미지 — 카드 도메인과 완전 분리 (★정정 2026-07-08)
 - **오리파 상품 = 매장 사장님이 직접 등록/업로드하는 물건.** 포켓폴리오 카드 마스터·CDN·`card_id`·시세/예상가·Scrydex/SNK/naver **전부 무관.** 플랫폼은 상품 가치 심사자가 아님(교환P=사장님 결정, 시장가 비교/보정 안 함).
-- `OripaPrize` = `{id, name, rarity, exchangePoints}` — **card_id / imageUrl(CDN) 없음.**
-- STEP 2 mock 이미지 = 렌더 타일 `OripaPrizeTile`(이름+레어도). **이름↔이미지 일치가 구조적으로 보장**(타일이 상품명을 그대로 렌더). 상품판·결과시트 동일 소스.
+- `OripaPrize` = `{id, name, image, exchangePoints}` — **card_id / 카드 CDN 없음, rarity 제거**(카드 도메인 잔재: 슬랩·박스·굿즈엔 레어도 없음).
+- STEP 2 mock 이미지 = **오리파 전용 local asset**(`assets/mock/oripa/*`), `OripaPrizeTile`이 `Image.asset` 표시. 상품판·결과시트 동일 소스(같은 prize=같은 이미지=일관성). 현재는 distinct placeholder PNG(실물 사진 아님) — 사장님 업로드 붙일 때 교체.
 - 미래: mock 타일 자리 → **파트너센터 사장님 업로드 이미지(S3 URL)**로 교체. 런타임 card DB/API 연결 금지.
 - ⚠️ **폐기된 오판**: "카드 CDN `{cardCdnBase}/jp/{CRD_id}.png` 사용" + naver_review/card_index/card master 조사 = 오리파를 카드 도메인에 잘못 연결한 것. 다시 하지 말 것.
 
