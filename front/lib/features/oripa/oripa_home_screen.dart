@@ -5,70 +5,74 @@ import '../../core/widgets/app_list_ui.dart';
 import '../../core/widgets/pressable.dart';
 import 'oripa_common.dart';
 import 'data/oripa_mock.dart';
+import 'data/oripa_session.dart';
 
-/// 오리파 독립 홈 (STEP 1 mock).
-/// 포켓폴리오 바텀탭 밖(최상위 GoRoute)에서 열려 "별도 서비스" 느낌을 낸다.
-/// 포인트 중심 hero + 매장별 보관함 요약 + [오리파 하러가기] CTA.
+/// 오리파 독립 홈 (STEP 2) — 세션 반응형: 포인트/보관함 실시간(교환·보관 반영).
 class OripaHomeScreen extends StatelessWidget {
   const OripaHomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final shopsWithHeld = OripaMock.shopsWithHeld;
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: _header(context)),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _pointCard(context),
-                    const SizedBox(height: 28),
-                    Row(
+    return ListenableBuilder(
+      listenable: OripaSession.instance,
+      builder: (context, _) {
+        final s = OripaSession.instance;
+        final shopsWithHeld = s.shopsWithHeld;
+        return Scaffold(
+          backgroundColor: AppColors.bg,
+          body: SafeArea(
+            child: CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(child: _header(context)),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const AppSectionLabel('내 보관함'),
-                        const Spacer(),
-                        Text('${OripaMock.heldTotalCount}개', style: AppText.caption),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    AppGroupCard(
-                      children: [
-                        for (final s in shopsWithHeld)
-                          AppMenuRow(
-                            icon: Icons.storefront_rounded,
-                            color: AppColors.blue,
-                            label: s.shopName,
-                            subtitle: s.freeShippingReached
-                                ? '무료배송 가능'
-                                : '무료배송까지 ${formatPoint(s.shippingRemaining)}',
-                            trailingText: '${OripaMock.heldByShop(s.shopId).length}개',
-                            showChevron: false,
+                        _pointCard(context, s.points),
+                        const SizedBox(height: 28),
+                        Row(children: [
+                          const AppSectionLabel('내 보관함'),
+                          const Spacer(),
+                          Text('${s.heldTotalCount}개', style: AppText.caption),
+                        ]),
+                        const SizedBox(height: 8),
+                        AppGroupCard(
+                          children: [
+                            for (final shop in shopsWithHeld)
+                              AppMenuRow(
+                                icon: Icons.storefront_rounded,
+                                color: AppColors.blue,
+                                label: shop.shopName,
+                                subtitle: shop.freeShippingReached
+                                    ? '무료배송 가능'
+                                    : '무료배송까지 ${formatPoint(shop.shippingRemaining)}',
+                                trailingText:
+                                    '${s.heldByShop(shop.shopId).length}개',
+                                showChevron: false,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: Text(
+                            '보관 상품은 매장별로 모아 무료배송 기준을 채우면 함께 배송해요.',
+                            style: AppText.muted,
                           ),
+                        ),
+                        const SizedBox(height: 28),
+                        _goCta(context),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    const Padding(
-                      padding: EdgeInsets.only(left: 4),
-                      child: Text(
-                        '보관 상품은 매장별로 모아 무료배송 기준을 채우면 함께 배송해요.',
-                        style: AppText.muted,
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-                    _goCta(context),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -92,7 +96,7 @@ class OripaHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _pointCard(BuildContext context) {
+  Widget _pointCard(BuildContext context, int points) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -105,7 +109,7 @@ class OripaHomeScreen extends StatelessWidget {
         children: [
           const Text('내 포인트', style: AppText.caption),
           const SizedBox(height: 8),
-          Text(formatPoint(OripaMock.pointBalance), style: AppText.display),
+          Text(formatPoint(points), style: AppText.display),
           const SizedBox(height: 16),
           Pressable(
             onTap: () => oripaComingSoon(context, '포인트 충전은 준비 중입니다'),
