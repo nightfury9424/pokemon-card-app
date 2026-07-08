@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/pressable.dart';
-import '../../../core/widgets/card_image.dart';
+import '../oripa_common.dart';
 import '../../../core/widgets/app_list_ui.dart';
 import '../data/oripa_mock.dart';
 import '../data/oripa_session.dart';
@@ -116,9 +116,10 @@ class _ResultSheetState extends State<_ResultSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                child: CardImage(imageUrl: p.imageUrl, width: 76, height: 106),
+              SizedBox(
+                width: 76,
+                height: 106,
+                child: OripaPrizeTile(prize: p, nameSize: 12),
               ),
               const SizedBox(width: 14),
               Expanded(

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_list_ui.dart';
-import '../../core/widgets/card_image.dart';
 import 'oripa_common.dart';
 import 'draw/draw_sheets.dart';
 import 'data/oripa_mock.dart';
@@ -237,15 +236,7 @@ class _ProductBoard extends StatelessWidget {
 
   Widget _product(int n, OripaPrize prize) {
     return Column(children: [
-      Expanded(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: CardImage(
-              imageUrl: prize.imageUrl,
-              width: double.infinity,
-              height: double.infinity),
-        ),
-      ),
+      Expanded(child: OripaPrizeTile(prize: prize)),
       const SizedBox(height: 3),
       Text('$n',
           style: const TextStyle(

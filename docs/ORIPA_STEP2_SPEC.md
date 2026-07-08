@@ -51,11 +51,12 @@
 - 최소 고정: `47=리자몽 ex SAR/280,000P`, `9=피카츄 계열/45,000P`, `52=뮤 ex/18,000P`. 나머지는 catalog 상품에 고정 매핑.
 - `OripaPrize { id, name, rarity, imageUrl, exchangePoints }`.
 
-## 5. 상품 이미지 (실 이미지, placeholder 금지)
-- `OripaPrize.imageUrl` = **static 문자열 URL**. 레어도배지+placeholder만으로 가지 않는다.
-- 기존 카드 CDN의 실 이미지 URL(`{cardCdnBase}/jp/{CRD_id}.png`)을 static 문자열로만 사용.
-- ⚠️ **카드 DB lookup / `card_id` FK / 예상가 DB / 자산 도메인 연동 전부 금지.** 오리파 상품 도메인 분리 유지. 이미지는 "사장님이 올린 상품 이미지" mock일 뿐.
-- ⚠️ sandbox 네트워크로 200 검증 불가 → **실기기 확인 필요**. 안 뜨면 CardImage가 카드뒷면으로 degrade(깨짐 아님), URL 문자열 1줄 교체로 수정.
+## 5. 상품 이미지 — 카드 도메인과 완전 분리 (★정정 2026-07-08)
+- **오리파 상품 = 매장 사장님이 직접 등록/업로드하는 물건.** 포켓폴리오 카드 마스터·CDN·`card_id`·시세/예상가·Scrydex/SNK/naver **전부 무관.** 플랫폼은 상품 가치 심사자가 아님(교환P=사장님 결정, 시장가 비교/보정 안 함).
+- `OripaPrize` = `{id, name, rarity, exchangePoints}` — **card_id / imageUrl(CDN) 없음.**
+- STEP 2 mock 이미지 = 렌더 타일 `OripaPrizeTile`(이름+레어도). **이름↔이미지 일치가 구조적으로 보장**(타일이 상품명을 그대로 렌더). 상품판·결과시트 동일 소스.
+- 미래: mock 타일 자리 → **파트너센터 사장님 업로드 이미지(S3 URL)**로 교체. 런타임 card DB/API 연결 금지.
+- ⚠️ **폐기된 오판**: "카드 CDN `{cardCdnBase}/jp/{CRD_id}.png` 사용" + naver_review/card_index/card master 조사 = 오리파를 카드 도메인에 잘못 연결한 것. 다시 하지 말 것.
 
 ## 6. 뽑기 화면 (풀스크린)
 - 확정 후 **ShellRoute 밖 새 route** `/oripa/draw/:oripaId`(바텀탭 없음).
@@ -121,5 +122,5 @@
 
 ## 15. 후속 부채 (이번 범위 제외, TODO)
 - 접근성: 드래그 까기가 유일 오픈 수단 → VoiceOver/스위치 대체 개봉 경로 없음. a11y 후속.
-- 상품 이미지 실기기 200 검증 + 이름↔이미지 매칭(현재 mock 이미지는 이름과 무관).
+- 상품 이미지: 현재 렌더 타일 mock → 파트너센터(사장님 업로드 이미지)로 교체(후속). 카드 CDN 재사용 금지.
 - shop_list "진행 중 N개" / 매진 active count 동적화.

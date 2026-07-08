@@ -1,17 +1,17 @@
-/// STEP 2 오리파 상품(prize) mock. 카드 DB/자산 도메인과 분리 — static 데이터만.
-/// imageUrl은 실 카드 CDN URL(디코레이션 mock, card_id FK/DB lookup 아님).
-/// ⚠️ sandbox에서 200 검증 불가 → 실기기 확인 필요. 안 뜨면 CardImage가 카드뒷면 degrade.
+/// STEP 2 오리파 상품(prize) mock — **포켓폴리오 카드 도메인과 완전 분리.**
+/// 오리파 상품은 매장 사장님이 직접 등록/업로드하는 물건이다(미래엔 사장님 업로드 S3 URL).
+/// 따라서 cards.card_id / card CDN / 카드 DB lookup / 시세·예상가 / naver 데이터 **전부 무관.**
+/// STEP 2 mock은 독립 static 데이터로만 구성. 이미지는 렌더 타일(OripaPrizeTile)로 표현
+/// — 이름↔이미지 일치가 구조적으로 보장(타일이 이름을 그대로 렌더). 실제 사진은 사장님 업로드로 교체.
 class OripaPrize {
   final String id;
   final String name;
   final String rarity;
-  final String imageUrl;
-  final int exchangePoints;
+  final int exchangePoints; // 교환 포인트 = 사장님이 정하는 mock 값(플랫폼은 심사/보정 안 함)
   const OripaPrize({
     required this.id,
     required this.name,
     required this.rarity,
-    required this.imageUrl,
     required this.exchangePoints,
   });
 }
@@ -20,16 +20,16 @@ class OripaPrize {
 class OripaDraw {
   const OripaDraw._();
 
-  /// 8개 mock 상품 카탈로그 — 여러 번호가 반복 매핑(사장님이 수량 넣듯).
+  /// 8개 mock 상품 catalog — 여러 번호가 반복 매핑(사장님이 수량 넣듯).
   static const List<OripaPrize> catalog = [
-    OripaPrize(id: 'charizard', name: '리자몽 ex', rarity: 'SAR', exchangePoints: 280000, imageUrl: 'https://d3shjhylvfe40j.cloudfront.net/cards/v1/jp/CRD_00182F81CA884726A6BB.png'),
-    OripaPrize(id: 'pikachu', name: '피카츄 마스터볼', rarity: 'CHR', exchangePoints: 45000, imageUrl: 'https://d3shjhylvfe40j.cloudfront.net/cards/v1/jp/CRD_00C3F08C0B7C41B1A2DA.png'),
-    OripaPrize(id: 'mew', name: '뮤 ex', rarity: 'UR', exchangePoints: 18000, imageUrl: 'https://d3shjhylvfe40j.cloudfront.net/cards/v1/jp/CRD_01E1A15D9BF64FB3A102.png'),
-    OripaPrize(id: 'paozen', name: '파오젠 ex', rarity: 'SR', exchangePoints: 8000, imageUrl: 'https://d3shjhylvfe40j.cloudfront.net/cards/v1/jp/CRD_0320E0D5056F4FBDB33A.png'),
-    OripaPrize(id: 'koraidon', name: '코라이돈 ex', rarity: 'AR', exchangePoints: 5000, imageUrl: 'https://d3shjhylvfe40j.cloudfront.net/cards/v1/jp/CRD_0512DE9EF51D4BE39554.png'),
-    OripaPrize(id: 'rr_a', name: 'RR 세레나', rarity: 'RR', exchangePoints: 2000, imageUrl: 'https://d3shjhylvfe40j.cloudfront.net/cards/v1/jp/CRD_06CEAC2A8B35426D926A.png'),
-    OripaPrize(id: 'rr_b', name: 'RR 마리', rarity: 'RR', exchangePoints: 1500, imageUrl: 'https://d3shjhylvfe40j.cloudfront.net/cards/v1/jp/CRD_09516DD8E2C14A009B0E.png'),
-    OripaPrize(id: 'rr_c', name: 'RR 아이리스', rarity: 'RR', exchangePoints: 1000, imageUrl: 'https://d3shjhylvfe40j.cloudfront.net/cards/v1/jp/CRD_0C103A2D31494C7580E2.png'),
+    OripaPrize(id: 'charizard', name: '리자몽 ex SAR', rarity: 'SAR', exchangePoints: 280000),
+    OripaPrize(id: 'pikachu', name: '피카츄 마스터볼', rarity: 'CHR', exchangePoints: 45000),
+    OripaPrize(id: 'mew', name: '뮤 ex', rarity: 'UR', exchangePoints: 18000),
+    OripaPrize(id: 'paozen', name: '파오젠 ex', rarity: 'SR', exchangePoints: 8000),
+    OripaPrize(id: 'koraidon', name: '코라이돈 ex', rarity: 'AR', exchangePoints: 5000),
+    OripaPrize(id: 'rr_a', name: 'RR 세레나', rarity: 'RR', exchangePoints: 2000),
+    OripaPrize(id: 'rr_b', name: 'RR 마리', rarity: 'RR', exchangePoints: 1500),
+    OripaPrize(id: 'rr_c', name: 'RR 아이리스', rarity: 'RR', exchangePoints: 1000),
   ];
 
   /// o1(151 마스터볼) 초기 획득 37개 — 사용자 확정 흩뿌림 set.
@@ -63,15 +63,13 @@ class OripaDraw {
   };
   static List<int> orderOf(String oripaId) => _order[oripaId] ?? const [];
 
-  /// chase(명명상품) override — 모두 초기 미획득 번호. 상품판 강조/투명성용.
+  /// 번호 → 상품(결정론). 모든 번호가 실 상품. override 없으면 필러(catalog 3~7).
   static const Map<String, Map<int, int>> _override = {
     'o1': {47: 0, 9: 1, 52: 2, 88: 0, 5: 1, 100: 2},
     'o3': {13: 0, 41: 1, 77: 2},
     'o5': {7: 0, 50: 1, 88: 2},
   };
 
-  /// 번호 → 상품(결정론). 모든 번호가 실 상품. override 없으면 필러(catalog 3~7).
-  /// (번호별 상품은 상품판에 실제 이미지로 공개됨 — 색상 등급 힌트 아님.)
   static OripaPrize prizeForNumber(String oripaId, int n) {
     final ov = _override[oripaId]?[n];
     if (ov != null) return catalog[ov];
