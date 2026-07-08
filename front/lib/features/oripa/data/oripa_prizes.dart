@@ -71,13 +71,10 @@ class OripaDraw {
   };
 
   /// 번호 → 상품(결정론). 모든 번호가 실 상품. override 없으면 필러(catalog 3~7).
+  /// (번호별 상품은 상품판에 실제 이미지로 공개됨 — 색상 등급 힌트 아님.)
   static OripaPrize prizeForNumber(String oripaId, int n) {
     final ov = _override[oripaId]?[n];
     if (ov != null) return catalog[ov];
     return catalog[3 + (n % 5)];
   }
-
-  /// 상품판에서 chase 번호인지(강조용).
-  static bool isChase(String oripaId, int n) =>
-      _override[oripaId]?.containsKey(n) ?? false;
 }
