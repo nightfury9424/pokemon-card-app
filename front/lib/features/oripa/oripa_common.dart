@@ -104,17 +104,49 @@ class OripaPrizeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
-      child: Image.asset(
-        prize.image,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (_, _, _) => Container(
-          color: AppColors.surfaceElevated,
-          alignment: Alignment.center,
-          child: const Icon(Icons.inventory_2_rounded,
-              color: AppColors.textMuted, size: 24),
-        ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            prize.image,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => Container(
+              color: AppColors.surfaceElevated,
+              alignment: Alignment.center,
+              child: const Icon(Icons.inventory_2_rounded,
+                  color: AppColors.textMuted, size: 24),
+            ),
+          ),
+          // 이미지 스크림(디자인킷 예외) + 상품명 — placeholder여도 무슨 상품인지 읽힘.
+          // 상품판·결과가 동일 prize.image + 동일 prize.name 표시 → 번호 오리파 연결 판정 가능.
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x00000000), Color(0xD9000000)],
+                ),
+              ),
+              child: Text(
+                prize.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  height: 1.1,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
