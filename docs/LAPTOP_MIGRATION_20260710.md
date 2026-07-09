@@ -5,23 +5,31 @@
 
 ## 0. 요약 — 새 노트북이 받아야 할 4덩어리
 1. **git**: 전부 origin에 있음 → `git clone`. 브랜치 `main` / `feat/oripa-1.2.0`(오리파 구현) / `feat/oripa`(웹프로토) / `backup/laptop-migration-20260710`(밀기 전 untracked 343개) / `capture/prod-20260703`(서버트리).
-2. **시크릿/설정 7종** (git 밖, 수동 복사) — §1
+2. **시크릿 폴더** — `~/pem` + `~/.ssh` + `~/.appstoreconnect` **통째** + repo 안 `.env` 2개 + kream plist — §1
 3. **로컬 운영 서비스**: 메타몽 KREAM 에이전트(launchd) + 로컬 postgres — §2, §3
 4. **대용량 로컬 데이터**: scanner 47GB + pokefolio_backups 1GB — §4 (로컬 DB는 이전 불필요·재생성 §3)
 
 ---
 
-## 1. 시크릿/설정 (git에 없음 → USB/암호화폴더로 수동 복사)
-| 파일 | 용도 |
-|---|---|
-| `front/ios/Runner/GoogleService-Info.plist` | Firebase iOS (빌드 필수) |
-| `front/android/app/google-services.json` | Firebase Android |
-| `~/pem/pokefolio-upload.jks` | 안드로이드 서명 키스토어 |
-| `~/pem/LightsailDefaultKey-ap-northeast-2.pem` | prod SSH 키 (서버 접속) |
-| `~/.appstoreconnect/private_keys/AuthKey_HY8YGY46VK.p8` + `AuthKey_VL83MMC8WW.p8` | ASC API 키 (IPA 업로드) |
-| `python/.env` (10줄) | KREAM 계정/토큰 등 수집 시크릿 |
-| `admin/.env.production` (1줄) | 어드민 빌드 설정 |
-| `~/Library/LaunchAgents/com.pokefolio.kream-agent.plist` | **KREAM_AGENT_TOKEN 내장** — §2 |
+## 1. 시크릿/설정 (git 밖 → **폴더 통째로 복사가 안전**, 파일 나열은 빠뜨림)
+
+### A. 통째로 복사할 시크릿 폴더
+- **`~/pem/`** ← 시크릿 볼트, 거의 다 여기 있음:
+  - ASC API 키 `AuthKey_HY8YGY46VK.p8` / `AuthKey_VL83MMC8WW.p8`
+  - Firebase `GoogleService-Info.plist`(iOS) · `google-services.json`(Android) · **`pokefolio-2e680-firebase-adminsdk-*.json`(Admin SDK 서버키)**
+  - Google OAuth `client_*.plist` / `client_secret_*.json`
+  - **AWS `pokefolio-s3-uploader_accessKeys.csv`(S3 업로더 키)**
+  - prod SSH `LightsailDefaultKey-ap-northeast-2.pem`
+  - 안드 키스토어 `pokefolio-upload.jks`
+- **`~/.ssh/`** ← `id_ed25519`(**GitHub push용 SSH 키**) + known_hosts
+- **`~/.appstoreconnect/`** ← ASC 키(pem에 중복). altool이 이 경로 참조.
+
+### B. repo 안 gitignore 시크릿 (clone 후 제자리에 넣기)
+- `front/ios/Runner/GoogleService-Info.plist` · `front/android/app/google-services.json` (둘 다 pem에도 사본 있음 → pem에서 갖다 놓으면 됨)
+- `python/.env` (KREAM 수집 시크릿, pem에 없음 — 개별 복사) · `admin/.env.production`
+
+### C. launchd
+- `~/Library/LaunchAgents/com.pokefolio.kream-agent.plist` (KREAM_AGENT_TOKEN 내장 — §2)
 
 `~/.claude/projects/-Users-fury-pokemon-card-app/memory/` (Claude 기억 127개 .md)도 원하면 복사.
 
@@ -72,7 +80,7 @@
 ## 7. 권장 순서
 1. 새 맥 도구 설치 (SETUP.md §1~6)
 2. `git clone` + `git worktree add ../pokemon-card-app-oripa feat/oripa-1.2.0`
-3. 시크릿 7종(§1) 제자리 복사
+3. 시크릿 폴더(§1) 복사 — `~/pem`·`~/.ssh`·`~/.appstoreconnect` 통째 + repo 안 `.env` 2개
 4. 대용량 데이터(§4) 외장→새 맥 복사
 5. (로컬 백엔드 돌릴 때만) postgres 생성 + DB 재생성(§3, repo 시드/prod). 오리파엔 불필요
 6. venv/conda 재생성 (§5)
