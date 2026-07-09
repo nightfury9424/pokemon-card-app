@@ -14,6 +14,7 @@
 - **브랜치(전부 origin push됨, 2026-07-10)**: `main`(87075533) · `feat/oripa-1.2.0`(오리파 구현, 워크트리 `pokemon-card-app-oripa`) · `feat/oripa`(웹 프로토+1.2.0 핸드오프, 워크트리 `pokefolio_oripa`) · `backup/laptop-migration-20260710`(밀기 전 untracked 343개 백업) · `capture/prod-20260703`(서버 배포 트리).
 
 ### 💾 노트북 마이그레이션 (2026-07-10) — 새 노트북 세팅 시 읽어라
+- **★A~Z 전체 상세 = [`docs/LAPTOP_MIGRATION_20260710.md`](LAPTOP_MIGRATION_20260710.md)** (메타몽 KREAM 에이전트·scanner 47GB·로컬 DB·시크릿 7종 전수 + 순서).
 - **git은 전부 origin에 있음**(위 브랜치). 새 노트북: `git clone` → 오리파 이어가려면 `git worktree add ../pokemon-card-app-oripa feat/oripa-1.2.0`.
 - **★git에 없는 수동 백업 필수 파일(밀면 소실 → 빌드/서명/배포 불가)**: `front/ios/Runner/GoogleService-Info.plist` · `front/android/app/google-services.json` · `~/pem/pokefolio-upload.jks`(안드 키스토어) · `~/.appstoreconnect/private_keys/AuthKey_HY8YGY46VK.p8` + `AuthKey_VL83MMC8WW.p8`(ASC API 키) · 로컬 `.env`류. → 새 노트북에 복사할 것.
 - **Claude 메모리**: `~/.claude/projects/-Users-fury-pokemon-card-app/memory/` 는 로컬 — 밀면 사라짐. 백업하거나, 이 문서 + `docs/ORIPA_STEP2_SPEC.md`로 이어갈 것.
