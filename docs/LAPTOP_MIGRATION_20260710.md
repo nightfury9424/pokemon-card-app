@@ -7,7 +7,7 @@
 1. **git**: 전부 origin에 있음 → `git clone`. 브랜치 `main` / `feat/oripa-1.2.0`(오리파 구현) / `feat/oripa`(웹프로토) / `backup/laptop-migration-20260710`(밀기 전 untracked 343개) / `capture/prod-20260703`(서버트리).
 2. **시크릿/설정 7종** (git 밖, 수동 복사) — §1
 3. **로컬 운영 서비스**: 메타몽 KREAM 에이전트(launchd) + 로컬 postgres — §2, §3
-4. **대용량 로컬 데이터**: scanner 47GB + pokefolio_backups 1GB + DB dump — §4
+4. **대용량 로컬 데이터**: scanner 47GB + pokefolio_backups 1GB — §4 (로컬 DB는 이전 불필요·재생성 §3)
 
 ---
 
@@ -40,10 +40,12 @@
 
 ---
 
-## 3. 로컬 PostgreSQL (dev DB)
-- 실행 중: `postgresql@14` (Homebrew launchd). DB = **`pokemon_card_db`(384MB)** + `pokefolio_ci`. 유저 `nightfury`(SUPERUSER).
-- **dump (밀기 전 실행)**: `pg_dump -U nightfury -Fc pokemon_card_db > ~/pokefolio_backups/pokemon_card_db_20260710.dump`
-- **새 노트북 restore**: SETUP.md §3(유저/DB 생성) → `pg_restore -U nightfury -d pokemon_card_db ~/.../pokemon_card_db_20260710.dump`. ★이 최신 dump가 SETUP.md의 seed_data.sql.gz보다 우선(최신 데이터).
+## 3. 로컬 PostgreSQL (dev DB) — ★이전 불필요 (재생성)
+- 로컬 `pokemon_card_db`(nightfury)는 **prod DB의 사본/시드일 뿐 진실원 아님.** 메타몽 수집은 prod API로 POST, 가격 배치도 prod cron → **로컬 DB에 고유 데이터 없음 → 덤프/이전 불필요.**
+- 새 노트북에서 **로컬 백엔드 돌릴 때만** 필요 → 재생성:
+  - (a) repo 시드: `db/schema.sql` + `db/seed_price_snapshots.sql.gz`(git에 있음) — SETUP.md §3
+  - (b) 최신 전체 데이터 원하면 prod에서: `ssh <prod> "docker exec pokefolio-postgres pg_dump -U pokefolio pokemon_card_db" | gzip > fresh.sql.gz` → 로컬 restore
+- ★**오리파(현재 작업)는 순수 Flutter mock → 로컬 DB 필요 없음.**
 
 ---
 
@@ -53,7 +55,8 @@
 | `scanner/data/cards` | 38GB | EN/JP/KO 카드 이미지(~15,962장). 외장 복사 권장(재다운로드+증분 인덱싱 가능하나 오래 걸림) |
 | `scanner/db/card_db.faiss` | (scanner 47GB의 일부) | DINOv2 FAISS 인덱스. 외장 복사 or 재빌드 |
 | `~/pokefolio_backups` | 1.0GB | ★`snkrdunk_catalog_20260620`(41,610 매핑 진실원) · DB/게시판 dump · SNK 분석 등. **꼭 복사** |
-| 로컬 DB dump | 384MB | §3 |
+
+(로컬 dev DB는 재생성 대상 → §3, 이전 불필요)
 
 ---
 
@@ -71,7 +74,7 @@
 2. `git clone` + `git worktree add ../pokemon-card-app-oripa feat/oripa-1.2.0`
 3. 시크릿 7종(§1) 제자리 복사
 4. 대용량 데이터(§4) 외장→새 맥 복사
-5. postgres 생성 + DB restore(§3)
+5. (로컬 백엔드 돌릴 때만) postgres 생성 + DB 재생성(§3, repo 시드/prod). 오리파엔 불필요
 6. venv/conda 재생성 (§5)
 7. kream-agent plist load(§2) + 로그 확인
 8. back/grading/scanner 기동 + `flutter run` 검증
