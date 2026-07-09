@@ -124,3 +124,10 @@
 - 접근성: 드래그 까기가 유일 오픈 수단 → VoiceOver/스위치 대체 개봉 경로 없음. a11y 후속.
 - 상품 이미지: 현재 렌더 타일 mock → 파트너센터(사장님 업로드 이미지)로 교체(후속). 카드 CDN 재사용 금지.
 - shop_list "진행 중 N개" / 매진 active count 동적화.
+
+## 16. 상태 & 이어가기 (2026-07-10)
+- **STEP 1+2 구현완료** (feat/oripa-1.2.0). 신규 `features/oripa/`(홈/매장목록/매장상세/오리파상세/draw/data) + 라우터/프로필/pubspec.
+- **TestFlight 1.2.0 build `202607082352`** (build-name=1.2.0, prod BASE_URL+CARD_CDN_BASE, arm64, mock asset 번들 확인) → **Transporter 로드됨, 사용자 전송 대기.**
+- **다음 = 실기기 손맛 판정** → 튜닝 상수: `oripa_draw_screen.dart` `_peelDist`(현 300)·노출밴드(덮개 translateY=progress×cardH)·햅틱 임계(0.60/0.82)·자동추출 900ms. "너무 빨리 열림/이어까기 안 됨/번호노출 타이밍" 피드백 기준 조정.
+- **그 후**: 상품 봉인 오리파(§범위 제외 해제) → 파트너센터(사장님 상품·번호·교환P 등록 UI) → 내부 Admin 승인 → 백엔드(SHOP/ORIPA/SLOT/DRAW/WALLET/LEDGER/HOLDING/SHIPMENT/SETTLEMENT).
+- **오리파 상품 도메인**: `OripaPrize={id,name,image,exchangePoints}`. image=오리파 전용 asset(현 placeholder)→미래 사장님 업로드 S3 URL. **카드 DB/CDN/cardId/시세/rarity 전부 무관.** 플랫폼=엔진+승인(가격 심사자 아님).
