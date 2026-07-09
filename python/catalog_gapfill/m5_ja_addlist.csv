@@ -1,0 +1,45 @@
+number,rarity,type,ko_name,en_name,include,jp_ref
+4,Double Rare,포켓몬,라란티스 ex,Lurantis ex,Y,m5_ja-4
+15,Double Rare,포켓몬,고래왕 ex,Wailord ex,Y,m5_ja-15
+26,Double Rare,포켓몬,메가제라오라 ex,Mega Zeraora ex,Y,m5_ja-26
+36,Double Rare,포켓몬,메가샹델라 ex,Mega Chandelure ex,Y,m5_ja-36
+43,Double Rare,포켓몬,램펄드 ex,Rampardos ex,Y,m5_ja-43
+46,Double Rare,포켓몬,메가다크라이 ex,Mega Darkrai ex,Y,m5_ja-46
+53,Double Rare,포켓몬,모르페코 ex,Morpeko ex,Y,m5_ja-53
+63,Double Rare,포켓몬,메가몰드류 ex,Mega Excadrill ex,Y,m5_ja-63
+82,Art Rare,포켓몬,짜랑랑,Fomantis,Y,m5_ja-82
+83,Art Rare,포켓몬,카디나르마,Armarouge,Y,m5_ja-83
+84,Art Rare,포켓몬,콘치,Goldeen,Y,m5_ja-84
+85,Art Rare,포켓몬,누리레느,Primarina,Y,m5_ja-85
+86,Art Rare,포켓몬,썬더볼트,Manectric,Y,m5_ja-86
+87,Art Rare,포켓몬,야도란,Slowbro,Y,m5_ja-87
+88,Art Rare,포켓몬,타타륜,Dhelmise,Y,m5_ja-88
+89,Art Rare,포켓몬,폭슬라이,Thievul,Y,m5_ja-89
+90,Art Rare,포켓몬,자루도,Zarude,Y,m5_ja-90
+91,Art Rare,포켓몬,바리톱스,Bastiodon,Y,m5_ja-91
+92,Art Rare,포켓몬,왕큰부리,Toucannon,Y,m5_ja-92
+93,Art Rare,포켓몬,실버디,Silvally,Y,m5_ja-93
+94,Super Rare,포켓몬,라란티스 ex,Lurantis ex,Y,m5_ja-94
+95,Super Rare,포켓몬,고래왕 ex,Wailord ex,Y,m5_ja-95
+96,Super Rare,포켓몬,메가제라오라 ex,Mega Zeraora ex,Y,m5_ja-96
+97,Super Rare,포켓몬,메가샹델라 ex,Mega Chandelure ex,Y,m5_ja-97
+98,Super Rare,포켓몬,램펄드 ex,Rampardos ex,Y,m5_ja-98
+99,Super Rare,포켓몬,메가다크라이 ex,Mega Darkrai ex,Y,m5_ja-99
+100,Super Rare,포켓몬,모르페코 ex,Morpeko ex,Y,m5_ja-100
+101,Super Rare,포켓몬,메가몰드류 ex,Mega Excadrill ex,Y,m5_ja-101
+102,Super Rare,아이템,,Iron Defender,N(도구제외),m5_ja-102
+103,Super Rare,아이템,,Energy Switch,N(도구제외),m5_ja-103
+104,Super Rare,아이템,,Crushing Hammer,N(도구제외),m5_ja-104
+105,Super Rare,아이템,,Dark Bell,N(도구제외),m5_ja-105
+106,Super Rare,포켓몬도구,,Heroic Bomb,N(도구제외),m5_ja-106
+107,Super Rare,포켓몬도구,,Brave Bangle,N(도구제외),m5_ja-107
+108,Super Rare,특수에너지,,Misty's Energy,Y,m5_ja-108
+109,Super Rare,서포트,,Gladion's Decisive Battle,Y,m5_ja-109
+110,Super Rare,서포트,,Rust Syndicate Grunt,Y,m5_ja-110
+111,Super Rare,서포트,,Gwynn,Y,m5_ja-111
+112,Special Art Rare,포켓몬,메가제라오라 ex,Mega Zeraora ex,Y,m5_ja-112
+113,Special Art Rare,포켓몬,메가샹델라 ex,Mega Chandelure ex,Y,m5_ja-113
+114,Special Art Rare,포켓몬,메가다크라이 ex,Mega Darkrai ex,Y,m5_ja-114
+115,Special Art Rare,포켓몬,모르페코 ex,Morpeko ex,Y,m5_ja-115
+116,Special Art Rare,서포트,,Gladion's Decisive Battle,Y,m5_ja-116
+117,Special Art Rare,서포트,,Gwynn,Y,m5_ja-117

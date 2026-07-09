@@ -1,0 +1,89 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>프로모 추가 후보 검수</title>
+<style>
+*{box-sizing:border-box}html,body{height:100%}body{font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;margin:0;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.top{background:#161b22;padding:7px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #30363d}
+.top b{font-size:15px;color:#fff}.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tab{padding:4px 10px;border-radius:7px;background:#21262d;color:#9da7b3;cursor:pointer;font-size:12px}
+.tab.on{background:#8957e5;color:#fff}.tab .c{opacity:.85;font-size:10px}
+.flt{margin-left:auto;display:flex;gap:8px;align-items:center}.flt button{padding:4px 10px;border:0;border-radius:6px;background:#238636;color:#fff;cursor:pointer}
+.posbar{background:#161b22;padding:5px 14px;display:flex;gap:12px;align-items:center;border-bottom:1px solid #30363d;font-size:13px;flex-wrap:wrap}
+.lc{background:#8957e5;color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+.nm{font-weight:700;font-size:16px;color:#fff}.sub{color:#9da7b3;font-size:12px}.pos{color:#7d8590}
+.dec{margin-left:auto;font-weight:700;padding:3px 9px;border-radius:6px;background:#30363d;font-size:12px}
+.stage{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:10px 20px;min-height:0;overflow:hidden}
+@media(max-width:760px){.stage{grid-template-columns:1fr;overflow:auto}}
+.pane{display:flex;flex-direction:column;min-width:0;min-height:0}
+.lbl{flex:0 0 auto;font-size:12px;font-weight:700;color:#7d8590;text-transform:uppercase;margin-bottom:5px}
+.imgbox{flex:1 1 auto;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;background:#161b22;border-radius:10px;overflow:hidden}
+.imgbox img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in}
+.meta{margin-top:8px;font-size:14px;line-height:1.6}.mono{font-family:ui-monospace;font-size:12px;color:#9da7b3}a{color:#58a6ff;font-size:12px}
+.ctx{font-size:13px;line-height:1.7}.fm{background:#161b22;border-radius:8px;padding:8px;margin-bottom:8px;display:flex;gap:10px;align-items:center}
+.fm img{width:64px;border-radius:5px;background:#0d1117}.warn{color:#f0883e}
+.near{display:flex;gap:7px;overflow-x:auto;padding:6px 0;flex-wrap:wrap}
+.nc{width:74px;font-size:9px;text-align:center;border:2px solid #30363d;border-radius:7px;padding:3px}
+.nc.db{border-color:#3fb950}.nc.miss{border-color:#8957e5}.nc img{width:66px;height:90px;object-fit:contain;background:#0d1117;border-radius:4px;display:block}
+.actions{background:#161b22;padding:10px 22px;display:flex;gap:10px;align-items:center;border-top:1px solid #30363d;flex-wrap:wrap}
+.actions button{padding:11px 22px;border:1px solid #30363d;border-radius:9px;background:#21262d;color:#e6edf3;cursor:pointer;font-size:15px;font-weight:700}
+.b-add{background:#238636;border-color:#238636;color:#fff}.b-skip{}.b-hold{}.b-res{background:#9e6a03;border-color:#9e6a03;color:#fff}
+.hint{margin-left:auto;font-size:11px;color:#6e7681}
+#zoom{position:fixed;inset:0;background:#000d;display:none;z-index:50;align-items:center;justify-content:center;cursor:zoom-out}#zoom img{max-width:94vw;max-height:94vh;border-radius:8px}
+.empty{grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:#7d8590;font-size:18px}
+</style></head><body>
+<div class="top"><b>프로모 추가 후보 검수</b><div class="tabs" id="tabs"></div>
+  <div class="flt"><button id="exA">추가목록 CSV</button></div></div>
+<div class="posbar" id="posbar"></div>
+<div class="stage" id="stage"></div>
+<div class="actions">
+  <button class="b-add" data-a="ADD">＋ 추가 (A)</button>
+  <button class="b-skip" data-a="SKIP">✗ 스킵 (S)</button>
+  <button class="b-hold" data-a="HOLD">⏸ 보류 (H)</button>
+  <button class="b-res" data-a="RESEARCH">↻ 재검색 (R)</button>
+  <span class="hint">A추가 · S스킵 · H보류 · R재검색 · N/P 이동 · 클릭확대</span></div>
+<div id="zoom"><img></div>
+<script>
+const TABS=[["general_lc","일반(거래O)"],["exclusive","🚫독점/지역/이벤트"],["general_zero","일반(거래없음)"],["added","추가완료"],["skipped","스킵"],["hold","보류"],["research","재검색"],["all","전체"]];
+const TLAB=Object.fromEntries(TABS);
+let tab="general_lc",offset=0,limit=60,items=[],cur=0,total=0,prog={};
+async function jget(u){return (await fetch(u)).json();}
+async function jpost(u,b){return (await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})).json();}
+async function loadProgress(){prog=await jget('/api/progress');renderTabs();}
+function renderTabs(){const t=document.getElementById('tabs');t.innerHTML='';
+  for(const[k,label]of TABS){const c=prog[k]!==undefined?prog[k]:(k==='all'?prog.all:'');
+    const e=document.createElement('div');e.className='tab'+(k===tab?' on':'');e.innerHTML=`${label} <span class="c">${c??''}</span>`;
+    e.onclick=()=>{tab=k;offset=0;items=[];cur=0;loadBatch(true);};t.appendChild(e);}}
+async function loadBatch(reset){const d=await jget(`/api/items?status=${tab}&offset=${offset}&limit=${limit}`);total=d.total;
+  if(reset)items=[];items=items.concat(d.items);offset+=d.items.length;show();}
+function show(){if(cur>=items.length){if(offset<total){loadBatch(false);return;}done();return;}render(items[cur]);}
+function done(){document.getElementById('stage').innerHTML='<div class="empty">이 탭 검수 완료 🎉</div>';document.getElementById('posbar').innerHTML='<span class="pos">남은 후보 없음</span>';}
+function render(it){
+  document.getElementById('posbar').innerHTML=`<span class="lc">거래 ${it.lc}건</span>
+    ${it.excl==='JP_EXCLUSIVE'?'<span class="lc" style="background:#da3633">🚫독점/지역</span>':''}
+    <span class="nm">${it.title.split(' P [')[0].split(':')[0]}</span>
+    <span class="sub">${it.set_norm} ${it.number??''} · ${it.rarity||''}</span>
+    <span class="pos">[${TLAB[tab]}] ${cur+1} / ${total}</span>${it.decision?`<span class="dec">${it.decision.decision}</span>`:''}`;
+  const fm=it.fm_id?`<div class="fm"><img src="${it.fm_img}" onerror="this.style.opacity=.15">
+     <div><span class="warn">⚠ 지금은 이걸로 오매칭됨:</span><br><b>${it.fm_name||''}</b> <span class="mono">${it.fm_score||''}</span><br><span class="mono">${it.fm_id}</span></div></div>`:'';
+  const near=(it.near||[]).map(n=>`<div class="nc ${n.in_db?'db':'miss'}"><img src="${n.img}" onerror="this.style.opacity=.15">${n.num}<br>${n.in_db?'보유':'누락'}</div>`).join('');
+  document.getElementById('stage').innerHTML=`
+   <div class="pane"><div class="lbl">SNK 프로모 (추가 후보)</div>
+     <div class="imgbox"><img src="${it.img}" data-zoom="${it.img}" onerror="this.style.opacity=.15"></div>
+     <div class="meta"><b style="font-size:16px">${it.title.slice(0,60)}</b><br>
+       <span class="mono">${it.pn}</span> · 거래 ${it.lc}건 · <a href="${it.detail_url}" target="_blank">apparel ${it.apparel_id} ↗</a></div></div>
+   <div class="pane"><div class="lbl">맥락 (오매칭 + 같은시리즈 인접번호)</div>
+     <div class="ctx">${fm}
+       <div class="lbl" style="margin-top:6px">같은 세트 인접 번호 <span style="color:#3fb950">초록=보유</span> / <span style="color:#a371f7">보라=누락</span></div>
+       <div class="near">${near||'<i style=color:#7d8590>인접 카드 없음</i>'}</div></div></div>`;
+  document.querySelectorAll('[data-zoom]').forEach(im=>im.onclick=()=>{const z=document.getElementById('zoom');z.querySelector('img').src=im.dataset.zoom;z.style.display='flex';});
+}
+document.getElementById('zoom').onclick=()=>document.getElementById('zoom').style.display='none';
+function decide(a){if(cur>=items.length)return;const it=items[cur];
+  jpost('/api/decision',{product_number:it.pn,decision:a}).then(loadProgress);cur++;show();}
+document.querySelectorAll('.actions [data-a]').forEach(b=>b.onclick=()=>decide(b.dataset.a));
+document.addEventListener('keydown',e=>{const k=e.key.toLowerCase();
+  if(k==='a')decide('ADD');else if(k==='s')decide('SKIP');else if(k==='h')decide('HOLD');else if(k==='r')decide('RESEARCH');
+  else if(k==='n'||e.key==='ArrowRight'){e.preventDefault();if(cur<items.length-1||offset<total){cur++;show();}}
+  else if(k==='p'||e.key==='ArrowLeft'){e.preventDefault();if(cur>0){cur--;show();}}});
+document.getElementById('exA').onclick=()=>location.href='/api/export/added.csv';
+loadProgress().then(()=>loadBatch(true));
+</script></body></html>

@@ -1,0 +1,132 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SNKRDUNK 검수</title>
+<style>
+*{box-sizing:border-box}html,body{height:100%}body{font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;margin:0;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.top{background:#161b22;padding:7px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #30363d}
+.top b{font-size:15px;color:#fff}.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tab{padding:4px 10px;border-radius:7px;background:#21262d;color:#9da7b3;cursor:pointer;font-size:12px}
+.tab.on{background:#1f6feb;color:#fff}.tab .c{opacity:.85;font-size:10px}
+.flt{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:12px;color:#9da7b3}
+.flt button{padding:4px 10px;border:0;border-radius:6px;background:#238636;color:#fff;cursor:pointer}
+.posbar{background:#161b22;padding:5px 14px;display:flex;gap:12px;align-items:center;border-bottom:1px solid #30363d;font-size:13px}
+.badge{color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+.pos{color:#7d8590}.nm{font-weight:700;font-size:16px;color:#fff}.sub{color:#9da7b3;font-size:12px}
+.dec{margin-left:auto;font-weight:700;padding:3px 9px;border-radius:6px;background:#30363d;font-size:12px}
+.stage{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:10px 20px;min-height:0;overflow:hidden}
+@media(max-width:760px){.stage{grid-template-columns:1fr;overflow:auto}}
+.pane{display:flex;flex-direction:column;min-width:0;min-height:0}
+.lbl{flex:0 0 auto;font-size:12px;font-weight:700;color:#7d8590;text-transform:uppercase;margin-bottom:5px}
+.imgbox{flex:1 1 auto;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;background:#161b22;border-radius:10px;overflow:hidden}
+.imgbox img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in}
+.meta{margin-top:8px;font-size:14px;line-height:1.6}.mono{font-family:ui-monospace;font-size:12px;color:#9da7b3}
+.sc{color:#3fb950;font-weight:700;font-size:18px}.ok{color:#3fb950}.diff{color:#f85149}.chk{font-size:12px}
+.thumbs{display:flex;gap:7px;overflow-x:auto;padding:8px 0;margin-top:4px}
+.th{flex:0 0 auto;width:64px;border:2px solid #30363d;border-radius:7px;padding:3px;cursor:pointer;font-size:9px;text-align:center;position:relative}
+.th.sel{border-color:#1f6feb;background:#1f6feb22}.th img{width:56px;height:78px;object-fit:contain;background:#0d1117;border-radius:4px;display:block}
+.th .n{position:absolute;top:1px;left:1px;background:#000a;color:#fff;font-size:8px;padding:0 3px;border-radius:6px}
+.t5{display:none;gap:5px;flex-wrap:wrap;margin-top:8px;background:#161b22;border-radius:8px;padding:7px}.t5.show{display:flex}
+.t5 div{width:52px;font-size:9px;text-align:center;color:#9da7b3}.t5 img{width:50px;height:68px;object-fit:cover;border-radius:4px;border:2px solid transparent}.t5 .h img{border-color:#3fb950}
+.t5btn{font-size:12px;color:#58a6ff;cursor:pointer;margin-top:6px;display:inline-block}
+a{color:#58a6ff;font-size:12px}
+.actions{background:#161b22;padding:10px 22px;display:flex;gap:10px;align-items:center;border-top:1px solid #30363d;flex-wrap:wrap}
+.actions button{padding:11px 22px;border:1px solid #30363d;border-radius:9px;background:#21262d;color:#e6edf3;cursor:pointer;font-size:15px;font-weight:700}
+.b-app{background:#238636;border-color:#238636;color:#fff}.b-res{background:#9e6a03;border-color:#9e6a03;color:#fff}
+.b-hold{}.b-rej{background:#da3633;border-color:#da3633;color:#fff}.b-all{color:#f85149}
+.hint{margin-left:auto;font-size:11px;color:#6e7681}
+#zoom{position:fixed;inset:0;background:#000d;display:none;z-index:50;align-items:center;justify-content:center;cursor:zoom-out}#zoom img{max-width:94vw;max-height:94vh;border-radius:8px}
+.empty{grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:#7d8590;font-size:18px}
+</style></head><body>
+<div class="top"><b>SNKRDUNK 검수</b><div class="tabs" id="tabs"></div>
+  <div class="flt">
+    <button id="bulk" style="background:#238636">HIGH_AUTO 일괄승인</button>
+    <button id="exD">결정CSV</button><button id="exR">재검색CSV</button></div></div>
+<div class="posbar" id="posbar"><span class="pos" id="pos"></span></div>
+<div class="stage" id="stage"></div>
+<div class="actions">
+  <button class="b-app" data-a="approve">✓ 승인 (A)</button>
+  <button class="b-rej" data-a="reject">✗ 거절 (X)</button>
+  <button class="b-ko" data-a="koonly" style="background:#1f6feb">🇰🇷 한국단독 (K)</button>
+  <button class="b-del" data-a="delete" style="background:#8957e5">🗑 삭제 (D)</button>
+  <span class="hint">A승인(통과) · X거절(JP 있는데 후보 틀림) · K한국단독(JP 자체 없음) · D삭제(이상한 카드) · 1~9 후보 · N/P 이동</span></div>
+<div id="zoom"><img></div>
+<script>
+const TABS=[["review","검수"],["suspect","⚠️의심(DIFF)"],["approved","승인"],["rejected","거절"],["rematch","🔄재검색"],["ko_only","🇰🇷한국단독"],["deleted","삭제"],["all","전체"]];
+const BADGE={HIGH_CONFIDENCE:"#238636",IMAGE_MATCH_NEEDS_REVIEW:"#9e6a03",TOP5_NEEDS_REVIEW:"#bb5a00",CONFLICT:"#da3633"};
+const TLAB=Object.fromEntries(TABS);
+let tab="review",offset=0,limit=60,items=[],cur=0,total=0,prog={},sel=0;
+async function jget(u){return (await fetch(u)).json();}
+async function jpost(u,b){return (await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})).json();}
+function el(h){const d=document.createElement('div');d.innerHTML=h.trim();return d.firstChild;}
+
+async function loadProgress(){prog=await jget('/api/progress');renderTabs();}
+function renderTabs(){const t=document.getElementById('tabs');t.innerHTML='';
+  for(const[k,label]of TABS){const c=prog[k]!==undefined?prog[k]:(k==='all'?prog.total:'');
+    const e=el(`<div class="tab ${k===tab?'on':''}"><span>${label}</span> <span class="c">${c??''}</span></div>`);
+    e.onclick=()=>switchTab(k);t.appendChild(e);}
+  document.getElementById('bulk').style.display='';}
+function switchTab(k){tab=k;offset=0;items=[];cur=0;loadBatch(true);}
+function q(){return `?status=${tab}&offset=${offset}&limit=${limit}`;}
+async function loadBatch(reset){const d=await jget('/api/candidates'+q());total=d.total;
+  if(reset)items=[];items=items.concat(d.items);offset+=d.items.length;show();}
+function show(){
+  if(cur>=items.length){ if(offset<total){loadBatch(false);return;} renderDone(); return; }
+  const c=items[cur];sel=0;
+  // 이미 판정된 카드면 그때 고른 후보를 다시 선택(영어판/엉뚱후보로 리셋 방지)
+  if(c.decision&&c.decision.snkrdunk_apparel_id){
+    const i=c.candidates.findIndex(x=>String(x.apparel_id)===String(c.decision.snkrdunk_apparel_id));
+    if(i>=0)sel=i;}
+  renderCard(c);prefetch();
+}
+function renderDone(){document.getElementById('stage').innerHTML='<div class="empty">이 탭 검수 완료 🎉</div>';
+  document.getElementById('posbar').innerHTML='<span class="pos">남은 카드 없음</span>';}
+function prefetch(){for(let k=cur+1;k<Math.min(cur+3,items.length);k++){const c=items[k];
+  [c.our_img,...(c.candidates[0]?[c.candidates[0].img]:[])].forEach(s=>{if(s){const i=new Image();i.src=s;}});}}
+function renderCard(c){
+  const cand=c.candidates,s=cand[sel]||cand[0];
+  document.getElementById('posbar').innerHTML=
+    `<span class="badge" style="background:${BADGE[c.best_status]||'#555'}">${c.best_status}</span>
+     <span class="nm">${c.our_name||''}</span>
+     <span class="sub">${c.our_set} ${c.our_coll} · ${c.our_rarity} · 후보 ${c.n_cand}</span>
+     <span class="pos">[${TLAB[tab]}] ${cur+1} / ${total}</span>
+     ${c.decision?`<span class="dec">${c.decision.decision}</span>`:''}`;
+  const thumbs=cand.map((x,i)=>`<div class="th ${i===sel?'sel':''}" data-i="${i}"><span class="n">${i+1}·${x.score??''}</span><img src="${x.img}" onerror="this.style.opacity=.15"></div>`).join('');
+  document.getElementById('stage').innerHTML=`
+   <div class="pane"><div class="lbl">우리 카드</div>
+     <div class="imgbox"><img src="${c.our_img}" data-zoom="${c.our_img}" onerror="this.style.opacity=.15"></div>
+     <div class="meta"><b style="font-size:16px">${c.our_name||''}</b><br><span class="mono">${c.our_jp_ref||'NO_JP'}</span> · ${c.our_rarity} · ${c.our_card_id}</div></div>
+   <div class="pane"><div class="lbl">SNK 후보 ${sel+1}/${cand.length} (스캐너 점수순)</div>
+     <div class="imgbox"><img src="${s.img}" data-zoom="${s.img}" onerror="this.style.opacity=.15"></div>
+     <div class="meta"><span class="sc">${s.score??'-'}</span> · <span class="chk ${s.set_check==='OK'?'ok':'diff'}">번호:${s.set_check}</span> <span class="chk ${s.rarity_check==='OK'?'ok':'diff'}">레어도:${s.rarity_check}</span><br>
+       <span class="mono">${s.product_number||''}</span> · <a href="${s.detail_url}" target="_blank">apparel ${s.apparel_id} ↗</a>
+       <span class="t5btn" id="t5btn">TOP5 ▾</span></div>
+     <div class="t5" id="t5">${(s.top5||[]).map((t,j)=>`<div class="${t.cardId===c.our_card_id?'h':''}"><img src="/static/cards/${t.cardId}_jp.png" onerror="this.style.opacity=.15">${j+1}<br>${t.score??''}</div>`).join('')}</div>
+     <div class="thumbs">${thumbs}</div></div>`;
+  document.querySelectorAll('.th').forEach(t=>t.onclick=()=>{sel=+t.dataset.i;renderCard(c);});
+  document.querySelectorAll('[data-zoom]').forEach(im=>im.onclick=()=>zoom(im.dataset.zoom));
+  document.getElementById('t5btn').onclick=()=>document.getElementById('t5').classList.toggle('show');
+}
+function zoom(src){const z=document.getElementById('zoom');z.querySelector('img').src=src;z.style.display='flex';}
+document.getElementById('zoom').onclick=()=>document.getElementById('zoom').style.display='none';
+async function decide(a){
+  if(cur>=items.length)return;const c=items[cur];const s=c.candidates[sel]||c.candidates[0];
+  const decision=a==='approve'?'APPROVED':a==='reject'?'REJECTED':a==='koonly'?'KO_ONLY_NO_JP':'DELETED';
+  const apparel=(a==='delete'||a==='koonly')?'':s.apparel_id;   // 삭제·한국단독은 후보 무관
+  jpost('/api/decision',{our_card_id:c.our_card_id,snkrdunk_apparel_id:apparel,decision:decision,
+    previous_status:c.best_status,scanner_score:s.score,product_number:s.product_number||''}).then(loadProgress);
+  if(['approved','rejected','deleted','ko_only','all'].includes(tab)){cur++;}   // 상태탭: 그대로 진행
+  else{items.splice(cur,1);total=Math.max(0,total-1);}                // 검수탭: 결정한 카드는 탭에서 빠짐
+  show();
+}
+document.querySelectorAll('.actions [data-a]').forEach(b=>b.onclick=()=>decide(b.dataset.a));
+document.addEventListener('keydown',e=>{const k=e.key.toLowerCase();
+  if(k==='a')decide('approve');else if(k==='x')decide('reject');else if(k==='k')decide('koonly');else if(k==='d')decide('delete');
+  else if(k==='n'||e.key==='ArrowRight'){e.preventDefault();if(cur<items.length-1||offset<total){cur++;show();}}
+  else if(k==='p'||e.key==='ArrowLeft'){e.preventDefault();if(cur>0){cur--;show();}}
+  else if(/[1-9]/.test(k)){const i=+k-1;if(items[cur]&&i<items[cur].candidates.length){sel=i;renderCard(items[cur]);}}});
+document.getElementById('bulk').onclick=async()=>{if(!confirm('HIGH_AUTO 미판정 전부 APPROVED?'))return;
+  const r=await jpost('/api/bulk_approve_high_auto',{});alert(r.approved+'장 승인');loadProgress();switchTab(tab);};
+document.getElementById('exD').onclick=()=>location.href='/api/export/decisions.csv';
+document.getElementById('exR').onclick=()=>location.href='/api/export/research_queue.csv';
+loadProgress().then(()=>loadBatch(true));
+</script></body></html>

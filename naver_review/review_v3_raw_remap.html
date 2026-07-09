@@ -1,0 +1,61 @@
+<!DOCTYPE html><html lang=ko><head><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>NAVER 원문기준 검수 + 재매핑 v3</title><style>
+:root{--bg:#0f1115;--card:#1a1d24;--line:#2a2f3a;--txt:#e6e8ec;--mut:#9aa3b2;--red:#ff5c6c;--grn:#34c77b;--yel:#f5c451;--blu:#5aa0ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.45 -apple-system,"Apple SD Gothic Neo",sans-serif;padding-bottom:60px}
+header{position:sticky;top:0;z-index:20;background:#12151c;border-bottom:1px solid var(--line);padding:9px 12px}
+h1{font-size:14px;margin:0 0 6px}.bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+button.exp{background:var(--grn);color:#04210f;border:0;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer}
+.pill{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:4px 10px;cursor:pointer;color:var(--mut);font-size:12px}.pill.on{background:var(--blu);color:#fff}
+input{background:var(--card);border:1px solid var(--line);border-radius:6px;color:var(--txt);padding:5px 9px}
+.post{display:grid;grid-template-columns:1.3fr .8fr 1.2fr auto;gap:12px;border:1px solid var(--line);border-radius:9px;margin:9px 12px;padding:10px;background:var(--card)}
+.naver .ttl{font-weight:600}.naver .sub{color:var(--mut);font-size:11px;margin-top:3px}
+.src{background:#243;color:#7fd;border:1px solid #275;border-radius:5px;padding:2px 7px;font-size:11px;text-decoration:none;display:inline-block;margin-top:4px}
+.fl{font-size:10px;padding:1px 5px;border-radius:8px}.fl.DIRTY{background:rgba(255,92,108,.18);color:var(--red)}.fl.CLEAN{background:rgba(52,199,123,.18);color:var(--grn)}.fl.REVIEW{background:rgba(245,196,81,.15);color:var(--yel)}
+.cardbox{display:flex;gap:7px;align-items:flex-start}.cardbox img{width:50px;height:70px;object-fit:contain;background:#000;border-radius:4px}
+.warn{color:var(--yel);font-size:10.5px}.nm{font-weight:600;font-size:12px}.sub{color:var(--mut);font-size:11px}
+.remap input{width:100%}.results{max-height:150px;overflow:auto;margin-top:5px;border:1px solid var(--line);border-radius:6px}
+.results div{display:flex;gap:6px;align-items:center;padding:4px 6px;cursor:pointer;border-bottom:1px solid var(--line)}
+.results div:hover{background:#243}.results img{width:32px;height:45px;object-fit:contain;background:#000;border-radius:3px}
+.mapped{margin-top:5px;padding:5px;border:1px solid var(--grn);border-radius:6px;background:rgba(52,199,123,.08)}
+.acts{display:flex;flex-direction:column;gap:3px;min-width:130px}
+.acts b{cursor:pointer;border:1px solid var(--line);border-radius:5px;padding:4px 7px;font-size:11px;color:var(--mut);background:#12151c;text-align:center}
+.acts b.ok{color:var(--grn)}.acts b.rm{color:var(--blu)}.acts b.no{color:var(--red)}.acts b.mn{color:var(--yel)}.acts b.on{background:var(--blu);color:#fff}
+.dec{color:var(--grn);font-size:11px;font-weight:700;margin-top:4px;text-align:center}
+</style></head><body>
+<header><h1>🔁 NAVER 원문기준 검수 + 재매핑 v3</h1><div class=bar>
+<input id=q placeholder="네이버 제목 검색"><span class=pill id=onlyund>미결정만</span>
+<button class=exp id=export>결정 내보내기(JSON)</button><button class=pill id=reset>초기화</button>
+<span id=cnt style=color:var(--mut)></span></div></header>
+<div id=app></div>
+<script src=review_v2_priority_data.js></script><script src=card_index.js></script><script>
+const POSTS=window.PRIO, IDX=window.CARD_INDEX;
+const IMGcid=c=>`../scanner/data/cards/${c}_jp.png`;
+const nameOf={};IDX.forEach(c=>nameOf[c.cid]=c.nm);
+const BTN=[['VALID_SINGLE_RAW','✓ 이 카드 RAW단품','ok'],['VALID_SINGLE_RAW_REMAP','🔁 재매핑 후 VALID','rm'],['REJECT_WRONG_CARD','✕ 오매핑(카드아님)','no'],['REJECT_BUNDLE','✕ 번들','no'],['REJECT_SEALED','✕ 미개봉/박스','no'],['REJECT_GRADED','✕ 등급카드','no'],['REJECT_WRONG_LANGUAGE','✕ 해외판','no'],['REJECT_ASK_ONLY','✕ 호가/삽니다','no'],['NEEDS_MANUAL','? 수동보류','mn']];
+const D=JSON.parse(localStorage.getItem('naver_v3_dec')||'{}');function save(){localStorage.setItem('naver_v3_dec',JSON.stringify(D))}
+let Q='',UND=false;function fmt(n){return n==null?'·':Number(n).toLocaleString()}
+function setDec(id,d){const o=D[id]||{};if(o.decision===d)delete o.decision;else o.decision=d;D[id]=o;save();render()}
+function setMap(id,cid){D[id]=Object.assign(D[id]||{},{mapped:cid});if(!D[id].decision)D[id].decision='VALID_SINGLE_RAW_REMAP';save();render()}
+function searchCards(id,kw){const r=document.getElementById('res_'+id);if(!kw){r.innerHTML='';return}
+  const hit=IDX.filter(c=>(c.nm||'').toLowerCase().includes(kw.toLowerCase())).slice(0,25);
+  r.innerHTML=hit.map(c=>`<div onclick="setMap('${id}','${c.cid}')"><img loading=lazy src="${IMGcid(c.cid)}"><div><div class=nm>${c.nm}</div><div class=sub>${c.rar} ${c.code}</div></div></div>`).join('')||'<div class=sub style=padding:6px>없음</div>'}
+function render(){let posts=POSTS;if(Q)posts=posts.filter(p=>(p.title||'').toLowerCase().includes(Q));if(UND)posts=posts.filter(p=>!(D[p.psid]||{}).decision);
+  document.getElementById('cnt').textContent=`표시 ${posts.length} / 전체 ${POSTS.length} · 결정 ${Object.values(D).filter(x=>x.decision).length}`;
+  document.getElementById('app').innerHTML=posts.map(p=>{const dd=D[p.psid]||{},dec=dd.decision||'',mp=dd.mapped||'';
+    const acts=BTN.map(([d,lb,c])=>`<b class="${c} ${dec===d?'on':''}" onclick="setDec('${p.psid}','${d}')">${lb}</b>`).join('');
+    const mappedBox=mp?`<div class=mapped><div class=cardbox><img src="${IMGcid(mp)}"><div><div class=nm>✓ ${nameOf[mp]||mp}</div><div class=sub>${mp}</div></div></div></div>`:'';
+    const src=p.url?`<a class=src href="${p.url}" target=_blank>원문 열기 ↗</a>`:'<span class=warn>URL없음</span>';
+    return `<div class=post>
+     <div class=naver><div class=ttl>${(p.title||'(제목없음)').replace(/</g,'&lt;')}</div>
+       <div class=sub>${fmt(p.price)}원 · ${p.td} · ${p.cstat} · <span class="fl ${p.flagk}">${p.flagk}</span> ${p.flagwhy||''}</div>${src}</div>
+     <div><div class=warn>⚠️ 현재 매핑(확정 아님)</div><div class=cardbox><img loading=lazy src="${IMGcid(p.cid)}" onerror="this.onerror=null;this.src='../scanner/data/cards/${p.cid}_ko.png'"><div><div class=nm>${p.name}</div><div class=sub>${p.rar} ${p.col||''}</div></div></div></div>
+     <div class=remap><input placeholder="올바른 카드 검색…" oninput="searchCards('${p.psid}',this.value)"><div class=results id="res_${p.psid}"></div>${mappedBox}</div>
+     <div class=acts>${acts}${dec?`<div class=dec>→ ${dec}${mp?'<br>↳'+(nameOf[mp]||mp):''}</div>`:''}</div></div>`}).join('');}
+document.getElementById('q').addEventListener('input',e=>{Q=e.target.value.toLowerCase().trim();render()});
+document.getElementById('onlyund').addEventListener('click',e=>{UND=!UND;e.target.classList.toggle('on',UND);render()});
+document.getElementById('reset').addEventListener('click',()=>{if(confirm('결정 전부 지울까?')){for(const k in D)delete D[k];save();render()}});
+document.getElementById('export').addEventListener('click',()=>{const out=POSTS.filter(p=>(D[p.psid]||{}).decision).map(p=>{const d=D[p.psid];const mapped=d.mapped||(d.decision==='VALID_SINGLE_RAW'?p.cid:'');
+  return {raw_id:p.psid,original_url:p.url,title_raw:p.title,price_krw:p.price,sold_date:p.td,cstat:p.cstat,nvjp:p.nvjp,query_card_id:p.cid,query_card_name:p.name,mapped_card_id:mapped,mapped_card_name:nameOf[mapped]||'',decision:d.decision,reject_reason:d.decision.startsWith('REJECT')?d.decision:'',reviewer_note:''}});
+  const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='naver_v3_remap_decisions.json';a.click()});
+render();
+</script></body></html>

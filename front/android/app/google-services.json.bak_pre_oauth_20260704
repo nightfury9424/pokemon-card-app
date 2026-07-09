@@ -1,0 +1,37 @@
+{
+  "project_info": {
+    "project_number": "794742614446",
+    "project_id": "pokefolio-2e680",
+    "storage_bucket": "pokefolio-2e680.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:794742614446:android:2c14397f0605117d17803f",
+        "android_client_info": {
+          "package_name": "com.fury.pokemoncardapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbXYIRULeWTS2LTUkGA4fsjy0s4T9ayeg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "794742614446-qbli798g6l3v3ik4m0mv06imlst1ugjm.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.fury.pokemoncardapp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

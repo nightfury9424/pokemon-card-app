@@ -1,0 +1,48 @@
+<!DOCTYPE html><html lang=ko><head><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>NAVER 삭제/통과</title><style>
+:root{--bg:#0f1115;--card:#1a1d24;--line:#2a2f3a;--txt:#e6e8ec;--mut:#9aa3b2;--red:#ff5c6c;--grn:#34c77b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.4 -apple-system,"Apple SD Gothic Neo",sans-serif}
+header{position:sticky;top:0;z-index:9;background:#12151c;border-bottom:1px solid var(--line);padding:9px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input{background:var(--card);border:1px solid var(--line);border-radius:6px;color:var(--txt);padding:6px 9px;width:180px}
+.pill{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:4px 10px;cursor:pointer;color:var(--mut)}.pill.on{background:#5aa0ff;color:#fff}
+button.exp{background:var(--grn);color:#04210f;border:0;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer}
+.row{display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding:7px 12px}
+.row.D-PASS{background:rgba(52,199,123,.10)}.row.D-DELETE{background:rgba(255,92,108,.08);opacity:.55}
+img.cd{width:54px;height:75px;object-fit:contain;background:#000;border-radius:4px;cursor:zoom-in}
+.info{flex:1;min-width:0}.ttl{font-weight:600}.sub{color:var(--mut);font-size:11.5px}
+.src{background:#243;color:#7fd;border:1px solid #275;border-radius:5px;padding:3px 8px;font-size:11.5px;text-decoration:none;white-space:nowrap}
+.btns b{cursor:pointer;border-radius:6px;padding:8px 16px;font-size:14px;font-weight:700;margin-left:6px;display:inline-block}
+.btns b.del{background:#2a1418;color:var(--red);border:1px solid #5a2330}.btns b.pass{background:#0f2a1a;color:var(--grn);border:1px solid #1f5a37}
+.btns b.on.del{background:var(--red);color:#fff}.btns b.on.pass{background:var(--grn);color:#04210f}
+#zoom{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:99;cursor:zoom-out}#zoom img{max-width:90vw;max-height:90vh}
+</style></head><body>
+<header><b style=font-size:14px>🗑️/✅ NAVER 데이터 분류 — 삭제 or 통과</b>
+<input id=q placeholder="제목 검색"><span class=pill id=und>미결정만</span>
+<button class=exp id=export>통과만 내보내기(JSON)</button><span class=pill id=reset>초기화</span>
+<span id=cnt style=color:var(--mut)></span></header>
+<div id=app></div><div id=zoom><img></div>
+<script src=data.js></script><script>
+const DATA=window.NAVER_DATA;const IMG=c=>`../scanner/data/cards/${c}_jp.png`;
+const D=JSON.parse(localStorage.getItem('naver_simple')||'{}');function save(){localStorage.setItem('naver_simple',JSON.stringify(D))}
+let Q='',UND=false;
+function set(id,v){if(D[id]===v)delete D[id];else D[id]=v;save();render()}
+function zoom(s){const z=document.getElementById('zoom');z.querySelector('img').src=s;z.style.display='flex'}
+document.getElementById('zoom').onclick=()=>document.getElementById('zoom').style.display='none';
+function render(){let rows=DATA;if(Q)rows=rows.filter(r=>((r.nm||'')+(r.title||'')).toLowerCase().includes(Q));if(UND)rows=rows.filter(r=>!D[r.psid]);
+  const p=Object.values(D).filter(x=>x==='PASS').length,d=Object.values(D).filter(x=>x==='DELETE').length;
+  document.getElementById('cnt').textContent=`표시 ${rows.length} · ✅통과 ${p} · 🗑️삭제 ${d} · 남음 ${DATA.length-p-d}`;
+  document.getElementById('app').innerHTML=rows.map(r=>{const v=D[r.psid]||'';const g=r.gco?`${r.gco}${r.gv||''}`:r.cstat;
+    return `<div class="row D-${v}">
+      <img class=cd loading=lazy src="${IMG(r.cid)}" onerror="this.onerror=null;this.src='../scanner/data/cards/${r.cid}_ko.png'" onclick="zoom(this.src)">
+      <div class=info><div class=ttl>${(r.title||r.nm||'').replace(/</g,'&lt;')}</div>
+        <div class=sub>${Number(r.price).toLocaleString()}원 · ${r.td} · ${g} · 매핑:${r.nm} ${r.rar||''}</div></div>
+      ${r.url?`<a class=src href="${r.url}" target=_blank>원문↗</a>`:'<span style=color:#ff5c6c;font-size:11px>URL없음</span>'}
+      <div class=btns><b class="del ${v==='DELETE'?'on':''}" onclick="set('${r.psid}','DELETE')">🗑️ 삭제</b><b class="pass ${v==='PASS'?'on':''}" onclick="set('${r.psid}','PASS')">✅ 통과</b></div>
+    </div>`}).join('');}
+document.getElementById('q').oninput=e=>{Q=e.target.value.toLowerCase().trim();render()};
+document.getElementById('und').onclick=e=>{UND=!UND;e.target.classList.toggle('on',UND);render()};
+document.getElementById('reset').onclick=()=>{if(confirm('전부 지울까?')){for(const k in D)delete D[k];save();render()}};
+document.getElementById('export').onclick=()=>{const out=DATA.filter(r=>D[r.psid]==='PASS').map(r=>({raw_id:r.psid,card_id:r.cid,card_name:r.nm,title:r.title,price_krw:r.price,sold_date:r.td,cstat:r.cstat,gco:r.gco,gv:r.gv,nvjp:r.nvjp,url:r.url}));
+  const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='naver_pass.json';a.click()};
+render();
+</script></body></html>

@@ -1,0 +1,5 @@
+# warp-fix(d0fe5213, warp-only) + 27 JP/EN promo release
+scanner: 3840 cards / 56365 vectors · commit a8b55974
+main.py        d0fe52130e88c4887606b0b510a860af79eaf943040189892464aa22a22d7773
+card_db.faiss  78209e6d42185161eb777b3a64f0bbc0157a0db492a273214314d0dc00cab5f5
+card_meta.json 3ff1582cea440060f82c2cb21a87c20bc1d58a5e0ecf5bf87b85c96adbad2137

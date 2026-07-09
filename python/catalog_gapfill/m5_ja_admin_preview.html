@@ -1,0 +1,260 @@
+<!DOCTYPE html><html lang=ko><head><meta charset=utf-8><title>어비스아이 백필 차트 preview</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script><style>
+body{font-family:-apple-system,system-ui,sans-serif;background:#0d1117;color:#e6edf3;margin:0;padding:20px}
+h1{font-size:20px} h2{font-size:15px;color:#8b949e;margin:16px 0 8px}
+.note{background:#1c2128;border-left:3px solid #2ea043;padding:10px 14px;margin-bottom:14px;font-size:13px;border-radius:4px}
+.summary{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px;margin-bottom:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.summary b{font-size:18px;color:#58a6ff;display:block} .summary div{font-size:12px}
+.canrow{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:12px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px}
+.card.big{border-color:#f0c000;box-shadow:0 0 0 1px #f0c000}
+.card img{width:80px;float:left;margin-right:10px;border-radius:6px;background:#000;object-fit:contain} .card.big img{width:118px}
+.hd{font-size:13px} .rar{background:#30363d;padding:1px 5px;border-radius:4px;font-size:10px} .sub{font-size:10px;color:#8b949e}
+.pr{font-size:11px;margin:3px 0} .pr .v6{color:#3fb950;font-weight:bold} .meta{font-size:9px;color:#6e7681;clear:both;padding-top:2px}
+.nohist{font-size:11px;color:#d29922;padding:8px 0;clear:both}
+.bc{background:#f0c000;color:#000;font-size:9px;padding:1px 4px;border-radius:3px;margin-right:3px}
+.excl{margin-top:16px;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px} .excl ul{columns:2;font-size:13px}
+</style></head><body>
+<h1>📈 어비스아이 38장 — 실제 Scrydex JP history 백필 차트 preview</h1>
+<div class=note>✅ <b>prod write 0</b> · 각 점 = <b>실제 Scrydex JP raw 날짜+값</b>(임의생성 아님, 근거=m5_ja_chart_preview.csv 532행). 라인=일별 v6_ko(=jp_raw[date]×환율×FROZEN_RTR[rarity|NORMAL], 결정론적 실값) + chart_price(±1.5% 운영공식 적용). 등록 후 이 데이터를 card_id로 백필→앱 차트 즉시 시계열. 이후 매일 cron 누적. chart_price 난수는 preview 고정시드(실제는 매일 새 ±1.5%).</div>
+<div class=summary><div><b>38</b>대상</div><div><b>38</b>history보유</div><div><b>0</b>백필불가</div><div><b>532</b>per-date row</div>
+<div><b>14</b>일수(중앙)</div><div><b>6</b>제외도구</div><div><b>SCRYDEX_JP</b>source</div><div><b>±1.5%</b>chart_price</div></div>
+<h2>★ canary 2장</h2><div class=canrow><div class="card big canary">
+      <img src="m5_ja_images/m5_ja-46.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-46/medium'" loading=lazy>
+      <div class=info><div class=hd><span class=bc>★CANARY</span><b>메가다크라이 ex</b> <span class=rar>RR</span></div>
+      <div class=sub>046/081 · Mega Darkrai ex · m5_ja-46</div>
+      <div class=pr>JP <b>$1.50</b>=2,283원 · EN <i>없음</i> · 38% · <span class=v6>v6 890원</span></div>
+      <canvas id=chm5_ja_46 height=150></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card big canary">
+      <img src="m5_ja_images/m5_ja-114.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-114/medium'" loading=lazy>
+      <div class=info><div class=hd><span class=bc>★CANARY</span><b>메가다크라이 ex</b> <span class=rar>SAR</span></div>
+      <div class=sub>114/081 · Mega Darkrai ex · m5_ja-114</div>
+      <div class=pr>JP <b>$503.90</b>=764,424원 · EN <i>없음</i> · 29% · <span class=v6>v6 228,990원</span></div>
+      <canvas id=chm5_ja_114 height=150></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div></div>
+<h2>나머지 36장</h2><div class=grid><div class="card  ">
+      <img src="m5_ja_images/m5_ja-4.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-4/medium'" loading=lazy>
+      <div class=info><div class=hd><b>라란티스 ex</b> <span class=rar>RR</span></div>
+      <div class=sub>004/081 · Lurantis ex · m5_ja-4</div>
+      <div class=pr>JP <b>$0.56</b>=850원 · EN <i>없음</i> · 38% · <span class=v6>v6 330원</span></div>
+      <canvas id=chm5_ja_4 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-15.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-15/medium'" loading=lazy>
+      <div class=info><div class=hd><b>고래왕 ex</b> <span class=rar>RR</span></div>
+      <div class=sub>015/081 · Wailord ex · m5_ja-15</div>
+      <div class=pr>JP <b>$0.72</b>=1,092원 · EN <i>없음</i> · 38% · <span class=v6>v6 420원</span></div>
+      <canvas id=chm5_ja_15 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-26.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-26/medium'" loading=lazy>
+      <div class=info><div class=hd><b>메가제라오라 ex</b> <span class=rar>RR</span></div>
+      <div class=sub>026/081 · Mega Zeraora ex · m5_ja-26</div>
+      <div class=pr>JP <b>$0.91</b>=1,373원 · EN <i>없음</i> · 38% · <span class=v6>v6 530원</span></div>
+      <canvas id=chm5_ja_26 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-36.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-36/medium'" loading=lazy>
+      <div class=info><div class=hd><b>메가샹델라 ex</b> <span class=rar>RR</span></div>
+      <div class=sub>036/081 · Mega Chandelure ex · m5_ja-36</div>
+      <div class=pr>JP <b>$0.77</b>=1,168원 · EN <i>없음</i> · 38% · <span class=v6>v6 450원</span></div>
+      <canvas id=chm5_ja_36 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-43.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-43/medium'" loading=lazy>
+      <div class=info><div class=hd><b>램펄드 ex</b> <span class=rar>RR</span></div>
+      <div class=sub>043/081 · Rampardos ex · m5_ja-43</div>
+      <div class=pr>JP <b>$0.70</b>=1,062원 · EN <i>없음</i> · 38% · <span class=v6>v6 410원</span></div>
+      <canvas id=chm5_ja_43 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-53.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-53/medium'" loading=lazy>
+      <div class=info><div class=hd><b>모르페코 ex</b> <span class=rar>RR</span></div>
+      <div class=sub>053/081 · Morpeko ex · m5_ja-53</div>
+      <div class=pr>JP <b>$0.74</b>=1,123원 · EN <i>없음</i> · 38% · <span class=v6>v6 440원</span></div>
+      <canvas id=chm5_ja_53 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-63.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-63/medium'" loading=lazy>
+      <div class=info><div class=hd><b>메가몰드류 ex</b> <span class=rar>RR</span></div>
+      <div class=sub>063/081 · Mega Excadrill ex · m5_ja-63</div>
+      <div class=pr>JP <b>$0.55</b>=842원 · EN <i>없음</i> · 38% · <span class=v6>v6 330원</span></div>
+      <canvas id=chm5_ja_63 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-82.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-82/medium'" loading=lazy>
+      <div class=info><div class=hd><b>짜랑랑</b> <span class=rar>AR</span></div>
+      <div class=sub>082/081 · Fomantis · m5_ja-82</div>
+      <div class=pr>JP <b>$6.54</b>=9,921원 · EN <i>없음</i> · 27% · <span class=v6>v6 2,770원</span></div>
+      <canvas id=chm5_ja_82 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-83.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-83/medium'" loading=lazy>
+      <div class=info><div class=hd><b>카디나르마</b> <span class=rar>AR</span></div>
+      <div class=sub>083/081 · Armarouge · m5_ja-83</div>
+      <div class=pr>JP <b>$5.24</b>=7,949원 · EN <i>없음</i> · 27% · <span class=v6>v6 2,220원</span></div>
+      <canvas id=chm5_ja_83 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-84.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-84/medium'" loading=lazy>
+      <div class=info><div class=hd><b>콘치</b> <span class=rar>AR</span></div>
+      <div class=sub>084/081 · Goldeen · m5_ja-84</div>
+      <div class=pr>JP <b>$14.21</b>=21,557원 · EN <i>없음</i> · 27% · <span class=v6>v6 6,020원</span></div>
+      <canvas id=chm5_ja_84 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-85.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-85/medium'" loading=lazy>
+      <div class=info><div class=hd><b>누리레느</b> <span class=rar>AR</span></div>
+      <div class=sub>085/081 · Primarina · m5_ja-85</div>
+      <div class=pr>JP <b>$6.80</b>=10,323원 · EN <i>없음</i> · 27% · <span class=v6>v6 2,880원</span></div>
+      <canvas id=chm5_ja_85 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-86.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-86/medium'" loading=lazy>
+      <div class=info><div class=hd><b>썬더볼트</b> <span class=rar>AR</span></div>
+      <div class=sub>086/081 · Manectric · m5_ja-86</div>
+      <div class=pr>JP <b>$3.16</b>=4,794원 · EN <i>없음</i> · 27% · <span class=v6>v6 1,340원</span></div>
+      <canvas id=chm5_ja_86 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-87.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-87/medium'" loading=lazy>
+      <div class=info><div class=hd><b>야도란</b> <span class=rar>AR</span></div>
+      <div class=sub>087/081 · Slowbro · m5_ja-87</div>
+      <div class=pr>JP <b>$19.59</b>=29,726원 · EN <i>없음</i> · 27% · <span class=v6>v6 8,300원</span></div>
+      <canvas id=chm5_ja_87 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-88.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-88/medium'" loading=lazy>
+      <div class=info><div class=hd><b>타타륜</b> <span class=rar>AR</span></div>
+      <div class=sub>088/081 · Dhelmise · m5_ja-88</div>
+      <div class=pr>JP <b>$4.21</b>=6,379원 · EN <i>없음</i> · 27% · <span class=v6>v6 1,780원</span></div>
+      <canvas id=chm5_ja_88 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-89.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-89/medium'" loading=lazy>
+      <div class=info><div class=hd><b>폭슬라이</b> <span class=rar>AR</span></div>
+      <div class=sub>089/081 · Thievul · m5_ja-89</div>
+      <div class=pr>JP <b>$3.71</b>=5,620원 · EN <i>없음</i> · 27% · <span class=v6>v6 1,570원</span></div>
+      <canvas id=chm5_ja_89 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-90.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-90/medium'" loading=lazy>
+      <div class=info><div class=hd><b>자루도</b> <span class=rar>AR</span></div>
+      <div class=sub>090/081 · Zarude · m5_ja-90</div>
+      <div class=pr>JP <b>$2.92</b>=4,422원 · EN <i>없음</i> · 27% · <span class=v6>v6 1,240원</span></div>
+      <canvas id=chm5_ja_90 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-91.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-91/medium'" loading=lazy>
+      <div class=info><div class=hd><b>바리톱스</b> <span class=rar>AR</span></div>
+      <div class=sub>091/081 · Bastiodon · m5_ja-91</div>
+      <div class=pr>JP <b>$3.48</b>=5,272원 · EN <i>없음</i> · 27% · <span class=v6>v6 1,470원</span></div>
+      <canvas id=chm5_ja_91 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-92.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-92/medium'" loading=lazy>
+      <div class=info><div class=hd><b>왕큰부리</b> <span class=rar>AR</span></div>
+      <div class=sub>092/081 · Toucannon · m5_ja-92</div>
+      <div class=pr>JP <b>$3.45</b>=5,234원 · EN <i>없음</i> · 27% · <span class=v6>v6 1,460원</span></div>
+      <canvas id=chm5_ja_92 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-93.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-93/medium'" loading=lazy>
+      <div class=info><div class=hd><b>실버디</b> <span class=rar>AR</span></div>
+      <div class=sub>093/081 · Silvally · m5_ja-93</div>
+      <div class=pr>JP <b>$4.12</b>=6,258원 · EN <i>없음</i> · 27% · <span class=v6>v6 1,750원</span></div>
+      <canvas id=chm5_ja_93 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-94.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-94/medium'" loading=lazy>
+      <div class=info><div class=hd><b>라란티스 ex</b> <span class=rar>SR</span></div>
+      <div class=sub>094/081 · Lurantis ex · m5_ja-94</div>
+      <div class=pr>JP <b>$4.64</b>=7,046원 · EN <i>없음</i> · 44% · <span class=v6>v6 3,120원</span></div>
+      <canvas id=chm5_ja_94 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-95.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-95/medium'" loading=lazy>
+      <div class=info><div class=hd><b>고래왕 ex</b> <span class=rar>SR</span></div>
+      <div class=sub>095/081 · Wailord ex · m5_ja-95</div>
+      <div class=pr>JP <b>$7.77</b>=11,780원 · EN <i>없음</i> · 44% · <span class=v6>v6 5,210원</span></div>
+      <canvas id=chm5_ja_95 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-96.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-96/medium'" loading=lazy>
+      <div class=info><div class=hd><b>메가제라오라 ex</b> <span class=rar>SR</span></div>
+      <div class=sub>096/081 · Mega Zeraora ex · m5_ja-96</div>
+      <div class=pr>JP <b>$7.97</b>=12,090원 · EN <i>없음</i> · 44% · <span class=v6>v6 5,350원</span></div>
+      <canvas id=chm5_ja_96 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-97.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-97/medium'" loading=lazy>
+      <div class=info><div class=hd><b>메가샹델라 ex</b> <span class=rar>SR</span></div>
+      <div class=sub>097/081 · Mega Chandelure ex · m5_ja-97</div>
+      <div class=pr>JP <b>$15.89</b>=24,113원 · EN <i>없음</i> · 44% · <span class=v6>v6 10,660원</span></div>
+      <canvas id=chm5_ja_97 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-98.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-98/medium'" loading=lazy>
+      <div class=info><div class=hd><b>램펄드 ex</b> <span class=rar>SR</span></div>
+      <div class=sub>098/081 · Rampardos ex · m5_ja-98</div>
+      <div class=pr>JP <b>$8.33</b>=12,637원 · EN <i>없음</i> · 44% · <span class=v6>v6 5,590원</span></div>
+      <canvas id=chm5_ja_98 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-99.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-99/medium'" loading=lazy>
+      <div class=info><div class=hd><b>메가다크라이 ex</b> <span class=rar>SR</span></div>
+      <div class=sub>099/081 · Mega Darkrai ex · m5_ja-99</div>
+      <div class=pr>JP <b>$16.91</b>=25,652원 · EN <i>없음</i> · 44% · <span class=v6>v6 11,350원</span></div>
+      <canvas id=chm5_ja_99 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-100.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-100/medium'" loading=lazy>
+      <div class=info><div class=hd><b>모르페코 ex</b> <span class=rar>SR</span></div>
+      <div class=sub>100/081 · Morpeko ex · m5_ja-100</div>
+      <div class=pr>JP <b>$12.79</b>=19,410원 · EN <i>없음</i> · 44% · <span class=v6>v6 8,580원</span></div>
+      <canvas id=chm5_ja_100 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-101.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-101/medium'" loading=lazy>
+      <div class=info><div class=hd><b>메가몰드류 ex</b> <span class=rar>SR</span></div>
+      <div class=sub>101/081 · Mega Excadrill ex · m5_ja-101</div>
+      <div class=pr>JP <b>$12.18</b>=18,477원 · EN <i>없음</i> · 44% · <span class=v6>v6 8,170원</span></div>
+      <canvas id=chm5_ja_101 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-108.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-108/medium'" loading=lazy>
+      <div class=info><div class=hd><b>이슬의 기력</b> <span class=rar>SR</span></div>
+      <div class=sub>108/081 · Misty&#x27;s Energy · m5_ja-108</div>
+      <div class=pr>JP <b>$56.62</b>=85,893원 · EN <i>없음</i> · 44% · <span class=v6>v6 37,990원</span></div>
+      <canvas id=chm5_ja_108 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-109.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-109/medium'" loading=lazy>
+      <div class=info><div class=hd><b>글라디오의 결전</b> <span class=rar>SR</span></div>
+      <div class=sub>109/081 · Gladion&#x27;s Decisive Battle · m5_ja-109</div>
+      <div class=pr>JP <b>$8.87</b>=13,456원 · EN <i>없음</i> · 44% · <span class=v6>v6 5,950원</span></div>
+      <canvas id=chm5_ja_109 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-110.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-110/medium'" loading=lazy>
+      <div class=info><div class=hd><b>녹청파의 조무래기</b> <span class=rar>SR</span></div>
+      <div class=sub>110/081 · Rust Syndicate Grunt · m5_ja-110</div>
+      <div class=pr>JP <b>$5.80</b>=8,799원 · EN <i>없음</i> · 44% · <span class=v6>v6 3,890원</span></div>
+      <canvas id=chm5_ja_110 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-111.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-111/medium'" loading=lazy>
+      <div class=info><div class=hd><b>무쿠</b> <span class=rar>SR</span></div>
+      <div class=sub>111/081 · Gwynn · m5_ja-111</div>
+      <div class=pr>JP <b>$29.04</b>=44,054원 · EN <i>없음</i> · 44% · <span class=v6>v6 19,480원</span></div>
+      <canvas id=chm5_ja_111 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-112.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-112/medium'" loading=lazy>
+      <div class=info><div class=hd><b>메가제라오라 ex</b> <span class=rar>SAR</span></div>
+      <div class=sub>112/081 · Mega Zeraora ex · m5_ja-112</div>
+      <div class=pr>JP <b>$68.40</b>=103,763원 · EN <i>없음</i> · 29% · <span class=v6>v6 31,080원</span></div>
+      <canvas id=chm5_ja_112 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-113.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-113/medium'" loading=lazy>
+      <div class=info><div class=hd><b>메가샹델라 ex</b> <span class=rar>SAR</span></div>
+      <div class=sub>113/081 · Mega Chandelure ex · m5_ja-113</div>
+      <div class=pr>JP <b>$49.78</b>=75,516원 · EN <i>없음</i> · 29% · <span class=v6>v6 22,620원</span></div>
+      <canvas id=chm5_ja_113 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-115.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-115/medium'" loading=lazy>
+      <div class=info><div class=hd><b>모르페코 ex</b> <span class=rar>SAR</span></div>
+      <div class=sub>115/081 · Morpeko ex · m5_ja-115</div>
+      <div class=pr>JP <b>$73.69</b>=111,788원 · EN <i>없음</i> · 29% · <span class=v6>v6 33,490원</span></div>
+      <canvas id=chm5_ja_115 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-116.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-116/medium'" loading=lazy>
+      <div class=info><div class=hd><b>글라디오의 결전</b> <span class=rar>SAR</span></div>
+      <div class=sub>116/081 · Gladion&#x27;s Decisive Battle · m5_ja-116</div>
+      <div class=pr>JP <b>$40.22</b>=61,014원 · EN <i>없음</i> · 29% · <span class=v6>v6 18,280원</span></div>
+      <canvas id=chm5_ja_116 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div><div class="card  ">
+      <img src="m5_ja_images/m5_ja-117.png" onerror="this.src='https://images.scrydex.com/pokemon/m5_ja-117/medium'" loading=lazy>
+      <div class=info><div class=hd><b>무쿠</b> <span class=rar>SAR</span></div>
+      <div class=sub>117/081 · Gwynn · m5_ja-117</div>
+      <div class=pr>JP <b>$121.39</b>=184,156원 · EN <i>없음</i> · 29% · <span class=v6>v6 55,170원</span></div>
+      <canvas id=chm5_ja_117 height=76></canvas>
+      <div class=meta>14일 실제 Scrydex JP history 백필 (SCRYDEX_JP→v6_ko→chart_price±1.5%)</div></div></div></div>
+<div class=excl><h2>❌ 제외 도구 6장</h2><ul><li>102 Super Rare <b>Iron Defender</b> — 아이템</li><li>103 Super Rare <b>Energy Switch</b> — 아이템</li><li>104 Super Rare <b>Crushing Hammer</b> — 아이템</li><li>105 Super Rare <b>Dark Bell</b> — 아이템</li><li>106 Super Rare <b>Heroic Bomb</b> — 포켓몬도구</li><li>107 Super Rare <b>Brave Bangle</b> — 포켓몬도구</li></ul></div>
+<script>
+function line(id,labels,cp,ko,big){const e=document.getElementById(id);if(!e)return;new Chart(e,{type:'line',data:{labels:labels,datasets:[
+ {label:'chart_price(±1.5%, 앱표시)',data:cp,borderColor:big?'#f0c000':'#3fb950',backgroundColor:(big?'#f0c00022':'#3fb95018'),fill:true,borderWidth:big?2:1.3,pointRadius:0,tension:0.1},
+ {label:'v6_ko(백필 기준값)',data:ko,borderColor:'#8b949e66',borderWidth:1,pointRadius:0,borderDash:[3,3],hidden:!big}]},
+ options:{plugins:{legend:{display:big,labels:{color:'#8b949e',font:{size:9}}},tooltip:{enabled:big}},scales:{x:{display:big,ticks:{color:'#6e7681',font:{size:8},maxTicksLimit:7}},y:{display:big,ticks:{color:'#8b949e',font:{size:9},callback:v=>v>=1000?(v/1000)+'k':v}}}}});}
+line('chm5_ja_46',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[801, 808, 815, 896, 903, 825, 855, 876, 899, 935, 908, 903, 860, 815],[811, 811, 811, 906, 906, 818, 847, 870, 900, 929, 918, 906, 865, 824],true);line('chm5_ja_114',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[252816, 248703, 246851, 249326, 246061, 233885, 233542, 228080, 232160, 226440, 227372, 219063, 215570, 204069],[251973, 249342, 249342, 246670, 246670, 230996, 230996, 230996, 230996, 226984, 226984, 222044, 217554, 207157],true);line('chm5_ja_4',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[561, 557, 479, 435, 438, 401, 377, 370, 332, 324, 331, 327, 330, 314],[559, 553, 476, 441, 441, 406, 376, 371, 330, 323, 330, 330, 330, 318],false);line('chm5_ja_15',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[464, 457, 456, 448, 451, 482, 486, 493, 408, 432, 391, 396, 389, 379],[464, 453, 459, 453, 453, 488, 488, 488, 412, 435, 388, 400, 394, 382],false);line('chm5_ja_26',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[566, 565, 561, 519, 506, 567, 541, 541, 546, 563, 516, 519, 517, 519],[559, 565, 553, 512, 512, 559, 541, 547, 547, 570, 512, 518, 523, 523],false);line('chm5_ja_36',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[541, 551, 460, 464, 455, 447, 472, 470, 475, 470, 439, 410, 398, 396],[535, 553, 459, 459, 459, 447, 471, 464, 482, 476, 441, 406, 394, 400],false);line('chm5_ja_43',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[808, 708, 629, 597, 610, 507, 479, 448, 405, 417, 373, 366, 362, 358],[818, 700, 635, 606, 606, 512, 482, 447, 400, 423, 371, 371, 359, 359],false);line('chm5_ja_53',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[719, 650, 627, 545, 544, 556, 503, 494, 453, 407, 420, 393, 398, 395],[729, 659, 618, 547, 547, 553, 500, 488, 447, 412, 423, 394, 400, 394],false);line('chm5_ja_63',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[349, 371, 379, 389, 389, 385, 366, 355, 350, 299, 268, 271, 280, 283],[347, 376, 382, 388, 388, 382, 371, 353, 353, 300, 271, 271, 282, 282],false);line('chm5_ja_82',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[2821, 2860, 2807, 2838, 2841, 2811, 2761, 2751, 2821, 2798, 2758, 2697, 2758, 2737],[2843, 2826, 2822, 2805, 2805, 2797, 2780, 2788, 2780, 2763, 2759, 2733, 2737, 2754],false);line('chm5_ja_83',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[2276, 2292, 2223, 2170, 2121, 2142, 2223, 2217, 2167, 2253, 2337, 2442, 2546, 2548],[2280, 2259, 2195, 2148, 2148, 2132, 2216, 2203, 2199, 2225, 2360, 2479, 2534, 2530],false);line('chm5_ja_84',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[3533, 3713, 4049, 4695, 4822, 5896, 5938, 6029, 6185, 6147, 6092, 6028, 6012, 5835],[3572, 3759, 4055, 4763, 4763, 5839, 6000, 5962, 6098, 6098, 6042, 6098, 6060, 5839],false);line('chm5_ja_85',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[2509, 2496, 2538, 2687, 2686, 2787, 2758, 2841, 2915, 3026, 2995, 2935, 2900, 2843],[2525, 2525, 2551, 2703, 2703, 2746, 2750, 2810, 2903, 2983, 2996, 2937, 2920, 2865],false);line('chm5_ja_86',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[1424, 1359, 1362, 1378, 1361, 1330, 1351, 1342, 1322, 1315, 1337, 1337, 1347, 1384],[1407, 1360, 1356, 1360, 1360, 1343, 1343, 1330, 1305, 1318, 1352, 1330, 1335, 1403],false);line('chm5_ja_87',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[8212, 8356, 8269, 8386, 8257, 8255, 8125, 8251, 8498, 8574, 8535, 8465, 8203, 7836],[8136, 8272, 8377, 8356, 8356, 8250, 8216, 8233, 8555, 8577, 8504, 8394, 8212, 7920],false);line('chm5_ja_88',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[1871, 1780, 1792, 1727, 1767, 1767, 1761, 1812, 1845, 1903, 1808, 1751, 1741, 1772],[1881, 1784, 1801, 1742, 1742, 1775, 1788, 1826, 1830, 1890, 1809, 1775, 1750, 1750],false);line('chm5_ja_89',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[1983, 1951, 1884, 1850, 1853, 1641, 1535, 1575, 1552, 1587, 1555, 1567, 1452, 1454],[1962, 1970, 1911, 1830, 1830, 1648, 1542, 1564, 1542, 1597, 1576, 1585, 1462, 1475],false);line('chm5_ja_90',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[1612, 1592, 1508, 1358, 1348, 1345, 1328, 1384, 1281, 1208, 1117, 1094, 1057, 1059],[1627, 1576, 1513, 1352, 1352, 1326, 1335, 1369, 1267, 1203, 1131, 1080, 1068, 1072],false);line('chm5_ja_91',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[1685, 1688, 1726, 1585, 1619, 1562, 1559, 1450, 1458, 1455, 1500, 1467, 1436, 1362],[1691, 1712, 1712, 1602, 1602, 1547, 1542, 1470, 1466, 1475, 1521, 1470, 1432, 1381],false);line('chm5_ja_92',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[1386, 1376, 1391, 1388, 1393, 1406, 1414, 1507, 1488, 1541, 1449, 1527, 1457, 1475],[1377, 1381, 1390, 1398, 1398, 1398, 1398, 1492, 1487, 1525, 1458, 1521, 1466, 1458],false);line('chm5_ja_93',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[1976, 1890, 1840, 1710, 1700, 1760, 1761, 1720, 1680, 1693, 1790, 1741, 1773, 1791],[1966, 1898, 1860, 1703, 1703, 1767, 1737, 1716, 1687, 1691, 1767, 1759, 1763, 1767],false);line('chm5_ja_94',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[3034, 3030, 3093, 3088, 3057, 3139, 3168, 3142, 3163, 3087, 3160, 3147, 3099, 3117],[3019, 3066, 3066, 3086, 3086, 3120, 3133, 3120, 3120, 3120, 3113, 3113, 3113, 3113],false);line('chm5_ja_95',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[5279, 5265, 5188, 5052, 5099, 4710, 4702, 4841, 5037, 5302, 5540, 5574, 5583, 5525],[5226, 5226, 5186, 5099, 5099, 4650, 4650, 4878, 5106, 5314, 5522, 5502, 5515, 5515],false);line('chm5_ja_96',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[6248, 6033, 6088, 5938, 6044, 5589, 5583, 5408, 5334, 5210, 5158, 5281, 5278, 5352],[6253, 6032, 6005, 6018, 6018, 5589, 5502, 5461, 5267, 5260, 5180, 5226, 5294, 5401],false);line('chm5_ja_97',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[10431, 10544, 10634, 10524, 10640, 10682, 10703, 10718, 10973, 11003, 10696, 10533, 10711, 10581],[10500, 10453, 10614, 10655, 10655, 10648, 10728, 10695, 10883, 10869, 10674, 10648, 10561, 10487],false);line('chm5_ja_98',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[5700, 5647, 5590, 5728, 5648, 5574, 5633, 5601, 5552, 5671, 5301, 4994, 4833, 4288],[5736, 5656, 5656, 5649, 5649, 5602, 5596, 5589, 5589, 5589, 5274, 5019, 4764, 4261],false);line('chm5_ja_99',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[11238, 11371, 11255, 11271, 11234, 11370, 11168, 11417, 11340, 11304, 11311, 11151, 11402, 11285],[11332, 11252, 11252, 11359, 11359, 11252, 11285, 11345, 11345, 11406, 11312, 11312, 11413, 11446],false);line('chm5_ja_100',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[8734, 8466, 8673, 8758, 8592, 8801, 8703, 8505, 8580, 8604, 8675, 8488, 8603, 8507],[8756, 8588, 8588, 8689, 8689, 8682, 8621, 8588, 8588, 8581, 8575, 8575, 8528, 8528],false);line('chm5_ja_101',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[8993, 8714, 8476, 8556, 8471, 8372, 8493, 8189, 8163, 8105, 8157, 8184, 7907, 7776],[8870, 8615, 8528, 8460, 8460, 8394, 8394, 8280, 8172, 8172, 8065, 8065, 7850, 7729],false);line('chm5_ja_108',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[38050, 38162, 38022, 38748, 38719, 37582, 38557, 38124, 38164, 38315, 38380, 38484, 36299, 36088],[38539, 38391, 38391, 38297, 38297, 38029, 38029, 37835, 37848, 37969, 38009, 38009, 36278, 35607],false);line('chm5_ja_109',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[9251, 8913, 8940, 8536, 8598, 8217, 7482, 6501, 6037, 5875, 5615, 5517, 5569, 5471],[9219, 8937, 8937, 8494, 8494, 8313, 7481, 6575, 6085, 5817, 5582, 5582, 5542, 5542],false);line('chm5_ja_110',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[4314, 4232, 4206, 4188, 4247, 4139, 4083, 3923, 3908, 3944, 3285, 3289, 3193, 3272],[4375, 4187, 4187, 4187, 4187, 4126, 4066, 3932, 3892, 3892, 3261, 3261, 3147, 3227],false);line('chm5_ja_111',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[22468, 22731, 22715, 21908, 21542, 21637, 19812, 20143, 19245, 19504, 19058, 18925, 18488, 18645],[22651, 22510, 22383, 21812, 21812, 21376, 19967, 19967, 19484, 19484, 18833, 18860, 18659, 18525],false);line('chm5_ja_112',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[33361, 33267, 33586, 33087, 32972, 32267, 31752, 31698, 31416, 30848, 30870, 30926, 29151, 29043],[33532, 33360, 33360, 33096, 33096, 31837, 31837, 31837, 31219, 30947, 30724, 30479, 29406, 28734],false);line('chm5_ja_113',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[24848, 24599, 24120, 23861, 23744, 23082, 23055, 22817, 22827, 22420, 22022, 22072, 20431, 18922],[24680, 24330, 24330, 23544, 23544, 23344, 23344, 23162, 22685, 22558, 22072, 21908, 20504, 19059],false);line('chm5_ja_115',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[40914, 39304, 39990, 38777, 39012, 34747, 34705, 34816, 33500, 32921, 32070, 32511, 31725, 30567],[41140, 39604, 39604, 38813, 38813, 35141, 34560, 34560, 33678, 33296, 32524, 32524, 31906, 30979],false);line('chm5_ja_116',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[19902, 20002, 19732, 19748, 20033, 18279, 18702, 18197, 18071, 18339, 18212, 18232, 17883, 18222],[20145, 19836, 19836, 19836, 19836, 18441, 18441, 18441, 18327, 18227, 18227, 18227, 17982, 17982],false);line('chm5_ja_117',["06-06", "06-07", "06-08", "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18", "06-19"],[63716, 59271, 60357, 59085, 59304, 57891, 57860, 57640, 54979, 55023, 53183, 53104, 50473, 49015],[63593, 60085, 60085, 58485, 58485, 57131, 57131, 57131, 55768, 54563, 53368, 53368, 51074, 49124],false);
+</script></body></html>

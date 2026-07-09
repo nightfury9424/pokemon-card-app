@@ -1,0 +1,46 @@
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_3D2652A213CB1E4217EF.png  # 로켓단의 트래피더
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_A0F5DC7A82F213F8B17D.png  # 활화르바
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_06BED8DCDED386D09CC6.png  # 늑골라
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_5DA33B32A229766D5250.png  # 터검니
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_C57281C7453720B73003.png  # 바랜드
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_6A84D927543336D14029.png  # 탱탱겔 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_A52ADAD23735C0E3C95C.png  # 탱탱겔 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_E40D332726F7EBC2B3EE.png  # 깨비참
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_4875AEF7FE12F4A51EE9.png  # 로토무 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_A1B443C34FF56366CC4F.png  # 로토무 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_38F85DABEF2F6DCF83A5.png  # 시비꼬 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_8F7ADD803D0EF37D818A.png  # 치라미
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_5D24108CE9A30C619201.png  # 치라치노
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_02A04C78DFA5C2D39430.png  # 날뛰는우레 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_114D84429B6042BA1484.png  # 날뛰는우레 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_943E565364AF4EFD1086.png  # 대코파스
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_C0B2871F43DE5625581F.png  # 럭키
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_ACAF140D77EEE16424E1.png  # 이븐곰
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_D773344F12828473CD06.png  # 알로라 나시 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_26A53A13CEEDA2B3A1B4.png  # 알로라 나시 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_943445778F098066A8F4.png  # 알로라 나시 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_89D60E67C38EA29F1DC2.png  # 날뛰는우레 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_1AF396E7442011F20F00.png  # 떨구새
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_C1D57B8B7B35C7ECE1FC.png  # 나오하
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_25251C19A57081F5E42B.png  # 시비꼬 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_7316D576A7F66A4CB338.png  # 태깅구르
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_70BA4386D40400E2AC36.png  # 부르르룸 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_CC360F6BBA05BFB38128.png  # 부르르룸 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_331E1FDCBECBFA41AEA9.png  # 타부자고 ex
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_AF4C346FDD977213161F.png  # 비조도
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_3520EA33302182486E9D.png  # 더스트나
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_878B1A3CBFFA573EE2CE.png  # 폴리곤Z
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_DF8B9319DDD84975E5C1.png  # 엘풍 VSTAR
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_18E0A0EBCAEFC42D7567.png  # 히스이 대검귀 V
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_67A190424D479A4DA947.png  # 하랑우탄 V
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_D17A00BDB2C9E0FCE3F8.png  # 로토무 V
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_C292A16ECBF9501D972E.png  # 로토무 V
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_9F8FFB7BF27D8094E176.png  # 마기아나 V
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_2BBC9C171E2800926C30.png  # 칠색조 V
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_2FA7E35871623C66AA96.png  # 네크로즈마 V
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_7064C189CC039FA97194.png  # 레파르다스 V
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_E39F9C41D529A434B5EC.png  # 더스트나 VMAX
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_F739AC5CF7A0E66239D2.png  # 샹델라 VMAX
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_9824FD6C4B38CAA57F42.png  # 자마젠타 V
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_93787D42298C1FBC17F6.png  # 자루도 V
+aws s3 rm s3://pokefolio-beta-assets-759135635310-ap-northeast-2-an/cards/v1/jp/CRD_B4CBD2C89D74201BEAE7.png  # 드래피온 V

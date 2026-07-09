@@ -1,0 +1,51 @@
+<!DOCTYPE html><html lang=ko><head><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>NAVER 우선순위 검수 (카드별)</title><style>
+:root{--bg:#0f1115;--card:#1a1d24;--line:#2a2f3a;--txt:#e6e8ec;--mut:#9aa3b2;--red:#ff5c6c;--grn:#34c77b;--yel:#f5c451;--blu:#5aa0ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.45 -apple-system,"Apple SD Gothic Neo",sans-serif;padding-bottom:60px}
+header{position:sticky;top:0;z-index:10;background:#12151c;border-bottom:1px solid var(--line);padding:9px 12px}
+h1{font-size:14px;margin:0 0 6px}.bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+button.exp{background:var(--grn);color:#04210f;border:0;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer}
+.pill{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:4px 10px;cursor:pointer;color:var(--mut);font-size:12px}.pill.on{background:var(--blu);color:#fff}
+input{background:var(--card);border:1px solid var(--line);border-radius:6px;color:var(--txt);padding:5px 9px;width:170px}
+.grp{display:flex;gap:12px;border:1px solid var(--line);border-radius:9px;margin:10px 12px;padding:10px;background:var(--card)}
+.grp img{width:96px;height:134px;object-fit:contain;background:#000;border-radius:6px}
+.cmeta{min-width:150px}.cmeta .nm{font-weight:700;font-size:14px}.cmeta .sub{color:var(--mut);font-size:11px;margin-top:2px}
+.risk{display:inline-block;background:#3a2030;color:var(--red);border-radius:5px;padding:1px 6px;font-size:10.5px;margin-top:4px}
+.cand{flex:1}.cand table{width:100%;border-collapse:collapse}.cand td,.cand th{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:top;font-size:12px}
+.num{text-align:right;font-variant-numeric:tabular-nums}.hi{color:var(--yel)}
+.src{background:#243;color:#7fd;border:1px solid #275;border-radius:5px;padding:2px 7px;font-size:11px;text-decoration:none;white-space:nowrap}
+.fl{font-size:10px;padding:1px 5px;border-radius:8px}.fl.DIRTY{background:rgba(255,92,108,.18);color:var(--red)}.fl.CLEAN{background:rgba(52,199,123,.18);color:var(--grn)}.fl.REVIEW{background:rgba(245,196,81,.15);color:var(--yel)}
+.acts b{cursor:pointer;border:1px solid var(--line);border-radius:5px;padding:3px 6px;font-size:10.5px;color:var(--mut);background:#12151c;margin:1px}
+.acts b.ok{color:var(--grn)}.acts b.no{color:var(--red)}.acts b.mn{color:var(--yel)}.acts b.on{background:var(--blu);color:#fff}
+.dec{color:var(--grn);font-size:10.5px;font-weight:700}
+</style></head><body>
+<header><h1>🎯 NAVER 우선순위 검수 — card_id별 묶음 (PRIORITY만)</h1><div class=bar>
+<input id=q placeholder="카드명 검색"><span class=pill id=onlyund>미결정만</span>
+<button class=exp id=export>결정 내보내기(JSON)</button><button class=pill id=reset>초기화</button>
+<span id=cnt style="color:var(--mut)"></span></div></header><div id=app></div>
+<script src=review_v2_priority_data.js></script><script>
+const BTN=[['VALID_SINGLE_RAW','✓RAW단품','ok'],['REJECT_BUNDLE','✕번들','no'],['REJECT_SEALED','✕미개봉','no'],['REJECT_GRADED','✕등급','no'],['REJECT_WRONG_CARD','✕오매핑','no'],['REJECT_ASK_ONLY','✕호가','no'],['NEEDS_MANUAL','?수동','mn']];
+const D=JSON.parse(localStorage.getItem('naver_prio_dec')||'{}');function save(){localStorage.setItem('naver_prio_dec',JSON.stringify(D))}
+let Q='',UND=false;function fmt(n){return n==null?'·':Number(n).toLocaleString()}
+function groups(){const by={};PRIO.forEach(p=>{(by[p.cid]=by[p.cid]||[]).push(p)});
+  let g=Object.entries(by);if(Q)g=g.filter(([c,a])=>a[0].name.toLowerCase().includes(Q));
+  g.sort((a,b)=>Math.max(...b[1].map(x=>x.score))-Math.max(...a[1].map(x=>x.score)));return g}
+function render(){const g=groups();let dec=Object.keys(D).length;
+  document.getElementById('cnt').textContent=`카드 ${g.length} · 후보 ${PRIO.length} · 결정 ${dec}`;
+  document.getElementById('app').innerHTML=g.map(([cid,arr])=>{const c=arr[0];
+    let cand=arr;if(UND)cand=cand.filter(x=>!D[x.psid]);if(!cand.length&&UND)return '';
+    const rows=cand.map(r=>{const d=(D[r.psid]||{}).decision||'';
+      const acts=BTN.map(([dd,lb,cl])=>`<b class="${cl} ${d===dd?'on':''}" data-id="${r.psid}" data-d="${dd}">${lb}</b>`).join('');
+      const src=r.url?`<a class=src href="${r.url}" target=_blank>원문↗</a>`:'<span style=color:#ff5c6c>URL없음</span>';
+      return `<tr><td class=num>${fmt(r.price)}</td><td>${r.td}</td><td><span class="fl ${r.flagk}">${r.flagk}</span> <span style=color:#9aa3b2>${r.flagwhy||''}</span></td><td>${(r.title||'').replace(/</g,'&lt;')}<br>${src}</td><td class="acts">${acts}${d?`<div class=dec>→${d}</div>`:''}</td></tr>`}).join('');
+    return `<div class=grp><img loading=lazy src="../scanner/data/cards/${cid}_jp.png" onerror="this.onerror=null;this.src='../scanner/data/cards/${cid}_ko.png'">
+    <div class=cmeta><div class=nm>${c.name}</div><div class=sub>${c.rar} · ${c.setn||''} ${c.col||''}</div><div class=sub>앱가 ${fmt(c.app_ko)}</div>${c.risk?`<div class=risk>${c.risk}</div>`:''}<div class=sub>후보 ${arr.length}</div></div>
+    <div class=cand><table><tr><th>NAVER가</th><th>날짜</th><th>flag</th><th>제목+원문</th><th>판정</th></tr>${rows}</table></div></div>`}).join('');}
+document.addEventListener('click',e=>{const b=e.target.closest('.acts b');if(b){const id=b.dataset.id,d=b.dataset.d;if((D[id]||{}).decision===d)delete D[id];else D[id]={decision:d};save();render();return}
+  if(e.target.id==='onlyund'){UND=!UND;e.target.classList.toggle('on',UND);render()}});
+document.getElementById('q').addEventListener('input',e=>{Q=e.target.value.toLowerCase().trim();render()});
+document.getElementById('reset').addEventListener('click',()=>{if(confirm('결정 전부 지울까?')){for(const k in D)delete D[k];save();render()}});
+document.getElementById('export').addEventListener('click',()=>{const out=PRIO.filter(r=>D[r.psid]).map(r=>({raw_id:r.psid,card_id:r.cid,card_name:r.name,source_url:r.url,title_raw:r.title,price_krw:r.price,sold_date:r.td,cstat:r.cstat,nvjp:r.nvjp,app_ko:r.app_ko,decision:D[r.psid].decision,reject_reason:D[r.psid].decision.startsWith('REJECT')?D[r.psid].decision:''}));
+  const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='naver_prio_decisions.json';a.click()});
+render();
+</script></body></html>

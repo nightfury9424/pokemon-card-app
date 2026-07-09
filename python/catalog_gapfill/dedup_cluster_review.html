@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset=utf-8><title>재판 중복 검수</title><style>
+body{font-family:-apple-system;background:#eceff1;margin:0;padding:0}
+#bar{position:sticky;top:0;background:#1e272e;color:#fff;padding:12px 16px;display:flex;gap:14px;align-items:center}
+#bar button{padding:7px 13px;border:0;border-radius:5px;background:#00b894;color:#fff;font-weight:bold;cursor:pointer}
+.cluster{background:#fff;margin:12px;padding:14px;border-radius:8px;box-shadow:0 1px 4px #0002}
+.ch{font-weight:bold;margin-bottom:10px;font-size:15px}.ms{display:flex;gap:16px;flex-wrap:wrap}
+.m{width:230px;text-align:center;padding:10px;border-radius:8px;border:3px solid #ddd}
+.m.keep{border-color:#00b894;background:#eafaf3}.m.excl{border-color:#d63031;background:#fdeaea;opacity:.85}
+.m img{width:200px;height:278px;object-fit:contain;border:1px solid #ccc;cursor:zoom-in}
+.lbl{font-weight:bold;margin:6px 0}.meta{font-size:12px;color:#555;margin:5px 0}
+#z{display:none;position:fixed;inset:0;background:#000d;z-index:9;justify-content:center;align-items:center}#z img{max-width:92%;max-height:92%}
+</style></head><body>
+<div id=bar><b>재판 중복 검수 (2 클러스터, 제외 2장)</b>
+  <span>녹색=유지 원판 · 빨강=제외 재판. 바꾸려면 라디오.</span><button onclick="exp()">JSON export</button></div>
+<div class=cluster><div class=ch>중복 클러스터 1 (자동판정)</div><div class=ms><div class="m excl"><img src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S12a/S12a_013.png?w=512" onclick="z(this.src)">
+          <div class=lbl>❌ 제외(재판)</div><b>리자몽 V (RR)</b>
+          <div class=meta>소드&실드 하이클래스팩 「VSTAR 유니버스」 #013<br>jp=swsh12a_ja-13<br>en=swsh9-17</div>
+          <label><input type=radio name=k0 value="BS2023001013" >이걸 유지</label></div><div class="m keep"><img src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S9/S9_014.png?w=512" onclick="z(this.src)">
+          <div class=lbl>✅ 유지(원판)</div><b>리자몽 V (RR)</b>
+          <div class=meta>소드&실드 확장팩 「스타버스」 #014<br>jp=swsh9_ja-14<br>en=swsh9-17</div>
+          <label><input type=radio name=k0 value="BS2022002014" checked>이걸 유지</label></div></div></div><div class=cluster><div class=ch>중복 클러스터 2 (자동판정)</div><div class=ms><div class="m excl"><img src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S8b/S8b_084.png?w=512" onclick="z(this.src)">
+          <div class=lbl>❌ 제외(재판)</div><b>가라르 썬더 V (RR)</b>
+          <div class=meta>소드&실드 하이클래스팩 「VMAX 클라이맥스」 #084<br>jp=swsh8b_ja-84<br>en=swsh6-80</div>
+          <label><input type=radio name=k1 value="BS2022001084" >이걸 유지</label></div><div class="m keep"><img src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S5a/S5a_037.png?w=512" onclick="z(this.src)">
+          <div class=lbl>✅ 유지(원판)</div><b>가라르 썬더 V (RR)</b>
+          <div class=meta>소드&실드 강화 확장팩 「쌍벽의 파이터」 #037<br>jp=swsh5a_ja-37<br>en=swsh6-80</div>
+          <label><input type=radio name=k1 value="BS2021003037" checked>이걸 유지</label></div></div></div>
+<div id=z onclick="this.style.display='none'"><img></div>
+<script>
+function z(s){document.querySelector('#z img').src=s;document.getElementById('z').style.display='flex';}
+function exp(){const keeps=[...document.querySelectorAll('input[type=radio]:checked')].map(r=>r.value);
+const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({keep:keeps},null,2)],{type:'application/json'}));a.download='dedup_keep.json';a.click();}
+</script></body></html>

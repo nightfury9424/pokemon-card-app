@@ -1,0 +1,100 @@
+<!doctype html><html><head><meta charset=utf-8><title>실사진 크롭 툴 (혼동 8종)</title>
+<style>
+*{box-sizing:border-box}body{font-family:-apple-system,sans-serif;margin:0;background:#1a1d23;color:#e8eaed}
+#bar{position:sticky;top:0;background:#11141a;padding:10px 14px;z-index:10;display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #333}
+#bar button{padding:8px 14px;border:0;border-radius:6px;background:#00b894;color:#fff;font-weight:bold;cursor:pointer}
+.cards{display:flex;gap:8px;padding:10px;flex-wrap:wrap;background:#11141a}
+.card{width:120px;text-align:center;font-size:11px;border:2px solid #444;border-radius:8px;padding:6px;cursor:pointer;background:#1f242c}
+.card.sel{border-color:#0984e3;background:#16324a}.card img{width:104px;height:145px;object-fit:contain;background:#000;border-radius:4px}
+.card .cnt{font-weight:bold;font-size:14px;margin-top:3px}.card .cnt.ok{color:#00d68f}.card .cnt.low{color:#ff9f43}
+.pair{font-size:10px;color:#888}
+#stage{padding:14px;display:none}
+#wrap{position:relative;display:inline-block;max-width:100%;background:#000;user-select:none}
+#wrap img{display:block;max-width:90vw;max-height:64vh}
+#box{position:absolute;border:2px solid #00e5ff;box-shadow:0 0 0 9999px rgba(0,0,0,.45);cursor:move}
+.h{position:absolute;width:16px;height:16px;background:#00e5ff;border-radius:50%}
+.h.tl{left:-8px;top:-8px;cursor:nwse-resize}.h.tr{right:-8px;top:-8px;cursor:nesw-resize}
+.h.bl{left:-8px;bottom:-8px;cursor:nesw-resize}.h.br{right:-8px;bottom:-8px;cursor:nwse-resize}
+#q{font-size:12px;color:#aaa;margin:8px 0}
+.chk{font-size:11px;color:#9aa;padding:6px 14px;line-height:1.7}
+.thumbs{display:flex;gap:4px;flex-wrap:wrap;padding:8px 14px}.thumbs img{width:54px;height:74px;object-fit:cover;border:1px solid #444;border-radius:3px}
+.thumbs .del{position:relative}.thumbs .del span{position:absolute;top:0;right:0;background:#d63031;color:#fff;border-radius:0 0 0 4px;padding:0 4px;cursor:pointer;font-size:11px}
+h3{margin:6px 14px}
+</style></head><body>
+<div id=bar>
+  <b>실사진 크롭 툴 — 혼동 8종</b>
+  <span id=tot>총 0장</span>
+  <button onclick="exportJ()">JSON export</button>
+  <span style=font-size:11px;color:#888>카드당 10~15장 권장. 흔들려 못 알아볼 사진 제외.</span>
+</div>
+<div class=chk>📸 각도 체크: 정면 / 좌우 기울임 / 위아래 / 빛반사 있음·없음 / 조금 멀리 / 꽉 채움 / 어두운 곳 / 다른 배경 — 실제 스캔에서 나올 품질이면 OK</div>
+<div class=cards id=cards></div>
+<h3 id=selName>← 카드를 먼저 선택</h3>
+<div style=padding:0_14px><input type=file id=file accept=image/* multiple></div>
+<div id=q></div>
+<div id=stage><div id=wrap><img id=img><div id=box><div class="h tl"></div><div class="h tr"></div><div class="h bl"></div><div class="h br"></div></div></div>
+  <div style=margin-top:10px><button onclick="addCrop()">크롭 추가 (Enter)</button> <button style=background:#636e72 onclick="nextImg()">건너뛰기</button> <span id=stat></span></div></div>
+<div class=thumbs id=thumbs></div>
+<canvas id=cv style=display:none></canvas>
+<script>
+const CDN="https://d3shjhylvfe40j.cloudfront.net/cards/v1/jp/";
+const CARDS=[
+ {id:"CRD_90698EA0987C4C82913F",n:"엘풍 V",r:"SR",pair:"vs 엘풍 ex",grp:"엘풍"},
+ {id:"CRD_555EE842647815F48715",n:"엘풍 ex",r:"SR",pair:"vs 엘풍 V",grp:"엘풍"},
+ {id:"CRD_3EC2D5FC5CD94A18B44E",n:"메타몽 VMAX",r:"SSR",pair:"vs 메타몽 V",grp:"메타몽"},
+ {id:"CRD_C25940958F57A0DE60C8",n:"메타몽 V",r:"SSR",pair:"vs 메타몽 VMAX",grp:"메타몽"},
+ {id:"CRD_17EF823FA3CB4B2B8EE4",n:"코바르온",r:"SR",pair:"vs 코바르온 AR",grp:"코바르온"},
+ {id:"CRD_7EFC022C360ECB18F368",n:"코바르온",r:"AR",pair:"vs 코바르온 SR",grp:"코바르온"},
+ {id:"CRD_3392C238DFEC4357BA88",n:"아세로라의 장난",r:"SAR",pair:"vs 러브로스 V",grp:"아세로라"},
+ {id:"CRD_07838391EB0EE31C2240",n:"러브로스 V",r:"CSR",pair:"vs 아세로라",grp:"러브로스"}];
+const TARGET=15;
+let store={}; CARDS.forEach(c=>store[c.id]=[]);
+let sel=null, queue=[], qi=0;
+function renderCards(){
+ document.getElementById('cards').innerHTML=CARDS.map(c=>{
+  const n=store[c.id].length; const cls=n>=10?'ok':(n>0?'low':'');
+  return `<div class="card ${sel===c.id?'sel':''}" onclick="pick('${c.id}')"><img src="${CDN}${c.id}.png" onerror="this.style.opacity=.2">
+   <div>${c.n} <b>${c.r}</b></div><div class=pair>${c.pair}</div><div class="cnt ${cls}">${n}/${TARGET}</div></div>`;}).join('');
+ const t=Object.values(store).reduce((a,b)=>a+b.length,0);
+ document.getElementById('tot').textContent=`총 ${t}장`;
+}
+function pick(id){sel=id;document.getElementById('selName').textContent=CARDS.find(c=>c.id===id).n+' '+CARDS.find(c=>c.id===id).r+' — 사진 업로드';renderCards();renderThumbs();}
+document.getElementById('file').onchange=e=>{if(!sel){alert('카드 먼저 선택');return;}queue=[...e.target.files];qi=0;showImg();};
+function showImg(){
+ if(qi>=queue.length){document.getElementById('stage').style.display='none';document.getElementById('q').textContent='큐 완료';return;}
+ document.getElementById('stage').style.display='block';
+ document.getElementById('q').textContent=`${qi+1}/${queue.length}`;
+ const url=URL.createObjectURL(queue[qi]);const img=document.getElementById('img');
+ img.onload=()=>{const w=img.clientWidth,h=img.clientHeight;const bw=w*0.6,bh=bw*1.4>h*0.9?h*0.9:bw*1.4;
+  setBox((w-bw)/2,(h-bh)/2,bw,bh);};
+ img.src=url;
+}
+function nextImg(){qi++;showImg();}
+const box=document.getElementById('box');let bx,by,bw,bh;
+function setBox(x,y,w,h){bx=x;by=y;bw=w;bh=h;box.style.left=x+'px';box.style.top=y+'px';box.style.width=w+'px';box.style.height=h+'px';}
+let drag=null;
+box.addEventListener('mousedown',e=>{const t=e.target.className;drag={t,sx:e.clientX,sy:e.clientY,bx,by,bw,bh};e.preventDefault();});
+window.addEventListener('mousemove',e=>{if(!drag)return;const dx=e.clientX-drag.sx,dy=e.clientY-drag.sy;const img=document.getElementById('img');const W=img.clientWidth,H=img.clientHeight;
+ if(drag.t.includes('h')){let x=drag.bx,y=drag.by,w=drag.bw,h=drag.bh;
+  if(drag.t.includes('tl')){x+=dx;y+=dy;w-=dx;h-=dy;}else if(drag.t.includes('tr')){y+=dy;w+=dx;h-=dy;}
+  else if(drag.t.includes('bl')){x+=dx;w-=dx;h+=dy;}else{w+=dx;h+=dy;}
+  if(w>30&&h>30)setBox(Math.max(0,x),Math.max(0,y),Math.min(w,W),Math.min(h,H));}
+ else{setBox(Math.max(0,Math.min(drag.bx+dx,W-drag.bw)),Math.max(0,Math.min(drag.by+dy,H-drag.bh)),drag.bw,drag.bh);}});
+window.addEventListener('mouseup',()=>drag=null);
+function addCrop(){
+ const img=document.getElementById('img');const sx=img.naturalWidth/img.clientWidth,sy=img.naturalHeight/img.clientHeight;
+ const cv=document.getElementById('cv');const W=Math.round(bw*sx),H=Math.round(bh*sy);cv.width=W;cv.height=H;
+ cv.getContext('2d').drawImage(img,bx*sx,by*sy,W,H,0,0,W,H);
+ store[sel].push(cv.toDataURL('image/jpeg',0.9));renderCards();renderThumbs();nextImg();
+}
+window.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('stage').style.display!=='none')addCrop();});
+function renderThumbs(){if(!sel){document.getElementById('thumbs').innerHTML='';return;}
+ document.getElementById('thumbs').innerHTML=store[sel].map((d,i)=>`<div class=del><img src="${d}"><span onclick="del(${i})">×</span></div>`).join('');}
+function del(i){store[sel].splice(i,1);renderCards();renderThumbs();}
+function exportJ(){
+ const out={};CARDS.forEach(c=>{if(store[c.id].length)out[c.id]={name:c.n,rarity:c.r,images:store[c.id]};});
+ const blob=new Blob([JSON.stringify(out)],{type:'application/json'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='realshots_crops.json';a.click();
+}
+renderCards();
+</script></body></html>

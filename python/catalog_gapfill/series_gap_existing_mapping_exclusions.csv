@@ -1,0 +1,3 @@
+candidate_ko_name,candidate_set,candidate_rarity,candidate_jp_ref,candidate_en_ref,matched_prod_card_id,matched_prod_name,exclusion_reason
+메가루차불 ex,MEGA 하이클래스팩 「MEGA 드림 ex」,MA,m2a_ja-229,me2pt5-116,CRD_68ACF9F3119E4D75BABA,메가루차불 ex,EXCLUDE_EXISTING_EN
+레쿠쟈 VMAX,소드 & 실드   확장팩   「창공스트림」,RRR,swsh7r_ja-47,swsh7-111,CRD_C0490A67B50C41B78069,레쿠쟈 VMAX,EXCLUDE_EXISTING_EN

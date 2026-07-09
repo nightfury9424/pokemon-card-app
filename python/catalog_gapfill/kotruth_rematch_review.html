@@ -1,0 +1,400 @@
+<!doctype html><html><head><meta charset=utf-8><title>KO기준 JP·EN 재매칭 검수</title><style>
+*{box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#eceff1;margin:0}
+#bar{position:sticky;top:0;background:#1e272e;color:#fff;padding:10px 14px;z-index:9;display:flex;gap:12px;align-items:center}
+#bar button{padding:6px 11px;border-radius:5px;border:0;background:#0984e3;color:#fff;font-weight:bold;cursor:pointer}
+.card{background:#fff;margin:10px;padding:12px;border-radius:8px;box-shadow:0 1px 4px #0002;border-left:8px solid #ccc}
+.card.approve{border-left-color:#00b894;background:#eafaf3}.card.hold{border-left-color:#f0a800;background:#fef9e7}.card.reject{border-left-color:#d63031;background:#fdeaea}
+.imgs{display:flex;gap:10px;flex-wrap:wrap}.cell{text-align:center;font-size:11px;color:#555}
+.cell img{width:165px;height:228px;object-fit:contain;background:#f5f5f5;border:1px solid #ddd;cursor:zoom-in;display:block}
+.cell.prop img{border:2px solid #0984e3}.noimg{width:165px;height:228px;display:flex;align-items:center;justify-content:center;background:#f0f0f0;border:1px dashed #aaa;color:#999}
+.info{margin-top:10px}.info b{font-size:16px}.meta{font-size:12px;color:#666;margin:4px 0}.choose{font-size:13px;margin:5px 0}
+.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;color:#fff;margin-left:4px}
+.btns{margin-top:8px;display:flex;gap:6px}.btns button{padding:7px 13px;border-radius:5px;border:0;color:#fff;font-weight:bold;cursor:pointer}
+.ap{background:#00b894}.hd{background:#f0a800}.rj{background:#d63031}.cur{font-size:12px;color:#888;margin-top:5px}
+#m{display:none;position:fixed;inset:0;background:#000d;z-index:99;justify-content:center;align-items:center}#m img{max-width:92%;max-height:92%}
+</style></head><body>
+<div id=bar><b>KO기준 JP·EN 재매칭 검수 (33장)</b><span id=prog></span>
+  <button onclick="exp()">JSON export</button><span style=font-size:12px;color:#aaa>A승인 H보류 X거부 ←→이동</span></div>
+<div class="card" id="c0" data-code="BS2026002061" data-defjp="m3_ja-61" data-en="me3-62">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M3/M3_061.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/m3_ja-61/medium" onclick="z(this.src)"><div>JP 현재<br><code>m3_ja-61</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.966</span></div></div><div class="cell prop"><img loading=lazy src="https://images.scrydex.com/pokemon/me3-62/large" onclick="z(this.src)"><div>★EN 제안<br><code>me3-62</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.923</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.909</span></div></div></div>
+  <div class=info><b>나옹 ex</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>MEGA 확장팩 「니힐제로」 #061 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.961</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp0 value="m3_ja-61" checked>현재 m3_ja-61</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>me3-62</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c1" data-code="BS2025008005" data-defjp="sv11w_ja-5" data-en="rsv10pt5-5">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/SV/SV11W/SV11W_005.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/sv11w_ja-159/medium" onclick="z(this.src)"><div>JP 현재<br><code>sv11w_ja-159</code><br>KO↔JP <span style="color:#d00;font-weight:bold">0.479</span></div></div><div class="cell prop"><img loading=lazy src="https://images.scrydex.com/pokemon/sv11w_ja-5/medium" onclick="z(this.src)"><div>★JP 제안<br><code>sv11w_ja-5</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.962</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/rsv10pt5/5_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>rsv10pt5-5</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.936</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.892</span></div></div></div>
+  <div class=info><b>엘풍 ex</b> <span class=tag style=background:#555>RR</span> <span class=tag style=background:#c0392b>JP 명백오류 의심</span>
+    <div class=meta>스칼렛&바이올렛 확장팩 「화이트플레어」 #005 · 교차 KO↔JP <span style="color:#d00;font-weight:bold">0.41</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp1 value="sv11w_ja-159" >현재 sv11w_ja-159</label>
+      <label><input type=radio name=jp1 value="sv11w_ja-5" checked>★제안 sv11w_ja-5</label></div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>rsv10pt5-5</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c2" data-code="BS2025008042" data-defjp="sv11w_ja-42" data-en="rsv10pt5-45">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/SV/SV11W/SV11W_042.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/sv11w_ja-42/medium" onclick="z(this.src)"><div>JP 현재<br><code>sv11w_ja-42</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.928</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/rsv10pt5/45_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>rsv10pt5-45</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.94</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.904</span></div></div></div>
+  <div class=info><b>탱탱겔 ex</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>스칼렛&바이올렛 확장팩 「화이트플레어」 #042 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.933</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp2 value="sv11w_ja-42" checked>현재 sv11w_ja-42</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>rsv10pt5-45</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c3" data-code="BS2025014029" data-defjp="m2_ja-29" data-en="me2-29">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2/M2_029.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/m2_ja-29/medium" onclick="z(this.src)"><div>JP 현재<br><code>m2_ja-29</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.974</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/me2/29_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>me2-29</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.897</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.931</span></div></div></div>
+  <div class=info><b>로토무 ex</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>MEGA 확장팩 「인페르노X」 #029 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.973</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp3 value="m2_ja-29" checked>현재 m2_ja-29</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>me2-29</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c4" data-code="BS2024004053" data-defjp="sv5k_ja-53" data-en="">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/SV/SV5K/SV5K_053.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/sv5k_ja-53/medium" onclick="z(this.src)"><div>JP 현재<br><code>sv5k_ja-53</code><br>KO↔JP <span style="color:#e80;font-weight:bold">0.862</span></div></div><div class=cell><div class=noimg>EN 후보<br>못 찾음</div></div></div>
+  <div class=info><b>날뛰는우레 ex</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>스칼렛&바이올렛 확장팩 「와일드포스」 #053 · 교차 KO↔JP <span style="color:#e80;font-weight:bold">0.879</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp4 value="sv5k_ja-53" checked>현재 sv5k_ja-53</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck disabled>(없음→NO_EN)</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c5" data-code="BS2024008085" data-defjp="sv6_ja-85" data-en="sv6-134">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/SV/SV6/SV6_085.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/sv6_ja-85/medium" onclick="z(this.src)"><div>JP 현재<br><code>sv6_ja-85</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.953</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/sv6/134_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>sv6-134</code><br>EN↔JP <span style="color:#e80;font-weight:bold">0.87</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.915</span></div></div></div>
+  <div class=info><b>해피너스 ex</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>스칼렛&바이올렛 확장팩 「변환의 가면」 #085 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.941</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp5 value="sv6_ja-85" checked>현재 sv6_ja-85</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>sv6-134</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c6" data-code="BS2024016040" data-defjp="sv7a_ja-40" data-en="sv8-133">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/SV/SV7a/SV7a_040.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/sv7a_ja-40/medium" onclick="z(this.src)"><div>JP 현재<br><code>sv7a_ja-40</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.961</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/sv8/133_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>sv8-133</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.897</span>·EN↔KO <span style="color:#e80;font-weight:bold">0.845</span></div></div></div>
+  <div class=info><b>알로라 나시 ex</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>스칼렛&바이올렛 강화 확장팩 「낙원드래고나」 #040 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.963</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp6 value="sv7a_ja-40" checked>현재 sv7a_ja-40</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>sv8-133</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c7" data-code="BS2024019022" data-defjp="sv8a_ja-22" data-en="sv8pt5-14">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/SV/SV8a/SV8a_022.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/sv8a_ja-22/medium" onclick="z(this.src)"><div>JP 현재<br><code>sv8a_ja-22</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.974</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/sv8pt5/14_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>sv8pt5-14</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.91</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.917</span></div></div></div>
+  <div class=info><b>부스터 ex</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>스칼렛&바이올렛 하이클래스팩 「테라스탈 페스타 ex」 #022 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.973</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp7 value="sv8a_ja-22" checked>현재 sv8a_ja-22</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>sv8pt5-14</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c8" data-code="BS2024019124" data-defjp="sv8a_ja-124" data-en="svp-145">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/SV/SV8a/SV8a_124.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/sv8a_ja-124/medium" onclick="z(this.src)"><div>JP 현재<br><code>sv8a_ja-124</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.923</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/svp/145_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>svp-145</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.893</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.917</span></div></div></div>
+  <div class=info><b>날뛰는우레 ex</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>스칼렛&바이올렛 하이클래스팩 「테라스탈 페스타 ex」 #124 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.92</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp8 value="sv8a_ja-124" checked>현재 sv8a_ja-124</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>svp-145</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c9" data-code="BS2023001013" data-defjp="swsh12a_ja-13" data-en="swsh9-17">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S12a/S12a_013.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh12a_ja-13/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh12a_ja-13</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.939</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh9/17_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh9-17</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.949</span>·EN↔KO <span style="color:#e80;font-weight:bold">0.843</span></div></div></div>
+  <div class=info><b>리자몽 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 하이클래스팩 「VSTAR 유니버스」 #013 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.945</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp9 value="swsh12a_ja-13" checked>현재 swsh12a_ja-13</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh9-17</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c10" data-code="BS2023001020" data-defjp="swsh12a_ja-20" data-en="swsh12pt5-22">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S12a/S12a_020.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh12a_ja-20/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh12a_ja-20</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.904</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh12pt5/22_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh12pt5-22</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.941</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.931</span></div></div></div>
+  <div class=info><b>바오키 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 하이클래스팩 「VSTAR 유니버스」 #020 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.922</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp10 value="swsh12a_ja-20" checked>현재 swsh12a_ja-20</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh12pt5-22</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c11" data-code="BS2023001086" data-defjp="swsh12a_ja-86" data-en="swshp-SWSH239">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S12a/S12a_086.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh12a_ja-86/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh12a_ja-86</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.941</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swshp/SWSH239_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swshp-SWSH239</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.969</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.923</span></div></div></div>
+  <div class=info><b>히스이 대검귀 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 하이클래스팩 「VSTAR 유니버스」 #086 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.934</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp11 value="swsh12a_ja-86" checked>현재 swsh12a_ja-86</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swshp-SWSH239</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c12" data-code="BS2023001107" data-defjp="swshp_ja-110" data-en="swshp-SWSH078">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S12a/S12a_107.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swshp_ja-3/medium" onclick="z(this.src)"><div>JP 현재<br><code>swshp_ja-3</code><br>KO↔JP <span style="color:#d00;font-weight:bold">0.114</span></div></div><div class="cell prop"><img loading=lazy src="https://images.scrydex.com/pokemon/swshp_ja-110/medium" onclick="z(this.src)"><div>★JP 제안<br><code>swshp_ja-110</code><br>KO↔JP <span style="color:#d00;font-weight:bold">0.215</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swshp/SWSH078_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swshp-SWSH078</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.929</span>·EN↔KO <span style="color:#d00;font-weight:bold">0.172</span></div></div></div>
+  <div class=info><b>레쿠쟈 V</b> <span class=tag style=background:#555>RR</span> <span class=tag style=background:#c0392b>JP 명백오류 의심</span>
+    <div class=meta>소드&실드 하이클래스팩 「VSTAR 유니버스」 #107 · 교차 KO↔JP <span style="color:#d00;font-weight:bold">0.015</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp12 value="swshp_ja-3" >현재 swshp_ja-3</label>
+      <label><input type=radio name=jp12 value="swshp_ja-110" checked>★제안 swshp_ja-110</label></div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swshp-SWSH078</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c13" data-code="BS2023001130" data-defjp="swsh12a_ja-130" data-en="swsh10-133">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S12a/S12a_130.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh12a_ja-130/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh12a_ja-130</code><br>KO↔JP <span style="color:#e80;font-weight:bold">0.871</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh10/133_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh10-133</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.928</span>·EN↔KO <span style="color:#e80;font-weight:bold">0.871</span></div></div></div>
+  <div class=info><b>하랑우탄 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 하이클래스팩 「VSTAR 유니버스」 #130 · 교차 KO↔JP <span style="color:#e80;font-weight:bold">0.875</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp13 value="swsh12a_ja-130" checked>현재 swsh12a_ja-130</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh10-133</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c14" data-code="BS2023015085" data-defjp="sv3_ja-85" data-en="sv3-156">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/SV/SV3/SV3_085.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/sv3_ja-85/medium" onclick="z(this.src)"><div>JP 현재<br><code>sv3_ja-85</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.962</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/sv3/156_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>sv3-156</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.938</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.912</span></div></div></div>
+  <div class=info><b>부르르룸 ex</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>스칼렛&바이올렛 확장팩 「흑염의 지배자」 #085 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.959</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp14 value="sv3_ja-85" checked>현재 sv3_ja-85</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>sv3-156</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c15" data-code="BS2023020050" data-defjp="sv3a_ja-50" data-en="sv4-139">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/SV/SV3a/SV3a_050.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/sv3a_ja-50/medium" onclick="z(this.src)"><div>JP 현재<br><code>sv3a_ja-50</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.927</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/sv4/139_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>sv4-139</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.967</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.936</span></div></div></div>
+  <div class=info><b>타부자고 ex</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>스칼렛&바이올렛 강화 확장팩 「레이징서프」 #050 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.916</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp15 value="sv3a_ja-50" checked>현재 sv3a_ja-50</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>sv4-139</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c16" data-code="BS2022001084" data-defjp="swsh8b_ja-84" data-en="swsh6-80">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S8b/S8b_084.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh8b_ja-84/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh8b_ja-84</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.974</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh6/80_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh6-80</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.961</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.931</span></div></div></div>
+  <div class=info><b>가라르 썬더 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 하이클래스팩 「VMAX 클라이맥스」 #084 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.971</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp16 value="swsh8b_ja-84" checked>현재 swsh8b_ja-84</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh6-80</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c17" data-code="BS2022001119" data-defjp="swsh8b_ja-119" data-en="swsh7-110">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S8b/S8b_119.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh8b_ja-119/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh8b_ja-119</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.915</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh7/110_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh7-110</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.887</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.919</span></div></div></div>
+  <div class=info><b>레쿠쟈 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 하이클래스팩 「VMAX 클라이맥스」 #119 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.938</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp17 value="swsh8b_ja-119" checked>현재 swsh8b_ja-119</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh7-110</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c18" data-code="BS2022002014" data-defjp="swsh9_ja-14" data-en="swsh9-17">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S9/S9_014.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh9_ja-14/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh9_ja-14</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.96</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh9/17_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh9-17</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.955</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.892</span></div></div></div>
+  <div class=info><b>리자몽 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 확장팩 「스타버스」 #014 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.964</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp18 value="swsh9_ja-14" checked>현재 swsh9_ja-14</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh9-17</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c19" data-code="BS2022002064" data-defjp="swsh9_ja-64" data-en="swsh9-88">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S9/S9_064.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh9_ja-64/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh9_ja-64</code><br>KO↔JP <span style="color:#e80;font-weight:bold">0.859</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh9/88_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh9-88</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.937</span>·EN↔KO <span style="color:#e80;font-weight:bold">0.867</span></div></div></div>
+  <div class=info><b>돈크로우 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 확장팩 「스타버스」 #064 · 교차 KO↔JP <span style="color:#e80;font-weight:bold">0.879</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp19 value="swsh9_ja-64" checked>현재 swsh9_ja-64</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh9-88</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c20" data-code="BS2022004085" data-defjp="swsh9a_ja-52" data-en="swsh10-101">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S9a/S9a_052.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh9a_ja-52/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh9a_ja-52</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.942</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh10/101_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh10-101</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.945</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.945</span></div></div></div>
+  <div class=info><b>히스이 대검귀 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 강화 확장팩 「배틀리전」 #052 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.944</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp20 value="swsh9a_ja-52" checked>현재 swsh9a_ja-52</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh10-101</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c21" data-code="BS2022007025" data-defjp="swsh10d_ja-25" data-en="">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S10/S10D_025.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh10d_ja-25/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh10d_ja-25</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.933</span></div></div><div class=cell><div class=noimg>EN 후보<br>못 찾음</div></div></div>
+  <div class=info><b>지라치 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 확장팩 「타임게이저」 #025 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.921</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp21 value="swsh10d_ja-25" checked>현재 swsh10d_ja-25</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck disabled>(없음→NO_EN)</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c22" data-code="BS2022014037" data-defjp="swsh11_ja-37" data-en="swsh12pt5-45">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S11/S11_037.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh11_ja-37/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh11_ja-37</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.938</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh12pt5/45_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh12pt5-45</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.958</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.892</span></div></div></div>
+  <div class=info><b>로토무 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 확장팩 「로스트어비스」 #037 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.901</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp22 value="swsh11_ja-37" checked>현재 swsh11_ja-37</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh12pt5-45</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c23" data-code="BS2022016015" data-defjp="swsh11a_ja-15" data-en="">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S11a/S11a_015.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh11a_ja-15/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh11a_ja-15</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.922</span></div></div><div class=cell><div class=noimg>EN 후보<br>못 찾음</div></div></div>
+  <div class=info><b>레시라무 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 강화 확장팩 「백열의 아르카나」 #015 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.928</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp23 value="swsh11a_ja-15" checked>현재 swsh11a_ja-15</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck disabled>(없음→NO_EN)</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c24" data-code="BS2022016051" data-defjp="swsh11a_ja-51" data-en="">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S11a/S11a_051.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh11a_ja-51/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh11a_ja-51</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.92</span></div></div><div class=cell><div class=noimg>EN 후보<br>못 찾음</div></div></div>
+  <div class=info><b>마기아나 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 강화 확장팩 「백열의 아르카나」 #051 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.906</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp24 value="swsh11a_ja-51" checked>현재 swsh11a_ja-51</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck disabled>(없음→NO_EN)</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c25" data-code="BS2022016055" data-defjp="swsh11a_ja-55" data-en="swsh12-140">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S11a/S11a_055.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh11a_ja-55/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh11a_ja-55</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.972</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh12/140_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh12-140</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.968</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.965</span></div></div></div>
+  <div class=info><b>칠색조 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 강화 확장팩 「백열의 아르카나」 #055 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.958</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp25 value="swsh11a_ja-55" checked>현재 swsh11a_ja-55</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh12-140</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c26" data-code="BS2021003037" data-defjp="swsh5a_ja-37" data-en="swsh6-80">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S5a/S5a_037.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh5a_ja-37/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh5a_ja-37</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.973</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh6/80_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh6-80</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.965</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.931</span></div></div></div>
+  <div class=info><b>가라르 썬더 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 강화 확장팩 「쌍벽의 파이터」 #037 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.969</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp26 value="swsh5a_ja-37" checked>현재 swsh5a_ja-37</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh6-80</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c27" data-code="BS2021004047" data-defjp="swsh6h_ja-47" data-en="swsh6-104">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S6/S6H_047.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh6h_ja-77/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh6h_ja-77</code><br>KO↔JP <span style="color:#d00;font-weight:bold">0.266</span></div></div><div class="cell prop"><img loading=lazy src="https://images.scrydex.com/pokemon/swsh6h_ja-47/medium" onclick="z(this.src)"><div>★JP 제안<br><code>swsh6h_ja-47</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.914</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh6/104_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh6-104</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.96</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.909</span></div></div></div>
+  <div class=info><b>레파르다스 V</b> <span class=tag style=background:#555>RR</span> <span class=tag style=background:#c0392b>JP 명백오류 의심</span>
+    <div class=meta>소드&실드 확장팩 「백은의 랜스」 #047 · 교차 KO↔JP <span style="color:#d00;font-weight:bold">0.25</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp27 value="swsh6h_ja-77" >현재 swsh6h_ja-77</label>
+      <label><input type=radio name=jp27 value="swsh6h_ja-47" checked>★제안 swsh6h_ja-47</label></div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh6-104</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c28" data-code="BS2021012015" data-defjp="swsh7r_ja-15" data-en="swsh7-21">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S7/S7R_015.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh7r_ja-15/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh7r_ja-15</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.923</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh7/21_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh7-21</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.916</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.921</span></div></div></div>
+  <div class=info><b>불카모스 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드 & 실드   확장팩   「창공스트림」 #015 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.924</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp28 value="swsh7r_ja-15" checked>현재 swsh7r_ja-15</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh7-21</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c29" data-code="BS2020011066" data-defjp="swsh3_ja-66" data-en="swsh3-118">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S3/S3_066.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh3_ja-66/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh3_ja-66</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.959</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh3/118_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh3-118</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.973</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.953</span></div></div></div>
+  <div class=info><b>핫삼 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 확장팩 「무한존」 #066 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.96</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp29 value="swsh3_ja-66" checked>현재 swsh3_ja-66</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh3-118</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c30" data-code="BS2020012013" data-defjp="swsh3a_ja-13" data-en="swsh4-22">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S3a/S3a_013.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh3a_ja-13/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh3a_ja-13</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.971</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh4/22_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh4-22</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.929</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.909</span></div></div></div>
+  <div class=info><b>자루도 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 강화 확장팩 「전설의 고동」 #013 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.965</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp30 value="swsh3a_ja-13" checked>현재 swsh3a_ja-13</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh4-22</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c31" data-code="BS2020016139" data-defjp="swsh4a_ja-139" data-en="swshp-SWSH019">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S4a/S4a_139.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh4a_ja-139/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh4a_ja-139</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.916</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swshp/SWSH019_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swshp-SWSH019</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.967</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.908</span></div></div></div>
+  <div class=info><b>자마젠타 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 하이클래스팩 「샤이니스타 V」 #139 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.93</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp31 value="swsh4a_ja-139" checked>현재 swsh4a_ja-139</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swshp-SWSH019</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div><div class="card" id="c32" data-code="BS2020016140" data-defjp="swsh4a_ja-140" data-en="swsh45-50">
+  <div class=imgs><div class=cell><img loading=lazy src="https://cards.image.pokemonkorea.co.kr/data/wmimages/S/S4a/S4a_140.png?w=512" onclick="z(this.src)"><div>KO 원본(진실)</div></div><div class=cell><img loading=lazy src="https://images.scrydex.com/pokemon/swsh4a_ja-140/medium" onclick="z(this.src)"><div>JP 현재<br><code>swsh4a_ja-140</code><br>KO↔JP <span style="color:#0a0;font-weight:bold">0.958</span></div></div><div class="cell prop"><img loading=lazy src="https://images.pokemontcg.io/swsh45/50_hires.png" onclick="z(this.src)"><div>★EN 제안<br><code>swsh45-50</code><br>EN↔JP <span style="color:#0a0;font-weight:bold">0.967</span>·EN↔KO <span style="color:#0a0;font-weight:bold">0.94</span></div></div></div>
+  <div class=info><b>메타몽 V</b> <span class=tag style=background:#555>RR</span> 
+    <div class=meta>소드&실드 하이클래스팩 「샤이니스타 V」 #140 · 교차 KO↔JP <span style="color:#0a0;font-weight:bold">0.955</span> KO↔EN <span style=color:#bbb>-</span></div>
+    <div class=choose>JP 채택: <label><input type=radio name=jp32 value="swsh4a_ja-140" checked>현재 swsh4a_ja-140</label>
+      </div>
+    <div class=choose>EN 채택: <label><input type=checkbox class=enck checked>swsh45-50</label></div>
+    <div class=btns><button class=ap onclick="dec(this,'approve')">승인 (A)</button>
+      <button class=hd onclick="dec(this,'hold')">보류 (H)</button>
+      <button class=rj onclick="dec(this,'reject')">거부 (X)</button></div>
+    <div class=cur>판정: <b class= st>미판정</b></div>
+  </div></div>
+<div id=m onclick="this.style.display='none'"><img></div>
+<script>
+let st=JSON.parse(localStorage.getItem('rematchV1')||'{}'),fi=0;
+const cards=[...document.querySelectorAll('.card')];
+function z(s){document.querySelector('#m img').src=s;document.getElementById('m').style.display='flex';}
+function save(){localStorage.setItem('rematchV1',JSON.stringify(st));prog();}
+function dec(btn,d){const c=btn.closest('.card');const jp=c.querySelector('input[type=radio]:checked')?.value||c.dataset.defjp;
+  const en=c.querySelector('.enck').checked?c.dataset.en:'';st[c.dataset.code]={status:d,jp:jp,en:en};
+  c.className='card '+d;c.querySelector('.st').textContent=d.toUpperCase();save();}
+function prog(){const n=Object.values(st).filter(x=>x.status).length;document.getElementById('prog').textContent=` ${n}/${cards.length} 판정`;}
+function exp(){const o=cards.map(c=>({code:c.dataset.code,...(st[c.dataset.code]||{status:'',jp:c.dataset.defjp,en:c.dataset.en})}));
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(o,null,2)],{type:'application/json'}));a.download='rematch_decisions.json';a.click();}
+document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;const c=cards[fi];const k=e.key.toLowerCase();
+  if(k==='a')c.querySelector('.ap').click();else if(k==='h')c.querySelector('.hd').click();else if(k==='x')c.querySelector('.rj').click();
+  else if(e.key==='ArrowDown'||e.key==='ArrowRight'){fi=Math.min(cards.length-1,fi+1);cards[fi].scrollIntoView({block:'center'});}
+  else if(e.key==='ArrowUp'||e.key==='ArrowLeft'){fi=Math.max(0,fi-1);cards[fi].scrollIntoView({block:'center'});}});
+// restore
+cards.forEach(c=>{const s=st[c.dataset.code];if(s&&s.status){c.className='card '+s.status;c.querySelector('.st').textContent=s.status.toUpperCase();}});prog();
+</script></body></html>

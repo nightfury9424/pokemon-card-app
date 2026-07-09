@@ -1,0 +1,1389 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SNKRDUNK M3 스캐너 교차검증 검수</title>
+<style>
+*{box-sizing:border-box} body{font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;margin:0;background:#f6f8fa;color:#1f2328}
+.top{position:sticky;top:0;background:#24292f;color:#fff;padding:12px 16px;z-index:10;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.top b{font-size:16px} .top .stat{font-size:12px;opacity:.85}
+.top select,.top label{font-size:13px} .top button{padding:5px 12px;border:0;border-radius:6px;background:#2da44e;color:#fff;cursor:pointer}
+.wrap{max-width:1100px;margin:0 auto;padding:14px}
+.card{background:#fff;border:1px solid #d0d7de;border-radius:10px;margin:12px 0;overflow:hidden}
+.hd{display:flex;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid #eaeef2;background:#fafbfc}
+.badge{color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px}
+.cno{font-weight:700} .conf{font-size:12px;color:#57606a;margin-left:auto}
+.body{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:10px;padding:12px}
+@media(max-width:820px){.body{grid-template-columns:1fr}}
+.col{min-width:0} .lbl{font-size:11px;font-weight:700;color:#57606a;text-transform:uppercase;margin-bottom:6px}
+.big{width:100%;max-width:230px;border-radius:8px;background:#f0f0f0;display:block}
+.meta{font-size:13px;margin-top:6px;line-height:1.5} .mono{font-family:ui-monospace,monospace;font-size:11px;color:#57606a}
+.small{font-size:10px} a{color:#0969da;word-break:break-all;font-size:12px}
+.sold{margin-top:6px;font-size:12px;background:#fff8e5;border:1px solid #f0d58c;padding:5px 8px;border-radius:6px}
+.mrow{font-size:13px;margin:3px 0} .sc{color:#1a7f37;font-weight:700} .rar{color:#8250df;font-size:11px}
+.ref{font-family:ui-monospace,monospace;font-size:10px;color:#57606a}
+.t5wrap{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;padding:8px;background:#f6f8fa;border-radius:8px}
+.t5{width:74px;font-size:10px;text-align:center} .t5 img{width:70px;height:96px;object-fit:cover;border-radius:4px;border:2px solid transparent}
+.t5hit img{border-color:#1a7f37} .t5m{line-height:1.3;margin-top:2px}
+.judge{margin-top:10px;display:flex;gap:8px;align-items:center}
+.judge button{padding:7px 14px;border:1px solid #d0d7de;border-radius:7px;background:#fff;cursor:pointer;font-size:14px}
+.judge button.on{background:#0969da;color:#fff;border-color:#0969da} .jstate{font-size:12px;color:#57606a}
+</style></head><body>
+<div class="top">
+  <b>SNKRDUNK M3 ↔ 우리카드 교차검증</b>
+  <span class="stat">HIGH_CONFIDENCE: 28 · NOT_FOUND: 5 · IMAGE_MATCH_ONLY: 1 · 총 34</span>
+  <label>상태 <select id="fstatus"><option value="">전체</option>
+    <option>HIGH_CONFIDENCE</option><option>CONFLICT</option><option>TEXT_MATCH_ONLY</option>
+    <option>IMAGE_MATCH_ONLY</option><option>NOT_FOUND</option></select></label>
+  <label><input type="checkbox" id="funjudged"> 미판정만</label>
+  <span class="stat">판정 <b id="jcount">0</b></span>
+  <button id="expt">CSV 내보내기</button>
+</div>
+<div class="wrap">
+
+<div class="card" data-id="753256" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 081/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_B6F780670C514367833F_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>분떠도리</b><br>
+        <span class="mono">CRD_B6F780670C514367833F</span><br>
+        m3_ja-81 · AR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753256.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>コフーライ AR [M3 081/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-081</span> · AR<br>
+        <a href="https://snkrdunk.com/apparels/753256" target="_blank">▶ https://snkrdunk.com/apparels/753256</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>분떠도리</b>
+        <span class="mono small">CRD_B6F780670C514367833F</span></div>
+      <div class="mrow">스캐너 top1 → <b>분떠도리</b>
+        <span class="sc">0.8808</span>
+        <span class="mono small">CRD_B6F780670C514367833F</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_B6F780670C514367833F_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 분떠도리 <span class='rar'>AR</span><br><span class='ref'>m3_ja-81</span> · <span class='sc'>0.8808</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753257" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 082/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_2FE394C852394D129604_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>나몰빼미</b><br>
+        <span class="mono">CRD_2FE394C852394D129604</span><br>
+        m3_ja-82 · AR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753257.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>モクロー AR [M3 082/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-082</span> · AR<br>
+        <a href="https://snkrdunk.com/apparels/753257" target="_blank">▶ https://snkrdunk.com/apparels/753257</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>나몰빼미</b>
+        <span class="mono small">CRD_2FE394C852394D129604</span></div>
+      <div class="mrow">스캐너 top1 → <b>나몰빼미</b>
+        <span class="sc">0.9122</span>
+        <span class="mono small">CRD_2FE394C852394D129604</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_2FE394C852394D129604_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 나몰빼미 <span class='rar'>AR</span><br><span class='ref'>m3_ja-82</span> · <span class='sc'>0.9122</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753307" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 084/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_22E4A9137EB24D9A80C6_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>아마루르가</b><br>
+        <span class="mono">CRD_22E4A9137EB24D9A80C6</span><br>
+        m3_ja-84 · AR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753307.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>アマルルガ AR [M3 084/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-084</span> · AR<br>
+        <a href="https://snkrdunk.com/apparels/753307" target="_blank">▶ https://snkrdunk.com/apparels/753307</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>아마루르가</b>
+        <span class="mono small">CRD_22E4A9137EB24D9A80C6</span></div>
+      <div class="mrow">스캐너 top1 → <b>아마루르가</b>
+        <span class="sc">0.8721</span>
+        <span class="mono small">CRD_22E4A9137EB24D9A80C6</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_22E4A9137EB24D9A80C6_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 아마루르가 <span class='rar'>AR</span><br><span class='ref'>m3_ja-84</span> · <span class='sc'>0.8721</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753258" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 085/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_ADB6937D5829468DB1AF_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>데덴네</b><br>
+        <span class="mono">CRD_ADB6937D5829468DB1AF</span><br>
+        m3_ja-85 · AR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753258.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>デデンネ AR [M3 085/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-085</span> · AR<br>
+        <a href="https://snkrdunk.com/apparels/753258" target="_blank">▶ https://snkrdunk.com/apparels/753258</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>데덴네</b>
+        <span class="mono small">CRD_ADB6937D5829468DB1AF</span></div>
+      <div class="mrow">스캐너 top1 → <b>데덴네</b>
+        <span class="sc">0.8887</span>
+        <span class="mono small">CRD_ADB6937D5829468DB1AF</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_ADB6937D5829468DB1AF_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 데덴네 <span class='rar'>AR</span><br><span class='ref'>m3_ja-85</span> · <span class='sc'>0.8887</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753308" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 088/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_A5AE23F47A2B49218CB4_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>대코파스</b><br>
+        <span class="mono">CRD_A5AE23F47A2B49218CB4</span><br>
+        m3_ja-88 · AR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753308.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ダイノーズ AR [M3 088/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-088</span> · AR<br>
+        <a href="https://snkrdunk.com/apparels/753308" target="_blank">▶ https://snkrdunk.com/apparels/753308</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>대코파스</b>
+        <span class="mono small">CRD_A5AE23F47A2B49218CB4</span></div>
+      <div class="mrow">스캐너 top1 → <b>대코파스</b>
+        <span class="sc">0.8374</span>
+        <span class="mono small">CRD_A5AE23F47A2B49218CB4</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_A5AE23F47A2B49218CB4_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 대코파스 <span class='rar'>AR</span><br><span class='ref'>m3_ja-88</span> · <span class='sc'>0.8374</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753309" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 089/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_A3B4ED53661A41AD9BE6_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>티고라스</b><br>
+        <span class="mono">CRD_A3B4ED53661A41AD9BE6</span><br>
+        m3_ja-89 · AR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753309.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>チゴラス AR [M3 089/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-089</span> · AR<br>
+        <a href="https://snkrdunk.com/apparels/753309" target="_blank">▶ https://snkrdunk.com/apparels/753309</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>티고라스</b>
+        <span class="mono small">CRD_A3B4ED53661A41AD9BE6</span></div>
+      <div class="mrow">스캐너 top1 → <b>티고라스</b>
+        <span class="sc">0.756</span>
+        <span class="mono small">CRD_A3B4ED53661A41AD9BE6</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_A3B4ED53661A41AD9BE6_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 티고라스 <span class='rar'>AR</span><br><span class='ref'>m3_ja-89</span> · <span class='sc'>0.756</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753310" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 090/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_8262D9F6F80441E59604_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>드래피온</b><br>
+        <span class="mono">CRD_8262D9F6F80441E59604</span><br>
+        m3_ja-90 · AR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753310.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ドラピオン AR [M3 090/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-090</span> · AR<br>
+        <a href="https://snkrdunk.com/apparels/753310" target="_blank">▶ https://snkrdunk.com/apparels/753310</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>드래피온</b>
+        <span class="mono small">CRD_8262D9F6F80441E59604</span></div>
+      <div class="mrow">스캐너 top1 → <b>드래피온</b>
+        <span class="sc">0.812</span>
+        <span class="mono small">CRD_8262D9F6F80441E59604</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_8262D9F6F80441E59604_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 드래피온 <span class='rar'>AR</span><br><span class='ref'>m3_ja-90</span> · <span class='sc'>0.812</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753259" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 091/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_7FFB3A5460DC46489885_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>쌍검킬</b><br>
+        <span class="mono">CRD_7FFB3A5460DC46489885</span><br>
+        m3_ja-91 · AR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753259.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ニダンギル AR [M3 091/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-091</span> · AR<br>
+        <a href="https://snkrdunk.com/apparels/753259" target="_blank">▶ https://snkrdunk.com/apparels/753259</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>쌍검킬</b>
+        <span class="mono small">CRD_7FFB3A5460DC46489885</span></div>
+      <div class="mrow">스캐너 top1 → <b>쌍검킬</b>
+        <span class="sc">0.8349</span>
+        <span class="mono small">CRD_7FFB3A5460DC46489885</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_7FFB3A5460DC46489885_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 쌍검킬 <span class='rar'>AR</span><br><span class='ref'>m3_ja-91</span> · <span class='sc'>0.8349</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753260" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 092/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_9DE6CF5F7FF3427298C7_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>레트라</b><br>
+        <span class="mono">CRD_9DE6CF5F7FF3427298C7</span><br>
+        m3_ja-92 · AR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753260.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ラッタ AR [M3 092/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-092</span> · AR<br>
+        <a href="https://snkrdunk.com/apparels/753260" target="_blank">▶ https://snkrdunk.com/apparels/753260</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>레트라</b>
+        <span class="mono small">CRD_9DE6CF5F7FF3427298C7</span></div>
+      <div class="mrow">스캐너 top1 → <b>레트라</b>
+        <span class="sc">0.8935</span>
+        <span class="mono small">CRD_9DE6CF5F7FF3427298C7</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_9DE6CF5F7FF3427298C7_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 레트라 <span class='rar'>AR</span><br><span class='ref'>m3_ja-92</span> · <span class='sc'>0.8935</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753261" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 093/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_AD5DBA8969314EA6A9F3_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>모크나이퍼 ex</b><br>
+        <span class="mono">CRD_AD5DBA8969314EA6A9F3</span><br>
+        m3_ja-93 · SR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753261.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ジュナイパーex SR [M3 093/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-093</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753261" target="_blank">▶ https://snkrdunk.com/apparels/753261</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>모크나이퍼 ex</b>
+        <span class="mono small">CRD_AD5DBA8969314EA6A9F3</span></div>
+      <div class="mrow">스캐너 top1 → <b>모크나이퍼 ex</b>
+        <span class="sc">0.8458</span>
+        <span class="mono small">CRD_AD5DBA8969314EA6A9F3</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_AD5DBA8969314EA6A9F3_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 모크나이퍼 ex <span class='rar'>SR</span><br><span class='ref'>m3_ja-93</span> · <span class='sc'>0.8458</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753311" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 094/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_FC1C8B1689F940ADBE7B_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>염뉴트 ex</b><br>
+        <span class="mono">CRD_FC1C8B1689F940ADBE7B</span><br>
+        m3_ja-94 · SR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753311.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>エンニュートex SR [M3 094/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-094</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753311" target="_blank">▶ https://snkrdunk.com/apparels/753311</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>염뉴트 ex</b>
+        <span class="mono small">CRD_FC1C8B1689F940ADBE7B</span></div>
+      <div class="mrow">스캐너 top1 → <b>염뉴트 ex</b>
+        <span class="sc">0.8955</span>
+        <span class="mono small">CRD_FC1C8B1689F940ADBE7B</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_FC1C8B1689F940ADBE7B_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 염뉴트 ex <span class='rar'>SR</span><br><span class='ref'>m3_ja-94</span> · <span class='sc'>0.8955</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753262" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 095/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_6EA8D0D00A484C1985DD_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>메가아쿠스타 ex</b><br>
+        <span class="mono">CRD_6EA8D0D00A484C1985DD</span><br>
+        m3_ja-95 · SR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753262.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>メガスターミーex SR [M3 095/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-095</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753262" target="_blank">▶ https://snkrdunk.com/apparels/753262</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>메가아쿠스타 ex</b>
+        <span class="mono small">CRD_6EA8D0D00A484C1985DD</span></div>
+      <div class="mrow">스캐너 top1 → <b>메가아쿠스타 ex</b>
+        <span class="sc">0.9121</span>
+        <span class="mono small">CRD_6EA8D0D00A484C1985DD</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_6EA8D0D00A484C1985DD_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 메가아쿠스타 ex <span class='rar'>SR</span><br><span class='ref'>m3_ja-95</span> · <span class='sc'>0.9121</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753263" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 096/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_78690B2E84B943EFA5E1_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>메가픽시 ex</b><br>
+        <span class="mono">CRD_78690B2E84B943EFA5E1</span><br>
+        m3_ja-96 · SR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753263.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>メガピクシーex SR [M3 096/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-096</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753263" target="_blank">▶ https://snkrdunk.com/apparels/753263</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>메가픽시 ex</b>
+        <span class="mono small">CRD_78690B2E84B943EFA5E1</span></div>
+      <div class="mrow">스캐너 top1 → <b>메가픽시 ex</b>
+        <span class="sc">0.6775</span>
+        <span class="mono small">CRD_78690B2E84B943EFA5E1</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_78690B2E84B943EFA5E1_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 메가픽시 ex <span class='rar'>SR</span><br><span class='ref'>m3_ja-96</span> · <span class='sc'>0.6775</span></div></div><div class='t5'><img loading='lazy' src='scanner/data/cards/CRD_6657C5F9E27145AA9961_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>2.</b> 메가픽시 ex <span class='rar'>SAR</span><br><span class='ref'>m3_ja-112</span> · <span class='sc'>0.5792</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753264" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 097/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_04E7F61A130E41B8AE30_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>메가지가르데 ex</b><br>
+        <span class="mono">CRD_04E7F61A130E41B8AE30</span><br>
+        m3_ja-97 · SR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753264.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>メガジガルデex SR [M3 097/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-097</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753264" target="_blank">▶ https://snkrdunk.com/apparels/753264</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>메가지가르데 ex</b>
+        <span class="mono small">CRD_04E7F61A130E41B8AE30</span></div>
+      <div class="mrow">스캐너 top1 → <b>메가지가르데 ex</b>
+        <span class="sc">0.7941</span>
+        <span class="mono small">CRD_04E7F61A130E41B8AE30</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_04E7F61A130E41B8AE30_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 메가지가르데 ex <span class='rar'>SR</span><br><span class='ref'>m3_ja-97</span> · <span class='sc'>0.7941</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753265" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 098/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_4B9283B93544449DBC2D_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>이벨타르 ex</b><br>
+        <span class="mono">CRD_4B9283B93544449DBC2D</span><br>
+        m3_ja-98 · SR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753265.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>イベルタルex SR [M3 098/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-098</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753265" target="_blank">▶ https://snkrdunk.com/apparels/753265</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>이벨타르 ex</b>
+        <span class="mono small">CRD_4B9283B93544449DBC2D</span></div>
+      <div class="mrow">스캐너 top1 → <b>이벨타르 ex</b>
+        <span class="sc">0.7282</span>
+        <span class="mono small">CRD_4B9283B93544449DBC2D</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_4B9283B93544449DBC2D_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 이벨타르 ex <span class='rar'>SR</span><br><span class='ref'>m3_ja-98</span> · <span class='sc'>0.7282</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753266" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 099/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_6E2A7F9E1B124081A497_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>메가무장조 ex</b><br>
+        <span class="mono">CRD_6E2A7F9E1B124081A497</span><br>
+        m3_ja-99 · SR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753266.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>メガエアームドex SR [M3 099/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-099</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753266" target="_blank">▶ https://snkrdunk.com/apparels/753266</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>메가무장조 ex</b>
+        <span class="mono small">CRD_6E2A7F9E1B124081A497</span></div>
+      <div class="mrow">스캐너 top1 → <b>메가무장조 ex</b>
+        <span class="sc">0.8883</span>
+        <span class="mono small">CRD_6E2A7F9E1B124081A497</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_6E2A7F9E1B124081A497_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 메가무장조 ex <span class='rar'>SR</span><br><span class='ref'>m3_ja-99</span> · <span class='sc'>0.8883</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753267" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 100/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_E9ED6DA4BDD449AB99F2_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>나옹 ex</b><br>
+        <span class="mono">CRD_E9ED6DA4BDD449AB99F2</span><br>
+        m3_ja-100 · SR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753267.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ニャースex SR [M3 100/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-100</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753267" target="_blank">▶ https://snkrdunk.com/apparels/753267</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>나옹 ex</b>
+        <span class="mono small">CRD_E9ED6DA4BDD449AB99F2</span></div>
+      <div class="mrow">스캐너 top1 → <b>나옹 ex</b>
+        <span class="sc">0.6873</span>
+        <span class="mono small">CRD_E9ED6DA4BDD449AB99F2</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_E9ED6DA4BDD449AB99F2_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 나옹 ex <span class='rar'>SR</span><br><span class='ref'>m3_ja-100</span> · <span class='sc'>0.6873</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753312" data-status="NOT_FOUND">
+  <div class="hd">
+    <span class="badge" style="background:#6e7781">NOT_FOUND</span>
+    <span class="cno">M3 101/080</span>
+    <span class="conf">conf LOW</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="" onerror="this.style.opacity=.12">
+      <div class="meta"><b></b><br>
+        <span class="mono"></span><br>
+         · </div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753312.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>エネルギーリサイクル SR [M3 101/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-101</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753312" target="_blank">▶ https://snkrdunk.com/apparels/753312</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>—</b>
+        <span class="mono small">—</span></div>
+      <div class="mrow">스캐너 top1 → <b>—</b>
+        <span class="sc"></span>
+        <span class="mono small">—</span></div>
+      <div class="t5wrap"><i>스캐너 결과 없음</i></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753313" data-status="NOT_FOUND">
+  <div class="hd">
+    <span class="badge" style="background:#6e7781">NOT_FOUND</span>
+    <span class="cno">M3 102/080</span>
+    <span class="conf">conf LOW</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="" onerror="this.style.opacity=.12">
+      <div class="meta"><b></b><br>
+        <span class="mono"></span><br>
+         · </div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753313.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>せいなるはい SR [M3 102/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-102</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753313" target="_blank">▶ https://snkrdunk.com/apparels/753313</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>—</b>
+        <span class="mono small">—</span></div>
+      <div class="mrow">스캐너 top1 → <b>—</b>
+        <span class="sc"></span>
+        <span class="mono small">—</span></div>
+      <div class="t5wrap"><i>스캐너 결과 없음</i></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753314" data-status="NOT_FOUND">
+  <div class="hd">
+    <span class="badge" style="background:#6e7781">NOT_FOUND</span>
+    <span class="cno">M3 103/080</span>
+    <span class="conf">conf LOW</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="" onerror="this.style.opacity=.12">
+      <div class="meta"><b></b><br>
+        <span class="mono"></span><br>
+         · </div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753314.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ポケパッド SR [M3 103/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-103</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753314" target="_blank">▶ https://snkrdunk.com/apparels/753314</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>—</b>
+        <span class="mono small">—</span></div>
+      <div class="mrow">스캐너 top1 → <b>—</b>
+        <span class="sc"></span>
+        <span class="mono small">—</span></div>
+      <div class="t5wrap"><i>스캐너 결과 없음</i></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753315" data-status="NOT_FOUND">
+  <div class="hd">
+    <span class="badge" style="background:#6e7781">NOT_FOUND</span>
+    <span class="cno">M3 104/080</span>
+    <span class="conf">conf LOW</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="" onerror="this.style.opacity=.12">
+      <div class="meta"><b></b><br>
+        <span class="mono"></span><br>
+         · </div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753315.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ワンダーパッチ SR [M3 104/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-104</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753315" target="_blank">▶ https://snkrdunk.com/apparels/753315</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>—</b>
+        <span class="mono small">—</span></div>
+      <div class="mrow">스캐너 top1 → <b>—</b>
+        <span class="sc"></span>
+        <span class="mono small">—</span></div>
+      <div class="t5wrap"><i>스캐너 결과 없음</i></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753270" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 105/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_768F67D90A2142609676_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>명희의 격려</b><br>
+        <span class="mono">CRD_768F67D90A2142609676</span><br>
+        m3_ja-107 · SR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753270.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>メイのはげまし SR [M3 107/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-107</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753270" target="_blank">▶ https://snkrdunk.com/apparels/753270</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>명희의 격려</b>
+        <span class="mono small">CRD_768F67D90A2142609676</span></div>
+      <div class="mrow">스캐너 top1 → <b>명희의 격려</b>
+        <span class="sc">0.8292</span>
+        <span class="mono small">CRD_768F67D90A2142609676</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_768F67D90A2142609676_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 명희의 격려 <span class='rar'>SR</span><br><span class='ref'>m3_ja-107</span> · <span class='sc'>0.8292</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753271" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 106/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_71205B71BAD34A2C85BD_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>유카리</b><br>
+        <span class="mono">CRD_71205B71BAD34A2C85BD</span><br>
+        m3_ja-108 · SR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753271.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ユカリ SR [M3 108/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-108</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753271" target="_blank">▶ https://snkrdunk.com/apparels/753271</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>유카리</b>
+        <span class="mono small">CRD_71205B71BAD34A2C85BD</span></div>
+      <div class="mrow">스캐너 top1 → <b>유카리</b>
+        <span class="sc">0.7674</span>
+        <span class="mono small">CRD_71205B71BAD34A2C85BD</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_71205B71BAD34A2C85BD_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 유카리 <span class='rar'>SR</span><br><span class='ref'>m3_ja-108</span> · <span class='sc'>0.7674</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753269" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 107/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_31940B3434F54CAB8CAB_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>이노</b><br>
+        <span class="mono">CRD_31940B3434F54CAB8CAB</span><br>
+        m3_ja-106 · SR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753269.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ピュール SR [M3 106/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-106</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753269" target="_blank">▶ https://snkrdunk.com/apparels/753269</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>이노</b>
+        <span class="mono small">CRD_31940B3434F54CAB8CAB</span></div>
+      <div class="mrow">스캐너 top1 → <b>이노</b>
+        <span class="sc">0.8497</span>
+        <span class="mono small">CRD_31940B3434F54CAB8CAB</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_31940B3434F54CAB8CAB_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 이노 <span class='rar'>SR</span><br><span class='ref'>m3_ja-106</span> · <span class='sc'>0.8497</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753268" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 108/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_CBBC687119FD4B25A45C_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>타라곤</b><br>
+        <span class="mono">CRD_CBBC687119FD4B25A45C</span><br>
+        m3_ja-105 · SR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753268.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>タラゴン SR [M3 105/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-105</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753268" target="_blank">▶ https://snkrdunk.com/apparels/753268</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>타라곤</b>
+        <span class="mono small">CRD_CBBC687119FD4B25A45C</span></div>
+      <div class="mrow">스캐너 top1 → <b>타라곤</b>
+        <span class="sc">0.8074</span>
+        <span class="mono small">CRD_CBBC687119FD4B25A45C</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_CBBC687119FD4B25A45C_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 타라곤 <span class='rar'>SR</span><br><span class='ref'>m3_ja-105</span> · <span class='sc'>0.8074</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753316" data-status="IMAGE_MATCH_ONLY">
+  <div class="hd">
+    <span class="badge" style="background:#0969da">IMAGE_MATCH_ONLY</span>
+    <span class="cno">M3 109/080</span>
+    <span class="conf">conf MED</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="" onerror="this.style.opacity=.12">
+      <div class="meta"><b></b><br>
+        <span class="mono"></span><br>
+         · </div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753316.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>活力の森 SR [M3 109/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-109</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753316" target="_blank">▶ https://snkrdunk.com/apparels/753316</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>—</b>
+        <span class="mono small">—</span></div>
+      <div class="mrow">스캐너 top1 → <b>과사삭벌레</b>
+        <span class="sc">0.7291</span>
+        <span class="mono small">CRD_80D85D7E34F6498CA2BB</span></div>
+      <div class="t5wrap"><div class='t5'><img loading='lazy' src='scanner/data/cards/CRD_80D85D7E34F6498CA2BB_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.</b> 과사삭벌레 <span class='rar'>AR</span><br><span class='ref'>sv5a_ja-77</span> · <span class='sc'>0.7291</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753317" data-status="NOT_FOUND">
+  <div class="hd">
+    <span class="badge" style="background:#6e7781">NOT_FOUND</span>
+    <span class="cno">M3 110/080</span>
+    <span class="conf">conf LOW</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="" onerror="this.style.opacity=.12">
+      <div class="meta"><b></b><br>
+        <span class="mono"></span><br>
+         · </div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753317.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ミアレシティ SR [M3 110/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-110</span> · SR<br>
+        <a href="https://snkrdunk.com/apparels/753317" target="_blank">▶ https://snkrdunk.com/apparels/753317</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>—</b>
+        <span class="mono small">—</span></div>
+      <div class="mrow">스캐너 top1 → <b>—</b>
+        <span class="sc"></span>
+        <span class="mono small">—</span></div>
+      <div class="t5wrap"><i>스캐너 결과 없음</i></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753272" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 111/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_0FAEC0B6410647398E22_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>메가아쿠스타 ex</b><br>
+        <span class="mono">CRD_0FAEC0B6410647398E22</span><br>
+        m3_ja-111 · SAR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753272.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>メガスターミーex SAR [M3 111/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-111</span> · SAR<br>
+        <a href="https://snkrdunk.com/apparels/753272" target="_blank">▶ https://snkrdunk.com/apparels/753272</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>메가아쿠스타 ex</b>
+        <span class="mono small">CRD_0FAEC0B6410647398E22</span></div>
+      <div class="mrow">스캐너 top1 → <b>메가아쿠스타 ex</b>
+        <span class="sc">0.902</span>
+        <span class="mono small">CRD_0FAEC0B6410647398E22</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_0FAEC0B6410647398E22_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 메가아쿠스타 ex <span class='rar'>SAR</span><br><span class='ref'>m3_ja-111</span> · <span class='sc'>0.902</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753273" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 112/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_6657C5F9E27145AA9961_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>메가픽시 ex</b><br>
+        <span class="mono">CRD_6657C5F9E27145AA9961</span><br>
+        m3_ja-112 · SAR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753273.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>メガピクシーex SAR [M3 112/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-112</span> · SAR<br>
+        <a href="https://snkrdunk.com/apparels/753273" target="_blank">▶ https://snkrdunk.com/apparels/753273</a></div>
+      <div class='sold'>💴 sold 94건 · median <b>¥16,000</b> (¥3,000~¥52,000) · 최근 2026-06-19</div>
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>메가픽시 ex</b>
+        <span class="mono small">CRD_6657C5F9E27145AA9961</span></div>
+      <div class="mrow">스캐너 top1 → <b>메가픽시 ex</b>
+        <span class="sc">0.793</span>
+        <span class="mono small">CRD_6657C5F9E27145AA9961</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_6657C5F9E27145AA9961_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 메가픽시 ex <span class='rar'>SAR</span><br><span class='ref'>m3_ja-112</span> · <span class='sc'>0.793</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753318" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 113/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_2A791989EEEC43F481BB_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>메가지가르데 ex</b><br>
+        <span class="mono">CRD_2A791989EEEC43F481BB</span><br>
+        m3_ja-113 · SAR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753318.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>メガジガルデex SAR [M3 113/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-113</span> · SAR<br>
+        <a href="https://snkrdunk.com/apparels/753318" target="_blank">▶ https://snkrdunk.com/apparels/753318</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>메가지가르데 ex</b>
+        <span class="mono small">CRD_2A791989EEEC43F481BB</span></div>
+      <div class="mrow">스캐너 top1 → <b>메가지가르데 ex</b>
+        <span class="sc">0.7987</span>
+        <span class="mono small">CRD_2A791989EEEC43F481BB</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_2A791989EEEC43F481BB_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 메가지가르데 ex <span class='rar'>SAR</span><br><span class='ref'>m3_ja-113</span> · <span class='sc'>0.7987</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753242" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 114/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_579416A2A535432F8F30_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>나옹 ex</b><br>
+        <span class="mono">CRD_579416A2A535432F8F30</span><br>
+        m3_ja-114 · SAR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753242.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ニャースex SAR [M3 114/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-114</span> · SAR<br>
+        <a href="https://snkrdunk.com/apparels/753242" target="_blank">▶ https://snkrdunk.com/apparels/753242</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>나옹 ex</b>
+        <span class="mono small">CRD_579416A2A535432F8F30</span></div>
+      <div class="mrow">스캐너 top1 → <b>나옹 ex</b>
+        <span class="sc">0.8402</span>
+        <span class="mono small">CRD_579416A2A535432F8F30</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_579416A2A535432F8F30_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 나옹 ex <span class='rar'>SAR</span><br><span class='ref'>m3_ja-114</span> · <span class='sc'>0.8402</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753274" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 115/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_9C2FBC6E628A43679527_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>명희의 격려</b><br>
+        <span class="mono">CRD_9C2FBC6E628A43679527</span><br>
+        m3_ja-115 · SAR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753274.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>メイのはげまし SAR [M3 115/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-115</span> · SAR<br>
+        <a href="https://snkrdunk.com/apparels/753274" target="_blank">▶ https://snkrdunk.com/apparels/753274</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>명희의 격려</b>
+        <span class="mono small">CRD_9C2FBC6E628A43679527</span></div>
+      <div class="mrow">스캐너 top1 → <b>명희의 격려</b>
+        <span class="sc">0.7941</span>
+        <span class="mono small">CRD_9C2FBC6E628A43679527</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_9C2FBC6E628A43679527_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 명희의 격려 <span class='rar'>SAR</span><br><span class='ref'>m3_ja-115</span> · <span class='sc'>0.7941</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753275" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 116/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_D629521D90F54884A73E_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>유카리</b><br>
+        <span class="mono">CRD_D629521D90F54884A73E</span><br>
+        m3_ja-116 · SAR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753275.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>ユカリ SAR [M3 116/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-116</span> · SAR<br>
+        <a href="https://snkrdunk.com/apparels/753275" target="_blank">▶ https://snkrdunk.com/apparels/753275</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>유카리</b>
+        <span class="mono small">CRD_D629521D90F54884A73E</span></div>
+      <div class="mrow">스캐너 top1 → <b>유카리</b>
+        <span class="sc">0.8649</span>
+        <span class="mono small">CRD_D629521D90F54884A73E</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_D629521D90F54884A73E_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 유카리 <span class='rar'>SAR</span><br><span class='ref'>m3_ja-116</span> · <span class='sc'>0.8649</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card" data-id="753276" data-status="HIGH_CONFIDENCE">
+  <div class="hd">
+    <span class="badge" style="background:#1a7f37">HIGH_CONFIDENCE</span>
+    <span class="cno">M3 117/080</span>
+    <span class="conf">conf HIGH</span>
+  </div>
+  <div class="body">
+    <div class="col our">
+      <div class="lbl">우리 카드</div>
+      <img class="big" loading="lazy" src="scanner/data/cards/CRD_3430850B62B446C68A45A9CFE3741141_jp.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>메가지가르데 EX</b><br>
+        <span class="mono">CRD_3430850B62B446C68A45A9CFE3741141</span><br>
+        m3_ja-117 · MUR</div>
+    </div>
+    <div class="col snk">
+      <div class="lbl">SNKRDUNK</div>
+      <img class="big" loading="lazy" src="scanner/data/snktest_m3/753276.png" onerror="this.style.opacity=.12">
+      <div class="meta"><b>メガジガルデex MUR [M3 117/080](拡張パック「ムニキスゼロ」)</b><br>
+        <span class="mono">pkmn-tcg-M3-117</span> · MUR<br>
+        <a href="https://snkrdunk.com/apparels/753276" target="_blank">▶ https://snkrdunk.com/apparels/753276</a></div>
+      
+    </div>
+    <div class="col match">
+      <div class="lbl">교차검증</div>
+      <div class="mrow">텍스트(M3+번호) → <b>메가지가르데 EX</b>
+        <span class="mono small">CRD_3430850B62B446C68A45A9CFE3741141</span></div>
+      <div class="mrow">스캐너 top1 → <b>메가지가르데 EX</b>
+        <span class="sc">0.7063</span>
+        <span class="mono small">CRD_3430850B62B446C68A45A9CFE3741141</span></div>
+      <div class="t5wrap"><div class='t5 t5hit'><img loading='lazy' src='scanner/data/cards/CRD_3430850B62B446C68A45A9CFE3741141_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>1.★</b> 메가지가르데 EX <span class='rar'>MUR</span><br><span class='ref'>m3_ja-117</span> · <span class='sc'>0.7063</span></div></div><div class='t5'><img loading='lazy' src='scanner/data/cards/CRD_16D77C3BD5F547639930_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>2.</b> 오리진 디아루가 VSTAR <span class='rar'>HR</span><br><span class='ref'>swsh10d_ja-82</span> · <span class='sc'>0.6965</span></div></div><div class='t5'><img loading='lazy' src='scanner/data/cards/CRD_45D3A4AB841C4BAAA951_jp.png' onerror="this.style.opacity=.15"><div class='t5m'><b>3.</b> 두랄루돈 VMAX <span class='rar'>UR</span><br><span class='ref'>swsh8b_ja-285</span> · <span class='sc'>0.6898</span></div></div></div>
+      <div class="judge">
+        <button data-j="match">✓ 매칭</button>
+        <button data-j="no">✗ 아님</button>
+        <button data-j="hold">? 보류</button>
+        <span class="jstate"></span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+const J=JSON.parse(localStorage.getItem('snk_m3_judge')||'{}');
+function paint(el){const id=el.dataset.id;const v=J[id];const s=el.querySelector('.jstate');
+  el.querySelectorAll('.judge button').forEach(b=>b.classList.toggle('on',b.dataset.j===v));
+  s.textContent=v?('판정: '+({match:'✓ 매칭',no:'✗ 아님',hold:'? 보류'}[v])):'';}
+document.querySelectorAll('.card').forEach(el=>{paint(el);
+  el.querySelectorAll('.judge button').forEach(b=>{b.onclick=()=>{
+    J[el.dataset.id]=b.dataset.j;localStorage.setItem('snk_m3_judge',JSON.stringify(J));paint(el);upd();};});});
+function upd(){const n=Object.keys(J).length;document.getElementById('jcount').textContent=n;}
+function flt(){const s=document.getElementById('fstatus').value;const u=document.getElementById('funjudged').checked;
+  document.querySelectorAll('.card').forEach(el=>{let ok=true;
+    if(s&&el.dataset.status!==s)ok=false;
+    if(u&&J[el.dataset.id])ok=false;
+    el.style.display=ok?'':'none';});}
+function expt(){let out='snkrdunk_id,verdict\n';for(const k in J)out+=k+','+J[k]+'\n';
+  const b=new Blob([out],{type:'text/csv'});const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);a.download='snkrdunk_m3_verdicts.csv';a.click();}
+document.getElementById('fstatus').onchange=flt;document.getElementById('funjudged').onchange=flt;
+document.getElementById('expt').onclick=expt;upd();
+</script>
+</body></html>

@@ -1,0 +1,344 @@
+[
+  {
+    "code": "BS2025006099",
+    "ko_name": "로켓단의 트래피더",
+    "rarity": "AR",
+    "ko_set": "스칼렛&바이올렛 확장팩 「로켓단의 영광」",
+    "ko_no": "099",
+    "jp_ref": "sv10_ja-99",
+    "en_ref": "sv10-187"
+  },
+  {
+    "code": "BS2025007111",
+    "ko_name": "늑골라",
+    "rarity": "AR",
+    "ko_set": "스칼렛&바이올렛 확장팩 「블랙볼트」",
+    "ko_no": "111",
+    "jp_ref": "sv11b_ja-111",
+    "en_ref": "zsv10pt5-107"
+  },
+  {
+    "code": "BS2025008167",
+    "ko_name": "엘풍 ex",
+    "rarity": "SAR",
+    "ko_set": "스칼렛&바이올렛 확장팩 「화이트플레어」",
+    "ko_no": "167",
+    "jp_ref": "sv11w_ja-167",
+    "en_ref": "rsv10pt5-165"
+  },
+  {
+    "code": "BS2024004089",
+    "ko_name": "날뛰는우레 ex",
+    "rarity": "SR",
+    "ko_set": "스칼렛&바이올렛 확장팩 「와일드포스」",
+    "ko_no": "089",
+    "jp_ref": "sv5k_ja-89",
+    "en_ref": "sv5-196"
+  },
+  {
+    "code": "BS2024004100",
+    "ko_name": "날뛰는우레 ex",
+    "rarity": "UR",
+    "ko_set": "스칼렛&바이올렛 확장팩 「와일드포스」",
+    "ko_no": "100",
+    "jp_ref": "sv5k_ja-100",
+    "en_ref": "sv5-218"
+  },
+  {
+    "code": "BS2024016092",
+    "ko_name": "알로라 나시 ex",
+    "rarity": "UR",
+    "ko_set": "스칼렛&바이올렛 강화 확장팩 「낙원드래고나」",
+    "ko_no": "092",
+    "jp_ref": "sv7a_ja-92",
+    "en_ref": "sv8-248"
+  },
+  {
+    "code": "BS2023001229",
+    "ko_name": "히스이 대검귀 V",
+    "rarity": "SAR",
+    "ko_set": "소드&실드 하이클래스팩 「VSTAR 유니버스」",
+    "ko_no": "229",
+    "jp_ref": "swsh12a_ja-229",
+    "en_ref": "swsh12pt5gg-GG51"
+  },
+  {
+    "code": "BS2023011094",
+    "ko_name": "시비꼬 ex",
+    "rarity": "SAR",
+    "ko_set": "스칼렛&바이올렛 확장팩 「스노해저드」",
+    "ko_no": "094",
+    "jp_ref": "sv2p_ja-94",
+    "en_ref": "sv2-264"
+  },
+  {
+    "code": "BS2022001123",
+    "ko_name": "두랄루돈 VMAX",
+    "rarity": "RRR",
+    "ko_set": "소드&실드 하이클래스팩 「VMAX 클라이맥스」",
+    "ko_no": "123",
+    "jp_ref": "swsh8b_ja-123",
+    "en_ref": "swsh12pt5-104"
+  },
+  {
+    "code": "BS2022001196",
+    "ko_name": "가디안",
+    "rarity": "CHR",
+    "ko_set": "소드&실드 하이클래스팩 「VMAX 클라이맥스」",
+    "ko_no": "196",
+    "jp_ref": "swsh8b_ja-196",
+    "en_ref": "swsh10tg-TG05"
+  },
+  {
+    "code": "BS2022001198",
+    "ko_name": "야느와르몽",
+    "rarity": "CHR",
+    "ko_set": "소드&실드 하이클래스팩 「VMAX 클라이맥스」",
+    "ko_no": "198",
+    "jp_ref": "swsh8b_ja-198",
+    "en_ref": "swsh9tg-TG06"
+  },
+  {
+    "code": "BS2022001201",
+    "ko_name": "마휘핑",
+    "rarity": "CHR",
+    "ko_set": "소드&실드 하이클래스팩 「VMAX 클라이맥스」",
+    "ko_no": "201",
+    "jp_ref": "swsh8b_ja-201",
+    "en_ref": "swsh9tg-TG08"
+  },
+  {
+    "code": "BS2022001237",
+    "ko_name": "가라르 썬더 V",
+    "rarity": "CSR",
+    "ko_set": "소드&실드 하이클래스팩 「VMAX 클라이맥스」",
+    "ko_no": "237",
+    "jp_ref": "swsh8b_ja-237",
+    "en_ref": "swsh10tg-TG19"
+  },
+  {
+    "code": "BS2022001251",
+    "ko_name": "자마젠타 V",
+    "rarity": "CSR",
+    "ko_set": "소드&실드 하이클래스팩 「VMAX 클라이맥스」",
+    "ko_no": "251",
+    "jp_ref": "swsh8b_ja-251",
+    "en_ref": "swsh10tg-TG22"
+  },
+  {
+    "code": "BS2022001253",
+    "ko_name": "두랄루돈 VMAX",
+    "rarity": "CSR",
+    "ko_set": "소드&실드 하이클래스팩 「VMAX 클라이맥스」",
+    "ko_no": "253",
+    "jp_ref": "swsh8b_ja-253",
+    "en_ref": "swsh12tg-TG21"
+  },
+  {
+    "code": "BS2022002116",
+    "ko_name": "해당의 백업",
+    "rarity": "SR",
+    "ko_set": "소드&실드 확장팩 「스타버스」",
+    "ko_no": "116",
+    "jp_ref": "swsh9_ja-116",
+    "en_ref": "swsh9-172"
+  },
+  {
+    "code": "BS2022002124",
+    "ko_name": "해당의 백업",
+    "rarity": "HR",
+    "ko_set": "소드&실드 확장팩 「스타버스」",
+    "ko_no": "124",
+    "jp_ref": "swsh9_ja-124",
+    "en_ref": "swsh9-180"
+  },
+  {
+    "code": "BS2022008076",
+    "ko_name": "하랑우탄 V",
+    "rarity": "SR",
+    "ko_set": "소드&실드 확장팩 「스페이스 저글러」",
+    "ko_no": "076",
+    "jp_ref": "swsh10p_ja-76",
+    "en_ref": "swsh10-179"
+  },
+  {
+    "code": "BS2022011137",
+    "ko_name": "러브로스 V",
+    "rarity": "CSR",
+    "ko_set": "소드&실드 강화 확장팩 「다크판타스마」",
+    "ko_no": "088",
+    "jp_ref": "swsh10a_ja-88",
+    "en_ref": "swsh11tg-TG18"
+  },
+  {
+    "code": "BS2022016073",
+    "ko_name": "루브도",
+    "rarity": "CHR",
+    "ko_set": "소드&실드 강화 확장팩 「백열의 아르카나」",
+    "ko_no": "073",
+    "jp_ref": "swsh11a_ja-73",
+    "en_ref": "swsh12tg-TG10"
+  },
+  {
+    "code": "BS2022016076",
+    "ko_name": "레시라무 V",
+    "rarity": "SR",
+    "ko_set": "소드&실드 강화 확장팩 「백열의 아르카나」",
+    "ko_no": "076",
+    "jp_ref": "swsh11a_ja-76",
+    "en_ref": "swsh12-172"
+  },
+  {
+    "code": "BS2021015022",
+    "ko_name": "공중날기 피카츄 VMAX",
+    "rarity": "RRR",
+    "ko_set": "소드&실드 확장팩 「25th ANNIVERSARY COLLECTION」",
+    "ko_no": "022",
+    "jp_ref": "swsh8a_ja-24",
+    "en_ref": "cel25-7"
+  },
+  {
+    "code": "BS2021015024",
+    "ko_name": "파도타기 피카츄 VMAX",
+    "rarity": "RRR",
+    "ko_set": "소드&실드 확장팩 「25th ANNIVERSARY COLLECTION」",
+    "ko_no": "024",
+    "jp_ref": "swsh8a_ja-22",
+    "en_ref": "cel25-9"
+  },
+  {
+    "code": "BS2020016323",
+    "ko_name": "메타몽 V",
+    "rarity": "SSR",
+    "ko_set": "소드&실드 하이클래스팩 「샤이니스타 V」",
+    "ko_no": "323",
+    "jp_ref": "swsh4a_ja-323",
+    "en_ref": "swsh45sv-SV118"
+  },
+  {
+    "code": "BS2025007150",
+    "ko_name": "터검니",
+    "rarity": "AR",
+    "ko_set": "스칼렛&바이올렛 확장팩 「블랙볼트」",
+    "ko_no": "150",
+    "jp_ref": "sv11b_ja-150",
+    "en_ref": "zsv10pt5-145"
+  },
+  {
+    "code": "BS2025009074",
+    "ko_name": "깨비참",
+    "rarity": "AR",
+    "ko_set": "MEGA 확장팩 「메가브레이브」",
+    "ko_no": "074",
+    "jp_ref": "m1l_ja-74",
+    "en_ref": "me1-151"
+  },
+  {
+    "code": "BS2025015229",
+    "ko_name": "메가루차불 ex",
+    "rarity": "MA",
+    "ko_set": "MEGA 하이클래스팩 「MEGA 드림 ex」",
+    "ko_no": "229",
+    "jp_ref": "m2a_ja-229",
+    "en_ref": "me2pt5-268"
+  },
+  {
+    "code": "BS2024004082",
+    "ko_name": "치라미",
+    "rarity": "AR",
+    "ko_set": "스칼렛&바이올렛 확장팩 「와일드포스」",
+    "ko_no": "082",
+    "jp_ref": "sv5k_ja-82",
+    "en_ref": "sv5-182"
+  },
+  {
+    "code": "BS2024017112",
+    "ko_name": "레어코일",
+    "rarity": "AR",
+    "ko_set": "스칼렛&바이올렛 확장팩 「초전브레이커」",
+    "ko_no": "112",
+    "jp_ref": "sv8_ja-112",
+    "en_ref": "svp-159"
+  },
+  {
+    "code": "BS2023015127",
+    "ko_name": "부르르룸 ex",
+    "rarity": "SR",
+    "ko_set": "스칼렛&바이올렛 확장팩 「흑염의 지배자」",
+    "ko_no": "127",
+    "jp_ref": "sv3_ja-127",
+    "en_ref": "sv3-216"
+  },
+  {
+    "code": "BS2023020087",
+    "ko_name": "타부자고 ex",
+    "rarity": "SAR",
+    "ko_set": "스칼렛&바이올렛 강화 확장팩 「레이징서프」",
+    "ko_no": "087",
+    "jp_ref": "sv3a_ja-87",
+    "en_ref": "sv4-252"
+  },
+  {
+    "code": "BS2022004123",
+    "ko_name": "히스이 대검귀 V",
+    "rarity": "SR",
+    "ko_set": "소드&실드 강화 확장팩 「배틀리전」",
+    "ko_no": "078",
+    "jp_ref": "swsh9a_ja-78",
+    "en_ref": "swsh10-176"
+  },
+  {
+    "code": "BS2022014102",
+    "ko_name": "로토무 V",
+    "rarity": "SR",
+    "ko_set": "소드&실드 확장팩 「로스트어비스」",
+    "ko_no": "103",
+    "jp_ref": "swsh11_ja-103",
+    "en_ref": "swsh11-176"
+  },
+  {
+    "code": "BS2022014103",
+    "ko_name": "로토무 V",
+    "rarity": "SR",
+    "ko_set": "소드&실드 확장팩 「로스트어비스」",
+    "ko_no": "104",
+    "jp_ref": "swsh11_ja-104",
+    "en_ref": "swsh11-177"
+  },
+  {
+    "code": "BS2020003065",
+    "ko_name": "자마젠타 V",
+    "rarity": "SR",
+    "ko_set": "소드&실드 확장팩 「실드」",
+    "ko_no": "065",
+    "jp_ref": "swsh1h_ja-65",
+    "en_ref": "swsh1-196"
+  },
+  {
+    "code": "BS2021011031",
+    "ko_name": "더스트나 VMAX",
+    "rarity": "RRR",
+    "ko_set": "소드&실드 확장팩 「마천퍼펙트」",
+    "ko_no": "031",
+    "jp_ref": "swsh7d_ja-31",
+    "en_ref": "swsh7-101"
+  },
+  {
+    "code": "BS2022011129",
+    "ko_name": "러브로스 V",
+    "rarity": "SR",
+    "ko_set": "소드&실드 강화 확장팩 「다크판타스마」",
+    "ko_no": "080",
+    "jp_ref": "swsh10a_ja-80",
+    "en_ref": "swsh11-178"
+  },
+  {
+    "code": "BS2025008158",
+    "ko_name": "토네로스",
+    "rarity": "AR",
+    "ko_set": "스칼렛&바이올렛 확장팩 「화이트플레어」",
+    "ko_no": "158",
+    "jp_ref": "sv11w_ja-158",
+    "en_ref": "svp-210"
+  }
+]

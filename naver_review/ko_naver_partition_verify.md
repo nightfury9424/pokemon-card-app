@@ -1,0 +1,123 @@
+# NAVER partition 검증본 (1차 분류 — 최종판정 아님)
+> PRIORITY/PROPOSED_REJECT/SOURCE_MISSING = **1차 분류**. 최종 = 사람이 review_v2_priority.html에서 `VALID_SINGLE_RAW` 찍은 것만 v8 ground truth.
+
+## 분류 rule (검증용 공개)
+- **PROPOSED_REJECT**: DIRTY(등급/번들/미개봉/해외·JP인용/삽니다) 이면서 고가+고위험 예외 아닌 것. ★자동 최종폐기 아님, 키워드 1차필터. '스페셜아트 단품'·'박스개봉 후 단품' 같은 오탐 가능 → 고가는 아래 샘플로 spot-check.
+- **SOURCE_MISSING**: url 없음 → ground truth 금지. 고가/고위험 314=NEEDS_MANUAL_SOURCE(원천 재확보용 보존), 나머지=SOURCE_EVIDENCE_MISSING.
+- **PRIORITY**: CLEAN/REVIEW+url, 또는 DIRTY인데 고가+고위험(샘플검수). score=고위험3+가5만2+앱가괴리2+CLEAN1.
+
+## ① PROPOSED_REJECT 고가 top30 (오탐 있나 spot-check) — 전체 472
+-   1192000원 [REJECT_SEALED] 스탬프박스 피카츄 | (5/24일마감) 25주년 한판골든 미개봉 박스 경매
+-   1000000원 [REJECT_SEALED] 스탬프박스 피카츄 | (04/27 마감) 토히후 미개봉 스페셜박스
+-    958000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | (05/02 마감)토히후 스페셜박스 미개봉 경매 (토호쿠,히로시마,후쿠오카)
+-    943000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | (4/28 마감) 토히후 스페셜박스 미개봉 토호쿠,히로시마,후쿠오카
+-    940000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | (5/9 마감) 토호쿠,히로시마,후쿠오카 스페셜 박스 미개봉 (토히후) 3종
+-    921000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | (5/13 마감) 토호쿠, 히로시마, 후쿠오카 스페셜 박스 (토히후)
+-    921000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | (5/12 마감) 토호쿠,히로시마,후쿠오카 박스 미개봉 (토히후) 3종 세트
+-    920000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | (5/12일 마감) 토히후 미개봉 박스 세트(토후쿠, 히로시마, 후쿠오카)
+-    917000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | (5/16 마감) 토호쿠,히로시마,후쿠오카 스페셜 박스 미개봉 3종 토히후
+-    900000원 [REJECT_GRADED] 뭉크 피카츄 | (5/22마감)[BRG9]뭉크 나몰빼미
+-    880000원 [REJECT_GRADED] 메가리자몽X ex | [5/5마감] 메가리자몽X MUR Brg 10
+-    870000원 [REJECT_SEALED] 스탬프박스 피카츄 | (5/22 마감) 히로시마 스페셜박스 미개봉 3박스
+-    853000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | (5/20 마감) 토호쿠,히로시마,후쿠오카 스페셜 박스 미개봉 3종 토히후
+-    845000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | [4/27 마감] 토호쿠,히로시마,후쿠오카 스페셜 박스 ( 토히후 ) 3종 
+-    810000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | (5/19 마감) 토호쿠,히로시마,후쿠오카 스페셜 박스 미개봉 3종 토히후
+-    800000원 [REJECT_SEALED] 스탬프박스 피카츄 | (6/10 마감)한글판 2004 adv 박스 미개봉
+-    790000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | (6/13마감) 한글판 미개봉 박스 이브이 히어로즈,브맥클
+-    720000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | (6/6 토요일 마감) 151, 인페르노 포함 12미개봉 박스
+-    670000원 [REJECT_GRADED] 메가리자몽X ex | (5/18 마감) 메가 리자몽 sar brg 10 경매
+-    601000원 [REJECT_BUNDLE] 스탬프박스 피카츄 | (5/5 마감) 토호쿠,히로시마,후쿠오카 스페셜 박스 미개봉 ( 토히후 ) 
+-    578000원 [REJECT_SEALED] 스탬프박스 피카츄 | (4/27 마감) 토호쿠 후쿠오카 미개봉 박스
+-    570000원 [REJECT_GRADED] 블래키 VMAX | (5/21 마감) 블래키 vmax(브맥) hr 특일 cgc10
+-    560000원 [REJECT_SEALED] 스탬프박스 피카츄 | (6/1 마감) 히로시마 + 후쿠오카 미개봉 박스
+-    556000원 [REJECT_GRADED] 제크로무 ex | (5/2 마감) 제크로무 레시라무 BWR BRG10 연번
+-    552000원 [REJECT_SEALED] 스탬프박스 피카츄 | [5/2마감 ]151 미개봉박스
+-    550000원 [REJECT_SEALED] 스탬프박스 피카츄 | (5/4마감) 테라스탈페스타 자판기 박스 15개 미개봉
+-    550000원 [REJECT_GRADED] 메가리자몽X ex | (5/21 마감) 메가리자몽x sar brg10
+-    521000원 [REJECT_OVERSEAS_] 레시라무 ex | (5/14 마감) 레시라무 제크로무 bwr ccg 10 세트
+-    514000원 [REJECT_GRADED] 메가루카리오 ex | (6/4 마감) 한판 MUR 메가루카리오 PSA10
+-    514000원 [REJECT_GRADED] 메가리자몽X ex | (6/6 마감) 메가리자몽x sar brg10
+
+## ② SOURCE_MISSING 고가/중요 top30 (원천 복원할 가치 있나) — NEEDS_MANUAL_SOURCE
+-   1117000원 요코하마 피카츄 (WCS) PR 앱1882000 risk=LADDER_BLIND (url없음)
+-   1001000원 메가리자몽Y ex MUR 앱777485 risk= (url없음)
+-    960000원 스탬프박스 피카츄 PR 앱2714385 risk= (url없음)
+-    943000원 스탬프박스 피카츄 PR 앱2714385 risk= (url없음)
+-    940000원 스탬프박스 피카츄 PR 앱2714385 risk= (url없음)
+-    921000원 스탬프박스 피카츄 PR 앱2714385 risk= (url없음)
+-    921000원 스탬프박스 피카츄 PR 앱2714385 risk= (url없음)
+-    880000원 메가리자몽X ex MUR 앱461459 risk= (url없음)
+-    845000원 스탬프박스 피카츄 PR 앱2714385 risk= (url없음)
+-    820000원 스탬프박스 피카츄 PR 앱2714385 risk= (url없음)
+-    601000원 스탬프박스 피카츄 PR 앱2714385 risk= (url없음)
+-    556000원 제크로무 ex BWR 앱131156 risk= (url없음)
+-    552000원 스탬프박스 피카츄 PR 앱2714385 risk= (url없음)
+-    550000원 스탬프박스 피카츄 PR 앱2714385 risk= (url없음)
+-    500000원 블래키 ex SAR 앱541020 risk= (url없음)
+-    500000원 메가팬텀 ex SAR 앱198263 risk= (url없음)
+-    500000원 블래키 ex SAR 앱541020 risk= (url없음)
+-    440000원 메가리자몽X ex MUR 앱461459 risk= (url없음)
+-    431000원 블래키 ex SAR 앱541020 risk= (url없음)
+-    422000원 맥도날드 피카츄 PR 앱58175 risk= (url없음)
+-    405000원 메가리자몽X ex MUR 앱461459 risk= (url없음)
+-    400000원 블래키 ex SAR 앱541020 risk= (url없음)
+-    390000원 제크로무 ex BWR 앱131156 risk= (url없음)
+-    370000원 메가리자몽X ex SAR 앱389241 risk= (url없음)
+-    370000원 메가리자몽X ex SAR 앱389241 risk= (url없음)
+-    342000원 레시라무 ex BWR 앱140612 risk= (url없음)
+-    335000원 블래키 ex SAR 앱541020 risk= (url없음)
+-    330000원 맥도날드 피카츄 PR 앱58175 risk= (url없음)
+-    330000원 메가루카리오 ex MUR 앱197098 risk= (url없음)
+-    326000원 맥도날드 피카츄 PR 앱58175 risk= (url없음)
+
+## ③ PRIORITY top50 (네가 먼저 볼 것 — 분류 말 되나) — 전체 444
+- score7    55000원 테오키스 VSTAR SAR 앱22176 risk=JP_SUSPECT flag=DIRTY | (5/17 경매마감) 브이스타 유니버스 테오키스 VMA
+- score7    51000원 아강의 비장의카드 SR 앱14240 risk=LADDER_BLIND flag=DIRTY | [5/4 마감] BW 아강의 비장의 카드 sr PSA 
+- score7    50000원 카밀레의 반짝임 [서포트 SR 앱17943 risk=JP_SUSPECT flag=DIRTY | (06/06 마감) 카밀레의 반짝임 SR BRG10 /
+- score6    43000원 아강의 비장의카드 SR 앱14240 risk=LADDER_BLIND flag=CLEAN | 6월6일 마감)어비스아이 이슬이의 활기 sr 싱글카드
+- score6    33000원 라티아스&라티오스 GX UR 앱78398 risk=JP_SUSPECT flag=CLEAN | (5/22일마감) 피카츄&제크로무 gx ur 한판 경매
+- score6    26000원 아강의 비장의카드 SR 앱14240 risk=LADDER_BLIND flag=CLEAN | (5/26 마감) 초전브레이커 SR 피카츄 싱글카드
+- score6    25000원 아강의 비장의카드 SR 앱14240 risk=LADDER_BLIND flag=CLEAN | (6/5일 마감) BW 라티오스 SR 및 앨범용 카드
+- score6    16000원 비케 SR 앱5913 risk=DISPLAY_OUTLIER flag=CLEAN | (5/6마감) 썬문 비케
+- score6    12000원 리피아 VSTAR SAR 앱35555 risk=JP_SUSPECT flag=CLEAN | 5/17마감) 리피아 vstar SAR 싱글 
+- score6    10000원 큐레무 ex SAR 앱24197 risk=JP_SUSPECT flag=CLEAN | (5/22마감) 큐레무 sar
+- score6     9000원 카밀레의 반짝임 [서포트 SR 앱17943 risk=JP_SUSPECT flag=CLEAN | (5/11 마감) 카밀레의 반짝임 sr 싱글(퓨전아츠)
+- score6     8000원 카밀레의 반짝임 [서포트 SR 앱17943 risk=JP_SUSPECT flag=CLEAN | (5/7마감) 썬문 서포트 4장
+- score6     8000원 칠색조 GX SSR 앱16992 risk=JP_SUSPECT flag=CLEAN | (5/10마감) 칠색조 GX SSR 싱글
+- score6     8000원 마기아나 EX SR 앱1878 risk=LADDER_BLIND flag=CLEAN | (5/2 마감) xy11 마기아나 ex sr
+- score6     7000원 아강의 비장의카드 SR 앱14240 risk=LADDER_BLIND flag=CLEAN | (5/27 마감) 소드 실드 외 몬스터 SR 카드 12
+- score6     5000원 모미 SR 앱10973 risk=JP_SUSPECT flag=CLEAN | (6/10 마감) 모미 sr
+- score6     2000원 알로라 식스테일 VSTA HR 앱13189 risk=JP_SUSPECT flag=CLEAN | (6/10 마감) 알로라 식스테일 vstar hr 싱글
+- score5  2700009원 판초를 입은 피카츄 PR 앱3105300 risk=LADDER_BLIND flag=DIRTY | (6/7 마감) PSA10 메가캠페인 판초 피카츄
+- score5  1117000원 요코하마 피카츄 (WCS PR 앱1882000 risk=LADDER_BLIND flag=DIRTY | (5월 4일 마감) 요코하마 WCS 피카츄 PSA10
+- score5   500000원 블래키 VMAX HR 앱1226183 risk= flag=CLEAN | [5/19 마감] 블래키 vmax hr 싱글
+- score5   360000원 블래키 VMAX HR 앱1226183 risk= flag=CLEAN | (5/30일마감) 블래키 HR VMAX 특일 싱글 경매
+- score5   360000원 블래키 VMAX HR 앱1226183 risk= flag=CLEAN | (5월 19일 당일마감) 이브이 히어로즈 블래키 브맥특
+- score5   180000원 메가리자몽X ex MUR 앱461459 risk= flag=CLEAN | (4/27 마감) 메가리자몽x mur 싱글
+- score5   180000원 메가개굴닌자 EX MUR 앱358595 risk= flag=CLEAN | (6/5마감) 한글판 MUR 개굴닌자
+- score5   170000원 블래키 ex SAR 앱541020 risk= flag=CLEAN | (05/16 마감) 테라스탈페스타 블래키 sar 싱글
+- score5   162000원 블래키 ex SAR 앱541020 risk= flag=CLEAN | [6/14일 마감] 테라스탈 페스타 블래키 sar 싱글
+- score5   138000원 메가개굴닌자 EX MUR 앱358595 risk= flag=CLEAN | (5/15마감) 메가개굴닌자 MUR 싱글
+- score5   138000원 메가망나뇽 ex SAR 앱301003 risk= flag=CLEAN | [5/14 마감] 메가 망나뇽 EX SAR
+- score5   116000원 블래키 ex SAR 앱541020 risk= flag=CLEAN | (5/17 마감) 블래키 SAR 한판 싱글
+- score5   111000원 잉어킹 AR 앱45190 risk= flag=CLEAN | 당일 마감) 잉어킹 ar 2장 1000원 경매
+- score5   105000원 잉어킹 AR 앱45190 risk= flag=CLEAN | [5/14 마감] 잉어킹 AR CCG10 1000원 경
+- score5   100000원 메가망나뇽 ex SAR 앱301003 risk= flag=CLEAN | [5/14일 마감] 메가 망나뇽 sar 싱글
+- score5    89000원 잉어킹 AR 앱45190 risk= flag=CLEAN | [5/14 마감] 잉어킹 AR CCG10 1000원 경
+- score5    76000원 메가망나뇽 ex SAR 앱301003 risk= flag=CLEAN | (5/16 마감) 한판 메가 망나뇽 sar
+- score5    72000원 잉어킹 AR 앱45190 risk= flag=CLEAN | (4/27마감) ar 3종(이브이 피카츄 잉어킹) 등급
+- score5    72000원 아쿠아단의 가이오가 EX RR 앱142992 risk= flag=CLEAN | (5/17일 마감) 아쿠아단의 가이오가
+- score5    71000원 님피아 ex SAR 앱176308 risk= flag=CLEAN | (5월14일마감)테라스탈페스타 님피아 sar 
+- score5    71000원 메가개굴닌자 ex SAR 앱177656 risk= flag=CLEAN | (6/12 마감) 메가개굴닌자 ex sar
+- score5    70000원 잉어킹 AR 앱45190 risk= flag=CLEAN | (5/25마감) 잉어킹 ar
+- score5    70000원 님피아 ex SAR 앱176308 risk= flag=CLEAN | (5/16마감 경매) 한판 테라스탈페스타 님피아 sar
+- score5    70000원 메가개굴닌자 ex SAR 앱177656 risk= flag=CLEAN | [05/16일 마감] 메가 개굴닌자 ex SAR
+- score5    70000원 잉어킹 AR 앱45190 risk= flag=CLEAN | (5/12마감) 잉어킹 ar
+- score5    67000원 나옹 ex SAR 앱40158 risk= flag=CLEAN | (06/02 마감) 니힐제로 나옹 SAR CCG10
+- score5    61000원 기라티나 VSTAR UR 앱185015 risk= flag=CLEAN | (5/19 당일마감) VSTAR유니버스 기라티나 VST
+- score5    60000원 아쿠아단의 가이오가 EX RR 앱142992 risk= flag=CLEAN | (6/13 마감) 2015 아쿠아단의 가이오가 EX C
+- score5    55000원 라티아스&라티오스 GX UR 앱78398 risk=JP_SUSPECT flag=DIRTY | (5월20일마감) 솔가레오 GX Ur PSA10
+- score5    55000원 포켓몬센터 직원 SR 앱8719 risk= flag=CLEAN | (5/14마감) 무한존 포켓몬센터 직원 프로모
+- score5    55000원 제크로무 ex BWR 앱131156 risk= flag=CLEAN | (6/10마감) bwr 제크로무
+- score5    50000원 에브이 ex SAR 앱110389 risk= flag=CLEAN | (4/27일 마감)나옹 sar 에브이 sar
+- score5    45000원 카밀레의 반짝임 [서포트 SR 앱17943 risk=JP_SUSPECT flag=DIRTY | (06/12 마감) 카밀레의 반짝임 brg10

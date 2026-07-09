@@ -1,0 +1,2462 @@
+[
+ {
+  "code": "BS2026002061",
+  "series": "m3_ja",
+  "ko_name": "나옹 ex",
+  "rarity": "RR",
+  "jp_ref": "m3_ja-61",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025001017",
+  "series": "sv9_ja",
+  "ko_name": "볼케니온 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025001046",
+  "series": "sv9_ja",
+  "ko_name": "맘모꾸리 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025001061",
+  "series": "sv9_ja",
+  "ko_name": "N의 조로아크 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025001069",
+  "series": "sv9_ja",
+  "ko_name": "호브의 자시안 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025001072",
+  "series": "sv9_ja",
+  "ko_name": "보만다 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025001079",
+  "series": "sv9_ja",
+  "ko_name": "노고고치 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025001121",
+  "series": "sv9_ja",
+  "ko_name": "무서운 청년",
+  "rarity": "SR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025005003",
+  "series": "sv9a_ja",
+  "ko_name": "메가자리 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025005032",
+  "series": "sv9a_ja",
+  "ko_name": "어써러셔 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025005035",
+  "series": "sv9a_ja",
+  "ko_name": "에레키블 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025005052",
+  "series": "sv9a_ja",
+  "ko_name": "페퍼의 마피티프 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025006012",
+  "series": "sv10_ja",
+  "ko_name": "올리르바 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025006039",
+  "series": "sv10_ja",
+  "ko_name": "로켓단의 뮤츠 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025006055",
+  "series": "sv10_ja",
+  "ko_name": "레지락 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025006099",
+  "series": "sv10_ja",
+  "ko_name": "로켓단의 트래피더",
+  "rarity": "AR",
+  "jp_ref": "sv10_ja-99",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025007003",
+  "series": "sv11b_ja",
+  "ko_name": "샤로다 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025007031",
+  "series": "sv11b_ja",
+  "ko_name": "큐레무 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025007037",
+  "series": "sv11b_ja",
+  "ko_name": "제크로무 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025007049",
+  "series": "sv11b_ja",
+  "ko_name": "몰드류 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025007103",
+  "series": "sv11b_ja",
+  "ko_name": "활화르바",
+  "rarity": "AR",
+  "jp_ref": "sv11b_ja-103",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025007111",
+  "series": "sv11b_ja",
+  "ko_name": "늑골라",
+  "rarity": "AR",
+  "jp_ref": "sv11b_ja-111",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025007149",
+  "series": "sv11b_ja",
+  "ko_name": "코바르온",
+  "rarity": "AR",
+  "jp_ref": "sv11b_ja-149",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025007150",
+  "series": "sv11b_ja",
+  "ko_name": "터검니",
+  "rarity": "AR",
+  "jp_ref": "sv11b_ja-150",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025008005",
+  "series": "sv11w_ja",
+  "ko_name": "엘풍 ex",
+  "rarity": "RR",
+  "jp_ref": "sv11w_ja-159",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025008017",
+  "series": "sv11w_ja",
+  "ko_name": "레시라무 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025008027",
+  "series": "sv11w_ja",
+  "ko_name": "케르디오 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025008042",
+  "series": "sv11w_ja",
+  "ko_name": "탱탱겔 ex",
+  "rarity": "RR",
+  "jp_ref": "sv11w_ja-42",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025008062",
+  "series": "sv11w_ja",
+  "ko_name": "삼삼드래 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025008075",
+  "series": "sv11w_ja",
+  "ko_name": "버프론 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025008155",
+  "series": "sv11w_ja",
+  "ko_name": "바랜드",
+  "rarity": "AR",
+  "jp_ref": "sv11w_ja-155",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025008158",
+  "series": "sv11w_ja",
+  "ko_name": "토네로스",
+  "rarity": "AR",
+  "jp_ref": "sv11w_ja-158",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025008159",
+  "series": "sv11w_ja",
+  "ko_name": "엘풍 ex",
+  "rarity": "SR",
+  "jp_ref": "sv11w_ja-159",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025008162",
+  "series": "sv11w_ja",
+  "ko_name": "탱탱겔 ex",
+  "rarity": "SR",
+  "jp_ref": "sv11w_ja-162",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025008167",
+  "series": "sv11w_ja",
+  "ko_name": "엘풍 ex",
+  "rarity": "SAR",
+  "jp_ref": "sv11w_ja-159",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025008170",
+  "series": "sv11w_ja",
+  "ko_name": "탱탱겔 ex",
+  "rarity": "SAR",
+  "jp_ref": "sv11w_ja-170",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025009074",
+  "series": "m1l_ja",
+  "ko_name": "깨비참",
+  "rarity": "AR",
+  "jp_ref": "m1l_ja-74",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025014029",
+  "series": "m2_ja",
+  "ko_name": "로토무 ex",
+  "rarity": "RR",
+  "jp_ref": "m2_ja-29",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025014096",
+  "series": "m2_ja",
+  "ko_name": "로토무 ex",
+  "rarity": "SR",
+  "jp_ref": "m2_ja-96",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025014112",
+  "series": "m2_ja",
+  "ko_name": "로토무 ex",
+  "rarity": "SAR",
+  "jp_ref": "m2_ja-112",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025015017",
+  "series": "m2a_ja",
+  "ko_name": "오거폰 벽록의 가면 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025015057",
+  "series": "m2a_ja",
+  "ko_name": "모야모의 찌리배리 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025015060",
+  "series": "m2a_ja",
+  "ko_name": "릴리에의 삐삐 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025015090",
+  "series": "m2a_ja",
+  "ko_name": "난천의 한카리아스 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025015101",
+  "series": "m2a_ja",
+  "ko_name": "로켓단의 크로뱃 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025015114",
+  "series": "m2a_ja",
+  "ko_name": "기로치 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025015119",
+  "series": "m2a_ja",
+  "ko_name": "게노세크트 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2025015229",
+  "series": "m2a_ja",
+  "ko_name": "메가루차불 ex",
+  "rarity": "MA",
+  "jp_ref": "m2a_ja-229",
+  "original_classification": "EXCLUDE_EXACT_REF",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024001154",
+  "series": "sv4a_ja",
+  "ko_name": "시비꼬 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024001337",
+  "series": "sv4a_ja",
+  "ko_name": "시비꼬 ex",
+  "rarity": "SSR",
+  "jp_ref": "sv4a_ja-337",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024001354",
+  "series": "sv4a_ja",
+  "ko_name": "페퍼",
+  "rarity": "SAR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024004005",
+  "series": "sv5k_ja",
+  "ko_name": "토대부기 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024004012",
+  "series": "sv5k_ja",
+  "ko_name": "꿰뚫는화염 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024004024",
+  "series": "sv5k_ja",
+  "ko_name": "굽이치는물결 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024004047",
+  "series": "sv5k_ja",
+  "ko_name": "팬텀 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024004053",
+  "series": "sv5k_ja",
+  "ko_name": "날뛰는우레 ex",
+  "rarity": "RR",
+  "jp_ref": "sv5k_ja-53",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024004082",
+  "series": "sv5k_ja",
+  "ko_name": "치라미",
+  "rarity": "AR",
+  "jp_ref": "sv5k_ja-82",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024004083",
+  "series": "sv5k_ja",
+  "ko_name": "치라치노",
+  "rarity": "AR",
+  "jp_ref": "sv5k_ja-83",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024004089",
+  "series": "sv5k_ja",
+  "ko_name": "날뛰는우레 ex",
+  "rarity": "SR",
+  "jp_ref": "sv5k_ja-89",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024004095",
+  "series": "sv5k_ja",
+  "ko_name": "날뛰는우레 ex",
+  "rarity": "SAR",
+  "jp_ref": "sv5k_ja-95",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024004100",
+  "series": "sv5k_ja",
+  "ko_name": "날뛰는우레 ex",
+  "rarity": "UR",
+  "jp_ref": "sv5k_ja-100",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024005016",
+  "series": "sv5m_ja",
+  "ko_name": "무쇠잎새 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024005022",
+  "series": "sv5m_ja",
+  "ko_name": "어흥염 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024005036",
+  "series": "sv5m_ja",
+  "ko_name": "무쇠감투 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024005042",
+  "series": "sv5m_ja",
+  "ko_name": "키키링 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024005044",
+  "series": "sv5m_ja",
+  "ko_name": "핫삼 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024007009",
+  "series": "sv5a_ja",
+  "ko_name": "그우린차 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024007013",
+  "series": "sv5a_ja",
+  "ko_name": "마그카르고 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024007033",
+  "series": "sv5a_ja",
+  "ko_name": "무쇠가시 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024007040",
+  "series": "sv5a_ja",
+  "ko_name": "우렁찬꼬리 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024007052",
+  "series": "sv5a_ja",
+  "ko_name": "다투곰 붉은 달 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024007076",
+  "series": "sv5a_ja",
+  "ko_name": "대코파스",
+  "rarity": "AR",
+  "jp_ref": "sv5a_ja-76",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024008016",
+  "series": "sv6_ja",
+  "ko_name": "오거폰 벽록의 가면 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024008036",
+  "series": "sv6_ja",
+  "ko_name": "돌핀맨 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024008041",
+  "series": "sv6_ja",
+  "ko_name": "렌트라 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024008085",
+  "series": "sv6_ja",
+  "ko_name": "해피너스 ex",
+  "rarity": "RR",
+  "jp_ref": "sv6_ja-85",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024008113",
+  "series": "sv6_ja",
+  "ko_name": "럭키",
+  "rarity": "AR",
+  "jp_ref": "sv6_ja-113",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024008121",
+  "series": "sv6_ja",
+  "ko_name": "해피너스 ex",
+  "rarity": "SR",
+  "jp_ref": "sv6_ja-121",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024011012",
+  "series": "sv6a_ja",
+  "ko_name": "킹드라 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024011036",
+  "series": "sv6a_ja",
+  "ko_name": "조타구 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024011038",
+  "series": "sv6a_ja",
+  "ko_name": "기로치 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024011039",
+  "series": "sv6a_ja",
+  "ko_name": "복숭악동 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024011076",
+  "series": "sv6a_ja",
+  "ko_name": "이븐곰",
+  "rarity": "AR",
+  "jp_ref": "sv6a_ja-76",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024012018",
+  "series": "sv7_ja",
+  "ko_name": "에이스번 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024012046",
+  "series": "sv7_ja",
+  "ko_name": "바우첼 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024012054",
+  "series": "sv7_ja",
+  "ko_name": "요가램 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024012074",
+  "series": "sv7_ja",
+  "ko_name": "꿈트렁 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024012088",
+  "series": "sv7_ja",
+  "ko_name": "테라파고스 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024016011",
+  "series": "sv7a_ja",
+  "ko_name": "블랙큐레무 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024016019",
+  "series": "sv7a_ja",
+  "ko_name": "라티아스 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024016037",
+  "series": "sv7a_ja",
+  "ko_name": "브리두라스 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024016040",
+  "series": "sv7a_ja",
+  "ko_name": "알로라 나시 ex",
+  "rarity": "RR",
+  "jp_ref": "sv7a_ja-40",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024016081",
+  "series": "sv7a_ja",
+  "ko_name": "알로라 나시 ex",
+  "rarity": "SR",
+  "jp_ref": "sv7a_ja-81",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024016089",
+  "series": "sv7a_ja",
+  "ko_name": "알로라 나시 ex",
+  "rarity": "SAR",
+  "jp_ref": "sv7a_ja-89",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024016092",
+  "series": "sv7a_ja",
+  "ko_name": "알로라 나시 ex",
+  "rarity": "UR",
+  "jp_ref": "sv7a_ja-92",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024017003",
+  "series": "sv8_ja",
+  "ko_name": "아이앤트 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024017023",
+  "series": "sv8_ja",
+  "ko_name": "스코빌런 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024017026",
+  "series": "sv8_ja",
+  "ko_name": "밀로틱 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024017084",
+  "series": "sv8_ja",
+  "ko_name": "게을킹 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024017112",
+  "series": "sv8_ja",
+  "ko_name": "레어코일",
+  "rarity": "AR",
+  "jp_ref": "sv8_ja-112",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019003",
+  "series": "sv8a_ja",
+  "ko_name": "리피아 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019010",
+  "series": "sv8a_ja",
+  "ko_name": "과미드라 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019022",
+  "series": "sv8a_ja",
+  "ko_name": "부스터 ex",
+  "rarity": "RR",
+  "jp_ref": "sv8a_ja-22",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019026",
+  "series": "sv8a_ja",
+  "ko_name": "오거폰 화덕의 가면 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019031",
+  "series": "sv8a_ja",
+  "ko_name": "샤미드 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019041",
+  "series": "sv8a_ja",
+  "ko_name": "글레이시아 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019050",
+  "series": "sv8a_ja",
+  "ko_name": "오거폰 우물의 가면 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019052",
+  "series": "sv8a_ja",
+  "ko_name": "쥬피썬더 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019063",
+  "series": "sv8a_ja",
+  "ko_name": "에브이 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019069",
+  "series": "sv8a_ja",
+  "ko_name": "님피아 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019091",
+  "series": "sv8a_ja",
+  "ko_name": "오거폰 주춧돌의 가면 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019093",
+  "series": "sv8a_ja",
+  "ko_name": "블래키 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019105",
+  "series": "sv8a_ja",
+  "ko_name": "복숭악동 ex",
+  "rarity": "RR",
+  "jp_ref": "sv8a_ja-105",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019117",
+  "series": "sv8a_ja",
+  "ko_name": "타부자고 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019120",
+  "series": "sv8a_ja",
+  "ko_name": "드래펄트 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019124",
+  "series": "sv8a_ja",
+  "ko_name": "날뛰는우레 ex",
+  "rarity": "RR",
+  "jp_ref": "sv8a_ja-124",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019126",
+  "series": "sv8a_ja",
+  "ko_name": "이브이 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2024019222",
+  "series": "sv8a_ja",
+  "ko_name": "날뛰는우레 ex",
+  "rarity": "SAR",
+  "jp_ref": "sv8a_ja-222",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023001013",
+  "series": "swsh12a_ja",
+  "ko_name": "리자몽 V",
+  "rarity": "RR",
+  "jp_ref": "swsh12a_ja-13",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023001020",
+  "series": "swsh12a_ja",
+  "ko_name": "바오키 V",
+  "rarity": "RR",
+  "jp_ref": "swsh12a_ja-20",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023001068",
+  "series": "swsh12a_ja",
+  "ko_name": "러브로스 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023001086",
+  "series": "swsh12a_ja",
+  "ko_name": "히스이 대검귀 V",
+  "rarity": "RR",
+  "jp_ref": "swsh12a_ja-86",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023001107",
+  "series": "swshp_ja",
+  "ko_name": "레쿠쟈 V",
+  "rarity": "RR",
+  "jp_ref": "swshp_ja-3",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023001126",
+  "series": "swsh12a_ja",
+  "ko_name": "아르세우스 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023001130",
+  "series": "swsh12a_ja",
+  "ko_name": "하랑우탄 V",
+  "rarity": "RR",
+  "jp_ref": "swsh12a_ja-130",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023001229",
+  "series": "swsh12a_ja",
+  "ko_name": "히스이 대검귀 V",
+  "rarity": "SAR",
+  "jp_ref": "swsh12a_ja-229",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023007089",
+  "series": "sv1v_ja",
+  "ko_name": "떨구새",
+  "rarity": "AR",
+  "jp_ref": "sv1v_ja-89",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023007100",
+  "series": "sv1v_ja",
+  "ko_name": "페퍼",
+  "rarity": "SR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023007105",
+  "series": "sv1v_ja",
+  "ko_name": "페퍼",
+  "rarity": "SAR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023010075",
+  "series": "sv1a_ja",
+  "ko_name": "나오하",
+  "rarity": "AR",
+  "jp_ref": "sv1a_ja-75",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023011065",
+  "series": "sv2p_ja",
+  "ko_name": "시비꼬 ex",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023011089",
+  "series": "sv2p_ja",
+  "ko_name": "시비꼬 ex",
+  "rarity": "SR",
+  "jp_ref": "sv2p_ja-89",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023011094",
+  "series": "sv2p_ja",
+  "ko_name": "시비꼬 ex",
+  "rarity": "SAR",
+  "jp_ref": "sv2p_ja-94",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023012080",
+  "series": "sv2d_ja",
+  "ko_name": "태깅구르",
+  "rarity": "AR",
+  "jp_ref": "sv2d_ja-80",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023015085",
+  "series": "sv3_ja",
+  "ko_name": "부르르룸 ex",
+  "rarity": "RR",
+  "jp_ref": "sv3_ja-85",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023015127",
+  "series": "sv3_ja",
+  "ko_name": "부르르룸 ex",
+  "rarity": "SR",
+  "jp_ref": "sv3_ja-127",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023015135",
+  "series": "sv3_ja",
+  "ko_name": "부르르룸 ex",
+  "rarity": "SAR",
+  "jp_ref": "sv3_ja-135",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023020050",
+  "series": "sv3a_ja",
+  "ko_name": "타부자고 ex",
+  "rarity": "RR",
+  "jp_ref": "sv3a_ja-50",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023020079",
+  "series": "sv3a_ja",
+  "ko_name": "타부자고 ex",
+  "rarity": "SR",
+  "jp_ref": "sv3a_ja-79",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023020087",
+  "series": "sv3a_ja",
+  "ko_name": "타부자고 ex",
+  "rarity": "SAR",
+  "jp_ref": "sv3a_ja-87",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023021072",
+  "series": "sv4k_ja",
+  "ko_name": "비조도",
+  "rarity": "AR",
+  "jp_ref": "sv4k_ja-72",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023021075",
+  "series": "sv4k_ja",
+  "ko_name": "더스트나",
+  "rarity": "AR",
+  "jp_ref": "sv4k_ja-75",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2023022077",
+  "series": "sv4m_ja",
+  "ko_name": "폴리곤Z",
+  "rarity": "AR",
+  "jp_ref": "sv4m_ja-77",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001019",
+  "series": "swsh8b_ja",
+  "ko_name": "번치코 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001084",
+  "series": "swsh8b_ja",
+  "ko_name": "가라르 썬더 V",
+  "rarity": "RR",
+  "jp_ref": "swsh8b_ja-84",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001100",
+  "series": "swsh8b_ja",
+  "ko_name": "블래키 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001115",
+  "series": "swsh8b_ja",
+  "ko_name": "아머까오 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001118",
+  "series": "swsh8b_ja",
+  "ko_name": "자마젠타 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001119",
+  "series": "swsh8b_ja",
+  "ko_name": "레쿠쟈 V",
+  "rarity": "RR",
+  "jp_ref": "swsh8b_ja-119",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001120",
+  "series": "swsh8b_ja",
+  "ko_name": "레쿠쟈 VMAX",
+  "rarity": "RRR",
+  "jp_ref": "swsh8b_ja-120",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001123",
+  "series": "swsh8b_ja",
+  "ko_name": "두랄루돈 VMAX",
+  "rarity": "RRR",
+  "jp_ref": "swsh8b_ja-123",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001127",
+  "series": "swsh8b_ja",
+  "ko_name": "해피너스 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001196",
+  "series": "swsh8b_ja",
+  "ko_name": "가디안",
+  "rarity": "CHR",
+  "jp_ref": "swsh8b_ja-196",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001198",
+  "series": "swsh8b_ja",
+  "ko_name": "야느와르몽",
+  "rarity": "CHR",
+  "jp_ref": "swsh8b_ja-198",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001201",
+  "series": "swsh8b_ja",
+  "ko_name": "마휘핑",
+  "rarity": "CHR",
+  "jp_ref": "swsh8b_ja-201",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001237",
+  "series": "swsh8b_ja",
+  "ko_name": "가라르 썬더 V",
+  "rarity": "CSR",
+  "jp_ref": "swsh8b_ja-237",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001251",
+  "series": "swsh8b_ja",
+  "ko_name": "자마젠타 V",
+  "rarity": "CSR",
+  "jp_ref": "swsh8b_ja-251",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022001253",
+  "series": "swsh8b_ja",
+  "ko_name": "두랄루돈 VMAX",
+  "rarity": "CSR",
+  "jp_ref": "swsh8b_ja-253",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022002014",
+  "series": "swsh9_ja",
+  "ko_name": "리자몽 V",
+  "rarity": "RR",
+  "jp_ref": "swsh9_ja-14",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022002030",
+  "series": "swsh9_ja",
+  "ko_name": "네오라이트 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022002050",
+  "series": "swsh9_ja",
+  "ko_name": "엘풍 VSTAR",
+  "rarity": "RRR",
+  "jp_ref": "swsh9_ja-50",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022002064",
+  "series": "swsh9_ja",
+  "ko_name": "돈크로우 V",
+  "rarity": "RR",
+  "jp_ref": "swsh9_ja-64",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022002116",
+  "series": "swsh9_ja",
+  "ko_name": "해당의 백업",
+  "rarity": "SR",
+  "jp_ref": "swsh9_ja-116",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022002124",
+  "series": "swsh9_ja",
+  "ko_name": "해당의 백업",
+  "rarity": "HR",
+  "jp_ref": "swsh9_ja-124",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022004085",
+  "series": "swsh9a_ja",
+  "ko_name": "히스이 대검귀 V",
+  "rarity": "RR",
+  "jp_ref": "swsh9a_ja-52",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022004123",
+  "series": "swsh9a_ja",
+  "ko_name": "히스이 대검귀 V",
+  "rarity": "SR",
+  "jp_ref": "swsh9a_ja-78",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022007025",
+  "series": "swsh10d_ja",
+  "ko_name": "지라치 V",
+  "rarity": "RR",
+  "jp_ref": "swsh10d_ja-25",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022007071",
+  "series": "swsh10d_ja",
+  "ko_name": "지라치 V",
+  "rarity": "SR",
+  "jp_ref": "swsh10d_ja-71",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022008058",
+  "series": "swsh10p_ja",
+  "ko_name": "하랑우탄 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022008076",
+  "series": "swsh10p_ja",
+  "ko_name": "하랑우탄 V",
+  "rarity": "SR",
+  "jp_ref": "swsh10p_ja-76",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022011053",
+  "series": "swsh10a_ja",
+  "ko_name": "러브로스 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022011129",
+  "series": "swsh10a_ja",
+  "ko_name": "러브로스 V",
+  "rarity": "SR",
+  "jp_ref": "swsh10a_ja-80",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022011137",
+  "series": "swsh10a_ja",
+  "ko_name": "러브로스 V",
+  "rarity": "CSR",
+  "jp_ref": "swsh10a_ja-88",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022014037",
+  "series": "swsh11_ja",
+  "ko_name": "로토무 V",
+  "rarity": "RR",
+  "jp_ref": "swsh11_ja-37",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022014102",
+  "series": "swsh11_ja",
+  "ko_name": "로토무 V",
+  "rarity": "SR",
+  "jp_ref": "swsh11_ja-103",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022014103",
+  "series": "swsh11_ja",
+  "ko_name": "로토무 V",
+  "rarity": "SR",
+  "jp_ref": "swsh11_ja-104",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022016015",
+  "series": "swsh11a_ja",
+  "ko_name": "레시라무 V",
+  "rarity": "RR",
+  "jp_ref": "swsh11a_ja-15",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022016051",
+  "series": "swsh11a_ja",
+  "ko_name": "마기아나 V",
+  "rarity": "RR",
+  "jp_ref": "swsh11a_ja-51",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022016055",
+  "series": "swsh11a_ja",
+  "ko_name": "칠색조 V",
+  "rarity": "RR",
+  "jp_ref": "swsh11a_ja-55",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022016073",
+  "series": "swsh11a_ja",
+  "ko_name": "루브도",
+  "rarity": "CHR",
+  "jp_ref": "swsh11a_ja-73",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022016076",
+  "series": "swsh11a_ja",
+  "ko_name": "레시라무 V",
+  "rarity": "SR",
+  "jp_ref": "swsh11a_ja-76",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022016079",
+  "series": "swsh11a_ja",
+  "ko_name": "마기아나 V",
+  "rarity": "SR",
+  "jp_ref": "swsh11a_ja-79",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2022016080",
+  "series": "swsh11a_ja",
+  "ko_name": "칠색조 V",
+  "rarity": "SR",
+  "jp_ref": "swsh11a_ja-80",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021001007",
+  "series": "swsh5i_ja",
+  "ko_name": "애프룡 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021001017",
+  "series": "swsh5i_ja",
+  "ko_name": "카푸꼬꼬꼭 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021001027",
+  "series": "swsh5i_ja",
+  "ko_name": "따라큐 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021001036",
+  "series": "swsh5i_ja",
+  "ko_name": "일격 우라오스 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021001046",
+  "series": "swsh5i_ja",
+  "ko_name": "마기라스 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021001059",
+  "series": "swsh5i_ja",
+  "ko_name": "바랜드 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021002004",
+  "series": "swsh5r_ja",
+  "ko_name": "귀뚤톡크 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021002012",
+  "series": "swsh5r_ja",
+  "ko_name": "비크티니 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021002026",
+  "series": "swsh5r_ja",
+  "ko_name": "엠페르트 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021002036",
+  "series": "swsh5r_ja",
+  "ko_name": "네크로즈마 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021002050",
+  "series": "swsh5r_ja",
+  "ko_name": "연격 우라오스 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021002075",
+  "series": "swsh5r_ja",
+  "ko_name": "네크로즈마 V",
+  "rarity": "SR",
+  "jp_ref": "swsh5r_ja-75",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021003023",
+  "series": "swsh5a_ja",
+  "ko_name": "파치래곤 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021003025",
+  "series": "swsh5a_ja",
+  "ko_name": "가라르 프리져 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021003037",
+  "series": "swsh5a_ja",
+  "ko_name": "가라르 썬더 V",
+  "rarity": "RR",
+  "jp_ref": "swsh5a_ja-37",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021003045",
+  "series": "swsh5a_ja",
+  "ko_name": "가라르 파이어 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021003046",
+  "series": "swsh5a_ja",
+  "ko_name": "가라르 야도킹 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021004027",
+  "series": "swsh6h_ja",
+  "ko_name": "백마 버드렉스 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021004029",
+  "series": "swsh6h_ja",
+  "ko_name": "가라르 날쌩마 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021004043",
+  "series": "swsh6h_ja",
+  "ko_name": "사다이사 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021004047",
+  "series": "swsh6h_ja",
+  "ko_name": "레파르다스 V",
+  "rarity": "RR",
+  "jp_ref": "swsh6h_ja-77",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021004077",
+  "series": "swsh6h_ja",
+  "ko_name": "레파르다스 V",
+  "rarity": "SR",
+  "jp_ref": "swsh6h_ja-77",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021005017",
+  "series": "swsh6k_ja",
+  "ko_name": "어치르돈 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021005049",
+  "series": "swsh6k_ja",
+  "ko_name": "메타그로스 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021007002",
+  "series": "swsh6a_ja",
+  "ko_name": "리피아 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021007011",
+  "series": "swsh6a_ja",
+  "ko_name": "부스터 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021007015",
+  "series": "swsh6a_ja",
+  "ko_name": "샤미드 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021007030",
+  "series": "swsh6a_ja",
+  "ko_name": "쥬피썬더 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021007035",
+  "series": "swsh6a_ja",
+  "ko_name": "에브이 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021011015",
+  "series": "swsh7d_ja",
+  "ko_name": "골루그 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021011024",
+  "series": "swsh7d_ja",
+  "ko_name": "루가루암 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021011030",
+  "series": "swsh7d_ja",
+  "ko_name": "더스트나 V",
+  "rarity": "RR",
+  "jp_ref": "swsh7d_ja-31",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021011031",
+  "series": "swsh7d_ja",
+  "ko_name": "더스트나 VMAX",
+  "rarity": "RRR",
+  "jp_ref": "swsh7d_ja-31",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021011046",
+  "series": "swsh7d_ja",
+  "ko_name": "음번 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021011048",
+  "series": "swsh7d_ja",
+  "ko_name": "두랄루돈 V",
+  "rarity": "RR",
+  "jp_ref": "swsh7d_ja-49",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021011049",
+  "series": "swsh7d_ja",
+  "ko_name": "두랄루돈 VMAX",
+  "rarity": "RRR",
+  "jp_ref": "swsh7d_ja-49",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021012007",
+  "series": "swsh7r_ja",
+  "ko_name": "대로트 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021012015",
+  "series": "swsh7r_ja",
+  "ko_name": "불카모스 V",
+  "rarity": "RR",
+  "jp_ref": "swsh7r_ja-15",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021012036",
+  "series": "swsh7r_ja",
+  "ko_name": "요가램 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021012046",
+  "series": "swsh7r_ja",
+  "ko_name": "레쿠쟈 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021012047",
+  "series": "swsh7r_ja",
+  "ko_name": "레쿠쟈 VMAX",
+  "rarity": "RRR",
+  "jp_ref": "swsh7r_ja-47",
+  "original_classification": "EXCLUDE_EXACT_REF",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021015018",
+  "series": "?",
+  "ko_name": "자시안 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021015019",
+  "series": "?",
+  "ko_name": "자마젠타 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021015020",
+  "series": "?",
+  "ko_name": "피카츄 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021015021",
+  "series": "?",
+  "ko_name": "공중날기 피카츄 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021015022",
+  "series": "swsh8a_ja",
+  "ko_name": "공중날기 피카츄 VMAX",
+  "rarity": "RRR",
+  "jp_ref": "swsh8a_ja-22",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021015023",
+  "series": "?",
+  "ko_name": "파도타기 피카츄 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021015024",
+  "series": "swsh8a_ja",
+  "ko_name": "파도타기 피카츄 VMAX",
+  "rarity": "RRR",
+  "jp_ref": "swsh8a_ja-24",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021018015",
+  "series": "swsh8_ja",
+  "ko_name": "샹델라 VMAX",
+  "rarity": "RRR",
+  "jp_ref": "swsh8_ja-15",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021018026",
+  "series": "swsh8_ja",
+  "ko_name": "모단단게 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021018034",
+  "series": "swsh8_ja",
+  "ko_name": "펄스멍 V",
+  "rarity": "RR",
+  "jp_ref": "swsh8_ja-117",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2021018085",
+  "series": "swsh8_ja",
+  "ko_name": "요씽리스 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "EXCLUDE_SAME_ART_AUTO_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2020003044",
+  "series": "swsh1h_ja",
+  "ko_name": "자마젠타 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "UNRESOLVED",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2020003065",
+  "series": "swsh1h_ja",
+  "ko_name": "자마젠타 V",
+  "rarity": "SR",
+  "jp_ref": "swsh1h_ja-65",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2020011064",
+  "series": "swsh3_ja",
+  "ko_name": "무한다이노 V",
+  "rarity": "RR",
+  "jp_ref": "",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2020011066",
+  "series": "swsh3_ja",
+  "ko_name": "핫삼 V",
+  "rarity": "RR",
+  "jp_ref": "swsh3_ja-66",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2020011107",
+  "series": "swsh3_ja",
+  "ko_name": "핫삼 V",
+  "rarity": "SR",
+  "jp_ref": "swsh3_ja-107",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2020012013",
+  "series": "swsh3a_ja",
+  "ko_name": "자루도 V",
+  "rarity": "RR",
+  "jp_ref": "swsh3a_ja-13",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2020012077",
+  "series": "swsh3a_ja",
+  "ko_name": "자루도 V",
+  "rarity": "SR",
+  "jp_ref": "swsh3a_ja-77",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2020014107",
+  "series": "swsh4_ja",
+  "ko_name": "드래피온 V",
+  "rarity": "SR",
+  "jp_ref": "swsh4_ja-107",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "approve",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2020016139",
+  "series": "swsh4a_ja",
+  "ko_name": "자마젠타 V",
+  "rarity": "RR",
+  "jp_ref": "swsh4a_ja-139",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2020016140",
+  "series": "swsh4a_ja",
+  "ko_name": "메타몽 V",
+  "rarity": "RR",
+  "jp_ref": "swsh4a_ja-140",
+  "original_classification": "NEW_CANDIDATE",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ },
+ {
+  "code": "BS2020016323",
+  "series": "swsh4a_ja",
+  "ko_name": "메타몽 V",
+  "rarity": "SSR",
+  "jp_ref": "swsh4a_ja-323",
+  "original_classification": "MANUAL_REVIEW",
+  "reviewer_decision": "",
+  "reviewer_note": ""
+ }
+]

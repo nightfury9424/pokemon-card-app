@@ -1,0 +1,26 @@
+[
+ {
+  "type": "KO",
+  "name": "메가다크라이 ex",
+  "productId": "PRD_C415EEEB7B1D687E78403",
+  "rarityCode": "RR",
+  "collectionNumber": "046/081",
+  "superType": "POKEMON",
+  "subType": null,
+  "officialCardCode": null,
+  "enScrydexRef": null,
+  "jpScrydexRef": "m5_ja-46"
+ },
+ {
+  "type": "KO",
+  "name": "메가다크라이 ex",
+  "productId": "PRD_C415EEEB7B1D687E78403",
+  "rarityCode": "SAR",
+  "collectionNumber": "114/081",
+  "superType": "POKEMON",
+  "subType": null,
+  "officialCardCode": null,
+  "enScrydexRef": null,
+  "jpScrydexRef": "m5_ja-114"
+ }
+]

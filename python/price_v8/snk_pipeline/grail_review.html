@@ -1,0 +1,113 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>grail 과소 — 카드별 확인</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--mut:#9da7b3;--ko:#f85149;--en:#d2a44a;--jp:#3fb950;--snk:#58a6ff;--p10:#bc8cff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#e6edf3;font:13px/1.45 -apple-system,system-ui,sans-serif}
+header{padding:13px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#0d1117f2;backdrop-filter:blur(4px);z-index:5}
+h1{margin:0 0 4px;font-size:17px}.mut{color:var(--mut)}.wrap{max-width:1080px;margin:0 auto;padding:14px}
+.filters{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.filters button{font:inherit;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:#21262d;color:#e6edf3;cursor:pointer}
+.filters button.on{background:#1f6feb;border-color:#1f6feb}
+.card{display:grid;grid-template-columns:150px 1fr;gap:16px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+.imgbox{aspect-ratio:.715;background:#0d1117;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.imgbox img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in}
+.nm{font-size:17px;font-weight:700}.refs{font-size:11px;color:var(--mut);margin:3px 0 12px}
+.bigcmp{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.now{font-size:13px}.now .v{font-size:22px;font-weight:800;color:var(--en)}
+.arrow{font-size:22px;color:var(--mut)}
+.real{font-size:13px}.real .v{font-size:22px;font-weight:800;color:var(--jp)}
+.mult{font-size:15px;font-weight:800;color:#f0883e;background:#f0883e1a;border:1px solid #f0883e55;border-radius:8px;padding:4px 12px}
+.koline{font-size:13px;color:var(--mut);margin:-4px 0 12px}.koline b{font-size:15px}
+.sectit{font-size:11px;font-weight:700;color:var(--mut);margin:10px 0 4px;letter-spacing:.5px}
+.ladder-tbl{display:grid;grid-template-columns:74px 1fr 1fr;gap:2px 16px;font-size:12px;max-width:460px}
+.lr-h{color:var(--mut);font-size:11px;border-bottom:1px solid var(--line);padding-bottom:3px}
+.lr-t{color:var(--mut)}.lr-v{text-align:right;font-variant-numeric:tabular-nums}
+.ladder-note{font-size:11px;color:var(--mut);margin:5px 0 4px}.bad{color:var(--ko);font-weight:600}
+.scen{display:flex;flex-direction:column;gap:5px;max-width:580px}
+.sc{display:grid;grid-template-columns:160px 1fr 160px;gap:10px;align-items:center;padding:6px 10px;border-radius:8px;background:#0d1117;border:1px solid var(--line)}
+.sc-now{border-color:var(--ko)}
+.sc-l{font-size:12px}.sc-f{font-size:11px}.sc-v{text-align:right;font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+.sc-v.now{color:var(--ko)}.sc-v.jp{color:var(--jp)}.sc-v.snk{color:var(--snk)}
+.tbl{display:grid;grid-template-columns:auto auto 1fr;gap:3px 14px;font-size:12px;align-items:center;max-width:560px}
+.tbl .k{color:var(--mut)}.tbl .vv{font-variant-numeric:tabular-nums;text-align:right;font-weight:600}
+.chosen{color:var(--en)}.chip{font-size:10px;padding:1px 6px;border-radius:4px;border:1px solid}
+.badges{margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sev{font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px}
+.e-sel{background:#f0883e;color:#1a1000}.e-snk{background:#3fb950;color:#04130a}.e-thin{background:#d2992233;color:#d29922;border:1px solid #d29922}.e-coef{background:#9da7b322;color:#9da7b3;border:1px solid #555}
+.s-CRITICAL{background:#f8514922;color:#f85149;border:1px solid #f85149}.s-HIGH{background:#d2992222;color:#d29922}.s-MED{background:#9da7b322;color:#9da7b3}
+.ladder{font-size:11px;color:#f85149}
+#zoom{position:fixed;inset:0;background:#000e;display:none;align-items:center;justify-content:center;z-index:50;cursor:zoom-out}#zoom img{max-width:94vw;max-height:94vh;border-radius:8px}
+</style></head><body>
+<header><div class="wrap" style="padding:0">
+<h1>🎴 grail 과소 — 카드별로 직접 확인</h1>
+<div class="mut" id="summary">로딩…</div>
+<div class="filters" id="filters"></div>
+</div></header>
+<div class="wrap"><div id="list" class="mut">로딩…</div></div>
+<div id="zoom" onclick="this.style.display='none'"><img></div>
+<script>
+const won=n=>(!n||n==='0')?'—':'₩'+Number(n).toLocaleString();
+let ALL=[], evFilter='UNDERPRICED';
+const EVS=[['UNDERPRICED','과소후보 (actionable)','e-snk'],['COEF_MISSING','계수없음 (계산불가)','e-thin'],['SELECTION_ONLY','선택버그만 (과소X)','e-coef'],['REVIEW','검토','e-coef'],['ALL','전체','e-coef']];
+function evMeta(e){return EVS.find(x=>x[0]===e)||[e,e,'e-coef']}
+// ① ladder 비교(scrydex JP vs SNK, RAW/PSA10/PSA9) → ② 경우의 수 3개(현재EN/JP/SNK)
+function cmpBlock(r){
+  const promo=r.pricing_mode==='RAW_DIRECT';
+  const jpCoef=r.jp_coef?(+r.jp_coef).toFixed(3):'?';
+  const cf=promo?'raw 그대로(프로모·계수없음)':('JP계수 '+jpCoef);
+  const curf=promo?'raw 그대로(프로모)':('계수 '+r.coef_current);
+  const lr=(t,scry,snk,n)=>`<div class="lr-t">${t}</div><div class="lr-v">${won(scry)}</div><div class="lr-v" style="color:var(--snk)">${won(snk)}${n&&n!=='0'?` <span class="mut">n${n}</span>`:''}</div>`;
+  const ladder=`<div class="sectit">① 티어 비교 — scrydex(JP) vs SNK 실거래</div>
+    <div class="ladder-tbl">
+      <div class="lr-h">티어</div><div class="lr-h">scrydex(JP)</div><div class="lr-h">SNK 실거래</div>
+      ${lr('RAW',r.jp_raw,r.snk_raw,r.snk_n)}
+      ${lr('PSA10',r.jp_p10,r.snk_p10,'')}
+      ${lr('PSA9',r.jp_p9,r.snk_p9,'')}
+    </div>
+    <div class="ladder-note">scrydex 순서 <b>${r.scry_ladder||'—'}</b>${r.scry_broken?` <span class="bad">⚠${r.scry_broken}</span>`:''} · SNK 순서 <b>${r.snk_ladder||'—'}</b>${r.snk_broken?` <span class="bad">⚠${r.snk_broken}</span>`:''} · 시스템 선택=<b style="color:var(--en)">${r.selected_source}</b></div>`;
+  const sc=(lbl,anchor,coefLbl,ko,cls,now)=>`<div class="sc ${now?'sc-now':''}">
+      <div class="sc-l">${lbl}${now?' ←현재':''}</div>
+      <div class="sc-f mut">${anchor} × ${coefLbl}</div>
+      <div class="sc-v ${cls}">${won(ko)}</div></div>`;
+  const scen=`<div class="sectit">② 경우의 수 — 어느 소스를 탔냐에 따라 KO (전부 같은 v6 · JP_raw/계수 없으면 표시안함)</div>
+    <div class="scen">
+      ${sc('현재 · '+r.selected_source+' 선택',won(r.selected_raw_krw),curf,r.ko_current,'now',true)}
+      ${(r.ko_via_jp!=='')?sc('scrydex JP 탔다면',won(r.jp_raw),cf,r.ko_via_jp,'jp',false):''}
+      ${(r.ko_via_snk!=='')?sc('SNK 실거래 탔다면',won(r.snk_raw),cf,r.ko_via_snk,'snk',false):''}
+    </div>${r.coef_missing==='True'?'<div class="koline"><b class="bad">⚠ JP계수 없음 — 시나리오 계산불가(COEF_MISSING)</b></div>':''}`;
+  return ladder+scen;
+}
+async function load(){
+  const r=await fetch('/api/grail?evidence=ALL').then(x=>x.json());
+  ALL=r.rows; mkFilters(r.total); render();
+}
+function mkFilters(total){
+  const f=document.getElementById('filters');
+  f.innerHTML=EVS.map(([k,lbl])=>{const c=ALL.filter(r=>k==='ALL'||r.category===k).length;
+    return `<button data-ev="${k}" class="${k===evFilter?'on':''}">${lbl} ${c}</button>`}).join('');
+  f.querySelectorAll('[data-ev]').forEach(b=>b.onclick=()=>{evFilter=b.dataset.ev;f.querySelectorAll('[data-ev]').forEach(x=>x.classList.toggle('on',x===b));render()});
+}
+function render(){
+  const mx=r=>Math.max(parseFloat(r.mult_jp)||0,parseFloat(r.mult_snk)||0);
+  const rows=ALL.filter(r=>evFilter==='ALL'||r.category===evFilter).sort((a,b)=>mx(b)-mx(a));
+  document.getElementById('summary').textContent=`총 ${ALL.length}장 · 현재필터 ${rows.length}장 · UNDERPRICED(actionable)=${ALL.filter(r=>r.category==='UNDERPRICED').length}`;
+  document.getElementById('list').innerHTML=rows.map(r=>{
+    const [,evLbl,evCls]=evMeta(r.category);
+    return `<div class="card">
+      <div><div class="imgbox"><img src="${r.our_img}" onclick="zoom('${r.our_img}')" onerror="this.style.opacity=.1;this.alt='이미지없음'"></div></div>
+      <div>
+        <div class="nm">${r.name} <span class="mut" style="font-size:13px">${r.rarity} ${r.num}</span></div>
+        <div class="refs">jp:${r.jp_ref} · en:${r.en_ref} · 시스템 선택=${r.selected_source}/계수 ${r.coef_current}</div>
+        ${cmpBlock(r)}
+        <div class="badges">
+          <span class="sev ${evCls}">${evLbl}</span>
+          ${r.selection_bug_raw==='True'?`<span class="mut">· 선택버그(JP_raw>EN_raw)</span>`:''}
+          ${r.underpriced_by_jp==='True'?`<span class="mut">· 과소_JP ×${r.mult_jp}</span>`:''}
+          ${r.underpriced_by_snk==='True'?`<span class="mut">· 과소_SNK ×${r.mult_snk}</span>`:''}
+        </div>
+      </div></div>`;
+  }).join('')||'<div class="mut">없음</div>';
+}
+function zoom(s){if(!s)return;const z=document.getElementById('zoom');z.querySelector('img').src=s;z.style.display='flex'}
+load();
+</script></body></html>
