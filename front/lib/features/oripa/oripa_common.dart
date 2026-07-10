@@ -107,8 +107,9 @@ class OripaPrizeTile extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // mock=asset. 미래 사장님 S3(network)는 imageRef.kind로 분기.
           Image.asset(
-            prize.image,
+            prize.imageRef.value,
             fit: BoxFit.cover,
             errorBuilder: (_, _, _) => Container(
               color: AppColors.surfaceElevated,
@@ -133,7 +134,7 @@ class OripaPrizeTile extends StatelessWidget {
                 ),
               ),
               child: Text(
-                prize.name,
+                prize.displayName,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,

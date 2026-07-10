@@ -125,7 +125,7 @@ class _ResultSheetState extends State<_ResultSheet> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('${widget.result.number}번 상품', style: AppText.caption),
                   const SizedBox(height: 4),
-                  Text(p.name,
+                  Text(p.displayName,
                       style: AppText.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis),

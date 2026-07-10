@@ -66,7 +66,7 @@ class OripaSession extends ChangeNotifier {
     _held.add(HeldItem(
       itemId: 'draw_${r.number}_${_held.length}',
       shopId: shopId,
-      name: r.prize.name,
+      name: r.prize.displayName,
       rarity: '', // 오리파 상품은 rarity 없음(카드 도메인 아님). HeldItem 호환 위해 빈값.
       exchangePoints: r.prize.exchangePoints,
     ));
