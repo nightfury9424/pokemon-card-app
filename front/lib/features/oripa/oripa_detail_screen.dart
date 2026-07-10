@@ -47,9 +47,11 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
     if (!s.canDraw(o)) return;
     final ok = await showDrawConfirmSheet(context, o);
     if (!mounted || ok != true) return;
-    final result = s.confirmDraw(o); // 사전조건 통과 시 원자적 확정(실패=null)
-    if (!mounted || result == null) return;
-    final drawId = s.activeDraw!.drawId; // 콜백을 이 draw에 스코프(지연 콜백 오염 방지)
+    final outcome = s.confirmDraw(o);
+    // 화면 push는 DrawCreated에서만 — alreadyActive(중복탭)/rejected는 재-push 금지(§가드1).
+    if (!mounted || outcome is! DrawCreated) return;
+    final drawId = outcome.drawId; // 콜백을 이 draw에 스코프(지연 콜백 오염 방지)
+    final result = DrawResult(outcome.number, outcome.prize); // 인터im draw 화면용(3b서 제거)
     await context.push('/oripa/draw/${o.oripaId}', extra: result);
     if (!mounted) return;
     await _revealOnBoard(o, result, drawId);

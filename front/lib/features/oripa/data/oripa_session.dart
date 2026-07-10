@@ -15,15 +15,18 @@ enum DrawStatus { committed, revealed, resolved }
 
 enum DrawResolution { keep, exchange }
 
+/// **immutable** — status/resolution을 화면이 직접 못 바꾼다. 전이는 OripaSession의
+/// drawId-scoped 메서드가 `copyWith`로 새 객체를 교체(§가드2).
+@immutable
 class ActiveDraw {
   final String drawId;
   final String oripaId;
   final int number;
   final OripaPrize prize;
   final RevealDescriptor revealDescriptor;
-  DrawStatus status;
-  DrawResolution? resolution;
-  ActiveDraw({
+  final DrawStatus status;
+  final DrawResolution? resolution;
+  const ActiveDraw({
     required this.drawId,
     required this.oripaId,
     required this.number,
@@ -32,6 +35,40 @@ class ActiveDraw {
     this.status = DrawStatus.committed,
     this.resolution,
   });
+
+  ActiveDraw copyWith({DrawStatus? status, DrawResolution? resolution}) => ActiveDraw(
+        drawId: drawId,
+        oripaId: oripaId,
+        number: number,
+        prize: prize,
+        revealDescriptor: revealDescriptor,
+        status: status ?? this.status,
+        resolution: resolution ?? this.resolution,
+      );
+}
+
+/// confirmDraw 결과 — typed outcome. 화면 push는 [DrawCreated]에서만(§가드1).
+enum DrawFailure { insufficientPoints, soldOut, drawInProgress }
+
+sealed class ConfirmDrawOutcome {
+  const ConfirmDrawOutcome();
+}
+
+final class DrawCreated extends ConfirmDrawOutcome {
+  final String drawId;
+  final int number;
+  final OripaPrize prize;
+  const DrawCreated(this.drawId, this.number, this.prize);
+}
+
+final class DrawAlreadyActive extends ConfirmDrawOutcome {
+  final String drawId; // 진행 중인 같은 오리파 draw (재-push 금지)
+  const DrawAlreadyActive(this.drawId);
+}
+
+final class DrawRejected extends ConfirmDrawOutcome {
+  final DrawFailure reason;
+  const DrawRejected(this.reason);
 }
 
 /// STEP 2 in-memory 세션 mock 상태 (ChangeNotifier 싱글톤, AuthState 패턴).
@@ -76,16 +113,18 @@ class OripaSession extends ChangeNotifier {
   /// - #1 전역 active draw 1개: 진행 중(committed/revealed) draw 있으면 새 draw 차단
   ///   (같은 오리파=기존 결과 반환[이중탭 멱등], 다른 오리파=null[거절]).
   /// - #3 포인트 부족 / 매진(유효 번호 없음) → points·taken·cursor·activeDraw **전부 무변경**, null.
-  DrawResult? confirmDraw(OripaProduct o) {
-    // #1 전역 차단 (oripaId 무관).
+  ConfirmDrawOutcome confirmDraw(OripaProduct o) {
+    // #1 전역 차단 (oripaId 무관): 같은 오리파=alreadyActive(재push 금지), 다른 오리파=rejected.
     final cur = _active;
     if (cur != null && cur.status != DrawStatus.resolved) {
-      return cur.oripaId == o.oripaId ? DrawResult(cur.number, cur.prize) : null;
+      return cur.oripaId == o.oripaId
+          ? DrawAlreadyActive(cur.drawId)
+          : const DrawRejected(DrawFailure.drawInProgress);
     }
     // #3 포인트 부족 → 무변경.
-    if (_points < o.pricePerDraw) return null;
+    if (_points < o.pricePerDraw) return const DrawRejected(DrawFailure.insufficientPoints);
     final order = OripaDraw.orderOf(o.oripaId);
-    if (order.isEmpty) return null; // 유효 order 없음 → 세션 상태(_taken/_cursor) 접근 전 종료.
+    if (order.isEmpty) return const DrawRejected(DrawFailure.soldOut); // _taken/_cursor 접근 전 종료.
     // 후보 번호를 **읽기 전용**으로 계산 (아직 _taken/_cursor persist 안 함).
     final taken = _taken[o.oripaId] ??
         OripaDraw.initialTaken(o.oripaId, o.totalSlots, o.soldSlots);
@@ -99,7 +138,7 @@ class OripaSession extends ChangeNotifier {
         break;
       }
     }
-    if (number <= 0) return null; // 매진/유효 번호 없음 → 무변경(_taken/_cursor 미기록).
+    if (number <= 0) return const DrawRejected(DrawFailure.soldOut); // 무변경(_taken/_cursor 미기록).
     // ── 여기부터 확정: 원자적 상태 변경 ──
     _points -= o.pricePerDraw;
     taken.add(number);
@@ -107,15 +146,16 @@ class OripaSession extends ChangeNotifier {
     _cursor[o.oripaId] = i;
     final prize = OripaDraw.prizeForNumber(o.oripaId, number);
     _drawSeq++;
+    final drawId = 'draw_$_drawSeq';
     _active = ActiveDraw(
-      drawId: 'draw_$_drawSeq',
+      drawId: drawId,
       oripaId: o.oripaId,
       number: number,
       prize: prize,
       revealDescriptor: buildRevealDescriptor(prize, number: number),
     );
     notifyListeners();
-    return DrawResult(number, prize);
+    return DrawCreated(drawId, number, prize);
   }
 
   /// hero 완전 표시 시 RevealView가 호출 → REVEALED 전이. **drawId 일치 + COMMITTED에서만**
@@ -123,7 +163,7 @@ class OripaSession extends ChangeNotifier {
   void markRevealed(String drawId) {
     final a = _active;
     if (a == null || a.drawId != drawId || a.status != DrawStatus.committed) return;
-    a.status = DrawStatus.revealed;
+    _active = a.copyWith(status: DrawStatus.revealed);
     notifyListeners();
   }
 
@@ -138,8 +178,7 @@ class OripaSession extends ChangeNotifier {
       rarity: '', // 오리파 상품은 rarity 없음(카드 도메인 아님). HeldItem 호환 위해 빈값.
       exchangePoints: a.prize.exchangePoints,
     ));
-    a.status = DrawStatus.resolved;
-    a.resolution = DrawResolution.keep;
+    _active = a.copyWith(status: DrawStatus.resolved, resolution: DrawResolution.keep);
     notifyListeners();
   }
 
@@ -148,8 +187,7 @@ class OripaSession extends ChangeNotifier {
     final a = _active;
     if (a == null || a.drawId != drawId || a.status != DrawStatus.revealed) return; // 해당 draw·REVEALED에서만(+1회 래치)
     _points += a.prize.exchangePoints;
-    a.status = DrawStatus.resolved;
-    a.resolution = DrawResolution.exchange;
+    _active = a.copyWith(status: DrawStatus.resolved, resolution: DrawResolution.exchange);
     notifyListeners();
   }
 
