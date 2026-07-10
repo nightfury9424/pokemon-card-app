@@ -80,6 +80,13 @@ Widget buildHeroContent(OripaPrize prize) {
   );
 }
 
+/// 리빌 진입 모드 — 잘못된 bool 조합 방지(GPT 안전계약).
+enum RevealEntryMode {
+  fresh, // 신규: header → clues → HERO → hold (onHeroShown + onResultReady)
+  committedRecovery, // COMMITTED+revealStarted 재진입: clue 생략 → HERO 등장 → hold
+  revealedRecovery, // REVEALED 재진입: HERO+결과 즉시, onHeroShown 재호출 금지, hold 없음
+}
+
 /// 개봉 확정 후 결과 리빌 — 오프닝 헤더 → clue 비트(자동진행 + 탭가속) → HERO stage.
 ///
 /// ★ markRevealStarted/markRevealed 세션 전이는 **draw 화면이 배선**(타이밍 계약):
@@ -90,8 +97,7 @@ class RevealView extends StatefulWidget {
   final RevealDescriptor descriptor;
   final RevealConfig config;
   final Widget hero;
-  final bool startAtHero; // 재진입: clue 생략, HERO부터
-  final bool skipHold; // REVEALED 재진입: heroHold 재실행 안 함
+  final RevealEntryMode entryMode;
   final VoidCallback onHeroShown;
   final VoidCallback onResultReady;
   const RevealView({
@@ -101,8 +107,7 @@ class RevealView extends StatefulWidget {
     required this.hero,
     required this.onHeroShown,
     required this.onResultReady,
-    this.startAtHero = false,
-    this.skipHold = false,
+    this.entryMode = RevealEntryMode.fresh,
   });
 
   @override
@@ -112,7 +117,9 @@ class RevealView extends StatefulWidget {
 class _RevealViewState extends State<RevealView> {
   static const int _opening = -1;
   late int _beat; // -1=오프닝 헤더, 0..n-1=clue 비트, n=HERO
-  bool _heroDone = false;
+  bool _heroReached = false;
+  bool _heroShownCalled = false; // exactly-once
+  bool _resultReadyCalled = false; // exactly-once
   Timer? _timer;
 
   int get _heroBeat => widget.descriptor.clues.length;
@@ -120,22 +127,26 @@ class _RevealViewState extends State<RevealView> {
   @override
   void initState() {
     super.initState();
-    if (widget.startAtHero) {
-      _beat = _heroBeat; // clue 생략, HERO 즉시
-      WidgetsBinding.instance.addPostFrameCallback((_) => _heroRendered());
-    } else {
-      _beat = _opening;
-      _timer =
-          Timer(Duration(milliseconds: widget.config.openingLockMs), _next);
+    switch (widget.entryMode) {
+      case RevealEntryMode.fresh:
+        _beat = _opening;
+        _timer =
+            Timer(Duration(milliseconds: widget.config.openingLockMs), _next);
+      case RevealEntryMode.committedRecovery:
+        _beat = _heroBeat; // clue 생략, HERO 즉시 → onHeroShown → hold
+        WidgetsBinding.instance.addPostFrameCallback((_) => _onHeroRendered());
+      case RevealEntryMode.revealedRecovery:
+        _beat = _heroBeat; // 이미 REVEALED → HERO+결과 즉시, onHeroShown 재호출 금지
+        WidgetsBinding.instance.addPostFrameCallback((_) => _fireResultReady());
     }
   }
 
   void _next() {
     _timer?.cancel();
-    if (_beat >= _heroBeat) return;
+    if (!mounted || _beat >= _heroBeat) return;
     setState(() => _beat = _beat + 1);
     if (_beat >= _heroBeat) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _heroRendered());
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onHeroRendered());
     } else {
       _timer = Timer(
           Duration(
@@ -145,17 +156,26 @@ class _RevealViewState extends State<RevealView> {
     }
   }
 
-  void _heroRendered() {
-    if (!mounted || _heroDone) return;
-    _heroDone = true;
-    widget.onHeroShown(); // HERO 실제 렌더 후 → draw 화면이 markRevealed
-    if (widget.skipHold) {
-      widget.onResultReady();
-    } else {
-      _timer = Timer(Duration(milliseconds: widget.config.heroHoldMinMs), () {
-        if (mounted) widget.onResultReady();
-      });
-    }
+  void _onHeroRendered() {
+    if (!mounted || _heroReached) return;
+    _heroReached = true;
+    _fireHeroShown(); // HERO 실제 렌더 후 → draw 화면이 markRevealed
+    // reduceMotion이어도 hold(=pacing)는 유지 — 결과 직행 금지, 콜백 순서 유지.
+    _timer = Timer(Duration(milliseconds: widget.config.heroHoldMinMs), () {
+      if (mounted) _fireResultReady();
+    });
+  }
+
+  void _fireHeroShown() {
+    if (_heroShownCalled) return; // exactly-once
+    _heroShownCalled = true;
+    widget.onHeroShown();
+  }
+
+  void _fireResultReady() {
+    if (_resultReadyCalled) return; // exactly-once
+    _resultReadyCalled = true;
+    widget.onResultReady();
   }
 
   void _onTap() {
