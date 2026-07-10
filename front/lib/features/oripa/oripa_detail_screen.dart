@@ -49,12 +49,14 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
     if (!mounted || ok != true) return;
     final result = s.confirmDraw(o); // 사전조건 통과 시 원자적 확정(실패=null)
     if (!mounted || result == null) return;
+    final drawId = s.activeDraw!.drawId; // 콜백을 이 draw에 스코프(지연 콜백 오염 방지)
     await context.push('/oripa/draw/${o.oripaId}', extra: result);
     if (!mounted) return;
-    await _revealOnBoard(o, result);
+    await _revealOnBoard(o, result, drawId);
   }
 
-  Future<void> _revealOnBoard(OripaProduct o, DrawResult result) async {
+  Future<void> _revealOnBoard(
+      OripaProduct o, DrawResult result, String drawId) async {
     // 1) 스크롤 도착 시점엔 47 상품이 아직 present(빈자리 전환은 lift 뒤)
     _lift.value = 0;
     setState(() => _focus = result.number);
@@ -73,9 +75,10 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
     // 3) 47 상품이 판에서 들려 나옴 → 빈자리 (0.5s 절제된 물리 이동)
     await _lift.forward(from: 0);
     if (!mounted) return;
-    // 4) hero(결과) 공개 → REVEALED 전이 후 결과시트(보관/교환은 REVEALED에서만)
-    OripaSession.instance.markRevealed();
-    final action = await showDrawResultSheet(context, o, result);
+    // 4) hero(결과) 공개 → REVEALED 전이 후 결과시트(보관/교환은 해당 draw·REVEALED에서만)
+    // ※ Stage 3에서 이 markRevealed는 RevealView(HERO 완전표시)로 이관 예정.
+    OripaSession.instance.markRevealed(drawId);
+    final action = await showDrawResultSheet(context, o, result, drawId);
     if (!mounted) return;
     if (action == 'again') _startDraw(o);
   }

@@ -46,7 +46,7 @@ Future<bool?> showDrawConfirmSheet(BuildContext context, OripaProduct o) {
 
 /// 결과 시트 — 보관/교환 후 다시뽑기/돌아가기. 'again' | 'back' 반환. 결과 전 dismiss 불가.
 Future<String?> showDrawResultSheet(
-    BuildContext context, OripaProduct o, DrawResult result) {
+    BuildContext context, OripaProduct o, DrawResult result, String drawId) {
   return showModalBottomSheet<String>(
     context: context,
     isDismissible: false,
@@ -57,7 +57,7 @@ Future<String?> showDrawResultSheet(
     ),
     builder: (ctx) => PopScope(
       canPop: false,
-      child: _ResultSheet(oripa: o, result: result),
+      child: _ResultSheet(oripa: o, result: result, drawId: drawId),
     ),
   );
 }
@@ -96,7 +96,9 @@ Widget sheetButton(String label,
 class _ResultSheet extends StatefulWidget {
   final OripaProduct oripa;
   final DrawResult result;
-  const _ResultSheet({required this.oripa, required this.result});
+  final String drawId;
+  const _ResultSheet(
+      {required this.oripa, required this.result, required this.drawId});
   @override
   State<_ResultSheet> createState() => _ResultSheetState();
 }
@@ -139,14 +141,14 @@ class _ResultSheetState extends State<_ResultSheet> {
               Row(children: [
                 Expanded(
                     child: sheetButton('보관하기', filled: false, onTap: () {
-                  s.keepPrize(widget.oripa.shopId);
+                  s.keepPrize(widget.drawId, widget.oripa.shopId);
                   setState(() => _done = 'kept');
                 })),
                 const SizedBox(width: 10),
                 Expanded(
                     child: sheetButton('${formatPoint(p.exchangePoints)}로 교환',
                         filled: true, onTap: () {
-                  s.exchangePrize();
+                  s.exchangePrize(widget.drawId);
                   setState(() => _done = 'exchanged');
                 })),
               ])
