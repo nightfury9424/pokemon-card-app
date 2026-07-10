@@ -180,7 +180,13 @@ class OripaSession extends ChangeNotifier {
   /// (지연 콜백/오래된 화면이 새 draw를 오염하지 못하게).
   void markRevealed(String drawId) {
     final a = _active;
-    if (a == null || a.drawId != drawId || a.status != DrawStatus.committed) return;
+    // 상품 확인 CTA를 거쳐 revealStarted=true인 draw만 REVEALED로. (CTA 미경유 전이 차단)
+    if (a == null ||
+        a.drawId != drawId ||
+        a.status != DrawStatus.committed ||
+        !a.revealStarted) {
+      return;
+    }
     _active = a.copyWith(status: DrawStatus.revealed);
     notifyListeners();
   }

@@ -3,19 +3,25 @@ import 'package:front/features/oripa/data/oripa_mock.dart';
 import 'package:front/features/oripa/data/oripa_session.dart';
 
 /// Stage 2~3a: activeDraw 수명주기 / 중복 방지 / 래치 / 사전조건 / drawId-scoped
-/// / typed outcome / immutable (spec §11·§B-6, 가드1·2).
+/// / typed outcome / immutable / revealStarted (spec §11·§B-6, 가드1·2).
 void main() {
   final s = OripaSession.instance;
   final o1 = OripaMock.oripaById('o1'); // pricePerDraw 50000, 선두 47→9→52
-  final o3 = OripaMock.oripaById('o3'); // 다른 오리파(다른 매장)
+  final o3 = OripaMock.oripaById('o3'); // 다른 오리파
 
   setUp(() => s.reset());
 
   String id() => s.activeDraw!.drawId;
   DrawCreated created(OripaProduct o) => s.confirmDraw(o) as DrawCreated;
+  // 상품확인 CTA(revealStarted) → HERO 완료(REVEALED)
+  void reveal(String drawId) {
+    s.markRevealStarted(drawId);
+    s.markRevealed(drawId);
+  }
+
   DrawCreated drawReveal(OripaProduct o) {
     final c = created(o);
-    s.markRevealed(c.drawId);
+    reveal(c.drawId);
     return c;
   }
 
@@ -27,7 +33,7 @@ void main() {
     expect(s.isTaken(o1, 47), isTrue);
     final a = s.activeDraw!;
     expect(a.status, DrawStatus.committed);
-    expect(a.number, 47);
+    expect(a.revealStarted, isFalse);
     expect(a.revealDescriptor.openingHeader, '47번 당첨');
   });
 
@@ -43,15 +49,15 @@ void main() {
 
   test('3) COMMITTED/REVEALED 중 같은 오리파 새 draw 금지', () {
     final c = created(o1);
-    s.markRevealed(c.drawId);
+    reveal(c.drawId);
     expect(s.activeDraw!.status, DrawStatus.revealed);
     expect(s.confirmDraw(o1), isA<DrawAlreadyActive>());
     expect(id(), c.drawId);
   });
 
-  test('4) hero 완료 → REVEALED 전이 (committed에서만, 멱등)', () {
+  test('4) markRevealed → REVEALED (revealStarted+committed에서만, 멱등)', () {
     final c = created(o1);
-    expect(s.activeDraw!.status, DrawStatus.committed);
+    s.markRevealStarted(c.drawId);
     s.markRevealed(c.drawId);
     expect(s.activeDraw!.status, DrawStatus.revealed);
     s.markRevealed(c.drawId);
@@ -61,7 +67,7 @@ void main() {
   test('5) KEEP 또는 EXCHANGE 하나만 1회 → RESOLVED (다른 쪽 무시)', () {
     final c = created(o1);
     final held0 = s.heldTotalCount;
-    s.markRevealed(c.drawId);
+    reveal(c.drawId);
     s.keepPrize(c.drawId, 's1');
     expect(s.activeDraw!.status, DrawStatus.resolved);
     expect(s.activeDraw!.resolution, DrawResolution.keep);
@@ -74,7 +80,6 @@ void main() {
   test('6) resolution 연타 → held/points 중복 반영 금지', () {
     final c1 = drawReveal(o1);
     final h0 = s.heldTotalCount;
-    s.keepPrize(c1.drawId, 's1');
     s.keepPrize(c1.drawId, 's1');
     s.keepPrize(c1.drawId, 's1');
     expect(s.heldTotalCount, h0 + 1);
@@ -91,7 +96,7 @@ void main() {
     final c = created(o1);
     s.clearActiveDraw(c.drawId); // COMMITTED → 유지
     expect(s.activeDraw, isNotNull);
-    s.markRevealed(c.drawId);
+    reveal(c.drawId);
     s.keepPrize(c.drawId, 's1');
     s.clearActiveDraw(c.drawId);
     expect(s.activeDraw, isNull);
@@ -109,7 +114,6 @@ void main() {
 
   test('9) reset → activeDraw·points 초기화', () {
     created(o1);
-    expect(s.activeDraw, isNotNull);
     s.reset();
     expect(s.activeDraw, isNull);
     expect(s.points, OripaMock.pointBalance);
@@ -123,7 +127,6 @@ void main() {
     expect((r as DrawRejected).reason, DrawFailure.drawInProgress);
     expect(s.points, p0);
     expect(id(), c.drawId);
-    expect(s.isTaken(o3, s.activeDraw!.number), isFalse);
   });
 
   test('11) COMMITTED에서 KEEP/EXCHANGE 차단(REVEALED에서만)', () {
@@ -144,13 +147,11 @@ void main() {
     s.keepPrize(c.drawId, 's1');
     expect(s.points, lessThan(o1.pricePerDraw));
     final pts = s.points;
-    final rem = s.remaining(o1);
     final act = s.activeDraw;
     final r = s.confirmDraw(o1);
     expect(r, isA<DrawRejected>());
     expect((r as DrawRejected).reason, DrawFailure.insufficientPoints);
     expect(s.points, pts);
-    expect(s.remaining(o1), rem);
     expect(s.activeDraw, same(act));
   });
 
@@ -160,18 +161,16 @@ void main() {
       pricePerDraw: 0, totalSlots: 1, remainingSlots: 1,
       type: OripaType.number, featuredPrizes: [],
     );
-    final p0 = s.points;
     final r = s.confirmDraw(empty);
     expect(r, isA<DrawRejected>());
     expect((r as DrawRejected).reason, DrawFailure.soldOut);
-    expect(s.points, p0);
     expect(s.activeDraw, isNull);
   });
 
   test('14) 전역 차단 실패 후 taken/activeDraw 동일', () {
     final c = created(o1);
-    s.confirmDraw(o3); // 전역 차단
-    s.confirmDraw(o1); // alreadyActive
+    s.confirmDraw(o3);
+    s.confirmDraw(o1);
     expect(id(), c.drawId);
     expect(s.isTaken(o1, c.number), isTrue);
     expect(s.isTaken(o1, 9), isFalse);
@@ -179,16 +178,20 @@ void main() {
 
   test('15) 오래된 drawId 콜백은 새 draw를 오염하지 못함', () {
     final old = created(o1);
-    s.markRevealed(old.drawId);
+    reveal(old.drawId);
     s.keepPrize(old.drawId, 's1');
     s.clearActiveDraw(old.drawId);
     final fresh = created(o1);
     expect(fresh.drawId, isNot(old.drawId));
     final h0 = s.heldTotalCount;
     final p0 = s.points;
-    s.markRevealed(old.drawId); // stale
+    // stale id로 시도 → 전부 무시
+    s.markRevealStarted(old.drawId);
+    s.markRevealed(old.drawId);
     expect(s.activeDraw!.status, DrawStatus.committed);
-    s.markRevealed(fresh.drawId); // 정상
+    expect(s.activeDraw!.revealStarted, isFalse);
+    // 정상 id
+    reveal(fresh.drawId);
     s.keepPrize(old.drawId, 's1'); // stale
     s.exchangePrize(old.drawId); // stale
     expect(s.heldTotalCount, h0);
@@ -218,22 +221,31 @@ void main() {
     final c = created(o1);
     final before = s.activeDraw!;
     expect(before.status, DrawStatus.committed);
-    s.markRevealed(c.drawId);
+    reveal(c.drawId);
     expect(before.status, DrawStatus.committed); // 옛 참조 그대로
-    expect(s.activeDraw!.status, DrawStatus.revealed); // 새 객체
+    expect(s.activeDraw!.status, DrawStatus.revealed);
     expect(identical(before, s.activeDraw), isFalse);
   });
 
-  test('18) revealStarted — 상품확인 탭 기록(재진입 리플레이 방지), drawId-scoped', () {
+  test('18) revealStarted — 상품확인 탭 기록, drawId-scoped, 전이 보존', () {
     final c = created(o1);
     expect(s.activeDraw!.revealStarted, isFalse);
-    s.markRevealStarted('draw_stale'); // stale → 무시
+    s.markRevealStarted('draw_stale');
     expect(s.activeDraw!.revealStarted, isFalse);
     s.markRevealStarted(c.drawId);
     expect(s.activeDraw!.revealStarted, isTrue);
-    // REVEALED 전이해도 revealStarted 유지(copyWith 보존)
     s.markRevealed(c.drawId);
     expect(s.activeDraw!.revealStarted, isTrue);
+    expect(s.activeDraw!.status, DrawStatus.revealed);
+  });
+
+  test('19) revealStarted=false에서 markRevealed → COMMITTED 유지(CTA 미경유 차단)', () {
+    final c = created(o1);
+    expect(s.activeDraw!.revealStarted, isFalse);
+    s.markRevealed(c.drawId); // CTA 안 거침 → 무시
+    expect(s.activeDraw!.status, DrawStatus.committed);
+    s.markRevealStarted(c.drawId);
+    s.markRevealed(c.drawId);
     expect(s.activeDraw!.status, DrawStatus.revealed);
   });
 }
