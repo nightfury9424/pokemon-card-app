@@ -223,4 +223,17 @@ void main() {
     expect(s.activeDraw!.status, DrawStatus.revealed); // 새 객체
     expect(identical(before, s.activeDraw), isFalse);
   });
+
+  test('18) revealStarted — 상품확인 탭 기록(재진입 리플레이 방지), drawId-scoped', () {
+    final c = created(o1);
+    expect(s.activeDraw!.revealStarted, isFalse);
+    s.markRevealStarted('draw_stale'); // stale → 무시
+    expect(s.activeDraw!.revealStarted, isFalse);
+    s.markRevealStarted(c.drawId);
+    expect(s.activeDraw!.revealStarted, isTrue);
+    // REVEALED 전이해도 revealStarted 유지(copyWith 보존)
+    s.markRevealed(c.drawId);
+    expect(s.activeDraw!.revealStarted, isTrue);
+    expect(s.activeDraw!.status, DrawStatus.revealed);
+  });
 }

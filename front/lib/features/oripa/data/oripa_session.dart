@@ -26,6 +26,7 @@ class ActiveDraw {
   final RevealDescriptor revealDescriptor;
   final DrawStatus status;
   final DrawResolution? resolution;
+  final bool revealStarted; // [N번 상품 확인하기] 탭으로 리빌 진입했는지(재진입 리플레이 방지)
   const ActiveDraw({
     required this.drawId,
     required this.oripaId,
@@ -34,9 +35,11 @@ class ActiveDraw {
     required this.revealDescriptor,
     this.status = DrawStatus.committed,
     this.resolution,
+    this.revealStarted = false,
   });
 
-  ActiveDraw copyWith({DrawStatus? status, DrawResolution? resolution}) => ActiveDraw(
+  ActiveDraw copyWith({DrawStatus? status, DrawResolution? resolution, bool? revealStarted}) =>
+      ActiveDraw(
         drawId: drawId,
         oripaId: oripaId,
         number: number,
@@ -44,6 +47,7 @@ class ActiveDraw {
         revealDescriptor: revealDescriptor,
         status: status ?? this.status,
         resolution: resolution ?? this.resolution,
+        revealStarted: revealStarted ?? this.revealStarted,
       );
 }
 
@@ -156,6 +160,20 @@ class OripaSession extends ChangeNotifier {
     );
     notifyListeners();
     return DrawCreated(drawId, number, prize);
+  }
+
+  /// [N번 상품 확인하기] 탭 → 리빌 진입 기록. 재진입 시 추출/peel/clue 리플레이 없이
+  /// HERO로 복구하기 위한 신호. **drawId 일치 + COMMITTED에서만**(멱등).
+  void markRevealStarted(String drawId) {
+    final a = _active;
+    if (a == null ||
+        a.drawId != drawId ||
+        a.status != DrawStatus.committed ||
+        a.revealStarted) {
+      return;
+    }
+    _active = a.copyWith(revealStarted: true);
+    notifyListeners();
   }
 
   /// hero 완전 표시 시 RevealView가 호출 → REVEALED 전이. **drawId 일치 + COMMITTED에서만**
