@@ -59,10 +59,8 @@ sealed class ConfirmDrawOutcome {
 }
 
 final class DrawCreated extends ConfirmDrawOutcome {
-  final String drawId;
-  final int number;
-  final OripaPrize prize;
-  const DrawCreated(this.drawId, this.number, this.prize);
+  final String drawId; // ★number/prize/descriptor는 session.activeDraw에서만 읽음(단일 진실원)
+  const DrawCreated(this.drawId);
 }
 
 final class DrawAlreadyActive extends ConfirmDrawOutcome {
@@ -159,7 +157,7 @@ class OripaSession extends ChangeNotifier {
       revealDescriptor: buildRevealDescriptor(prize, number: number),
     );
     notifyListeners();
-    return DrawCreated(drawId, number, prize);
+    return DrawCreated(drawId);
   }
 
   /// [N번 상품 확인하기] 탭 → 리빌 진입 기록. 재진입 시 추출/peel/clue 리플레이 없이

@@ -48,7 +48,10 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
     // ── 복구: 이 오리파에 진행 중 active draw가 있으면 확인시트 없이 재개 ──
     // (화면 재생성/route 전환 실패로 draw route가 닫혔어도 결과로 돌아갈 수 있게, §가드1 복구 계약)
     final active = s.activeDraw;
-    if (active != null && active.oripaId == o.oripaId) {
+    // RESOLVED는 재개 대상 아님(완료된 draw). COMMITTED/REVEALED만 복구.
+    if (active != null &&
+        active.oripaId == o.oripaId &&
+        active.status != DrawStatus.resolved) {
       if (!_drawOpen) {
         await _openDraw(o, active.drawId, DrawResult(active.number, active.prize));
       }
@@ -58,8 +61,9 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
     final ok = await showDrawConfirmSheet(context, o);
     if (!mounted || ok != true) return;
     switch (s.confirmDraw(o)) {
-      case DrawCreated(:final drawId, :final number, :final prize):
-        await _openDraw(o, drawId, DrawResult(number, prize));
+      case DrawCreated(:final drawId):
+        final a = s.activeDraw!; // 방금 생성된 draw (단일 진실원)
+        await _openDraw(o, drawId, DrawResult(a.number, a.prize));
       case DrawAlreadyActive(:final drawId):
         // 확인시트 도중 다른 경로로 생성됐다면 방어적 재개.
         final a = s.activeDraw;

@@ -27,11 +27,11 @@ void main() {
 
   test('1) commit 1회 → points 차감·taken·activeDraw(COMMITTED) 정확히 1회', () {
     final p0 = s.points;
-    final c = created(o1);
-    expect(c.number, 47);
+    created(o1);
     expect(s.points, p0 - o1.pricePerDraw);
     expect(s.isTaken(o1, 47), isTrue);
     final a = s.activeDraw!;
+    expect(a.number, 47);
     expect(a.status, DrawStatus.committed);
     expect(a.revealStarted, isFalse);
     expect(a.revealDescriptor.openingHeader, '47번 당첨');
@@ -104,12 +104,14 @@ void main() {
 
   test('8) 다시 뽑기 → 이전 RESOLVED를 새 COMMITTED로 원자 교체', () {
     final c1 = drawReveal(o1);
+    final n1 = s.activeDraw!.number;
     s.keepPrize(c1.drawId, 's1');
     final c2 = created(o1);
+    final n2 = s.activeDraw!.number;
     expect(c2.drawId, isNot(c1.drawId));
     expect(s.activeDraw!.status, DrawStatus.committed);
-    expect(c1.number, 47);
-    expect(c2.number, 9);
+    expect(n1, 47);
+    expect(n2, 9);
   });
 
   test('9) reset → activeDraw·points 초기화', () {
@@ -172,7 +174,7 @@ void main() {
     s.confirmDraw(o3);
     s.confirmDraw(o1);
     expect(id(), c.drawId);
-    expect(s.isTaken(o1, c.number), isTrue);
+    expect(s.isTaken(o1, s.activeDraw!.number), isTrue);
     expect(s.isTaken(o1, 9), isFalse);
   });
 
