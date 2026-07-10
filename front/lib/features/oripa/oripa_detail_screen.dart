@@ -26,6 +26,7 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
   final Map<int, GlobalKey> _slotKeys = {};
   late final AnimationController _lift; // 47 상품이 판에서 빠지는 물리 이동(0.5s)
   int? _focus;
+  bool _drawOpen = false; // draw route가 현재 열려 있는지(중복 push 방지)
 
   @override
   void initState() {
@@ -44,17 +45,70 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
   Future<void> _startDraw(OripaProduct o) async {
     if (!mounted) return;
     final s = OripaSession.instance;
-    if (!s.canDraw(o)) return;
+    // ── 복구: 이 오리파에 진행 중 active draw가 있으면 확인시트 없이 재개 ──
+    // (화면 재생성/route 전환 실패로 draw route가 닫혔어도 결과로 돌아갈 수 있게, §가드1 복구 계약)
+    final active = s.activeDraw;
+    if (active != null && active.oripaId == o.oripaId) {
+      if (!_drawOpen) {
+        await _openDraw(o, active.drawId, DrawResult(active.number, active.prize));
+      }
+      return; // 이미 열려 있으면 무시
+    }
+    // ── 신규 draw ──
     final ok = await showDrawConfirmSheet(context, o);
     if (!mounted || ok != true) return;
-    final outcome = s.confirmDraw(o);
-    // 화면 push는 DrawCreated에서만 — alreadyActive(중복탭)/rejected는 재-push 금지(§가드1).
-    if (!mounted || outcome is! DrawCreated) return;
-    final drawId = outcome.drawId; // 콜백을 이 draw에 스코프(지연 콜백 오염 방지)
-    final result = DrawResult(outcome.number, outcome.prize); // 인터im draw 화면용(3b서 제거)
-    await context.push('/oripa/draw/${o.oripaId}', extra: result);
-    if (!mounted) return;
-    await _revealOnBoard(o, result, drawId);
+    switch (s.confirmDraw(o)) {
+      case DrawCreated(:final drawId, :final number, :final prize):
+        await _openDraw(o, drawId, DrawResult(number, prize));
+      case DrawAlreadyActive(:final drawId):
+        // 확인시트 도중 다른 경로로 생성됐다면 방어적 재개.
+        final a = s.activeDraw;
+        if (!_drawOpen && a != null && a.drawId == drawId) {
+          await _openDraw(o, drawId, DrawResult(a.number, a.prize));
+        }
+      case DrawRejected(:final reason):
+        _showFailure(reason);
+    }
+  }
+
+  /// draw route 진입 + 결과 연출. `_drawOpen`으로 중복 push 방지.
+  Future<void> _openDraw(OripaProduct o, String drawId, DrawResult result) async {
+    if (_drawOpen) return;
+    _drawOpen = true;
+    try {
+      await context.push('/oripa/draw/${o.oripaId}', extra: result);
+      if (!mounted) return;
+      await _revealOnBoard(o, result, drawId);
+    } finally {
+      _drawOpen = false;
+    }
+  }
+
+  /// 뽑기 실패 안내. drawInProgress는 진행 중 draw로 이동하는 CTA 제공.
+  void _showFailure(DrawFailure reason) {
+    final s = OripaSession.instance;
+    final String msg;
+    var resume = false;
+    switch (reason) {
+      case DrawFailure.insufficientPoints:
+        msg = '포인트가 부족합니다.';
+      case DrawFailure.soldOut:
+        msg = '매진되었습니다.';
+      case DrawFailure.drawInProgress:
+        msg = '다른 오리파 뽑기가 진행 중입니다. 진행 중인 결과를 먼저 확인해 주세요.';
+        resume = true;
+    }
+    final a = s.activeDraw;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      action: (resume && a != null)
+          ? SnackBarAction(
+              label: '이어보기',
+              onPressed: () => _openDraw(OripaMock.oripaById(a.oripaId), a.drawId,
+                  DrawResult(a.number, a.prize)),
+            )
+          : null,
+    ));
   }
 
   Future<void> _revealOnBoard(
