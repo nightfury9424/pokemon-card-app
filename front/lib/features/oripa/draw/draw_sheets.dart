@@ -139,14 +139,14 @@ class _ResultSheetState extends State<_ResultSheet> {
               Row(children: [
                 Expanded(
                     child: sheetButton('보관하기', filled: false, onTap: () {
-                  s.keepPrize(widget.oripa.shopId, widget.result);
+                  s.keepPrize(widget.oripa.shopId);
                   setState(() => _done = 'kept');
                 })),
                 const SizedBox(width: 10),
                 Expanded(
                     child: sheetButton('${formatPoint(p.exchangePoints)}로 교환',
                         filled: true, onTap: () {
-                  s.exchangePrize(widget.result);
+                  s.exchangePrize();
                   setState(() => _done = 'exchanged');
                 })),
               ])
