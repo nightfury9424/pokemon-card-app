@@ -165,9 +165,11 @@ class OripaDraw {
 
   /// 번호 → 상품(결정론). 모든 번호가 실 상품. override 없으면 필러(catalog 3~7=RAW).
   static const Map<String, Map<int, int>> _override = {
-    'o1': {47: 0, 9: 1, 52: 2, 88: 0, 5: 1, 100: 2, 18: 8, 30: 9, 60: 10},
-    'o3': {13: 0, 41: 1, 77: 2, 55: 8},
-    'o5': {7: 0, 50: 1, 88: 2, 33: 8, 66: 9},
+    // ★데모 상품 번호(8=Graded·9=Pack·10=Goods)는 초기 taken에 없어야 draw로 노출됨(test로 검증).
+    // 53/30/61 = o1 초기 taken(§3)에 없는 미획득 번호. 18·60은 taken이라 폐기.
+    'o1': {47: 0, 9: 1, 52: 2, 88: 0, 5: 1, 100: 2, 53: 8, 30: 9, 61: 10},
+    'o3': {13: 0, 41: 1, 77: 2},
+    'o5': {7: 0, 50: 1, 88: 2},
   };
 
   static OripaPrize prizeForNumber(String oripaId, int n) {

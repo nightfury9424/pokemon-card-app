@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:front/features/oripa/data/oripa_prizes.dart';
 import 'package:front/features/oripa/data/reveal_models.dart';
+import 'package:front/features/oripa/data/reveal_fixtures.dart';
 
 void main() {
   group('sealed OripaPrize catalog', () {
@@ -116,6 +117,45 @@ void main() {
       expect(dc.intensity, RevealIntensity.normal);
       expect(dd.intensity, RevealIntensity.jackpot);
       expect(dc.clueBeatCount, dd.clueBeatCount); // 강도 달라도 비트 수 동일
+    });
+  });
+
+  group('데모 상품 draw 가능성 (override 번호 un-taken)', () {
+    test('o1 Graded/Pack/Goods 번호는 초기 taken에 없어 draw 가능', () {
+      final taken = OripaDraw.initialTaken('o1', 100, 37);
+      for (final n in [53, 30, 61]) {
+        expect(taken.contains(n), isFalse,
+            reason: '$n번이 taken이면 해당 상품이 draw로 안 나옴');
+      }
+    });
+    test('o1 데모 번호 → 기대 타입', () {
+      expect(OripaDraw.prizeForNumber('o1', 53), isA<GradedCardPrize>());
+      expect(OripaDraw.prizeForNumber('o1', 30), isA<SealedPackPrize>());
+      expect(OripaDraw.prizeForNumber('o1', 61), isA<GoodsPrize>());
+    });
+  });
+
+  group('리빌 프로토타입 fixture (실제 draw와 독립)', () {
+    test('RAW_HIT fixture → RAW·SAR·테라스탈·블래키, HIT 강도', () {
+      final d = buildRevealDescriptor(RevealFixtures.rawHit, number: 47);
+      expect(d.profile, RevealProfile.numberedConfirmRaw);
+      expect(d.clues.map((c) => c.text).toList(),
+          ['RAW', 'SAR', '테라스탈 페스타 ex', '블래키 ex']);
+      expect(d.intensity, RevealIntensity.hit);
+    });
+    test('GRADED_HIT fixture → BRG·10·AR·인페르노·팽도리', () {
+      final d = buildRevealDescriptor(RevealFixtures.gradedHit, number: 18);
+      expect(d.profile, RevealProfile.numberedConfirmGraded);
+      expect(d.clues.map((c) => c.text).toList(),
+          ['BRG', '10', 'AR', '인페르노', '팽도리']);
+      expect(d.intensity, RevealIntensity.hit);
+    });
+    test('RAW_NORMAL fixture → clue 4개, NORMAL 강도 (RAW_HIT와 비트 수 동일)', () {
+      final n = buildRevealDescriptor(RevealFixtures.rawNormal, number: 1);
+      final h = buildRevealDescriptor(RevealFixtures.rawHit, number: 1);
+      expect(n.clueBeatCount, 4);
+      expect(n.clueBeatCount, h.clueBeatCount);
+      expect(n.intensity, RevealIntensity.normal);
     });
   });
 }

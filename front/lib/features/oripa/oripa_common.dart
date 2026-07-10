@@ -93,9 +93,30 @@ class OripaSlotBar extends StatelessWidget {
   }
 }
 
-/// 오리파 상품 mock 타일 — 상품의 image(오리파 전용 asset)를 표시. **카드 도메인/CDN 무관.**
+/// 오리파 상품 이미지 공용 렌더러 — `imageRef.kind`로 asset/network 분기.
+/// (Image.asset 직접 호출이 코드에 퍼지지 않게 여기로 통일. 미래 사장님 S3 대응.)
+class OripaPrizeImage extends StatelessWidget {
+  final ImageRef imageRef;
+  final BoxFit fit;
+  const OripaPrizeImage({super.key, required this.imageRef, this.fit = BoxFit.cover});
+
+  Widget _fallback(BuildContext _, Object _, StackTrace? _) => Container(
+        color: AppColors.surfaceElevated,
+        alignment: Alignment.center,
+        child: const Icon(Icons.inventory_2_rounded,
+            color: AppColors.textMuted, size: 24),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return imageRef.isAsset
+        ? Image.asset(imageRef.value, fit: fit, errorBuilder: _fallback)
+        : Image.network(imageRef.value, fit: fit, errorBuilder: _fallback);
+  }
+}
+
+/// 오리파 상품 mock 타일 — 상품 이미지(오리파 전용, 카드 도메인/CDN 무관)를 표시.
 /// 상품판·결과시트가 동일 image source로 이 타일을 쓴다(같은 prize=같은 이미지=일관성 보장).
-/// 미래엔 prize.image가 사장님 업로드 S3 URL로 바뀌면 여기서 Image.network로 교체.
 class OripaPrizeTile extends StatelessWidget {
   final OripaPrize prize;
   const OripaPrizeTile({super.key, required this.prize});
@@ -107,17 +128,7 @@ class OripaPrizeTile extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // mock=asset. 미래 사장님 S3(network)는 imageRef.kind로 분기.
-          Image.asset(
-            prize.imageRef.value,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => Container(
-              color: AppColors.surfaceElevated,
-              alignment: Alignment.center,
-              child: const Icon(Icons.inventory_2_rounded,
-                  color: AppColors.textMuted, size: 24),
-            ),
-          ),
+          OripaPrizeImage(imageRef: prize.imageRef),
           // 이미지 스크림(디자인킷 예외) + 상품명 — placeholder여도 무슨 상품인지 읽힘.
           // 상품판·결과가 동일 prize.image + 동일 prize.name 표시 → 번호 오리파 연결 판정 가능.
           Positioned(

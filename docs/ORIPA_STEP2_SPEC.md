@@ -206,6 +206,7 @@ RevealConfig {
 7. 연출 강도는 **법률·운영정책에 따라 서버(`RevealPolicy`)에서 낮추거나 끌 수 있어야 한다**(데이터 주도). ※개봉 전후 분리는 공정성/UX 설계이지 사행성 "해결"이 아님 — 출시 전 법률 검토 별도 필요.
 
 ### B-7. 프로토타입 3종 (순수 Flutter, 번호 오리파=`NUMBERED_CONFIRM`) — 비트 배열 §B-2와 동일
+> ⚠️ **아래 3종 = `RevealFixtures`(연출 구조 검증 전용 fixture) — 실제 draw 번호 매핑과 독립.** 예시의 `47번`·`18번`은 illustrative이며 실제 카탈로그(47=리자몽 고정 등, §4)를 바꾸지 않는다. (실제 카탈로그의 Graded/Pack/Goods 데모는 초기 taken에 없는 번호에 매핑 — 53/30/61.) Graded/Pack/Goods는 시각검증 전 **전용 mock 이미지 필요**(현 fixture는 카드 이미지 재사용).
 > 파티클/글로우 에셋(Rive/Lottie)은 **아직 결정하지 않음.** 순수 Flutter(스케일·회전·블러·스크림·텍스트전환·방사광·소량 파티클·햅틱·탭가속·**정적**)로 손맛 구조 먼저 검증 → 실기기 판정 후 정말 필요한 효과만 에셋 교체. 연출 핵심 5개 = **타이밍·정적·사운드·정보 순서·최종 등장 속도.**
 
 1. **RAW_NORMAL** (`NUMBERED_CONFIRM_RAW`, `NORMAL`) — 헤더 + **4 clue** + HERO stage
