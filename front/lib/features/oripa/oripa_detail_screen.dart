@@ -47,8 +47,8 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
     if (!s.canDraw(o)) return;
     final ok = await showDrawConfirmSheet(context, o);
     if (!mounted || ok != true) return;
-    final result = s.confirmDraw(o); // 포인트 차감 + 번호 확정(애니 전)
-    if (!mounted) return;
+    final result = s.confirmDraw(o); // 사전조건 통과 시 원자적 확정(실패=null)
+    if (!mounted || result == null) return;
     await context.push('/oripa/draw/${o.oripaId}', extra: result);
     if (!mounted) return;
     await _revealOnBoard(o, result);
@@ -73,7 +73,8 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
     // 3) 47 상품이 판에서 들려 나옴 → 빈자리 (0.5s 절제된 물리 이동)
     await _lift.forward(from: 0);
     if (!mounted) return;
-    // 4) 결과시트
+    // 4) hero(결과) 공개 → REVEALED 전이 후 결과시트(보관/교환은 REVEALED에서만)
+    OripaSession.instance.markRevealed();
     final action = await showDrawResultSheet(context, o, result);
     if (!mounted) return;
     if (action == 'again') _startDraw(o);

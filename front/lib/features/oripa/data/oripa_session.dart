@@ -72,17 +72,23 @@ class OripaSession extends ChangeNotifier {
   /// 확인시트 [1구 뽑기]: 이중 커밋 방지 → 포인트 차감 + 번호 확정(taken) + drawCursor 이동
   /// + prize·RevealDescriptor 확정 + activeDraw(COMMITTED) 생성. 결정론(애니 중 결정 없음).
   /// 이전 draw가 RESOLVED면 새 draw로 원자 교체(다시 뽑기).
-  DrawResult confirmDraw(OripaProduct o) {
-    // 이중 커밋 방지: 진행 중(committed/revealed) draw가 있으면 새 차감 없이 기존 결과 반환.
+  /// 확인시트 [1구 뽑기]: **사전조건 통과 시에만** 원자적 상태 변경. 실패 시 무변경 + `null`.
+  /// - #1 전역 active draw 1개: 진행 중(committed/revealed) draw 있으면 새 draw 차단
+  ///   (같은 오리파=기존 결과 반환[이중탭 멱등], 다른 오리파=null[거절]).
+  /// - #3 포인트 부족 / 매진(유효 번호 없음) → points·taken·cursor·activeDraw **전부 무변경**, null.
+  DrawResult? confirmDraw(OripaProduct o) {
+    // #1 전역 차단 (oripaId 무관).
     final cur = _active;
-    if (cur != null && cur.status != DrawStatus.resolved && cur.oripaId == o.oripaId) {
-      return DrawResult(cur.number, cur.prize);
+    if (cur != null && cur.status != DrawStatus.resolved) {
+      return cur.oripaId == o.oripaId ? DrawResult(cur.number, cur.prize) : null;
     }
-    _points -= o.pricePerDraw;
+    // #3 포인트 부족 → 무변경.
+    if (_points < o.pricePerDraw) return null;
+    // 다음 유효 번호 계산 (아직 cursor/taken 미변경).
     final taken = _takenOf(o);
     final order = OripaDraw.orderOf(o.oripaId);
     var i = _cursor[o.oripaId] ?? 0;
-    int number = -1;
+    int number = 0;
     while (i < order.length) {
       final n = order[i];
       i++;
@@ -91,8 +97,11 @@ class OripaSession extends ChangeNotifier {
         break;
       }
     }
+    if (number <= 0) return null; // 매진/유효 번호 없음 → 무변경.
+    // ── 여기부터 확정: 원자적 상태 변경 ──
+    _points -= o.pricePerDraw;
     _cursor[o.oripaId] = i;
-    if (number > 0) taken.add(number);
+    taken.add(number);
     final prize = OripaDraw.prizeForNumber(o.oripaId, number);
     _drawSeq++;
     _active = ActiveDraw(
@@ -118,7 +127,7 @@ class OripaSession extends ChangeNotifier {
   /// 보관하기 — 매장별 보관함에 +1. activeDraw를 RESOLVED(keep)로. **1회 래치**(연타 무시).
   void keepPrize(String shopId) {
     final a = _active;
-    if (a == null || a.status == DrawStatus.resolved) return; // 래치: 이미 처리됨
+    if (a == null || a.status != DrawStatus.revealed) return; // REVEALED에서만(+1회 래치)
     _held.add(HeldItem(
       itemId: '${a.drawId}_${_held.length}',
       shopId: shopId,
@@ -134,7 +143,7 @@ class OripaSession extends ChangeNotifier {
   /// 포인트 교환 — 세션 포인트에 exchangePoints 추가. RESOLVED(exchange)로. **1회 래치**.
   void exchangePrize() {
     final a = _active;
-    if (a == null || a.status == DrawStatus.resolved) return; // 래치
+    if (a == null || a.status != DrawStatus.revealed) return; // REVEALED에서만(+1회 래치)
     _points += a.prize.exchangePoints;
     a.status = DrawStatus.resolved;
     a.resolution = DrawResolution.exchange;
