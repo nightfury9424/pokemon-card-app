@@ -158,4 +158,19 @@ void main() {
     await t.pump(const Duration(milliseconds: 701));
     expect(order, ['hero', 'result']); // 순서 유지
   });
+
+  testWidgets('revealedRecovery — 즉시 dispose 안전(onHeroShown 0, 중복/예외 없음)', (t) async {
+    // (첫 post-frame 전 dispose의 정확한 레이스는 widget test로 재현 불가 —
+    //  _fireResultReady/_fireHeroShown 내부 mounted 가드가 방어. 여기선 재현 가능한
+    //  dispose 안전성: revealedRecovery는 onHeroShown 재호출 안 함, onResultReady ≤1, 예외 없음.)
+    var heroCount = 0, resultCount = 0;
+    await mount(t,
+        mode: RevealEntryMode.revealedRecovery,
+        onHero: () => heroCount++,
+        onResult: () => resultCount++);
+    await t.pumpWidget(const MaterialApp(home: Scaffold())); // 즉시 제거
+    await t.pump(const Duration(milliseconds: 100));
+    expect(heroCount, 0);
+    expect(resultCount, lessThanOrEqualTo(1));
+  });
 }

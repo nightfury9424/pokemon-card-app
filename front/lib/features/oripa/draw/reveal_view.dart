@@ -137,7 +137,10 @@ class _RevealViewState extends State<RevealView> {
         WidgetsBinding.instance.addPostFrameCallback((_) => _onHeroRendered());
       case RevealEntryMode.revealedRecovery:
         _beat = _heroBeat; // 이미 REVEALED → HERO+결과 즉시, onHeroShown 재호출 금지
-        WidgetsBinding.instance.addPostFrameCallback((_) => _fireResultReady());
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return; // 첫 프레임 전 dispose 방어
+          _fireResultReady();
+        });
     }
   }
 
@@ -167,13 +170,13 @@ class _RevealViewState extends State<RevealView> {
   }
 
   void _fireHeroShown() {
-    if (_heroShownCalled) return; // exactly-once
+    if (!mounted || _heroShownCalled) return; // mounted 가드 + exactly-once
     _heroShownCalled = true;
     widget.onHeroShown();
   }
 
   void _fireResultReady() {
-    if (_resultReadyCalled) return; // exactly-once
+    if (!mounted || _resultReadyCalled) return; // mounted 가드 + exactly-once
     _resultReadyCalled = true;
     widget.onResultReady();
   }
