@@ -159,7 +159,7 @@ void main() {
     expect(order, ['hero', 'result']); // 순서 유지
   });
 
-  testWidgets('revealedRecovery — 즉시 dispose 안전(onHeroShown 0, 중복/예외 없음)', (t) async {
+  testWidgets('revealedRecovery 제거 시 예외 없음·onHeroShown 미호출·onResultReady 중복 없음', (t) async {
     // (첫 post-frame 전 dispose의 정확한 레이스는 widget test로 재현 불가 —
     //  _fireResultReady/_fireHeroShown 내부 mounted 가드가 방어. 여기선 재현 가능한
     //  dispose 안전성: revealedRecovery는 onHeroShown 재호출 안 함, onResultReady ≤1, 예외 없음.)

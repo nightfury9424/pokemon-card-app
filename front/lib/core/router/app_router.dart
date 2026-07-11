@@ -44,7 +44,6 @@ import '../../features/oripa/shop_list_screen.dart';
 import '../../features/oripa/shop_detail_screen.dart';
 import '../../features/oripa/oripa_detail_screen.dart';
 import '../../features/oripa/draw/oripa_draw_screen.dart';
-import '../../features/oripa/data/oripa_session.dart';
 import '../auth/auth_state.dart';
 
 // 인앱 푸시 배너 OverlayEntry 주입 등 BuildContext 없는 전역 접근용으로 공개.
@@ -379,12 +378,12 @@ final appRouter = GoRouter(
       path: '/oripa/draw/:oripaId',
       builder: (_, state) {
         final extra = state.extra;
-        // 직접 진입(딥링크) 방어 — 확정 결과 없으면 상세로.
-        if (extra is! DrawResult) {
+        // 직접 진입(딥링크) 방어 — drawId 없으면 상세로. (drawId 검증은 draw 화면이 activeDraw로)
+        if (extra is! String) {
           return OripaDetailScreen(oripaId: state.pathParameters['oripaId']!);
         }
         return OripaDrawScreen(
-            oripaId: state.pathParameters['oripaId']!, result: extra);
+            oripaId: state.pathParameters['oripaId']!, drawId: extra);
       },
     ),
     ShellRoute(

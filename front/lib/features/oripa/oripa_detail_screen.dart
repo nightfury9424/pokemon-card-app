@@ -53,7 +53,7 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
         active.oripaId == o.oripaId &&
         active.status != DrawStatus.resolved) {
       if (!_drawOpen) {
-        await _openDraw(o, active.drawId, DrawResult(active.number, active.prize));
+        await _openDraw(o, active.drawId);
       }
       return; // 이미 열려 있으면 무시
     }
@@ -62,27 +62,26 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
     if (!mounted || ok != true) return;
     switch (s.confirmDraw(o)) {
       case DrawCreated(:final drawId):
-        final a = s.activeDraw!; // 방금 생성된 draw (단일 진실원)
-        await _openDraw(o, drawId, DrawResult(a.number, a.prize));
+        await _openDraw(o, drawId);
       case DrawAlreadyActive(:final drawId):
         // 확인시트 도중 다른 경로로 생성됐다면 방어적 재개.
         final a = s.activeDraw;
         if (!_drawOpen && a != null && a.drawId == drawId) {
-          await _openDraw(o, drawId, DrawResult(a.number, a.prize));
+          await _openDraw(o, drawId);
         }
       case DrawRejected(:final reason):
         _showFailure(reason);
     }
   }
 
-  /// draw route 진입 + 결과 연출. `_drawOpen`으로 중복 push 방지.
-  Future<void> _openDraw(OripaProduct o, String drawId, DrawResult result) async {
+  /// draw route 진입 — extra는 drawId만. 리빌·결과는 draw 화면 내부에서 완결.
+  /// 복귀 시 상품판은 세션 taken으로 빈자리 렌더(ListenableBuilder). '다시 뽑기'는 재시작.
+  Future<void> _openDraw(OripaProduct o, String drawId) async {
     if (_drawOpen) return;
     _drawOpen = true;
     try {
-      await context.push('/oripa/draw/${o.oripaId}', extra: result);
-      if (!mounted) return;
-      await _revealOnBoard(o, result, drawId);
+      final r = await context.push('/oripa/draw/${o.oripaId}', extra: drawId);
+      if (mounted && r == 'again') await _startDraw(o);
     } finally {
       _drawOpen = false;
     }
@@ -108,39 +107,11 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
       action: (resume && a != null)
           ? SnackBarAction(
               label: '이어보기',
-              onPressed: () => _openDraw(OripaMock.oripaById(a.oripaId), a.drawId,
-                  DrawResult(a.number, a.prize)),
+              onPressed: () =>
+                  _openDraw(OripaMock.oripaById(a.oripaId), a.drawId),
             )
           : null,
     ));
-  }
-
-  Future<void> _revealOnBoard(
-      OripaProduct o, DrawResult result, String drawId) async {
-    // 1) 스크롤 도착 시점엔 47 상품이 아직 present(빈자리 전환은 lift 뒤)
-    _lift.value = 0;
-    setState(() => _focus = result.number);
-    await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) return;
-    final ctx = _slotKeys[result.number]?.currentContext;
-    if (ctx != null && ctx.mounted) {
-      await Scrollable.ensureVisible(ctx,
-          alignment: 0.35,
-          duration: const Duration(milliseconds: 450),
-          curve: Curves.easeOut);
-    }
-    // 2) "아, 아까 봤던 리자몽" 인지 여유
-    await Future.delayed(const Duration(milliseconds: 350));
-    if (!mounted) return;
-    // 3) 47 상품이 판에서 들려 나옴 → 빈자리 (0.5s 절제된 물리 이동)
-    await _lift.forward(from: 0);
-    if (!mounted) return;
-    // 4) hero(결과) 공개 → REVEALED 전이 후 결과시트(보관/교환은 해당 draw·REVEALED에서만)
-    // ※ Stage 3에서 이 markRevealed는 RevealView(HERO 완전표시)로 이관 예정.
-    OripaSession.instance.markRevealed(drawId);
-    final action = await showDrawResultSheet(context, o, result, drawId);
-    if (!mounted) return;
-    if (action == 'again') _startDraw(o);
   }
 
   @override

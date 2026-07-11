@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/pressable.dart';
-import '../oripa_common.dart';
 import '../data/oripa_mock.dart';
 import '../data/oripa_session.dart';
 
@@ -44,24 +43,6 @@ Future<bool?> showDrawConfirmSheet(BuildContext context, OripaProduct o) {
   );
 }
 
-/// 결과 시트 — 보관/교환 후 다시뽑기/돌아가기. 'again' | 'back' 반환. 결과 전 dismiss 불가.
-Future<String?> showDrawResultSheet(
-    BuildContext context, OripaProduct o, DrawResult result, String drawId) {
-  return showModalBottomSheet<String>(
-    context: context,
-    isDismissible: false,
-    enableDrag: false,
-    backgroundColor: AppColors.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (ctx) => PopScope(
-      canPop: false,
-      child: _ResultSheet(oripa: o, result: result, drawId: drawId),
-    ),
-  );
-}
-
 Widget _amountRow(String label, String value, {bool strong = false}) => Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -93,101 +74,4 @@ Widget sheetButton(String label,
       ),
     );
 
-class _ResultSheet extends StatefulWidget {
-  final OripaProduct oripa;
-  final DrawResult result;
-  final String drawId;
-  const _ResultSheet(
-      {required this.oripa, required this.result, required this.drawId});
-  @override
-  State<_ResultSheet> createState() => _ResultSheetState();
-}
-
-class _ResultSheetState extends State<_ResultSheet> {
-  String? _done; // null | 'kept' | 'exchanged'
-
-  @override
-  Widget build(BuildContext context) {
-    final p = widget.result.prize;
-    final s = OripaSession.instance;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(children: [
-              SizedBox(
-                width: 76,
-                height: 106,
-                child: OripaPrizeTile(prize: p),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${widget.result.number}번 상품', style: AppText.caption),
-                  const SizedBox(height: 4),
-                  Text(p.displayName,
-                      style: AppText.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 6),
-                  Text('교환 ${formatPoint(p.exchangePoints)}', style: AppText.bodyStrong),
-                ]),
-              ),
-            ]),
-            const SizedBox(height: 20),
-            if (_done == null)
-              Row(children: [
-                Expanded(
-                    child: sheetButton('보관하기', filled: false, onTap: () {
-                  s.keepPrize(widget.drawId, widget.oripa.shopId);
-                  setState(() => _done = 'kept');
-                })),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: sheetButton('${formatPoint(p.exchangePoints)}로 교환',
-                        filled: true, onTap: () {
-                  s.exchangePrize(widget.drawId);
-                  setState(() => _done = 'exchanged');
-                })),
-              ])
-            else ...[
-              Text(
-                _done == 'kept'
-                    ? '${OripaMock.shopById(widget.oripa.shopId).shopName} 보관함에 보관됐어요'
-                    : '${formatPoint(p.exchangePoints)}로 교환됐어요 · 현재 ${formatPoint(s.points)}',
-                style: AppText.body,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              _againBack(context),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _againBack(BuildContext context) {
-    final canAgain = OripaSession.instance.canDraw(widget.oripa);
-    return Column(children: [
-      sheetButton(
-        canAgain ? '다시 뽑기 · ${formatPoint(widget.oripa.pricePerDraw)}' : '포인트가 부족합니다',
-        filled: true,
-        onTap: canAgain ? () => Navigator.pop(context, 'again') : null,
-      ),
-      const SizedBox(height: 8),
-      Pressable(
-        onTap: () => Navigator.pop(context, 'back'),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          alignment: Alignment.center,
-          child: Text('오리파로 돌아가기',
-              style: AppText.body.copyWith(color: AppColors.textSecondary)),
-        ),
-      ),
-    ]);
-  }
-}
+// 결과 액션은 draw 화면 내부(RevealView → resultView)에서 완결(3b-2). 결과 시트 제거됨.

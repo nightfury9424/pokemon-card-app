@@ -3,13 +3,6 @@ import 'oripa_mock.dart';
 import 'oripa_prizes.dart';
 import 'reveal_models.dart';
 
-/// 한 번 뽑기 결과 — 확인시트 [1구 뽑기] 시점에 확정(애니 전). (화면 전달용 경량 값)
-class DrawResult {
-  final int number;
-  final OripaPrize prize;
-  const DrawResult(this.number, this.prize);
-}
-
 /// 진행 중 뽑기 상태 (spec §11·§B-6.3) — 재진입 복구·중복 방지의 단일 진실원.
 enum DrawStatus { committed, revealed, resolved }
 
