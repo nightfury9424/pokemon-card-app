@@ -170,14 +170,37 @@ class _OripaDrawScreenState extends State<OripaDrawScreen>
     if (_acting || _resolved) return;
     _acting = true;
     _s.keepPrize(widget.drawId, OripaMock.oripaById(widget.oripaId).shopId);
-    setState(() => _resolved = true);
+    _applyResolution(DrawResolution.keep);
   }
 
   void _exchange() {
     if (_acting || _resolved) return;
     _acting = true;
     _s.exchangePrize(widget.drawId);
-    setState(() => _resolved = true);
+    _applyResolution(DrawResolution.exchange);
+  }
+
+  /// 세션이 실제로 이 draw를 RESOLVED+기대 resolution으로 처리했을 때만 완료 UI로 전환.
+  /// (drawId 불일치·상태 거부 시 완료 처리·back 허용 안 함, _acting 해제 후 재시도 가능.)
+  void _applyResolution(DrawResolution expected) {
+    final a = _s.activeDraw;
+    final ok = a != null &&
+        a.drawId == widget.drawId &&
+        a.status == DrawStatus.resolved &&
+        a.resolution == expected;
+    if (!mounted) return;
+    setState(() {
+      _resolved = ok;
+      _acting = false;
+    });
+    if (!ok) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('처리에 실패했습니다. 다시 시도해 주세요.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+    }
   }
 
   @override

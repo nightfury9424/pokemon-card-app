@@ -69,4 +69,32 @@ void main() {
     expect(find.text('오리파로 돌아가기'), findsOneWidget); // resolved 후 종료 버튼
     expect(s.activeDraw!.status, DrawStatus.resolved);
   });
+
+  testWidgets('stale drawId 보관 → 세션 거부 시 완료 전환 안 됨(BLOCKER2)', (t) async {
+    final c1 = s.confirmDraw(o1) as DrawCreated;
+    s.markRevealStarted(c1.drawId);
+    s.markRevealed(c1.drawId);
+    await pumpTo(t, c1.drawId); // result stage
+    expect(find.text('보관하기'), findsOneWidget);
+    // 세션 교체 → c1 draw가 더 이상 active 아님(stale)
+    s.reset();
+    s.confirmDraw(o1);
+    await t.tap(find.text('보관하기'));
+    await t.pumpAndSettle();
+    expect(find.text('오리파로 돌아가기'), findsNothing); // 완료 전환 X
+    expect(find.text('보관하기'), findsOneWidget); // 여전히 액션 가능(재시도)
+  });
+
+  testWidgets('다시 뽑기 → clear + again 반환으로 draw 종료', (t) async {
+    final c = s.confirmDraw(o1) as DrawCreated;
+    s.markRevealStarted(c.drawId);
+    s.markRevealed(c.drawId);
+    await pumpTo(t, c.drawId);
+    await t.tap(find.text('보관하기'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('다시 뽑기'));
+    await t.pumpAndSettle();
+    expect(find.text('DETAIL'), findsOneWidget); // draw 종료(복귀)
+    expect(s.activeDraw, isNull); // clear됨
+  });
 }

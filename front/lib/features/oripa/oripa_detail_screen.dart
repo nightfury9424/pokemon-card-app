@@ -79,12 +79,13 @@ class _OripaDetailScreenState extends State<OripaDetailScreen>
   Future<void> _openDraw(OripaProduct o, String drawId) async {
     if (_drawOpen) return;
     _drawOpen = true;
+    Object? result;
     try {
-      final r = await context.push('/oripa/draw/${o.oripaId}', extra: drawId);
-      if (mounted && r == 'again') await _startDraw(o);
+      result = await context.push('/oripa/draw/${o.oripaId}', extra: drawId);
     } finally {
-      _drawOpen = false;
+      _drawOpen = false; // ★먼저 래치 해제 후 재시작(다시 뽑기가 래치에 안 막히게)
     }
+    if (mounted && result == 'again') await _startDraw(o);
   }
 
   /// 뽑기 실패 안내. drawInProgress는 진행 중 draw로 이동하는 CTA 제공.
