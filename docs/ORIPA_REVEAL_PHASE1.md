@@ -1,38 +1,58 @@
-# 오리파 리빌 Phase 1 — 봉인 오브젝트 + 등장 모션 (구현계획·승인기준)
+# 오리파 리빌 Phase 1 — 승인된 구조 v4 (구현 스펙)
 
-> 저장소 진실원. Claude 개인 메모리 아닌 이 문서 + 테스트가 기준.
-> Phase 1 = "뽑고 싶게 보이는" 기준선. **Phase 1 승인 전 가챠 레퍼런스 효과(FGO·원신 등) 적용 금지.**
+> 저장소 진실원. 스토리보드 **v4 승인·잠금 (2026-07-13)**. 시안: `~/Desktop/oripa_storyboard_v4.html`.
+> 이전 v1(실버 보안봉투 + 팩 아래로 내려 번호판) 및 v2(옆면 카드 옆 문구)는 **폐기**.
 
-## 확정 진단 (코드 실증 완료 2026-07-13)
-1. `draw/oripa_draw_screen.dart` `_buildExtract()` L378: `_coverCard`(검은 placeholder) 8장 겹침 + 상단 1장 `Offset(0, t*60)` + `scale 0.72→1.0` → 아래로 밀리며 튀는 등장.
-2. `draw/reveal_view.dart` `SlabFrame`: 이미지 `186×260` 고정 → GRADED HERO 존재감 없음.
-3. **route 겹침(확정)**: `/oripa/draw/:oripaId` 라우트가 `builder:` = GoRouter 기본 iOS 수평 슬라이드. `_extract.forward()`는 `initState` L82에서 **동기 호출** → 슬라이드 정착 전에 추출 애니 시작 → 좌우 밀림.
+## 승인된 리빌 흐름
+
+**NORMAL** (`intensity == normal`):
+```
+닫힌 팩 → 상단 절취(탭 옆으로) → 카드 뒷면 상승(후광 없음, 팩 잔해 없음)
+→ 사용자 탭 → 일반 플립(~320~420ms) → 바로 앞면 공개
+```
+암전·문구·"꽝" 없음. 최소 조명만.
+
+**HIT** (`intensity == rare/hit/jackpot`):
+```
+닫힌 팩 → 상단 절취 → 카드 뒷면 상승 + [금빛 후광]
+→ 사용자 탭 → 전체 화면 암전(카드·팩 화면에서 퇴장)
+→ 검은 무대에서 문구 1개씩 (이전 사라지고 다음):
+   RAW: 세트 → RAW → 레어도 → 이름
+   GRADED: 세트 → 회사 → 등급숫자 → 레어도 → 이름
+→ 짧은 정적 → 중심광 → 빛 폭발 → 밝아지며 실제 카드/슬랩 앞면 HERO 첫 등장(후광 뒤에 정착)
+```
+
+## 아우라 = 기존 `RevealDescriptor.intensity` 재사용 (새 필드 없음)
+`RevealPolicy.intensityFor()` 발급(서버권위형, 클라 교환P 자동계산 금지). 매핑:
+- `normal` → 후광 없음 (NORMAL 경로)
+- `rare` → 얇은 금빛 후광 + 약한 입자
+- `hit` → 넓은 광륜 + 보케 다수
+- `jackpot` → 폭발형 후광 + 광선 + 강한 발광
+비주얼: 세븐나이츠식 **카드 뒤 금빛 후광 + 소프트 번짐 + 골드 보케 입자 + 테두리 발광**. 얇은 링/네온 금지. 차등=광량·범위·입자(색 아님).
+
+## 구현 중 1차 조정 4가지
+1. HIT 아우라 = 외곽선 강조 아니라 **카드 뒤 공간 전체 금빛 후광 중심**(중심광+주변 번짐+소량 입자).
+2. HERO 카드 **존재감 크게** — 보상카드 먼저, 버튼 시선 덜.
+3. NORMAL 앞면 **담백** — 후광/광폭발 금지, 최소 조명.
+4. HIT 타이밍 **절대 겹침 금지**: 탭→암전→카드/팩 퇴장→문구 1개씩→정적→중심광→폭발→HERO.
 
 ## 불변 계약 (건드리지 마)
-- 구조 유지: `extracting→peeling→[N번 상품확인]→openingHeader→clues→HERO→heroHold→resultActions`.
-- `reveal_view.dart` RevealView 상태머신 / `drawId` 계약 / `revealStarted`·`markRevealed` 타이밍 / `oripa_session.dart` 세션 계약 불변.
-- 리빌 = 결과 안 바꾸는 표현층. 결과는 commit 시 확정.
-- **전역 라우터 변경 금지**: 수정은 `/oripa/draw` 라우트 개별 `pageBuilder` + `oripa_draw_screen.dart` 내부로 한정(다른 화면 영향 0).
+- `reveal_view.dart` RevealView 상태머신 / `drawId` / recovery(committed/revealed) 계약.
+- `markRevealStarted` = 사용자 플립 시작 순간. `markRevealed` = 앞면 HERO 완전 노출 후.
+- HIT 여부·intensity = `RevealDescriptor`(정책 발급). 클라가 가격/레어도로 계산 금지, 운영 down/off 가능.
+- 플립 전까지 팩·카드뒷면·상승은 NORMAL/HIT 동일, **후광만 차이**. 앞면은 (HIT는)문구 끝난 뒤 첫 노출.
 
-## 수정 범위 (Phase 1)
-- 봉인팩: `_coverCard`를 포켓폴리오 오리파 전용 봉인팩/티켓으로 재설계.
-- 모션: draw 라우트 개별 fade/무전환 `pageBuilder` + `_extract.forward()`를 route 정착 후(+80~120ms)로 지연. `_buildExtract` 중앙고정(`translateY 0→-8~-12`, `scale 0.96→1.00`)으로 교체.
-- HERO: RAW=실이미지 `BoxFit.contain` 크게 / GRADED=`SlabFrame` 화면높이 58~68%.
+## 파일
+`front/lib/features/oripa/draw/oripa_draw_screen.dart` (스테이지·절취·상승·플립), `draw/reveal_view.dart` (상태머신·문구·HERO), `data/reveal_models.dart` (RevealDescriptor/intensity/RevealConfig), `oripa_common.dart`, `data/oripa_prizes.dart`.
 
-## 승인 기준 (전부 충족해야 Phase 1 통과)
-- [ ] pre-reveal 봉인물 NORMAL/HIT/GRADED **외형 완전 동일**
-- [ ] 검은 placeholder + 임시 포켓볼형 아이콘 제거
-- [ ] 봉인물 화면 폭 **62~70%**
-- [ ] 추출 시작·완료 **카드 중심좌표 변화 ≤ 2px**
-- [ ] `translateY +60` 및 `scale 0.72→1.0` 제거
-- [ ] 더미→단일 팩 전환 **위젯 교체 점프 없음**(같은 key/rect/center)
-- [ ] peel 시 바깥 커버 ↔ 내부 번호판 **레이어·재질 명확 분리**, 60%·82% 햅틱 유지
-- [ ] RAW HERO 실이미지 **비율 유지·크롭 금지**, 크게
-- [ ] GRADED HERO 화면높이 **58~68%**, BRG/PSA 라벨·등급 실기기 판독 가능
-- [ ] draw 진입 시 좌우 슬라이드 겹침 제거(route 정착 후 추출)
-- [ ] 같은 기기 **수정 전/후 영상 나란히 비교** 제출
-- [ ] Phase 1 단계에서 레퍼런스 효과 미적용
+## 승인 기준 (통과해야 Phase 1 완료)
+- [ ] 상단 절취 개봉(팩 중앙 고정), 카드 뒷면 상승, **팩 잔해 안 남김**
+- [ ] 뒷면 후광 유무로 NORMAL/HIT 구분(뒤집기 전)
+- [ ] NORMAL: 후광·암전·문구·"꽝" 없이 담백 플립
+- [ ] HIT: 암전 → 문구 **1개씩**(누적 금지) → 정적 → 빛폭발 → 앞면 HERO
+- [ ] 05~10 타이밍 겹침 없음
+- [ ] HERO 카드 존재감(RAW BoxFit.contain / GRADED 슬랩 화면 58~68%)
+- [ ] 상태머신·drawId·recovery·markReveal* 계약 유지, flutter analyze 클린
+- [ ] 기준선 IPA 실기기 전/후 영상 비교
 
-## 절차
-봉인팩+모션 수정 → 기준선 IPA 재빌드 → 실기기 녹화 → 전후 비교 → 승인 → Phase 2(레퍼런스). 복잡 UI는 Codex와 상의(CLAUDE.md).
-레퍼런스 매핑·타이밍·프로필 상세: Claude memory `oripa-reveal-spec` 참조.
+## 절차: v4 잠금 → Flutter 구현 → analyze/test → 기준선 IPA → 실기기 4개 조정.
