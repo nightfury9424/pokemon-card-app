@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +8,7 @@ import '../oripa_common.dart';
 import '../data/oripa_mock.dart';
 import '../data/oripa_session.dart';
 import '../data/reveal_models.dart';
+import 'oripa_sealed_pack.dart';
 import 'reveal_view.dart';
 
 /// 뽑기 풀스크린 — route `extra`=drawId만. 번호·상품·descriptor는 **session.activeDraw**에서만 읽음.
@@ -38,11 +39,17 @@ class _OripaDrawScreenState extends State<OripaDrawScreen>
   final ValueNotifier<double> _tilt = ValueNotifier(0);
   bool _hz60 = false, _hz82 = false;
 
+  // 추출 시작 게이팅 — route 전환(fade) completed 후 exactly-once forward.
+  Animation<double>? _routeAnim;
+  Timer? _extractTimer;
+  bool _extractStarted = false;
+
   bool _resolved = false; // 보관/교환 완료 → 시스템 back 허용
   bool _acting = false; // 보관/교환 연타 차단
   bool _exitHandled = false;
 
-  static const double _cardW = 210, _cardH = 292, _peelDist = 300;
+  // 상단 절취 가로 드래그 완료까지의 참조 거리(px). 팩 크기는 OripaSealedPack가 소유.
+  static const double _tearDist = 220;
 
   bool get _reduceMotion =>
       WidgetsBinding.instance.platformDispatcher.accessibilityFeatures
@@ -79,7 +86,7 @@ class _OripaDrawScreenState extends State<OripaDrawScreen>
         } else {
           _stage = _Stage.extracting;
           _entryMode = RevealEntryMode.fresh;
-          _extract.forward();
+          _armExtractStart(); // route 전환 completed 후 시작(겹침 방지)
         }
       case DrawStatus.revealed:
         _stage = _Stage.revealing;
@@ -95,6 +102,8 @@ class _OripaDrawScreenState extends State<OripaDrawScreen>
 
   @override
   void dispose() {
+    _extractTimer?.cancel();
+    _routeAnim?.removeStatusListener(_onRouteAnimStatus);
     _extract.dispose();
     _coverOut.dispose();
     _progress.dispose();
@@ -118,12 +127,46 @@ class _OripaDrawScreenState extends State<OripaDrawScreen>
     if (mounted) context.pop(result);
   }
 
-  // ── peel(개봉) ──
+  // ── 추출 시작 게이팅 — 고정 딜레이로 정착을 "추정"하지 않는다.
+  //    /oripa/draw route 전환 애니가 실제 completed된 뒤 +100ms에 exactly-once forward.
+  //    route animation이 null(전환 없음)이거나 이미 completed면 곧바로 스케줄.
+  void _armExtractStart() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _stage != _Stage.extracting) return;
+      final anim = ModalRoute.of(context)?.animation;
+      if (anim == null || anim.status == AnimationStatus.completed) {
+        _scheduleExtract(); // 전환 없음/이미 정착 → 바로
+      } else {
+        _routeAnim = anim..addStatusListener(_onRouteAnimStatus);
+      }
+    });
+  }
+
+  void _onRouteAnimStatus(AnimationStatus s) {
+    if (s != AnimationStatus.completed) return;
+    _routeAnim?.removeStatusListener(_onRouteAnimStatus);
+    _routeAnim = null;
+    _scheduleExtract();
+  }
+
+  void _scheduleExtract() {
+    if (_extractStarted || !mounted || _stage != _Stage.extracting) return;
+    final delay =
+        _reduceMotion ? Duration.zero : const Duration(milliseconds: 100);
+    _extractTimer?.cancel();
+    _extractTimer = Timer(delay, () {
+      if (_extractStarted || !mounted || _stage != _Stage.extracting) return;
+      _extractStarted = true;
+      _extract.forward();
+    });
+  }
+
+  // ── 상단 절취(개봉) — 상단 탭을 가로로 당김. dx=절취 진행, dy=미세 기울기. ──
   void _onDrag(DragUpdateDetails d) {
     if (_stage != _Stage.peeling) return;
-    final next = (_progress.value + d.delta.dy / _peelDist).clamp(0.0, 1.0);
+    final next = (_progress.value + d.delta.dx / _tearDist).clamp(0.0, 1.0);
     if (next > _progress.value) _progress.value = next;
-    _tilt.value = (_tilt.value + d.delta.dx * 0.02).clamp(-1.2, 1.2);
+    _tilt.value = (_tilt.value + d.delta.dy * 0.02).clamp(-1.5, 1.5);
     _haptics();
     if (_progress.value >= 0.82) _completePeel();
   }
@@ -267,7 +310,7 @@ class _OripaDrawScreenState extends State<OripaDrawScreen>
         ),
         Expanded(
           child: Center(
-            child: _stage == _Stage.extracting ? _buildExtract() : _buildPeel(),
+            child: _stage == _Stage.extracting ? _buildExtract() : _buildTear(),
           ),
         ),
         SizedBox(height: 96, child: Center(child: _peelFooter())),
@@ -286,7 +329,7 @@ class _OripaDrawScreenState extends State<OripaDrawScreen>
       );
     }
     if (_stage == _Stage.peeling) {
-      return Text('덮개 카드를 아래로 천천히 내려보세요', style: AppText.muted);
+      return Text('상단 탭을 옆으로 당겨 개봉하세요', style: AppText.muted);
     }
     return const SizedBox.shrink();
   }
@@ -361,123 +404,47 @@ class _OripaDrawScreenState extends State<OripaDrawScreen>
     );
   }
 
-  // ── 봉인물 자동 추출 ──
+  // ── 추출: route 정착 후 팩 등장. 중심 이동 없음 — scale은 center 기준 →
+  //    추출 시작/완료 중심좌표 동일(구형 translate +60 점프 제거). ──
   Widget _buildExtract() {
     return AnimatedBuilder(
       animation: _extract,
       builder: (_, _) {
-        final t = Curves.easeOut.transform(_extract.value);
-        return SizedBox(
-          width: _cardW + 40,
-          height: _cardH + 40,
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              for (int i = 0; i < 8; i++)
-                Transform.translate(
-                  offset: Offset((i - 4) * 2.0, (i - 4) * -1.4),
-                  child: Transform.rotate(
-                    angle: (i - 4) * 0.008,
-                    child: _coverCard(_cardW * 0.72, _cardH * 0.72),
-                  ),
-                ),
-              Transform.translate(
-                offset: Offset(0, t * 60),
-                child: Transform.scale(
-                  scale: 0.72 + t * 0.28,
-                  child: Opacity(
-                      opacity: 0.5 + t * 0.5,
-                      child: _coverCard(_cardW * 0.72, _cardH * 0.72)),
-                ),
-              ),
-            ],
+        final t = Curves.easeOutCubic.transform(_extract.value);
+        // translate 금지: fade + center-anchored scale만.
+        return Opacity(
+          opacity: t,
+          child: Transform.scale(
+            scale: 0.96 + t * 0.04, // 0.96 → 1.00
+            child: _pack(tearProgress: 0),
           ),
         );
       },
     );
   }
 
-  // ── 덮개 까기 ──
-  Widget _buildPeel() {
+  // ── 상단 절취: 상단 탭을 가로로 당김(60·82% 햅틱). 팩 몸체 중심은 고정. ──
+  Widget _buildTear() {
     return GestureDetector(
-      onVerticalDragUpdate: _onDrag,
-      onVerticalDragEnd: _onDragEnd,
+      onHorizontalDragUpdate: _onDrag,
+      onHorizontalDragEnd: _onDragEnd,
       behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: _cardW,
-        height: _cardH,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: _cardW,
-              height: _cardH,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceElevated,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              alignment: Alignment.center,
-              child: _numberSticker(),
-            ),
-            ValueListenableBuilder<double>(
-              valueListenable: _progress,
-              builder: (_, p, _) => ValueListenableBuilder<double>(
-                valueListenable: _tilt,
-                builder: (_, deg, _) {
-                  if (p >= 1) return const SizedBox.shrink();
-                  return Transform.translate(
-                    offset: Offset(0, p * _cardH),
-                    child: Transform.rotate(
-                      angle: deg * math.pi / 180,
-                      alignment: Alignment.topCenter,
-                      child: _coverCard(_cardW, _cardH, shadow: true),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+      child: ValueListenableBuilder<double>(
+        valueListenable: _progress,
+        builder: (_, p, _) => ValueListenableBuilder<double>(
+          valueListenable: _tilt,
+          builder: (_, deg, _) => _pack(tearProgress: p, tilt: deg),
         ),
       ),
     );
   }
 
-  Widget _numberSticker() {
-    return Container(
-      width: 104,
-      height: 104,
-      alignment: Alignment.center,
-      decoration:
-          const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-      child: Text('${_draw!.number}',
-          style: const TextStyle(
-              color: Color(0xFF141414),
-              fontSize: 40,
-              fontWeight: FontWeight.w900)),
-    );
-  }
-
-  Widget _coverCard(double w, double h, {bool shadow = false}) {
-    return Container(
-      width: w,
-      height: h,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: shadow
-            ? [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.38),
-                    blurRadius: 18,
-                    offset: const Offset(0, 10)),
-              ]
-            : null,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05), width: 1),
-      ),
-      alignment: Alignment.center,
-      child: Icon(Icons.catching_pokemon,
-          color: Colors.white.withValues(alpha: 0.10), size: w * 0.34),
-    );
-  }
+  // 추출·절취 공용 봉인팩(동일 크기·동일 중심 anchor). 아우라·뒷면 상승은 Step 2.
+  OripaSealedPack _pack({required double tearProgress, double tilt = 0}) =>
+      OripaSealedPack(
+        title: OripaMock.oripaById(widget.oripaId).title,
+        number: _draw!.number,
+        tearProgress: tearProgress,
+        tilt: tilt,
+      );
 }

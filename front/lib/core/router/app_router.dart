@@ -376,14 +376,31 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/oripa/draw/:oripaId',
-      builder: (_, state) {
+      // 리빌 몰입: 이 라우트만 개별 fade(기본 iOS 수평 슬라이드 대신). 전역 라우터 불변.
+      // 추출 애니는 draw 화면이 route 정착 후 시작 → 전환·추출 겹침(좌우 밀림) 방지.
+      pageBuilder: (context, state) {
         final extra = state.extra;
         // 직접 진입(딥링크) 방어 — drawId 없으면 상세로. (drawId 검증은 draw 화면이 activeDraw로)
-        if (extra is! String) {
-          return OripaDetailScreen(oripaId: state.pathParameters['oripaId']!);
-        }
-        return OripaDrawScreen(
-            oripaId: state.pathParameters['oripaId']!, drawId: extra);
+        final Widget child = extra is! String
+            ? OripaDetailScreen(oripaId: state.pathParameters['oripaId']!)
+            : OripaDrawScreen(
+                oripaId: state.pathParameters['oripaId']!, drawId: extra);
+        // reduceMotion이면 route fade도 축소(0) → 추출과 겹칠 여지 제거.
+        final reduceMotion =
+            MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+        return CustomTransitionPage<void>(
+          key: state.pageKey,
+          transitionDuration:
+              reduceMotion ? Duration.zero : const Duration(milliseconds: 260),
+          reverseTransitionDuration:
+              reduceMotion ? Duration.zero : const Duration(milliseconds: 200),
+          child: child,
+          transitionsBuilder: (context, animation, _, child) => FadeTransition(
+            opacity:
+                CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            child: child,
+          ),
+        );
       },
     ),
     ShellRoute(
