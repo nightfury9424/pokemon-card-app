@@ -77,6 +77,7 @@ blurry, cartoon, sticker
 | `pack_open_body` | 같은 몸체에서 상단 제거 + 얇은 가로 슬롯 입구 inpaint | 절취 완료 후 |
 | `pack_mouth_shadow` | 입구 내부 암부(가로 슬롯) | Flutter 그라디언트로 대체 가능 |
 > 절취 규칙: 상단 실링을 **한쪽에서 얇게** · 중앙까지 세로 찢기 금지 · 큰 삼각 플랩 금지 · 조각 작게 말림 · 입구 = **얇은 가로 슬롯**.
+> **브랜딩 금지**: `pack_top_strip`(뜯기는 상단)엔 POKEFOLIO·로고·글자 **0(순수 포일)**. 브랜드는 `pack_base`/`open_body` 고정 오버레이(상단 **0–15% exclusion**) — 절취 시 제자리 고정, 조각에 안 따라감.
 
 **카드 뒷면 = 팩에 합성 안 함.** `card_back`은 Flutter 독립 위젯/자산으로 슬롯 중앙에서 넓게 상승.
 
