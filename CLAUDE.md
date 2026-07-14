@@ -58,7 +58,7 @@ cd front && flutter run
 - 감춤 = S rarity 258 + K rarity 12 (베이직 포켓몬 commons). C/U/R rarity 는 row 자체 삭제 (legacy)
 - 2026-06-02 prod 검증 — Card.java `@SQLRestriction("is_visible = true")` 적용 후 JPQL 카운트가 visible 만 반환
 
-**현재 사이클 (2026-07-05)**: iOS **1.0.7 심사 중** (토스 디자인 전면 개선, main@6a993b8b) — 출시 시 업데이트 게이트 첫 발동(minBuild 상향). 다음 = **1.1.0 오리파 플랫폼** (오프라인 매장 입점 중개 모델, 영업용 데모 먼저). 상세는 `docs/SESSION_HANDOFF.md`.
+**현재 사이클 (2026-07-06)**: iOS **1.0.7 출시/배포 완료 — 릴리즈 트랙 CLOSED** (토스 디자인 전면 개선, main@6a993b8b). 현재 = **1.2.0 오리파 플랫폼** 신규 개발 트랙(오프라인 매장 입점 중개). **STEP 1+2 mock 구현완료**(진입 4화면 + 번호 오리파 뽑기), TestFlight 1.2.0 build `202607082352` 전송 대기·실기기 손맛 판정 예정(`feat/oripa-1.2.0` 워크트리). 오리파 상품=사장님 업로드(카드 도메인 무관). 상세는 `docs/SESSION_HANDOFF.md` + `docs/ORIPA_STEP2_SPEC.md`. ※"1.0.7 심사 중" 등 과거 표현은 historical — 현재상태 추론 금지. App Review 분석은 사용자 명시 요청 시만.
 
 **프론트 디자인 규칙 (1.0.7~ 토스 문법)**: 새 화면/컴포넌트는 반드시 `lib/core/widgets/app_list_ui.dart` 공용 킷(AppGroupCard·AppMenuRow·AppSquircleIcon·AppTagChip·AppRarityBadge·AppMetaDotRow) + `AppText`/`AppRadius` 토큰 사용. 하드코딩 색·Border.all 카드 외곽선·컬러 글로우/그라데이션 금지(이미지 스크림·카메라 오버레이만 예외). 눌림 반응 `Pressable`, 빈 화면 `EmptyState`, 세그먼트 필 선택색 `AppColors.blue`.
 

@@ -4,13 +4,21 @@
 
 ---
 
-## 📍 현재 상태 (2026-07-05 갱신 — 1.0.7 심사 제출 후)
-- **App Store 라이브**: **1.0.6** (7/4 출시).
-- **심사 중**: **1.0.7** — 빌드 `202607052009` (**토스 디자인 전면 개선**, 신기능 0). 제출 소스 = `main` @ 머지커밋 `6a993b8b` (origin 푸시됨).
+## 📍 현재 상태 (2026-07-10 갱신 — 1.2.0 오리파 STEP1+2 mock 완료 / TestFlight 대기 + 노트북 마이그레이션)
+- **출시/배포 완료 (App Store)**: **1.0.7** — 빌드 `202607052009` (토스 디자인 전면 개선), main @ `6a993b8b`. **릴리즈 트랙 CLOSED.**
+- **현재 개발 트랙**: **1.2.0 오리파 플랫폼** — `feat/oripa-1.2.0` 워크트리(`/Users/fury/pokemon-card-app-oripa`), main서 분기. **STEP 1(진입 mock 4화면 MY→오리파홈→매장목록→매장상세→오리파상세) + STEP 2(번호 오리파 뽑기 mock) 구현완료.** STEP2 = 확인시트→봉인더미 자동추출→덮개 까기(5%↑ 위치유지·이어까기·60/82% 햅틱)→[상품 확인]→상품판 47 자동스크롤(상품 빠져 빈자리)→결과 보관/교환→다시뽑기, 전부 **세션 in-memory(백엔드 0)**. **TestFlight 1.2.0 build `202607082352` Transporter 로드됨 → 사용자 전송 대기.** 다음 = 실기기 손맛 판정 → `peelDist`/노출밴드/햅틱 임계 튜닝 → 상품봉인 오리파 → 파트너센터 → 백엔드. ★진실원 = feat/oripa-1.2.0의 `docs/ORIPA_STEP2_SPEC.md`. ★오리파 상품 = 사장님 업로드(카드 DB/CDN/cardId 무관, image 필드=asset/미래 S3 URL).
+  - ⚠️ "1.0.7 심사 중/심사 충돌" 류는 **historical** — 현재상태 추론에 쓰지 말 것. App Review 분석은 사용자 명시 요청 시만.
   - 1.0.7 = feat/toss-restyle 13커밋 머지: 전 화면 토스 문법 통일(공용 킷 `app_list_ui.dart`) + 모션/햅틱 레이어 + 카드 틸트·차트 스크럽 + 엠티스테이트 시스템. 아카이브 태그 `arch/toss-restyle-1.0.7-20260705`.
   - ★정식 릴리즈 IPA는 **CloudFront dart-define 2종 필수** (`BASE_URL=https://d33b273n14t3ne.cloudfront.net` / `CARD_CDN_BASE=https://d3shjhylvfe40j.cloudfront.net/cards/v1`) — 평가용(TestFlight 확인용) 빌드와 구분. 빌드 후 App.framework strings로 URL 박힘 검증.
-- **★1.0.7 출시 버튼 누르는 시점에 할 일**: S3 `app-config/version.json` minBuild 상향 → **업데이트 게이트 첫 발동** (현재 dormant 0/0 확인됨). 사용자와 함께 진행.
-- **브랜치**: `main` 단일 트렁크 + `capture/prod-20260703`(서버 배포 트리) 2개만. 새 개발은 main에서 분기.
+- **업데이트 게이트**: 과거 계획 = 1.0.7 출시 시 S3 `app-config/version.json` minBuild 상향(첫 발동). **1.0.7 출시됨 — 실제 게이트 발동 여부는 미확인(내가 단정 안 함), 필요 시 사용자 확인.**
+- **브랜치(전부 origin push됨, 2026-07-10)**: `main`(87075533) · `feat/oripa-1.2.0`(오리파 구현, 워크트리 `pokemon-card-app-oripa`) · `feat/oripa`(웹 프로토+1.2.0 핸드오프, 워크트리 `pokefolio_oripa`) · `backup/laptop-migration-20260710`(밀기 전 untracked 343개 백업) · `capture/prod-20260703`(서버 배포 트리).
+
+### 💾 노트북 마이그레이션 (2026-07-10) — 새 노트북 세팅 시 읽어라
+- **★A~Z 전체 상세 = [`docs/LAPTOP_MIGRATION_20260710.md`](LAPTOP_MIGRATION_20260710.md)** (메타몽 KREAM 에이전트·scanner 47GB·로컬 DB·시크릿 7종 전수 + 순서).
+- **git은 전부 origin에 있음**(위 브랜치). 새 노트북: `git clone` → 오리파 이어가려면 `git worktree add ../pokemon-card-app-oripa feat/oripa-1.2.0`.
+- **★git에 없는 수동 백업 — 폴더 통째로**(밀면 소실 → 빌드/서명/배포 불가): `~/pem`(Firebase iOS/Android/Admin SDK·ASC 키·S3 키·안드 키스토어·prod SSH키 전부) + `~/.ssh`(GitHub push용 id_ed25519) + `~/.appstoreconnect` + repo 안 `python/.env`·`admin/.env.production`. 상세=`docs/LAPTOP_MIGRATION_20260710.md` §1.
+- **Claude 메모리**: `~/.claude/projects/-Users-fury-pokemon-card-app/memory/` 는 로컬 — 밀면 사라짐. 백업하거나, 이 문서 + `docs/ORIPA_STEP2_SPEC.md`로 이어갈 것.
+- **오리파 이어가기 진입점**: `docs/ORIPA_STEP2_SPEC.md`(feat/oripa-1.2.0) + `~/pokefolio_oripa/oripa_demo/ORIPA_1_2_0_HANDOFF.md`(feat/oripa).
 - **prod 백엔드**: LIVE (Lightsail). 서버 트리 = capture/prod-20260703 @ 7a8a8892. ★리빌드 전 class-diff 게이트 + 기능 스모크(게시판·me 2종·이미지·시세) 필수.
 - **Android**: 1.0.6 vc5 비공개 알파 LIVE(구글로그인 검증 완료). 테스터 12+ × 14일 클록 진행 중. 1.0.7 디자인 반영 AAB는 iOS 통과 후.
 - **다음 사이클: 1.1.0 오리파 플랫폼** — 오프라인 매장 입점형 **중개** 모델(우리=틀: 매장 콘솔 생성기 + 중앙 추첨 + 포인트 지갑 + 매장별 보관함/배송 + 정산). 원칙: **추첨·돈=플랫폼 / 재고·배송=매장**, 판매 시작 후 구성 동결, 포인트 교환가 승인 시 LOCKED. 유저 플로우: 원화→포인트 충전→뽑기→보관함(매장별)→포인트 교환 or 모아서 배송(매장별 무료배송 기준).
