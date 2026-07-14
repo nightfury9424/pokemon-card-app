@@ -4,7 +4,11 @@
 
 ---
 
-## 📍 현재 상태 (2026-07-10 갱신 — 1.2.0 오리파 STEP1+2 mock 완료 / TestFlight 대기 + 노트북 마이그레이션)
+## 📍 현재 상태 (2026-07-15 갱신 — **1.1.0 오리파**: 리빌 풀 플로우 이식 완료 / worktree 통합)
+
+> **2026-07-15 정정 3건**: ① 버전 트랙 = **1.1.0**(원계획 복원 — 아래 "1.2.0" 표기는 historical, ASC의 1.2.0 TestFlight 트레인은 폐기) ② `pokemon-card-app-oripa` 워크트리·`feat/oripa-1.2.0` 브랜치 = **main에 병합 후 삭제** — 작업 폴더는 `pokemon-card-app` 하나 ③ 리빌 승인 모션(HTML v3) Flutter 이식 완료(`oripa_reveal_flow.dart`, main@8f8e53d 이후). 리빌 진실원 = `docs/ORIPA_REVEAL_HANDOFF.md`.
+
+## 📍 이전 상태 (2026-07-10 갱신 — historical)
 - **출시/배포 완료 (App Store)**: **1.0.7** — 빌드 `202607052009` (토스 디자인 전면 개선), main @ `6a993b8b`. **릴리즈 트랙 CLOSED.**
 - **현재 개발 트랙**: **1.2.0 오리파 플랫폼** — `feat/oripa-1.2.0` 워크트리(`/Users/fury/pokemon-card-app-oripa`), main서 분기. **STEP 1(진입 mock 4화면 MY→오리파홈→매장목록→매장상세→오리파상세) + STEP 2(번호 오리파 뽑기 mock) 구현완료.** STEP2 = 확인시트→봉인더미 자동추출→덮개 까기(5%↑ 위치유지·이어까기·60/82% 햅틱)→[상품 확인]→상품판 47 자동스크롤(상품 빠져 빈자리)→결과 보관/교환→다시뽑기, 전부 **세션 in-memory(백엔드 0)**. **TestFlight 1.2.0 build `202607082352` Transporter 로드됨 → 사용자 전송 대기.** 다음 = 실기기 손맛 판정 → `peelDist`/노출밴드/햅틱 임계 튜닝 → 상품봉인 오리파 → 파트너센터 → 백엔드. ★진실원 = feat/oripa-1.2.0의 `docs/ORIPA_STEP2_SPEC.md`. ★오리파 상품 = 사장님 업로드(카드 DB/CDN/cardId 무관, image 필드=asset/미래 S3 URL).
   - ⚠️ "1.0.7 심사 중/심사 충돌" 류는 **historical** — 현재상태 추론에 쓰지 말 것. App Review 분석은 사용자 명시 요청 시만.

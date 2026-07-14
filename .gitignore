@@ -122,3 +122,4 @@ sync_backup_20260515/
 scanner/training/data/datachips_daangn.jsonl
 scanner/training/data/datachips_daangn_img/
 scanner/training/data/datachips_daangn_trash/
+scanner/.venv/
