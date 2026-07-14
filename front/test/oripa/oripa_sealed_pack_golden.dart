@@ -59,6 +59,12 @@ void main() {
     t.view.physicalSize = const Size(420, 520) * 2.0;
     addTearDown(() => t.view.resetPhysicalSize());
     await t.pumpWidget(_stage(availW: 360, tearProgress: tearProgress));
+    await t.runAsync(() async {
+      for (final n in ['base', 'open_body', 'top_strip', 'mouth_shadow']) {
+        await precacheImage(AssetImage('assets/oripa/packs/navy/$n.png'),
+            t.element(find.byType(OripaSealedPack)));
+      }
+    });
     await t.pumpAndSettle();
     await expectLater(find.byType(OripaSealedPack), matchesGoldenFile(file));
   }
