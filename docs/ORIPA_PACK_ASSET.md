@@ -15,7 +15,7 @@
 2. **텍스트를 이미지에 굽지 않음.** POKEFOLIO/오리파명은 오탈자·상품별 가변 → 팩엔 **글자 없이 안전영역만**, 텍스트는 Flutter/SVG 오버레이.
 3. **카드 뒷면은 팩 이미지에 합성 안 함.** Flutter 독립 레이어(상승 위치·크기·아우라 자유 제어).
 4. **강한 반사광 굽지 않음.** 기본 자산은 재질+약한 고정 반사만. 이동 반사광은 Flutter 오버레이.
-5. **누끼용 배경.** 중립 밝은 회색·균일 조명·그림자 없음. 앱의 검은 배경·그림자는 Flutter.
+5. **배경 = 투명 PNG(알파)로 바로 출력**(회색 배경 폐기 — 애초에 회색이 불필요·이상함). 툴이 투명 불가 시엔 팩과 **강하게 대비되는** 단색 배경 후 매트: **밝은 팩(실버)=어두운 배경 / 어두운 팩(네이비)=밝은 배경**. 밝은 팩을 밝은 배경에 두면 **누끼 실패**(rembg 실버 매트 깨짐 실증). 앱 검은 배경·그림자·이동 반사광은 Flutter.
 6. **비율 통일 = 0.605** (260:430 = 26:43). 원본 ≥ 1200×1985, 최종 780×1290(@3x).
 
 ---
@@ -23,8 +23,10 @@
 ## 1. 공통 프롬프트 (닫힌 팩 · 모든 변형 앞에 붙임)
 ```
 Premium sealed trading-card booster foil pack, CLOSED, front-facing, standing upright, centered,
-the FULL object fully visible, isolated on a neutral light-gray background with even soft studio
-lighting and NO cast shadow (for easy cutout). Realistic foil pouch: FLAT with only a slight
+the FULL object fully visible, on a FULLY TRANSPARENT background (PNG alpha), even soft studio
+lighting and NO cast shadow. (If transparent is unavailable, use a solid background that strongly
+CONTRASTS the pack — dark bg for light/silver packs, light bg for dark packs — never light-on-light.)
+Realistic foil pouch: FLAT with only a slight
 thickness from the cards inside, straight clean heat-sealed vertical side seams, thin realistic
 crimped (serrated heat-seal) top and bottom edges. NOT puffy, NOT inflated, NOT a plastic bag,
 NOT a pouch. The front is a blank panel with a subtle abstract holographic pattern and NO text,
@@ -49,7 +51,7 @@ blurry, cartoon, sticker
 
 **Params**
 - Midjourney: `--ar 26:43 --style raw`
-- DALL·E / Nano Banana / SDXL: "portrait, ~0.605 ratio, ≥1200px wide, neutral light-gray background, even lighting, no shadow"
+- DALL·E / Nano Banana / SDXL: "portrait, ~0.605 ratio, ≥1200px wide, **transparent background**, even lighting, no shadow" (투명 불가면 대비 배경)
 - 원본 최소 1200×1985 → 최종 앱 자산 780×1290로 다운스케일.
 
 ---
