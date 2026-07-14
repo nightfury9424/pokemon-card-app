@@ -8,10 +8,10 @@ import 'oripa_prizes.dart';
 
 /// 리빌 프로파일 — 연출 의미·단서 순서 결정 (비트 배열 고정, spec §B-2).
 enum RevealProfile {
-  numberedConfirmRaw, // 헤더 + CONDITION·RARITY·SET·NAME (4 clue) + HERO
-  numberedConfirmGraded, // 헤더 + COMPANY·GRADE·RARITY·SET·NAME (5 clue) + HERO
-  sealedMysteryRaw, // (향후) CONDITION·RARITY·SET·NAME (4) + HERO
-  sealedMysteryGraded, // (향후) COMPANY·GRADE·RARITY·SET·NAME (5) + HERO
+  numberedConfirmRaw, // 헤더 + SET·CONDITION·RARITY·NAME (4 clue) + HERO
+  numberedConfirmGraded, // 헤더 + SET·COMPANY·GRADE·RARITY·NAME (5 clue) + HERO
+  sealedMysteryRaw, // (향후) SET·CONDITION·RARITY·NAME (4) + HERO
+  sealedMysteryGraded, // (향후) SET·COMPANY·GRADE·RARITY·NAME (5) + HERO
   packConfirm, // CATEGORY·NAME (2) + HERO
   goodsConfirm, // CATEGORY·NAME (2) + HERO
 }
@@ -28,6 +28,11 @@ class RevealClue {
 /// 연출 강도 — 효과(빛/사운드/햅틱)만 좌우. 비트 수·탭 수엔 영향 없음.
 enum RevealIntensity { normal, rare, hit, jackpot }
 
+/// 리빌 경로 축 (LOCKED §3-9) — **intensity와 독립 발급**. 렌더러 추론 금지.
+/// normal = 담백 플립 / hit = 아우라·확회전·암전·문구·플래시·HERO (rare 이상 공통).
+/// ★effectsEnabled/maxIntensity(운영 플래그)는 intensity만 낮출 뿐 경로를 못 바꾼다.
+enum RevealPath { normal, hit }
+
 /// draw 결과와 원자 발급되는 리빌 지시서. clues = 공개 순서(HERO stage는 별도).
 class RevealDescriptor {
   final RevealProfile profile;
@@ -35,12 +40,14 @@ class RevealDescriptor {
   final List<RevealClue> clues; // 가속 대상 = clue 비트만. HERO는 미포함.
   final ImageRef heroImageRef; // 최종 HERO stage 이미지 (= prize.imageRef)
   final RevealIntensity intensity;
+  final RevealPath path; // ★경로 분기의 단일 진실원 — 정책이 intensity와 독립 발급
   const RevealDescriptor({
     required this.profile,
     this.openingHeader,
     required this.clues,
     required this.heroImageRef,
     required this.intensity,
+    required this.path,
   });
 
   /// 가속 가능 clue 비트 수 (프로파일 내 고정, HERO 제외). spec §B-6.5.
@@ -76,6 +83,12 @@ class RevealPolicy {
     }
     return raw.index <= maxIntensity.index ? raw : maxIntensity;
   }
+
+  /// 경로 발급 — **intensity 파생 금지**(2026-07-15 반려 교훈). 교환P 임계 직접 판정이라
+  /// effectsEnabled=false·maxIntensity 캡이 걸려도 HIT 경로는 유지된다(연출 광량만 감소).
+  /// mock=클라 판정, 미래=서버가 draw와 원자 발급(step 백엔드에서 교체).
+  RevealPath pathFor(int exchangePoints) =>
+      exchangePoints >= rareAt ? RevealPath.hit : RevealPath.normal;
 }
 
 /// mock 중앙 정책. 미래: 서버 발급으로 교체.
@@ -136,6 +149,7 @@ RevealDescriptor buildRevealDescriptor(
 }) {
   final header = number != null ? '$number번 당첨' : null;
   final intensity = policy.intensityFor(prize.exchangePoints);
+  final path = policy.pathFor(prize.exchangePoints); // intensity와 독립 발급
   final hero = prize.imageRef;
 
   switch (prize) {
@@ -146,13 +160,14 @@ RevealDescriptor buildRevealDescriptor(
             : RevealProfile.sealedMysteryRaw,
         openingHeader: header,
         clues: [
+          RevealClue(RevealClueKind.set, p.setDisplayName),
           const RevealClue(RevealClueKind.condition, 'RAW'),
           RevealClue(RevealClueKind.rarity, p.rarityCode.label),
-          RevealClue(RevealClueKind.set, p.setDisplayName),
           RevealClue(RevealClueKind.name, p.displayName),
         ],
         heroImageRef: hero,
         intensity: intensity,
+        path: path,
       );
     case GradedCardPrize p:
       return RevealDescriptor(
@@ -161,14 +176,15 @@ RevealDescriptor buildRevealDescriptor(
             : RevealProfile.sealedMysteryGraded,
         openingHeader: header,
         clues: [
+          RevealClue(RevealClueKind.set, p.setDisplayName),
           RevealClue(RevealClueKind.gradingCompany, p.gradingCompany.label),
           RevealClue(RevealClueKind.gradeValue, p.gradeValue),
           RevealClue(RevealClueKind.rarity, p.rarityCode.label),
-          RevealClue(RevealClueKind.set, p.setDisplayName),
           RevealClue(RevealClueKind.name, p.displayName),
         ],
         heroImageRef: hero,
         intensity: intensity,
+        path: path,
       );
     case SealedPackPrize p:
       return RevealDescriptor(
@@ -180,6 +196,7 @@ RevealDescriptor buildRevealDescriptor(
         ],
         heroImageRef: hero,
         intensity: intensity,
+        path: path,
       );
     case GoodsPrize p:
       return RevealDescriptor(
@@ -191,6 +208,7 @@ RevealDescriptor buildRevealDescriptor(
         ],
         heroImageRef: hero,
         intensity: intensity,
+        path: path,
       );
   }
 }

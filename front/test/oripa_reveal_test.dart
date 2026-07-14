@@ -27,7 +27,7 @@ void main() {
   });
 
   group('RevealDescriptor 파생 (번호 오리파=확정형)', () {
-    test('RAW → numberedConfirmRaw, clue 4개(CONDITION·RARITY·SET·NAME), 헤더', () {
+    test('RAW → numberedConfirmRaw, clue 4개(SET·CONDITION·RARITY·NAME), 헤더', () {
       const p = RawCardPrize(
         id: 'x', displayName: '블래키 ex',
         imageRef: ImageRef.asset('a.png'), exchangePoints: 280000,
@@ -38,15 +38,16 @@ void main() {
       expect(d.openingHeader, '47번 당첨');
       expect(d.clueBeatCount, 4);
       expect(d.clues.map((c) => c.kind), [
-        RevealClueKind.condition, RevealClueKind.rarity,
-        RevealClueKind.set, RevealClueKind.name,
+        RevealClueKind.set, RevealClueKind.condition,
+        RevealClueKind.rarity, RevealClueKind.name,
       ]);
-      expect(d.clues[0].text, 'RAW');
-      expect(d.clues[1].text, 'SAR');
+      expect(d.clues[0].text, '테라스탈 페스타 ex');
+      expect(d.clues[1].text, 'RAW');
+      expect(d.clues[2].text, 'SAR');
       expect(d.clues[3].text, '블래키 ex');
     });
 
-    test('GRADED → numberedConfirmGraded, clue 5개(COMPANY·GRADE·RARITY·SET·NAME)', () {
+    test('GRADED → numberedConfirmGraded, clue 5개(SET·COMPANY·GRADE·RARITY·NAME)', () {
       const p = GradedCardPrize(
         id: 'g', displayName: '팽도리',
         imageRef: ImageRef.asset('a.png'), exchangePoints: 120000,
@@ -57,7 +58,7 @@ void main() {
       expect(d.profile, RevealProfile.numberedConfirmGraded);
       expect(d.clueBeatCount, 5);
       expect(d.clues.map((c) => c.text).toList(),
-          ['BRG', '10', 'AR', '인페르노', '팽도리']);
+          ['인페르노', 'BRG', '10', 'AR', '팽도리']);
     });
 
     test('PACK/GOODS → 2 clue(CATEGORY·NAME), 카드 단서 없음', () {
@@ -120,6 +121,38 @@ void main() {
     });
   });
 
+  group('RevealPath: 교환P 임계 → path (intensity와 독립, LOCKED §3-9)', () {
+    test('pathFor 임계 경계값 — rareAt 미만=normal, rareAt 이상=hit', () {
+      const pol = RevealPolicy();
+      expect(pol.pathFor(0), RevealPath.normal);
+      expect(pol.pathFor(RevealPolicy.rareAt - 1), RevealPath.normal);
+      expect(pol.pathFor(RevealPolicy.rareAt), RevealPath.hit);
+      expect(pol.pathFor(RevealPolicy.hitAt), RevealPath.hit);
+      expect(pol.pathFor(RevealPolicy.jackpotAt), RevealPath.hit);
+    });
+
+    test('★불변식: effectsEnabled=false여도 rareAt 이상이면 path=hit 유지 (intensity만 normal)', () {
+      const off = RevealPolicy(effectsEnabled: false);
+      expect(off.intensityFor(RevealPolicy.rareAt), RevealIntensity.normal);
+      expect(off.pathFor(RevealPolicy.rareAt), RevealPath.hit);
+      expect(off.pathFor(500000), RevealPath.hit);
+    });
+
+    test('★불변식: maxIntensity=normal 캡이어도 rareAt 이상이면 path=hit 유지', () {
+      const capped = RevealPolicy(maxIntensity: RevealIntensity.normal);
+      expect(capped.intensityFor(RevealPolicy.rareAt), RevealIntensity.normal);
+      expect(capped.pathFor(RevealPolicy.rareAt), RevealPath.hit);
+      expect(capped.pathFor(500000), RevealPath.hit);
+    });
+
+    test('buildRevealDescriptor가 path 원자 발급 (2,000P→normal / 280,000P→hit)', () {
+      const cheap = RawCardPrize(id: 'c', displayName: 'c', imageRef: ImageRef.asset('a.png'), exchangePoints: 2000, rarityCode: RarityCode.rr, setDisplayName: 's');
+      const dear = RawCardPrize(id: 'd', displayName: 'd', imageRef: ImageRef.asset('a.png'), exchangePoints: 280000, rarityCode: RarityCode.sar, setDisplayName: 's');
+      expect(buildRevealDescriptor(cheap, number: 1).path, RevealPath.normal);
+      expect(buildRevealDescriptor(dear, number: 1).path, RevealPath.hit);
+    });
+  });
+
   group('데모 상품 draw 가능성 (override 번호 un-taken)', () {
     test('o1 Graded/Pack/Goods 번호는 초기 taken에 없어 draw 가능', () {
       final taken = OripaDraw.initialTaken('o1', 100, 37);
@@ -136,18 +169,18 @@ void main() {
   });
 
   group('리빌 프로토타입 fixture (실제 draw와 독립)', () {
-    test('RAW_HIT fixture → RAW·SAR·테라스탈·블래키, HIT 강도', () {
+    test('RAW_HIT fixture → 테라스탈·RAW·SAR·블래키, HIT 강도', () {
       final d = buildRevealDescriptor(RevealFixtures.rawHit, number: 47);
       expect(d.profile, RevealProfile.numberedConfirmRaw);
       expect(d.clues.map((c) => c.text).toList(),
-          ['RAW', 'SAR', '테라스탈 페스타 ex', '블래키 ex']);
+          ['테라스탈 페스타 ex', 'RAW', 'SAR', '블래키 ex']);
       expect(d.intensity, RevealIntensity.hit);
     });
-    test('GRADED_HIT fixture → BRG·10·AR·인페르노·팽도리', () {
+    test('GRADED_HIT fixture → 인페르노·BRG·10·AR·팽도리', () {
       final d = buildRevealDescriptor(RevealFixtures.gradedHit, number: 18);
       expect(d.profile, RevealProfile.numberedConfirmGraded);
       expect(d.clues.map((c) => c.text).toList(),
-          ['BRG', '10', 'AR', '인페르노', '팽도리']);
+          ['인페르노', 'BRG', '10', 'AR', '팽도리']);
       expect(d.intensity, RevealIntensity.hit);
     });
     test('RAW_NORMAL fixture → clue 4개, NORMAL 강도 (RAW_HIT와 비트 수 동일)', () {

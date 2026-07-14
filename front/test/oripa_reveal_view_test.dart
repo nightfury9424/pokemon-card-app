@@ -7,7 +7,7 @@ import 'package:front/features/oripa/draw/reveal_view.dart';
 /// RevealView 애니 + 안전 계약 (spec §B-2·B-5, GPT 안전계약).
 void main() {
   final descriptor = buildRevealDescriptor(RevealFixtures.rawHit, number: 47);
-  // clue: RAW · SAR · 테라스탈 페스타 ex · 블래키 ex (4)
+  // clue: 테라스탈 페스타 ex · RAW · SAR · 블래키 ex (4)
 
   String? clue(WidgetTester t) =>
       t.widget<Text>(find.byKey(const Key('reveal_clue'))).data;
@@ -37,19 +37,19 @@ void main() {
   Future<void> settle(WidgetTester t) =>
       t.pump(const Duration(milliseconds: 6000));
 
-  testWidgets('오프닝 락 → openingLock 후 첫 clue(RAW)', (t) async {
+  testWidgets('오프닝 락 → openingLock 후 첫 clue(세트)', (t) async {
     await mount(t);
     expect(clue(t), '');
     await t.pump(const Duration(milliseconds: 901));
-    expect(clue(t), 'RAW');
+    expect(clue(t), '테라스탈 페스타 ex');
     await settle(t);
   });
 
-  testWidgets('clue 자동 진행 (RAW→SAR)', (t) async {
+  testWidgets('clue 자동 진행 (세트→RAW)', (t) async {
     await mount(t);
     await t.pump(const Duration(milliseconds: 901));
     await t.pump(const Duration(milliseconds: 911));
-    expect(clue(t), 'SAR');
+    expect(clue(t), 'RAW');
     await settle(t);
   });
 
@@ -58,7 +58,7 @@ void main() {
     await t.pump(const Duration(milliseconds: 901));
     await t.tap(find.byType(RevealView));
     await t.pump();
-    expect(clue(t), 'SAR');
+    expect(clue(t), 'RAW');
     await settle(t);
   });
 
@@ -149,7 +149,7 @@ void main() {
         onHero: () => order.add('hero'),
         onResult: () => order.add('result'));
     await t.pump(const Duration(milliseconds: 901));
-    expect(clue(t), 'RAW'); // clue 순서 유지
+    expect(clue(t), '테라스탈 페스타 ex'); // clue 순서 유지
     for (var i = 0; i < 4; i++) {
       await t.tap(find.byType(RevealView));
       await t.pump();
