@@ -82,7 +82,7 @@ class PackVisualConfig {
 | `pfHoloA` | `docs/assets/oripa/templates/pf_holo_a.png` | 홀로 포일(화려) | 중앙 홀로줄 → 텍스트는 상/하 영역 위주 |
 | `pfNavyGoldB` | `docs/assets/oripa/templates/pf_navy_gold_b.png` | 딥네이비+골드프레임(프리미엄) | 중앙 깨끗·아우라 안전·재사용 최적 |
 | `pfSilverC` | `docs/assets/oripa/templates/pf_silver_c.png` | 미니멀 실버 | 어두운 무대 분리 최적 |
-> 현재 자산 = 9-up 그리드에서 크롭한 **프리뷰**. 확정 시 각 템플릿 **풀해상도 단독 렌더 재출력 + 컷아웃 + `ORIPA_PACK_ASSET.md` §3 레이어 파생** 필요.
+> ⚠️ 현재 `docs/assets/oripa/templates/*.png` = 9-up 그리드에서 크롭한 **225×315 저해상도 리뷰 썸네일**(카탈로그 참조용). **앱 자산 아님** — `front/assets/`에 넣지 말 것. 확정 시 각 템플릿 **독립 풀해상도(≥1200×1985) 투명 원본 재생성 → 알파 QA(`ORIPA_PACK_ASSET.md` §4.0) → 레이어 파생 → 780×1290**.
 
 ## 8. 절차
 1. (이번) 템플릿 3종 자산 정리 + 안전영역 + 파트너센터 미리보기 UI 설계.
