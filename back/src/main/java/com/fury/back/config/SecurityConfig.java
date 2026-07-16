@@ -5,6 +5,7 @@ import com.fury.back.auth.DeletedUserGuardFilter;
 import com.fury.back.auth.InternalTokenFilter;
 import com.fury.back.auth.JwtAuthFilter;
 import com.fury.back.auth.OnboardingGuardFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -58,6 +59,15 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 무효/만료/부재 토큰은 401 — Spring 기본(403)이면 클라가 세션 만료를 감지 못해
+                // 재로그인 유도 없이 빈 화면에 갇힌다(2026-07-16 사건). 클라 전역 핸들러는 401만
+                // isAuthError(강제 로그아웃) 처리. 인증됐지만 권한 없는 요청은 종전대로 403.
+                .exceptionHandling(e -> e.authenticationEntryPoint((request, response, authException) -> {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write(
+                            "{\"success\":false,\"message\":\"로그인이 만료되었습니다. 다시 로그인해주세요.\",\"code\":\"AUTH_REQUIRED\"}");
+                }))
                 .authorizeHttpRequests(auth -> {
                     // 0. /api/auth/dev/** — 개발용 로그인 endpoint (Codex Critical 4).
                     //    prod에선 누구나 JWT 발급 차단 (devLoginEnabled=false → denyAll).

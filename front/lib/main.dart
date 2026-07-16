@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'core/auth/auth_state.dart';
 import 'core/network/api_client.dart';
@@ -39,16 +40,14 @@ Future<void> main() async {
     }
     if (action.clearAuthSession) {
       // 토큰 만료 → 토큰 폐기 + 세션 캐시 초기화 + 로그아웃 전환(silent 여도 항상).
-      TokenStorage.delete();
-      HomeSessionCache.clear(); // 재로그인 시 이전 유저 자산/포트폴리오 홈 잔존 방지(logout 경로와 동일)
-      // ★401 silent 로그아웃도 명시 logout()과 동일하게 private 이미지 캐시 클리어(보안).
-      // 메모리는 즉시(동기) 비우고 디스크는 비동기 emptyCache — 콜백이 동기라 fire-and-forget.
-      clearAuthImageCache();
-      AuthState.instance.markLoggedOut();
+      _clearSessionAndLogout();
     }
   });
 
   await AuthState.instance.bootstrap();
+  if (AuthState.instance.loggedIn) {
+    _probeSession(); // fire-and-forget — 저장 토큰이 죽어 있으면 로그인 화면으로 전환
+  }
   // FCM 푸시 init (GoogleService-Info.plist 없으면 guard로 무해). 권한 요청 비동기 — runApp 블록 X.
   // init 완료(Firebase+권한+APNs) 후, 이미 로그인 상태면 토큰 등록(앱 재시작 케이스).
   // 미로그인이면 로그인 흐름(auth_service)에서 registerToken 호출.
@@ -62,6 +61,34 @@ Future<void> main() async {
     ChatSocketService.connect();
   }
   runApp(const PokemonCardApp());
+}
+
+/// 토큰 폐기 + 세션 캐시 초기화 + 로그아웃 전환. 전역 401 핸들러와 부팅 probe가 공유.
+void _clearSessionAndLogout() {
+  TokenStorage.delete();
+  HomeSessionCache.clear(); // 재로그인 시 이전 유저 자산/포트폴리오 홈 잔존 방지(logout 경로와 동일)
+  // ★401 silent 로그아웃도 명시 logout()과 동일하게 private 이미지 캐시 클리어(보안).
+  // 메모리는 즉시(동기) 비우고 디스크는 비동기 emptyCache — 콜백이 동기라 fire-and-forget.
+  clearAuthImageCache();
+  AuthState.instance.markLoggedOut();
+}
+
+/// 부팅 시 저장 토큰이 서버에서 아직 유효한지 확인(2026-07-16 사건: 죽은 토큰으로
+/// "로그인됨" 진입 → 전 화면 조용한 빈 화면). 401은 전역 핸들러가 로그아웃 처리하므로,
+/// 여기서는 401을 못 주는 구버전 서버의 '코드 없는 403'만 추가로 처리한다.
+/// 네트워크 오류/타임아웃은 판단 불가 → 세션 유지(오프라인 시작에서 로그아웃 금지).
+Future<void> _probeSession() async {
+  try {
+    await ApiClient.get('/api/users/me', silent: true);
+  } on DioException catch (err) {
+    final data = err.response?.data;
+    final code = (data is Map && data['code'] is String) ? data['code'] as String : null;
+    if (err.response?.statusCode == 403 && code == null) {
+      _clearSessionAndLogout();
+    }
+  } catch (_) {
+    // 분류 불가 오류 — 세션 유지.
+  }
 }
 
 class PokemonCardApp extends StatelessWidget {
