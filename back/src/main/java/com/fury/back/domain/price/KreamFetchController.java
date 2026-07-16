@@ -86,20 +86,24 @@ public class KreamFetchController {
             return Map.<String, Object>of("ok", false);
         }
         try {
-            LocalDateTime maxExisting = priceSnapshotRepository
-                    .findFirstByCardIdAndSourceOrderByTradedAtDesc(cardId, "KREAM")
-                    .map(PriceSnapshot::getTradedAt)
-                    .orElse(null);
+            // 카드별 MAX(traded_at) 캐시 — 멀티카드 ingest 지원 (cardId 없는 기존 agent 는 설정 기본값)
+            java.util.Map<String, LocalDateTime> maxByCard = new java.util.HashMap<>();
             int inserted = 0;
             List<Sale> sales = body.sales() == null ? List.of() : body.sales();
             for (Sale s : sales) {
+                String cid = (s.cardId() == null || s.cardId().isBlank()) ? cardId : s.cardId();
+                LocalDateTime maxExisting = maxByCard.computeIfAbsent(cid, c ->
+                        priceSnapshotRepository
+                                .findFirstByCardIdAndSourceOrderByTradedAtDesc(c, "KREAM")
+                                .map(PriceSnapshot::getTradedAt)
+                                .orElse(null));
                 LocalDateTime tradedAt = LocalDateTime.parse(s.tradedAt());
                 // incremental dedupe — 기존 MAX 이후만 (agent 가 afterTradedAt 으로 이미 필터하지만 이중 가드).
                 if (maxExisting != null && !tradedAt.isAfter(maxExisting)) continue;
                 String status = s.cardStatus() == null ? "RAW" : s.cardStatus();
                 priceSnapshotRepository.save(PriceSnapshot.builder()
                         .priceSnapshotId(IdGenerator.generate())
-                        .cardId(cardId)
+                        .cardId(cid)
                         .source("KREAM")
                         .price(s.price())
                         .cardStatus(status)
@@ -131,7 +135,8 @@ public class KreamFetchController {
 
     public record IngestRequest(List<Sale> sales, String error) {}
 
-    /** 맥북 agent 가 크롤한 KREAM 체결 1건. tradedAt 은 ISO LocalDateTime 문자열. */
+    /** 맥북 agent 가 크롤한 KREAM 체결 1건. tradedAt 은 ISO LocalDateTime 문자열.
+     *  cardId 는 멀티카드용(옵션) — 없으면 설정 기본값(메타몽) 사용, 기존 agent 하위호환. */
     public record Sale(String cardStatus, String gradingCompany, String gradeValue,
-                       String title, int price, String tradedAt) {}
+                       String title, int price, String tradedAt, String cardId) {}
 }
