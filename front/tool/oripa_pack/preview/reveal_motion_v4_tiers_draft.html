@@ -75,10 +75,11 @@
   .face.back .wm{position:absolute;left:0;right:0;bottom:14%;text-align:center;
     color:rgba(255,255,255,.5);font-size:10px;font-weight:800;letter-spacing:.32em;text-indent:.32em}
   .face.front{transform:rotateY(180deg);background:#101826;display:flex;flex-direction:column}
-  .face.front .art{flex:1;margin:9px 9px 0;border-radius:8px;position:relative;overflow:hidden;
+  .face.front .art{flex:1;margin:9px;border-radius:8px;position:relative;overflow:hidden;
     display:grid;place-items:center}
   .face.front .nm{position:relative;z-index:2;font-weight:900;font-size:20px;text-shadow:0 2px 10px rgba(0,0,0,.55)}
-  .face.front .meta{display:flex;align-items:center;justify-content:space-between;padding:9px 12px 11px}
+  /* 메타 바 제거 — 실서비스 앞면은 실사 카드 이미지(정보가 카드에 인쇄됨). 언어판은 하단 결과 캡션에 유지 */
+  .face.front .meta{display:none}
   .face.front .set{color:var(--t2);font-size:10.5px}
   .face.front .chip{font:800 10px/1 var(--mono);padding:4px 7px;border-radius:5px;letter-spacing:.06em;
     background:rgba(255,255,255,.06)}
