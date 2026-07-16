@@ -140,7 +140,7 @@ exit code:
 | 메타몽 Pokemon Town 2025 | `CRD_205C20056CBF48F8B08D` | `508949` |
 | 잉어킹 메가 페스타 2026 | `CRD_D487A25786354189AF25` | `893073` |
 
-- **일일 수집(현행 표준) = `python/kream_multi_incremental.py`** — CDP(로그인 Chrome 9222) sales API 페이징으로 최근 3일치 전부 push. 잉어킹은 일 200건+이라 페이지 크롤(최근 ~20건)로는 유실 → API 페이징 필수. launchd `com.pokefolio.kream-multi` 매일 22:30.
+- **상시 수집(현행 표준) = `python/kream_multi_incremental.py`** — 메타몽 agent와 동일한 **무인 모델** (비로그인 curl_cffi, Chrome/CDP 불필요). 상품 페이지 `__NUXT_DATA__`(Nuxt 인덱스 참조 직렬화)에서 최근 체결 ~10건 파싱 → ingest push. 잉어킹 일 200건+ 대응 = launchd `com.pokefolio.kream-multi` **15분 간격**(StartInterval 900). Chrome은 대량 과거 백필 때만 일회성.
 - 서버 `POST /api/kream-agent/ingest` — Sale에 `cardId` 옵션 필드 추가(멀티카드), 카드별 MAX(traded_at) 멱등 dedupe. cardId 없으면 기존 기본값(메타몽) = 기존 agent 하위호환.
 - 새 KREAM 카드 추가 = ①CARD_ADD_FLOW/프로모 변형으로 카드 등록 ②`kream_multi_incremental.py`의 `TARGETS`에 (card_id, product_id) 한 줄 추가 ③백필은 같은 스크립트 OVERLAP_DAYS 크게 or 전용 크롤.
 - 잉어킹 백필 2026-07-16: 전체 2,443건(전부 Ungraded, 7/6~) 적층 완료. 스캐너 10벡터(add_catalog_card_vector.py, augment10) + S3 `cards/v1/special/{cardId}.png` + 셀프매치 1.0 검증.
