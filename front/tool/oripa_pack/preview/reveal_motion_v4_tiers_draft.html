@@ -566,7 +566,7 @@ C 없음·플립 / B 실버 1단계·플립 / A →골드 2단계·암전 축약
     const VS='attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
     const FS=[
       'precision highp float;',
-      'uniform float u_t,u_int,u_dark,u_surge;',
+      'uniform float u_t,u_int,u_dark,u_surge,u_rad;',
       'uniform vec2 u_center,u_half;',
       'uniform vec3 u_core,u_band,u_outer;',
       'float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
@@ -576,8 +576,8 @@ C 없음·플립 / B 실버 1단계·플립 / A →골드 2단계·암전 축약
       ' for(int i=0;i<5;i++){v+=a*noise(p);p=m*p;a*=.5;}return v;}',   // 5옥타브 + 회전행렬 (레퍼런스 레시피)
       'void main(){',
       ' vec2 p=gl_FragCoord.xy-u_center;',
-      ' vec2 q2=abs(p)-(u_half-vec2(18.));',
-      ' float dR=length(max(q2,vec2(0.)))+min(max(q2.x,q2.y),0.)-18.;', // 카드 라운드렉트 부호거리
+      ' vec2 q2=abs(p)-(u_half-vec2(u_rad));',
+      ' float dR=length(max(q2,vec2(0.)))+min(max(q2.x,q2.y),0.)-u_rad;', // 카드 라운드렉트 부호거리 (반경 스케일 연동)
       ' float dn=dR/u_half.x;',
       ' if(dn<-.06||dn>3.0){gl_FragColor=vec4(0.);return;}',
       ' float t=u_t;',
@@ -616,7 +616,7 @@ C 없음·플립 / B 실버 1단계·플립 / A →골드 2단계·암전 축약
       const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf);
       gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
       const loc=gl.getAttribLocation(pr,'a'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
-      for (const u of ['u_t','u_center','u_half','u_core','u_band','u_outer','u_int','u_dark','u_surge']) glU[u]=gl.getUniformLocation(pr,u);
+      for (const u of ['u_t','u_center','u_half','u_core','u_band','u_outer','u_int','u_dark','u_surge','u_rad']) glU[u]=gl.getUniformLocation(pr,u);
       gl.blendFunc(gl.ONE, gl.ONE); gl.enable(gl.BLEND);   // additive — 확정본(3.27.00) 발광 합성
       gl.viewport(0,0,400,760); glOK=true;
     }
@@ -630,6 +630,7 @@ C 없음·플립 / B 실버 1단계·플립 / A →골드 2단계·암전 축약
     gl.uniform1f(glU.u_t, s.t);
     gl.uniform2f(glU.u_center, ST.w/2, ST.h - s.cy);                    // GL 좌표는 y-up
     gl.uniform2f(glU.u_half, CARD.w*.5*1.04*sc2, CARD.h*.5*1.04*sc2);
+    gl.uniform1f(glU.u_rad, 20.*Math.max(1,sc2));                       // 모서리 반경 = 카드 스케일 연동
     gl.uniform3fv(glU.u_core, n(cCore)); gl.uniform3fv(glU.u_band, n(cBand)); gl.uniform3fv(glU.u_outer, n(cOut));
     gl.uniform1f(glU.u_int, corA); gl.uniform1f(glU.u_dark, nebA);
     gl.uniform1f(glU.u_surge, srg===undefined? s.surgeP : srg);
@@ -793,11 +794,13 @@ C 없음·플립 / B 실버 1단계·플립 / A →골드 2단계·암전 축약
       const PB2=PALS[s.palB], ign=s.heroIgnP;
       const L2=(a,b,m2)=>[a[0]+(b[0]-a[0])*m2|0, a[1]+(b[1]-a[1])*m2|0, a[2]+(b[2]-a[2])*m2|0];
       const tk=[.5,.85,1,1.18][Math.max(0,Math.min(3,s.stI))]||.5;
-      const hScl = s.kind==='stage' ? (ST.h*.62)/CARD.h : 1.08;      // HERO 확대 배율 추종
+      // HERO 배율 추종하되 구멍을 카드보다 살짝 작게(×.955) — 검은 틈·각진 귀퉁이 노출 방지
+      const hScl = (s.kind==='stage' ? (ST.h*.62)/CARD.h : 1.08)*.955;
       const hInt = .5*tk*ign*(.92+.08*Math.sin(s.t/700));            // 저강도 + 느린 숨쉬기
-      drawAura(s, hInt, (PB2.neb||0)*Math.max(0,ign*2-1)*.6,
+      // 등급 개성 유지: 스월(서지)·검은 베일을 그 등급의 사전 아우라 값 그대로 계승 (통일 금지)
+      drawAura(s, hInt, (PB2.neb||0)*ign,
         PB2.core, L2(PB2.core,PB2.band,ign), L2(PB2.core,PB2.outer,ign),
-        hScl, .25*ign*(PB2.neb?1:.5));
+        hScl, s.surgeP*.8*ign);
     }
     else if (glOK && k<=0.02){ gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT); }
     const dim = 1-s.blackP*.9;
