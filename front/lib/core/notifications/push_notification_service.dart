@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
 import '../network/api_client.dart';
+import '../../app/platform_app_config.dart';
 import '../notifiers/chat_unread_notifier.dart';
 import '../router/app_router.dart';
 import 'chat_socket_service.dart';
@@ -82,7 +83,8 @@ class PushNotificationService {
       }
       await ApiClient.post('/api/notifications/fcm-token', {
         'token': _token,
-        'platform': Platform.isIOS ? 'ios' : 'android',
+        // 플랫폼 분리(2026-07-20): 진입점이 설치한 AppConfig 기준(미설치 시 런타임 폴백 동일).
+        'platform': AppConfig.current.platformId,
       });
       debugPrint('[FCM] 토큰 등록 완료');
     } catch (e) {

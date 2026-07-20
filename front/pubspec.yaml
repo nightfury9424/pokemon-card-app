@@ -1,7 +1,7 @@
 name: front
 description: "포켓몬 카드 자산관리 앱"
 publish_to: 'none'
-version: 1.0.8+8
+version: 1.0.9+9
 
 environment:
   sdk: ^3.11.1

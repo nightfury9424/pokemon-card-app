@@ -42,7 +42,27 @@ echo "  TARGET   : $TARGET"
 echo "  BASE_URL : $BASE_URL"
 echo "════════════════════════════════════════════════════════"
 
-flutter build "$TARGET" --dart-define=BASE_URL="$BASE_URL" --release
+# ── 플랫폼 분리(2026-07-20): 릴리즈는 반드시 플랫폼 진입점으로 빌드 ──
+#   ipa            → lib/main_ios.dart     (iOS 셸: Apple 로그인 노출 등)
+#   apk/appbundle  → lib/main_android.dart (Android 셸: Apple 로그인 숨김 등)
+# 기본 lib/main.dart 는 flutter run/테스트용 폴백 — 릴리즈에 쓰지 않는다.
+case "$TARGET" in
+    ipa)            ENTRY="lib/main_ios.dart" ;;
+    apk|appbundle)  ENTRY="lib/main_android.dart" ;;
+esac
+
+# ── 빌드 번호 분리 ──
+# pubspec version(1.0.9+9)의 +9 는 Android versionCode 로 쓰인다.
+# iOS 는 ASC 관행대로 타임스탬프 빌드 번호를 오버라이드(직전 빌드보다 커야 수락).
+# → 두 스토어의 빌드 번호가 pubspec 한 줄에 묶이지 않는다.
+EXTRA_ARGS=()
+if [ "$TARGET" = "ipa" ]; then
+    IOS_BUILD_NUMBER="${IOS_BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
+    EXTRA_ARGS+=(--build-number="$IOS_BUILD_NUMBER")
+    echo "  iOS build number : $IOS_BUILD_NUMBER (타임스탬프, IOS_BUILD_NUMBER env 로 오버라이드 가능)"
+fi
+
+flutter build "$TARGET" -t "$ENTRY" --dart-define=BASE_URL="$BASE_URL" --release "${EXTRA_ARGS[@]}"
 
 echo ""
 echo "✓ Build complete."
