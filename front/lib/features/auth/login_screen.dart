@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../app/platform_app_config.dart';
 import '../../core/theme/app_colors.dart';
 import 'auth_service.dart';
 import '../../core/widgets/app_error_toast.dart';
@@ -133,17 +134,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 14),
                   _feature(Icons.swap_horiz_rounded, '안전한 카드 거래'),
                   const Spacer(flex: 3),
-                  // Apple — 다크모드 HIG: 흰색 솔리드 (primary)
-                  _socialButton(
-                    onPressed: _onAppleLogin,
-                    busy: _busy == 'apple',
-                    background: Colors.white,
-                    foreground: Colors.black,
-                    border: null,
-                    icon: const Icon(Icons.apple, size: 22, color: Colors.black),
-                    label: 'Apple로 시작하기',
-                  ),
-                  const SizedBox(height: 12),
+                  // Apple — 다크모드 HIG: 흰색 솔리드 (primary).
+                  // 플랫폼 분리(2026-07-20): Android 는 미노출(공백도 안 남김) — AppConfig 로만 통제.
+                  // 인증 서비스·백엔드 로직은 보존(렌더링만 분기).
+                  if (AppConfig.current.showAppleSignIn) ...[
+                    _socialButton(
+                      onPressed: _onAppleLogin,
+                      busy: _busy == 'apple',
+                      background: Colors.white,
+                      foreground: Colors.black,
+                      border: null,
+                      icon: const Icon(Icons.apple, size: 22, color: Colors.black),
+                      label: 'Apple로 시작하기',
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   // Google — 다크 surface (secondary)
                   _socialButton(
                     onPressed: _onGoogleLogin,

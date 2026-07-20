@@ -57,13 +57,28 @@ class _PhoneVerifyBody extends StatefulWidget {
   State<_PhoneVerifyBody> createState() => _PhoneVerifyBodyState();
 }
 
+/// 서버가 검증한 E.164(+8210…) → 한국 표시 형식(010-1234-5678).
+/// (top-level: 위젯 밖에서도 테스트 가능해야 해서 — 자동 인증 완료 표시의 번호 형식이 여기서 결정된다)
+String formatKrPhoneForDisplay(String e164) {
+  var d = e164.replaceAll(RegExp(r'\D'), '');
+  if (d.startsWith('82')) d = '0${d.substring(2)}';
+  if (d.length == 11) return '${d.substring(0, 3)}-${d.substring(3, 7)}-${d.substring(7)}';
+  if (d.length == 10) return '${d.substring(0, 3)}-${d.substring(3, 6)}-${d.substring(6)}';
+  return d;
+}
+
 class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
   final _phone = TextEditingController();
   final _otp = TextEditingController();
   String? _verificationId;
   bool _otpStep = false;
-  bool _busy = false;
+  bool _busy = false; // 수동 확인 → 서버 검증 중 (serverVerifying)
   bool _sendingOtp = false; // 낙관적 전환: OTP 화면 진입했으나 아직 SMS 발송 대기 중
+  // Android SMS 자동 확인(auto-retrieval/instant verification) 진행 중 — OTP 칸 대신 상태 표시.
+  bool _autoVerifying = false;
+  // 서버 /phone/verify 까지 성공 — **이때만** 완료 UI. Firebase credential 성공만으론 올리지 않는다.
+  bool _verified = false;
+  String? _verifiedPhone; // 서버가 검증한 authoritative 번호(E.164 → 표시 형식 변환)
   String? _error;
   int _resendIn = 0;
   Timer? _resendTimer;
@@ -130,7 +145,19 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: _toE164(_phone.text),
         timeout: const Duration(seconds: 60),
-        verificationCompleted: (cred) async => _completeWith(cred), // iOS 자동 인증
+        // Android SMS auto-retrieval / instant verification — Google Play 서비스가 이 기기에
+        // 도착한 문자를 자동 확인해 credential 을 만들어준다(iOS 아님 — 과거 주석이 반대였음).
+        // 자동 인증은 정상 흐름이므로 막지 않는다. 대신 사용자가 과정을 볼 수 있게
+        // autoVerifying 상태를 표시하고, 서버 검증까지 끝나야 완료 UI 로 간다.
+        verificationCompleted: (cred) async {
+          if (!mounted || _verified || _busy || _autoVerifying) return;
+          setState(() {
+            _autoVerifying = true;
+            _sendingOtp = false;
+            _error = null;
+          });
+          await _completeWith(cred);
+        },
         verificationFailed: (e) {
           if (mounted) setState(() {
                 _otpStep = false; // 폰 입력 단계로 되돌림
@@ -206,16 +233,31 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
           (res['data'] is Map && (res['data']['phoneVerified'] == true));
       if (!mounted) return;
       if (ok) {
-        Navigator.of(context).pop(true);
+        // 완료의 진실원 = 서버 /phone/verify 성공. 서버가 돌려준 phoneE164 가 authoritative —
+        // 입력값이 아니라 이 값을 표시한다(자동 인증이면 사용자가 입력한 적도 없다).
+        final e164 = (res['data'] is Map) ? res['data']['phoneE164'] as String? : null;
+        setState(() {
+          _verified = true;
+          _busy = false;
+          _autoVerifying = false;
+          _verifiedPhone = formatKrPhoneForDisplay(e164 ?? _phone.text);
+          _error = null;
+        });
+        // 완료 상태(번호 + 인증 완료 스위치 ON)를 잠깐 보여준 뒤 닫는다 —
+        // 이전엔 즉시 pop 이라 자동 인증 시 아무 피드백 없이 시트가 사라졌다(오너 지적).
+        await Future.delayed(const Duration(milliseconds: 1000));
+        if (mounted) Navigator.of(context).pop(true);
       } else {
         setState(() {
           _busy = false;
+          _autoVerifying = false; // 자동 인증이었어도 수동 OTP 입력으로 fallback
           _error = (res['message'] as String?) ?? '인증에 실패했어요';
         });
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) setState(() {
             _busy = false;
+            _autoVerifying = false;
             _error = _mapErr(e);
           });
     } catch (e) {
@@ -224,6 +266,7 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
       } catch (_) {}
       if (mounted) setState(() {
             _busy = false;
+            _autoVerifying = false;
             _error = '인증 처리에 실패했어요. 다시 시도해주세요';
           });
     }
@@ -263,7 +306,10 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
               Align(
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(false),
+                  // 자동/서버 검증 진행 중·완료 표시 중엔 닫기 비활성 — 중복 조작·상태 유실 방지.
+                  onTap: (_autoVerifying || _busy || _verified)
+                      ? null
+                      : () => Navigator.of(context).pop(false),
                   behavior: HitTestBehavior.opaque,
                   child: const Padding(
                     padding: EdgeInsets.all(4),
@@ -283,16 +329,81 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
                   letterSpacing: -0.4)),
           const SizedBox(height: 6),
           Text(
-            _otpStep
-                ? (_sendingOtp
-                    ? '인증번호를 보내고 있어요…'
-                    : '문자로 받은 인증번호 6자리를 입력해주세요')
-                : '거래·채팅 신뢰를 위해 휴대폰 번호를 인증해요',
+            _verified
+                ? '전화번호 인증이 완료됐어요'
+                : _autoVerifying
+                    ? '문자를 자동으로 확인하고 있습니다…'
+                    : _otpStep
+                        ? (_sendingOtp
+                            ? '인증번호를 보내고 있어요…'
+                            : '문자로 받은 인증번호 6자리를 입력해주세요')
+                        : '거래·채팅 신뢰를 위해 휴대폰 번호를 인증해요',
             style: const TextStyle(
                 color: AppColors.textSecondary, fontSize: 13, height: 1.4),
           ),
           const SizedBox(height: 22),
-          if (!_otpStep) ...[
+          if (_verified) ...[
+            // ── 인증 완료: 서버가 검증한 번호(읽기 전용) + read-only 상태 스위치 ON ──
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _verifiedPhone ?? '',
+                      style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const _VerifiedSwitch(),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.check_circle_rounded, color: AppColors.blue, size: 18),
+                SizedBox(width: 6),
+                Text('전화번호 인증 완료',
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ] else if (_autoVerifying) ...[
+            // ── Android 자동 확인 중: OTP 칸 대신 상태 표시 (가짜 코드 채움 금지) ──
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.blue)),
+                  SizedBox(width: 12),
+                  Text('문자를 자동으로 확인하고 있습니다…',
+                      style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ] else if (!_otpStep) ...[
             TextField(
               controller: _phone,
               keyboardType: TextInputType.phone,
@@ -351,10 +462,11 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
                 style: const TextStyle(color: AppColors.red, fontSize: 12.5)),
           ],
           const SizedBox(height: 20),
+          if (!_verified)
           SizedBox(
             height: 52,
             child: ElevatedButton(
-              onPressed: (_busy || _sendingOtp)
+              onPressed: (_busy || _sendingOtp || _autoVerifying)
                   ? null
                   : (_otpStep ? _submitOtp : _sendCode),
               style: ElevatedButton.styleFrom(
@@ -366,7 +478,7 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
               ),
-              child: (_busy || _sendingOtp)
+              child: (_busy || _sendingOtp || _autoVerifying)
                   ? const SizedBox(
                       width: 20,
                       height: 20,
@@ -402,4 +514,59 @@ class _PhoneVerifyBodyState extends State<_PhoneVerifyBody> {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none),
       );
+}
+
+/// 인증 상태 표시용 **read-only 스위치**. 사용자 조작 컨트롤이 아니다 —
+/// 서버 검증 완료를 보여주는 indicator 이며, 탭해도 상태가 바뀌지 않는다.
+/// 등장 시 OFF→ON 으로 밀리는 애니메이션으로 "방금 인증됐다"를 보여준다.
+class _VerifiedSwitch extends StatefulWidget {
+  const _VerifiedSwitch();
+
+  @override
+  State<_VerifiedSwitch> createState() => _VerifiedSwitchState();
+}
+
+class _VerifiedSwitchState extends State<_VerifiedSwitch> {
+  bool _on = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 첫 프레임은 OFF 로 그린 뒤 ON 으로 — 전환 애니메이션이 보이게.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _on = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        width: 46,
+        height: 28,
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: _on ? AppColors.blue : AppColors.divider,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+          alignment: _on ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: 22,
+            height: 22,
+            decoration: const BoxDecoration(
+                color: Colors.white, shape: BoxShape.circle),
+            child: _on
+                ? const Icon(Icons.check_rounded,
+                    size: 16, color: AppColors.blue)
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
 }
