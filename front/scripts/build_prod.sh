@@ -62,6 +62,15 @@ if [ "$TARGET" = "ipa" ]; then
     echo "  iOS build number : $IOS_BUILD_NUMBER (타임스탬프, IOS_BUILD_NUMBER env 로 오버라이드 가능)"
 fi
 
+# CARD_CDN_BASE — 릴리즈는 CloudFront CDN 주입 필수(SESSION_HANDOFF "dart-define 2종").
+# env 미설정이면 코드 기본값(S3 직결)으로 빌드되므로 경고를 남긴다.
+if [ -n "${CARD_CDN_BASE:-}" ]; then
+    EXTRA_ARGS+=(--dart-define=CARD_CDN_BASE="$CARD_CDN_BASE")
+    echo "  CARD_CDN_BASE  : $CARD_CDN_BASE"
+else
+    echo "  WARNING: CARD_CDN_BASE 미설정 — 코드 기본값(S3 직결)으로 빌드됨. 정식 릴리즈면 CloudFront 값 주입 필요." >&2
+fi
+
 flutter build "$TARGET" -t "$ENTRY" --dart-define=BASE_URL="$BASE_URL" --release "${EXTRA_ARGS[@]}"
 
 echo ""
