@@ -30,7 +30,12 @@ class PushNotificationService {
     _ready = true;
 
     final messaging = FirebaseMessaging.instance;
-    await messaging.requestPermission(alert: true, badge: true, sound: true);
+    // Android 13+ 는 매니페스트 POST_NOTIFICATIONS 선언이 있어야 이 요청이 다이얼로그를
+    // 띄운다(1.0.9 에서 선언 추가 — 1.0.8 "허용해도 알림 안 옴" 원인). 결과를 버리지 않고
+    // 실제 승인 상태를 확인·기록한다(denied 여도 크래시 없이 조용히 비활성).
+    final settings =
+        await messaging.requestPermission(alert: true, badge: true, sound: true);
+    debugPrint('[FCM] 알림 권한: ${settings.authorizationStatus}');
     // 포그라운드: OS 시스템 배너는 끄고(alert:false) 앱 커스텀 인앱 배너로 대체 → 중복 방지.
     // badge/sound 는 유지.
     await messaging.setForegroundNotificationPresentationOptions(

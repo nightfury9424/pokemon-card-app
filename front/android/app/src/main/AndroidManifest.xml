@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Android 13+(API 33) 알림 게시 권한 — 이 선언이 없으면 requestPermission() 이
+         다이얼로그조차 못 띄우고 앱이 알림을 게시할 수 없다(1.0.8 "허용해도 알림 안 옴" 원인). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="포켓폴리오"
@@ -31,6 +34,11 @@
                 <data android:scheme="kakao389ea4ae7062c564a788297368d72285"/>
             </intent-filter>
         </activity>
+        <!-- FCM notification payload 의 기본 채널 — MainActivity 가 부팅 시 생성하는
+             high-importance 채널과 ID 일치(백그라운드/종료 상태 시스템 알림이 이 채널로 게시). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="pokefolio_default" />
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
